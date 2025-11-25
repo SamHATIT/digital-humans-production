@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Loader2, CheckCircle, Users, FileText, ArrowRight } from 'lucide-react';
+import { Play, Loader2, Users, FileText, ArrowRight, CheckCircle } from 'lucide-react';
 import { projects, executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
@@ -10,6 +10,9 @@ interface Project {
   id: number;
   name: string;
   description?: string;
+  business_requirements?: string;
+  salesforce_product?: string;
+  organization_type?: string;
   status: string;
   selected_agents?: string[];
 }
@@ -18,7 +21,7 @@ export default function ExecutionPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
-  const [selectedAgents, setSelectedAgents] = useState<string[]>(MANDATORY_AGENTS);
+  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
@@ -28,8 +31,12 @@ export default function ExecutionPage() {
       try {
         const data = await projects.get(Number(projectId));
         setProject(data);
+        // Use agents from project or default to all agents
         if (data.selected_agents && data.selected_agents.length > 0) {
           setSelectedAgents(data.selected_agents);
+        } else {
+          // Default: all agents
+          setSelectedAgents(AGENTS.map(a => a.id));
         }
       } catch (err) {
         console.error('Failed to fetch project:', err);
@@ -44,14 +51,6 @@ export default function ExecutionPage() {
     }
   }, [projectId]);
 
-  const toggleAgent = (agentId: string) => {
-    if (MANDATORY_AGENTS.includes(agentId)) return;
-
-    setSelectedAgents((prev) =>
-      prev.includes(agentId) ? prev.filter((a) => a !== agentId) : [...prev, agentId]
-    );
-  };
-
   const handleStartExecution = async () => {
     if (!project) return;
 
@@ -63,7 +62,11 @@ export default function ExecutionPage() {
       navigate(`/execution/${result.execution_id}/monitor`);
     } catch (err: any) {
       console.error('Failed to start execution:', err);
-      setError(err.message || 'Failed to start execution');
+      if (err.detail) {
+        setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail));
+      } else {
+        setError(err.message || 'Failed to start execution');
+      }
     } finally {
       setIsStarting(false);
     }
@@ -100,13 +103,13 @@ export default function ExecutionPage() {
         <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
       </div>
 
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-extrabold text-white">{project.name}</h1>
-          {project.description && (
-            <p className="mt-2 text-slate-400">{project.description}</p>
-          )}
+        <div className="mb-10 text-center">
+          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
+            Ready to Launch
+          </h1>
+          <p className="mt-2 text-slate-400">Review your project and start the AI execution</p>
         </div>
 
         {error && (
@@ -115,50 +118,76 @@ export default function ExecutionPage() {
           </div>
         )}
 
-        {/* Agent Selection */}
+        {/* Project Summary */}
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
+              <FileText className="w-5 h-5 text-cyan-400" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Project Summary</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <p className="text-sm text-slate-400">Project Name</p>
+              <p className="text-white font-medium">{project.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400">Salesforce Product</p>
+              <p className="text-white font-medium">{project.salesforce_product || 'Not specified'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400">Organization Type</p>
+              <p className="text-white font-medium">{project.organization_type || 'Not specified'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-400">Status</p>
+              <p className="text-cyan-400 font-medium capitalize">{project.status}</p>
+            </div>
+          </div>
+
+          {project.business_requirements && (
+            <div className="mt-4 pt-4 border-t border-slate-700">
+              <p className="text-sm text-slate-400 mb-2">Business Requirements</p>
+              <p className="text-slate-300 text-sm max-h-32 overflow-y-auto">
+                {project.business_requirements}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Selected Agents */}
         <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-8">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
               <Users className="w-5 h-5 text-purple-400" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Select Your AI Team</h2>
-              <p className="text-sm text-slate-400">Sophie & Olivia are always included</p>
+              <h2 className="text-xl font-bold text-white">AI Team ({selectedAgents.length} agents)</h2>
+              <p className="text-sm text-slate-400">These agents will work on your project</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {AGENTS.map((agent) => {
-              const isSelected = selectedAgents.includes(agent.id);
-              const isMandatory = MANDATORY_AGENTS.includes(agent.id);
+          <div className="flex flex-wrap gap-3">
+            {selectedAgents.map((agentId) => {
+              const agent = AGENTS.find(a => a.id === agentId);
+              if (!agent) return null;
+              const isMandatory = MANDATORY_AGENTS.includes(agentId);
 
               return (
-                <button
-                  key={agent.id}
-                  onClick={() => toggleAgent(agent.id)}
-                  disabled={isMandatory}
-                  className={`p-4 rounded-xl border transition-all text-center ${
-                    isSelected
-                      ? 'bg-cyan-500/20 border-cyan-500/50 shadow-lg shadow-cyan-500/10'
-                      : 'bg-slate-800/50 border-slate-600 hover:border-slate-500'
-                  } ${isMandatory ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
+                <div
+                  key={agentId}
+                  className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 rounded-xl border border-slate-600"
                 >
-                  <div className="flex justify-center mb-3">
-                    <Avatar
-                      src={agent.avatar}
-                      alt={agent.name}
-                      size="lg"
-                      isActive={isSelected}
-                    />
+                  <Avatar src={agent.avatar} alt={agent.name} size="sm" />
+                  <div>
+                    <p className="text-sm text-white font-medium">{agent.name}</p>
+                    <p className="text-xs text-slate-400">{agent.role}</p>
                   </div>
-                  <p className="font-medium text-white text-sm">{agent.name}</p>
-                  <p className="text-xs text-slate-400 mt-1">{agent.role}</p>
                   {isMandatory && (
-                    <span className="inline-block mt-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
-                      Required
-                    </span>
+                    <CheckCircle className="w-4 h-4 text-green-400" />
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -169,18 +198,18 @@ export default function ExecutionPage() {
           <button
             onClick={handleStartExecution}
             disabled={isStarting || selectedAgents.length === 0}
-            className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-lg font-medium rounded-xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-xl font-semibold rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
           >
             {isStarting ? (
               <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                Launching Agents...
+                <Loader2 className="w-7 h-7 animate-spin" />
+                Launching AI Agents...
               </>
             ) : (
               <>
-                <Play className="w-6 h-6" />
+                <Play className="w-7 h-7" />
                 Launch Execution
-                <ArrowRight className="w-5 h-5" />
+                <ArrowRight className="w-6 h-6" />
               </>
             )}
           </button>
