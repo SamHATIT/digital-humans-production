@@ -287,7 +287,7 @@ async def start_execution(
 
     # Validate PM agent is selected
     # Validate PM agent is selected (required for SDS generation)
-    if 'sophie' not in execution_data.selected_agents:
+    if 'pm' not in execution_data.selected_agents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product Manager (PM) agent is required and must be selected"
@@ -300,7 +300,7 @@ async def start_execution(
             "progress": 0,
             "message": "Waiting to start..."
         }
-        for agent_id in execution_data.selected_agents if agent_id != 'sophie'
+        for agent_id in execution_data.selected_agents if agent_id != 'pm'
     }
 
     # Create execution record

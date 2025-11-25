@@ -21,12 +21,13 @@ const PHASE_COLORS: Record<Phase, string> = {
 };
 
 const WorkflowEditor: React.FC<WorkflowEditorProps> = ({ onSelectionChange }) => {
+  // Use backend agent IDs: pm, ba, architect, apex, lwc, admin, qa, devops, data, trainer
   const [assignments, setAssignments] = useState<Record<Phase, string[]>>({
-    Discovery: ['sophie', 'olivia'],
-    Design: ['marcus'],
-    Build: ['diego', 'zara'],
-    QA: ['elena'],
-    Release: ['jordan'],
+    Discovery: ['pm', 'ba'],
+    Design: ['architect'],
+    Build: ['apex', 'lwc', 'admin', 'data'],
+    QA: ['qa'],
+    Release: ['devops', 'trainer'],
   });
 
   const [draggedAgent, setDraggedAgent] = useState<string | null>(null);
