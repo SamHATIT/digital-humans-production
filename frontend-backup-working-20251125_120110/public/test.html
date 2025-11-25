@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API Direct</title>
+</head>
+<body>
+    <h1>Test API Direct</h1>
+    <button onclick="testLogin()">Test Login</button>
+    <pre id="result"></pre>
+    
+    <script>
+    async function testLogin() {
+        const result = document.getElementById('result');
+        result.textContent = 'Testing...';
+        
+        try {
+            const response = await fetch('http://srv1064321.hstgr.cloud:8001/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: 'admin@samhatit.com',
+                    password: 'admin123'
+                })
+            });
+            
+            const data = await response.json();
+            result.textContent = JSON.stringify({
+                status: response.status,
+                statusText: response.statusText,
+                data: data
+            }, null, 2);
+        } catch (error) {
+            result.textContent = 'Error: ' + error.message;
+        }
+    }
+    </script>
+</body>
+</html>

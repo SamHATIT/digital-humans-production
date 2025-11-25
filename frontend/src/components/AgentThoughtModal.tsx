@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, Brain, FileCode, MessageSquare } from 'lucide-react';
 import Avatar from './ui/Avatar';
-import { Agent } from '../types';
+import { Agent } from '../constants';
 
 interface AgentThoughtModalProps {
   agent: Agent;

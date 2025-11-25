@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  # Override backend to use host PostgreSQL
+  backend:
+    environment:
+      DATABASE_URL: postgresql://digital_humans:DH_SecurePass2025!@host.docker.internal:5432/digital_humans_db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on: []

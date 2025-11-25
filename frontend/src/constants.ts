@@ -1,4 +1,12 @@
-import { Agent } from './types';
+// Agent type defined locally to avoid import issues
+export interface Agent {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  avatar: string;
+  isMandatory?: boolean;
+}
 
 // DEMO_MODE = false to use real backend
 export const DEMO_MODE = false;

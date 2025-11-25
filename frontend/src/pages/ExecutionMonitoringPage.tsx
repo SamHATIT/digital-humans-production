@@ -6,7 +6,7 @@ import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
 import { AGENTS } from '../constants';
-import { Agent } from '../types';
+import { Agent } from '../constants';
 
 interface AgentProgress {
   agent_name: string;
