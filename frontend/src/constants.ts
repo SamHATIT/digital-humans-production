@@ -1,4 +1,4 @@
-// Agent type defined locally to avoid import issues
+// Types defined locally to avoid import issues
 export interface Agent {
   id: string;
   name: string;
@@ -6,6 +6,13 @@ export interface Agent {
   description: string;
   avatar: string;
   isMandatory?: boolean;
+}
+
+export type Phase = 'Discovery' | 'Design' | 'Build' | 'QA' | 'Release';
+
+export interface WorkflowStage {
+  phase: Phase;
+  agents: string[];
 }
 
 // DEMO_MODE = false to use real backend

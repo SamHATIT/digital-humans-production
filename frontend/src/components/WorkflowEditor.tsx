@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AGENTS, MANDATORY_AGENTS } from '../constants';
-import { Phase, WorkflowStage } from '../types';
+import { Phase, WorkflowStage } from '../constants';
 import Avatar from './ui/Avatar';
 import { GripVertical, Lock, X } from 'lucide-react';
 
