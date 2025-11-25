@@ -1,0 +1,19 @@
+=================================================================
+     ADD THIS SSH KEY TO YOUR GITHUB ACCOUNT
+=================================================================
+
+STEP 1: Copy this SSH public key:
+-----------------------------------------------------------------
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOTkhrmhg73VC9Ze7y05uyZjuMi2W26eZkRKxZU1Ch/X sam@samhatit.com
+-----------------------------------------------------------------
+
+STEP 2: Add to GitHub:
+1. Go to: https://github.com/settings/keys
+2. Click "New SSH key" (green button)
+3. Title: "Digital Humans VPS Server"
+4. Key type: Authentication Key
+5. Paste the key above
+6. Click "Add SSH key"
+
+STEP 3: Tell me when done, and I'll push the repository!
+=================================================================

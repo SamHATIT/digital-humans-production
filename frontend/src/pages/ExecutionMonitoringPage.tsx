@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, ArrowLeft, Send, CheckCircle, Circle, Loader } from 'lucide-react';
+import { Download, ArrowLeft, Send, CheckCircle, Circle, Loader, AlertCircle } from 'lucide-react';
 import { executions, projects } from '../services/api';
 
 // Mapping complet des agents avec avatars large (400x400)
@@ -15,6 +15,20 @@ const AGENTS_INFO = {
   'data': { name: 'Aisha', role: 'Data Migration Specialist', avatar: '/avatars/large/aisha-data.png' },
   'trainer': { name: 'Lucas', role: 'Technical Trainer', avatar: '/avatars/large/lucas-trainer.png' },
   'pm': { name: 'Sophie', role: 'PM Orchestrator', avatar: '/avatars/large/sophie-pm.png' },
+};
+
+// Status mapping for consistent display
+const STATUS_CONFIG: Record<string, { label: string; bgColor: string; textColor: string }> = {
+  'pending': { label: 'PENDING', bgColor: 'bg-yellow-100', textColor: 'text-yellow-700' },
+  'running': { label: 'RUNNING', bgColor: 'bg-blue-100', textColor: 'text-blue-700' },
+  'completed': { label: 'COMPLETED', bgColor: 'bg-green-100', textColor: 'text-green-700' },
+  'failed': { label: 'FAILED', bgColor: 'bg-red-100', textColor: 'text-red-700' },
+  'cancelled': { label: 'CANCELLED', bgColor: 'bg-gray-100', textColor: 'text-gray-700' },
+};
+
+// Normalize status to lowercase
+const normalizeStatus = (status: string): string => {
+  return (status || '').toLowerCase().trim();
 };
 
 interface Task {
@@ -36,12 +50,13 @@ export default function ExecutionMonitoringPage() {
   
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentAgent, setCurrentAgent] = useState<string | null>(null);
-  const [executionStatus, setExecutionStatus] = useState<string>('running');
+  const [executionStatus, setExecutionStatus] = useState<string>('pending');
   const [project, setProject] = useState<any>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [sdsPath, setSdsPath] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (executionId) {
@@ -60,8 +75,9 @@ export default function ExecutionMonitoringPage() {
         setProject(projectData);
       }
       setIsLoading(false);
-    } catch (error) {
-      console.error('Error loading initial data:', error);
+    } catch (err: any) {
+      console.error('Error loading initial data:', err);
+      setError(err.message || 'Failed to load execution data');
       setIsLoading(false);
     }
   };
@@ -71,23 +87,27 @@ export default function ExecutionMonitoringPage() {
       const data = await executions.getDetailedProgress(Number(executionId));
       
       setTasks(data.tasks || []);
-      setExecutionStatus(data.status);
+      // Normalize status to lowercase
+      const normalizedStatus = normalizeStatus(data.status);
+      setExecutionStatus(normalizedStatus);
       setSdsPath(data.sds_document_path);
+      setError(null);
       
       // Trouver l'agent en cours
       const runningTask = data.tasks?.find((t: Task) => t.status === 'running');
       if (runningTask) {
         setCurrentAgent(runningTask.agent);
-      } else if (data.status === 'completed' || data.status === 'SDS Completed') {
+      } else if (normalizedStatus === 'completed') {
         setCurrentAgent('pm'); // Sophie pour la consolidation finale
       }
       
       // Arrêter le polling si terminé
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'SDS Completed') {
+      if (normalizedStatus === 'completed' || normalizedStatus === 'failed') {
         return; // Le interval sera nettoyé par useEffect cleanup
       }
-    } catch (error) {
-      console.error('Error fetching progress:', error);
+    } catch (err: any) {
+      console.error('Error fetching progress:', err);
+      setError(err.message || 'Failed to fetch progress');
     }
   };
 
@@ -111,8 +131,8 @@ export default function ExecutionMonitoringPage() {
         timestamp: new Date()
       };
       setChatMessages(prev => [...prev, pmMessage]);
-    } catch (error) {
-      console.error('Error sending message:', error);
+    } catch (err: any) {
+      console.error('Error sending message:', err);
     }
   };
 
@@ -122,8 +142,19 @@ export default function ExecutionMonitoringPage() {
     }
   };
 
+  // Get status display config
+  const getStatusConfig = (status: string) => {
+    const normalized = normalizeStatus(status);
+    return STATUS_CONFIG[normalized] || { label: status.toUpperCase(), bgColor: 'bg-gray-100', textColor: 'text-gray-700' };
+  };
+
+  const statusConfig = getStatusConfig(executionStatus);
   const completedCount = tasks.filter(t => t.status === 'completed').length;
   const totalCount = tasks.length;
+  
+  // Only show download button if status is completed AND sds_document_path exists
+  const canDownload = normalizeStatus(executionStatus) === 'completed' && !!sdsPath;
+  const isFailed = normalizeStatus(executionStatus) === 'failed';
 
   if (isLoading) {
     return (
@@ -160,13 +191,9 @@ export default function ExecutionMonitoringPage() {
             </div>
             
             <div className="flex items-center gap-3">
-              <div className={`px-4 py-2 rounded-lg font-medium text-sm ${
-                executionStatus === 'running' ? 'bg-blue-100 text-blue-700' :
-                executionStatus === 'SDS Completed' || executionStatus === 'completed' ? 'bg-green-100 text-green-700' :
-                executionStatus === 'failed' ? 'bg-red-100 text-red-700' :
-                'bg-gray-100 text-gray-700'
-              }`}>
-                {executionStatus.toUpperCase()}
+              <div className={`px-4 py-2 rounded-lg font-medium text-sm ${statusConfig.bgColor} ${statusConfig.textColor}`}>
+                {isFailed && <AlertCircle size={16} className="inline mr-1" />}
+                {statusConfig.label}
               </div>
               <div className="text-sm text-gray-600">
                 <span className="font-semibold">{completedCount}</span> / {totalCount} tasks
@@ -175,6 +202,16 @@ export default function ExecutionMonitoringPage() {
           </div>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
+            <AlertCircle size={20} className="inline mr-2" />
+            {error}
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 py-8">
@@ -229,7 +266,13 @@ export default function ExecutionMonitoringPage() {
 
           {/* Agent Display - Right 60% */}
           <div className="col-span-3 bg-white rounded-lg shadow-sm border border-gray-200 p-8 flex flex-col items-center justify-center min-h-[500px]">
-            {currentAgent && AGENTS_INFO[currentAgent as keyof typeof AGENTS_INFO] ? (
+            {isFailed ? (
+              <div className="text-center">
+                <AlertCircle size={64} className="mx-auto mb-4 text-red-500" />
+                <h2 className="text-2xl font-bold text-red-600 mb-2">Execution Failed</h2>
+                <p className="text-gray-600">An error occurred during execution. Please check the logs or try again.</p>
+              </div>
+            ) : currentAgent && AGENTS_INFO[currentAgent as keyof typeof AGENTS_INFO] ? (
               <div className="text-center animate-fadeIn">
                 <img
                   src={AGENTS_INFO[currentAgent as keyof typeof AGENTS_INFO].avatar}
@@ -245,10 +288,16 @@ export default function ExecutionMonitoringPage() {
                 <p className="text-xl text-gray-600 mb-4">
                   {AGENTS_INFO[currentAgent as keyof typeof AGENTS_INFO].role}
                 </p>
-                {executionStatus === 'running' && (
+                {normalizeStatus(executionStatus) === 'running' && (
                   <div className="flex items-center justify-center gap-2 text-blue-600">
                     <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
                     <span className="text-sm font-medium">Currently working...</span>
+                  </div>
+                )}
+                {normalizeStatus(executionStatus) === 'completed' && (
+                  <div className="flex items-center justify-center gap-2 text-green-600">
+                    <CheckCircle size={18} />
+                    <span className="text-sm font-medium">Execution completed successfully!</span>
                   </div>
                 )}
               </div>
@@ -298,19 +347,19 @@ export default function ExecutionMonitoringPage() {
               onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
               placeholder="Ask Sophie (PM) a question..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={executionStatus === 'failed'}
+              disabled={isFailed}
             />
             <button
               onClick={handleSendMessage}
-              disabled={!chatInput.trim() || executionStatus === 'failed'}
+              disabled={!chatInput.trim() || isFailed}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
             >
               <Send size={18} />
               <span>Send</span>
             </button>
             
-            {/* Download Button */}
-            {(executionStatus === 'SDS Completed' || executionStatus === 'completed') && sdsPath && (
+            {/* Download Button - Only shows when completed AND sdsPath exists */}
+            {canDownload && (
               <button
                 onClick={handleDownloadSDS}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center gap-2 font-medium"

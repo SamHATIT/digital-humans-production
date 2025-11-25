@@ -26,7 +26,7 @@ from app.schemas.execution import (
     ExecutionResultResponse,
     ExecutionProgress
 )
-from app.utils.dependencies import get_current_user
+from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.services.pm_orchestrator_service import execute_agents_background
 
 router = APIRouter(tags=["PM Orchestrator"])
@@ -331,7 +331,7 @@ async def start_execution(
 async def get_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Get current progress of an execution.
@@ -350,7 +350,7 @@ async def get_execution_progress(
     return {
         "execution_id": execution.id,
         "project_id": execution.project_id,
-        "status": execution.status,
+        "status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
         "progress": execution.progress or 0,
         "current_agent": execution.current_agent,
         "started_at": execution.started_at.isoformat() if execution.started_at else None,
@@ -502,7 +502,7 @@ async def list_available_agents(
 async def get_detailed_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Get detailed progress with agent tasks breakdown.
@@ -562,13 +562,13 @@ async def get_detailed_execution_progress(
     
     # Déterminer tâche en cours
     current_task_index = len([t for t in tasks if t["status"] == "completed"])
-    if current_task_index < len(tasks) and execution.status == "running":
+    if current_task_index < len(tasks) and execution.status == ExecutionStatus.RUNNING:
         tasks[current_task_index]["status"] = "running"
     
     return {
         "execution_id": execution_id,
         "project_id": execution.project_id,
-        "status": execution.status,
+        "status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
         "tasks": tasks,
         "current_task": next((t for t in tasks if t["status"] == "running"), None),
         "sds_document_path": execution.sds_document_path
