@@ -9,7 +9,9 @@ import { MANDATORY_AGENTS } from '../constants';
 export default function NewProject() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+  const [businessRequirements, setBusinessRequirements] = useState('');
+  const [salesforceProduct, setSalesforceProduct] = useState('Sales Cloud');
+  const [organizationType, setOrganizationType] = useState('New Implementation');
   const [selectedAgents, setSelectedAgents] = useState<string[]>(MANDATORY_AGENTS);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,6 +28,10 @@ export default function NewProject() {
       setError('Project name is required');
       return;
     }
+    if (!businessRequirements.trim() || businessRequirements.trim().length < 10) {
+      setError('Business requirements must be at least 10 characters');
+      return;
+    }
 
     setError('');
     setIsLoading(true);
@@ -33,18 +39,26 @@ export default function NewProject() {
     try {
       const project = await projects.create({
         name: name.trim(),
-        description: description.trim(),
-        client_name: 'Default Client',
-        industry: 'Technology',
-        company_size: 'Medium',
-        project_type: 'implementation',
+        description: businessRequirements.trim(),
+        salesforce_product: salesforceProduct,
+        organization_type: organizationType,
+        business_requirements: businessRequirements.trim(),
         selected_agents: selectedAgents,
       });
 
       navigate(`/execution/${project.id}`);
     } catch (err: any) {
       console.error('Failed to create project:', err);
-      setError(err.message || 'Failed to create project');
+      // Better error handling
+      if (err.detail) {
+        if (Array.isArray(err.detail)) {
+          setError(err.detail.map((e: any) => e.msg || e).join(', '));
+        } else {
+          setError(String(err.detail));
+        }
+      } else {
+        setError(err.message || 'Failed to create project');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -104,14 +118,51 @@ export default function NewProject() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-2">
-                  Business Requirements
+                  Salesforce Product *
                 </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all"
-                  placeholder="Describe your project goals..."
+                <select
+                  value={salesforceProduct}
+                  onChange={(e) => setSalesforceProduct(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all"
+                >
+                  <option value="Sales Cloud">Sales Cloud</option>
+                  <option value="Service Cloud">Service Cloud</option>
+                  <option value="Marketing Cloud">Marketing Cloud</option>
+                  <option value="Commerce Cloud">Commerce Cloud</option>
+                  <option value="Experience Cloud">Experience Cloud</option>
+                  <option value="Field Service">Field Service</option>
+                  <option value="CPQ">CPQ</option>
+                  <option value="Multiple Products">Multiple Products</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  Organization Type *
+                </label>
+                <select
+                  value={organizationType}
+                  onChange={(e) => setOrganizationType(e.target.value)}
+                  className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all"
+                >
+                  <option value="New Implementation">New Implementation</option>
+                  <option value="Existing Org Enhancement">Existing Org Enhancement</option>
+                  <option value="Migration">Migration</option>
+                  <option value="Integration Project">Integration Project</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  Business Requirements *
+                </label>
+                <textarea
+                  value={businessRequirements}
+                  onChange={(e) => setBusinessRequirements(e.target.value)}
+                  rows={5}
+                  className="w-full bg-slate-900/50 border border-slate-600 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-transparent outline-none transition-all resize-none"
+                  placeholder="Describe your business requirements, objectives, and key features needed (minimum 10 characters)..."
+                  required
                 />
               </div>
             </div>
@@ -142,7 +193,7 @@ export default function NewProject() {
 
               <button
                 type="submit"
-                disabled={isLoading || !name.trim()}
+                disabled={isLoading || !name.trim() || businessRequirements.trim().length < 10}
                 className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
