@@ -6,7 +6,16 @@ import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
 import { AGENTS } from '../constants';
-import { Agent } from '../constants';
+
+// Define Agent type inline - TypeScript types get erased at runtime
+interface Agent {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  avatar: string;
+  isMandatory?: boolean;
+}
 
 interface AgentProgress {
   agent_name: string;
@@ -79,7 +88,7 @@ export default function ExecutionMonitoringPage() {
   const handleAgentClick = (agentProgress: AgentProgress) => {
     const agent = AGENTS.find((a) => a.name.toLowerCase() === agentProgress.agent_name.toLowerCase());
     if (agent) {
-      setSelectedAgent(agent);
+      setSelectedAgent(agent as Agent);
       setSelectedAgentTask(agentProgress.current_task || agentProgress.output_summary || '');
     }
   };

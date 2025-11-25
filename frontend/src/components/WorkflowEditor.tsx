@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { AGENTS, MANDATORY_AGENTS } from '../constants';
-import { Phase, WorkflowStage } from '../constants';
 import Avatar from './ui/Avatar';
 import { GripVertical, Lock, X } from 'lucide-react';
+
+// Define types inline - TypeScript types get erased at runtime
+type Phase = 'Discovery' | 'Design' | 'Build' | 'QA' | 'Release';
 
 interface WorkflowEditorProps {
   onSelectionChange: (selectedAgents: string[]) => void;

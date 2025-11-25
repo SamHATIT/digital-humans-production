@@ -1,4 +1,8 @@
-// Types defined locally to avoid import issues
+// DEMO_MODE = false to use real backend
+export const DEMO_MODE = false;
+
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://srv1064321.hstgr.cloud:8002';
+
 export interface Agent {
   id: string;
   name: string;
@@ -7,18 +11,6 @@ export interface Agent {
   avatar: string;
   isMandatory?: boolean;
 }
-
-export type Phase = 'Discovery' | 'Design' | 'Build' | 'QA' | 'Release';
-
-export interface WorkflowStage {
-  phase: Phase;
-  agents: string[];
-}
-
-// DEMO_MODE = false to use real backend
-export const DEMO_MODE = false;
-
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://srv1064321.hstgr.cloud:8002';
 
 export const AGENTS: Agent[] = [
   { id: 'sophie', name: 'Sophie', role: 'Project Manager', description: 'Orchestrates the entire project lifecycle and ensures requirements are met.', avatar: '/avatars/sophie-pm.png', isMandatory: true },

@@ -1,7 +1,16 @@
 import React from 'react';
 import { X, Brain, FileCode, MessageSquare } from 'lucide-react';
 import Avatar from './ui/Avatar';
-import { Agent } from '../constants';
+
+// Define Agent type inline - TypeScript types get erased at runtime
+interface Agent {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  avatar: string;
+  isMandatory?: boolean;
+}
 
 interface AgentThoughtModalProps {
   agent: Agent;
