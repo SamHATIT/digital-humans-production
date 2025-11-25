@@ -1,0 +1,556 @@
+"""
+Agent Integration Service
+
+This service manages the execution of Salesforce AI agents.
+The agents are located in backend/agents/roles/*.py
+and are READ-ONLY - they can only be executed, never modified.
+
+Each agent generates comprehensive Salesforce specifications.
+"""
+
+import asyncio
+import subprocess
+import json
+import os
+import tempfile
+from typing import Dict, Any, List, Optional
+from pathlib import Path
+import logging
+import time
+
+from app.config import settings
+from app.models import AgentDeliverable
+from app.database import SessionLocal
+logger = logging.getLogger(__name__)
+
+# Path to the READ-ONLY Salesforce agents
+AGENTS_BASE_PATH = Path(__file__).resolve().parent.parent.parent / "agents" / "roles"
+
+# Agent definitions - matching actual filenames
+AGENT_ROLES = {
+    "ba": {
+        "name": "Olivia (Business Analyst)",
+        "file": "salesforce_business_analyst.py",
+        "required": True,
+        "description": "Analyzes business requirements and processes",
+        "order": 1,
+        "avatar": "/avatars/olivia-ba.png",
+        "estimated_time": 4
+    },
+    "architect": {
+        "name": "Marcus (Solution Architect)",
+        "file": "salesforce_solution_architect.py",
+        "required": False,
+        "description": "Designs technical architecture and integration strategy",
+        "order": 2,
+        "avatar": "/avatars/marcus-architect.png",
+        "estimated_time": 5
+    },
+    "apex": {
+        "name": "Diego (Apex Developer)",
+        "file": "salesforce_developer_apex.py",
+        "required": False,
+        "description": "Creates Apex classes, triggers, and backend logic",
+        "order": 3,
+        "avatar": "/avatars/diego-apex.png",
+        "estimated_time": 6
+    },
+    "lwc": {
+        "name": "Zara (LWC Developer)",
+        "file": "salesforce_developer_lwc.py",
+        "required": False,
+        "description": "Builds Lightning Web Components and UI",
+        "order": 4,
+        "avatar": "/avatars/zara-lwc.png",
+        "estimated_time": 5
+    },
+    "admin": {
+        "name": "Raj (Administrator)",
+        "file": "salesforce_admin.py",
+        "required": False,
+        "description": "Configures objects, fields, flows, and validation rules",
+        "order": 5,
+        "avatar": "/avatars/raj-admin.png",
+        "estimated_time": 4
+    },
+    "qa": {
+        "name": "Elena (QA Engineer)",
+        "file": "salesforce_qa_tester.py",
+        "required": False,
+        "description": "Creates test strategy and test cases",
+        "order": 6,
+        "avatar": "/avatars/elena-qa.png",
+        "estimated_time": 5
+    },
+    "devops": {
+        "name": "Jordan (DevOps Engineer)",
+        "file": "salesforce_devops.py",
+        "required": False,
+        "description": "Sets up CI/CD pipelines and deployment strategy",
+        "order": 7,
+        "avatar": "/avatars/jordan-devops.png",
+        "estimated_time": 4
+    },
+    "data": {
+        "name": "Aisha (Data Migration Specialist)",
+        "file": "salesforce_data_migration.py",
+        "required": False,
+        "description": "Designs data migration strategy and ETL processes",
+        "order": 8,
+        "avatar": "/avatars/aisha-data.png",
+        "estimated_time": 4
+    },
+    "trainer": {
+        "name": "Lucas (Trainer)",
+        "file": "salesforce_trainer.py",
+        "required": False,
+        "description": "Creates training materials and user documentation",
+        "order": 9,
+        "avatar": "/avatars/lucas-trainer.png",
+        "estimated_time": 3
+    }
+}
+
+
+class AgentExecutionError(Exception):
+    """Custom exception for agent execution errors"""
+    pass
+
+
+class AgentIntegrationService:
+    """Service for integrating and executing Salesforce AI agents"""
+
+    def __init__(self, agents_path: str = None):
+        if agents_path is None:
+            agents_path = str(AGENTS_BASE_PATH)
+        self.agents_path = Path(agents_path)
+        self.output_dir = Path(__file__).resolve().parent.parent.parent / "outputs"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._validate_agents_availability()
+
+    def _validate_agents_availability(self) -> None:
+        """Validate that all required agent files exist and are accessible"""
+        if not self.agents_path.exists():
+            logger.warning(f"Agents path does not exist: {self.agents_path}")
+            logger.warning("Agent execution will use placeholder mode")
+            return
+
+        missing_agents = []
+        for agent_id, config in AGENT_ROLES.items():
+            agent_file = self.agents_path / config["file"]
+            if not agent_file.exists():
+                missing_agents.append(f"{config['name']} ({config['file']})")
+
+        if missing_agents:
+            logger.warning(f"Missing agent files: {', '.join(missing_agents)}")
+            logger.warning("These agents will use placeholder outputs")
+
+    def get_available_agents(self) -> List[Dict[str, Any]]:
+        """Get list of all available agents with their metadata"""
+        agents = []
+        for agent_id, config in AGENT_ROLES.items():
+            agent_file = self.agents_path / config["file"]
+            agents.append({
+                "id": agent_id,
+                "name": config["name"],
+                "description": config["description"],
+                "required": config["required"],
+                "available": agent_file.exists() if self.agents_path.exists() else False,
+                "order": config["order"],
+                "avatar": config.get("avatar", ""),
+                "estimatedTime": config.get("estimated_time", 5)
+            })
+        return sorted(agents, key=lambda x: x["order"])
+
+    def _format_requirements_text(
+        self,
+        project_data: Dict[str, Any],
+        previous_outputs: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Format project_data and previous outputs into comprehensive requirements text
+        """
+        requirements_parts = []
+
+        # Project header
+        requirements_parts.append("=" * 80)
+        requirements_parts.append(f"SALESFORCE PROJECT: {project_data.get('name', 'Unnamed Project')}")
+        requirements_parts.append("=" * 80)
+        requirements_parts.append("")
+
+        # Product and Organization
+        requirements_parts.append("## PROJECT INFORMATION")
+        requirements_parts.append(f"- Salesforce Product: {project_data.get('salesforce_product', 'N/A')}")
+        requirements_parts.append(f"- Organization Type: {project_data.get('organization_type', 'N/A')}")
+        requirements_parts.append("")
+
+        # Business Requirements
+        if project_data.get('business_requirements'):
+            requirements_parts.append("## BUSINESS REQUIREMENTS")
+            requirements_parts.append(project_data['business_requirements'])
+            requirements_parts.append("")
+
+        # Technical Context
+        if project_data.get('existing_systems'):
+            requirements_parts.append("## EXISTING SYSTEMS")
+            requirements_parts.append(project_data['existing_systems'])
+            requirements_parts.append("")
+
+        if project_data.get('compliance_requirements'):
+            requirements_parts.append("## COMPLIANCE REQUIREMENTS")
+            requirements_parts.append(project_data['compliance_requirements'])
+            requirements_parts.append("")
+
+        # Scale Information
+        requirements_parts.append("## SCALE AND VOLUME")
+        if project_data.get('expected_users'):
+            requirements_parts.append(f"- Expected Users: {project_data['expected_users']}")
+        if project_data.get('expected_data_volume'):
+            requirements_parts.append(f"- Expected Data Volume: {project_data['expected_data_volume']}")
+        requirements_parts.append("")
+
+        # Architecture Preferences
+        if project_data.get('architecture_preferences'):
+            requirements_parts.append("## ARCHITECTURE PREFERENCES")
+            prefs = project_data['architecture_preferences']
+            if isinstance(prefs, dict):
+                for key, value in prefs.items():
+                    requirements_parts.append(f"- {key}: {value}")
+            else:
+                requirements_parts.append(str(prefs))
+            requirements_parts.append("")
+
+        if project_data.get('architecture_notes'):
+            requirements_parts.append("## ARCHITECTURE NOTES")
+            requirements_parts.append(project_data['architecture_notes'])
+            requirements_parts.append("")
+
+        # Previous outputs (if any)
+        if previous_outputs:
+            requirements_parts.append("=" * 80)
+            requirements_parts.append("OUTPUTS FROM PREVIOUS AGENTS")
+            requirements_parts.append("=" * 80)
+            requirements_parts.append("")
+            for agent_id, output in previous_outputs.items():
+                requirements_parts.append(f"## {agent_id.upper()} AGENT OUTPUT")
+                if isinstance(output, dict):
+                    requirements_parts.append(json.dumps(output, indent=2))
+                else:
+                    requirements_parts.append(str(output))
+                requirements_parts.append("")
+
+        return "\n".join(requirements_parts)
+
+    async def execute_agent(
+        self,
+        agent_id: str,
+        project_data: Dict[str, Any],
+        previous_outputs: Optional[Dict[str, Any]] = None,
+        timeout: int = 600
+    ) -> Dict[str, Any]:
+        """
+        Execute a single agent using CLI interface
+
+        Args:
+            agent_id: ID of the agent to execute (e.g., 'ba', 'architect')
+            project_data: Project information dictionary
+            previous_outputs: Outputs from previously executed agents
+            timeout: Execution timeout in seconds (default 10 minutes)
+
+        Returns:
+            Dictionary containing agent output and metadata
+
+        Raises:
+            AgentExecutionError: If agent execution fails
+        """
+        if agent_id not in AGENT_ROLES:
+            raise AgentExecutionError(f"Unknown agent ID: {agent_id}")
+
+        config = AGENT_ROLES[agent_id]
+        agent_file = self.agents_path / config["file"]
+
+        # Check if agent file exists
+        if not self.agents_path.exists() or not agent_file.exists():
+            logger.warning(f"Agent file not found: {agent_file}, using placeholder")
+            return self._generate_placeholder_output(agent_id, config, project_data)
+
+        try:
+            # Format requirements text
+            requirements_text = self._format_requirements_text(project_data, previous_outputs)
+
+            # Create temporary input file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+                f.write(requirements_text)
+                input_file = f.name
+
+            # Generate unique IDs
+            project_id = str(project_data.get('id', 'unknown'))
+            execution_id = f"{int(time.time())}"
+
+            # Define output file
+            output_filename = f"{project_id}_{execution_id}_{agent_id}.json"
+            output_file = self.output_dir / output_filename
+
+            try:
+                # Execute agent as subprocess
+                result = await self._run_agent_cli(
+                    agent_file=str(agent_file),
+                    input_file=input_file,
+                    output_file=str(output_file),
+                    project_id=project_id,
+                    execution_id=execution_id,
+                    timeout=timeout
+                )
+
+                return {
+                    "agent_id": agent_id,
+                    "agent_name": config["name"],
+                    "status": "completed",
+                    "output": {
+                        "file_path": str(output_file),
+                        "filename": output_filename
+                    },
+                    "execution_time": result["execution_time"],
+                    "log": result["log"],
+                    "error": None
+                }
+
+            finally:
+                # Clean up temp input file
+                try:
+                    os.unlink(input_file)
+                except:
+                    pass
+
+        except subprocess.TimeoutExpired:
+            error_msg = f"Agent {config['name']} exceeded timeout of {timeout}s"
+            logger.error(error_msg)
+            raise AgentExecutionError(error_msg)
+
+        except Exception as e:
+            error_msg = f"Error executing agent {config['name']}: {str(e)}"
+            logger.error(error_msg)
+            raise AgentExecutionError(error_msg)
+
+    async def _run_agent_cli(
+        self,
+        agent_file: str,
+        input_file: str,
+        output_file: str,
+        project_id: str,
+        execution_id: str,
+        timeout: int
+    ) -> Dict[str, Any]:
+        """
+        Run agent using CLI interface
+
+        Args:
+            agent_file: Path to the agent Python file
+            input_file: Path to input requirements file
+            output_file: Path for output Word document
+            project_id: Project ID
+            execution_id: Execution ID
+            timeout: Execution timeout in seconds
+
+        Returns:
+            Dictionary with execution time and log
+        """
+        start_time = time.time()
+
+        # Check if OPENAI_API_KEY is set
+        api_key = settings.OPENAI_API_KEY
+        if not api_key:
+            raise AgentExecutionError("OPENAI_API_KEY environment variable not set")
+
+        try:
+            # Execute the agent script with CLI arguments
+            process = await asyncio.create_subprocess_exec(
+                "python3",
+                agent_file,
+                "--input", input_file,
+                "--output", output_file,
+                "--project-id", project_id,
+                "--execution-id", execution_id,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env={**os.environ, "OPENAI_API_KEY": api_key}
+            )
+
+            # Wait for completion
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout
+            )
+
+            execution_time = time.time() - start_time
+
+            # Decode logs
+            stdout_text = stdout.decode('utf-8') if stdout else ""
+            stderr_text = stderr.decode('utf-8') if stderr else ""
+            
+            log_output = f"STDOUT:\n{stdout_text}\n\nSTDERR:\n{stderr_text}"
+
+            # Check return code
+            if process.returncode != 0:
+                raise AgentExecutionError(
+                    f"Agent failed with code {process.returncode}\n{log_output}"
+                )
+
+            # Verify output file was created
+            if not os.path.exists(output_file):
+                raise AgentExecutionError(
+                    f"Agent completed but output file not found: {output_file}\n{log_output}"
+                )
+
+            return {
+                "execution_time": execution_time,
+                "log": log_output
+            }
+
+        except asyncio.TimeoutError:
+            # Kill the process if it's still running
+            try:
+                process.kill()
+                await process.wait()
+            except:
+                pass
+            raise subprocess.TimeoutExpired(agent_file, timeout)
+
+    def _save_agent_deliverable(
+        self,
+        agent_output: Dict[str, Any],
+        execution_id: int,
+        agent_id: str
+    ) -> Optional[int]:
+        """
+        Save agent output to agent_deliverables table
+        
+        Args:
+            agent_output: JSON output from agent containing content and metadata
+            execution_id: Execution ID
+            agent_id: Agent ID (ba, architect, etc.)
+            
+        Returns:
+            Deliverable ID if saved, None otherwise
+        """
+        try:
+            db = SessionLocal()
+            
+            # Create deliverable record
+            deliverable = AgentDeliverable(
+                execution_id=execution_id,
+                agent_id=None,  # Foreign key to agents table (optional for now)
+                deliverable_type=agent_output.get("deliverable_type", f"{agent_id}_output"),
+                content=json.dumps(agent_output.get("content", {}), ensure_ascii=False),
+                content_metadata=agent_output.get("metadata", {})
+            )
+            
+            db.add(deliverable)
+            db.commit()
+            db.refresh(deliverable)
+            
+            deliverable_id = deliverable.id
+            db.close()
+            
+            logger.info(f"✅ Saved agent deliverable to DB: ID {deliverable_id}")
+            return deliverable_id
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save agent deliverable: {str(e)}")
+            if db:
+                db.close()
+            return None
+    def _generate_placeholder_output(
+        self,
+        agent_id: str,
+        config: Dict[str, Any],
+        project_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Generate placeholder output when agent file is not available
+        This is used for development/testing when agents are not yet deployed
+        """
+        project_name = project_data.get("name", "Unnamed Project")
+        return {
+            "agent_id": agent_id,
+            "agent_name": config["name"],
+            "status": "placeholder",
+            "output": {
+                "file_path": None,
+                "filename": None,
+                "placeholder_message": f"Agent {config['name']} would analyze project: {project_name}"
+            },
+            "execution_time": 0.1,
+            "log": f"[PLACEHOLDER] Agent {config['name']} would process project",
+            "error": "Agent file not available - using placeholder"
+        }
+
+    async def execute_multiple_agents(
+        self,
+        agent_ids: List[str],
+        project_data: Dict[str, Any],
+        callback: Optional[callable] = None
+    ) -> Dict[str, Any]:
+        """
+        Execute multiple agents sequentially
+
+        Args:
+            agent_ids: List of agent IDs to execute
+            project_data: Project information
+            callback: Optional async callback function for progress updates
+
+        Returns:
+            Dictionary with results for each agent
+        """
+        results = {}
+        total_agents = len(agent_ids)
+        previous_outputs = {}
+
+        for idx, agent_id in enumerate(agent_ids, 1):
+            if callback:
+                await callback({
+                    "agent_id": agent_id,
+                    "status": "running",
+                    "progress": (idx - 1) / total_agents * 100,
+                    "message": f"Executing {AGENT_ROLES[agent_id]['name']}..."
+                })
+
+            try:
+                result = await self.execute_agent(
+                    agent_id=agent_id,
+                    project_data=project_data,
+                    previous_outputs=previous_outputs
+                )
+                results[agent_id] = result
+                
+                # Store output for next agents
+                previous_outputs[agent_id] = result.get("output", {})
+
+                if callback:
+                    await callback({
+                        "agent_id": agent_id,
+                        "status": "completed",
+                        "progress": idx / total_agents * 100,
+                        "message": f"Completed {AGENT_ROLES[agent_id]['name']}",
+                        "result": result
+                    })
+
+            except Exception as e:
+                error_result = {
+                    "agent_id": agent_id,
+                    "agent_name": AGENT_ROLES[agent_id]["name"],
+                    "status": "failed",
+                    "error": str(e)
+                }
+                results[agent_id] = error_result
+
+                if callback:
+                    await callback({
+                        "agent_id": agent_id,
+                        "status": "failed",
+                        "progress": idx / total_agents * 100,
+                        "message": f"Failed {AGENT_ROLES[agent_id]['name']}: {str(e)}",
+                        "error": str(e)
+                    })
+
+        return results

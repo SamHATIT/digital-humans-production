@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:14-alpine
+    container_name: digital-humans-db
+    environment:
+      POSTGRES_DB: digital_humans_db
+      POSTGRES_USER: digital_humans
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - digital-humans-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U digital_humans"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: digital-humans-backend
+    environment:
+      DATABASE_URL: postgresql://digital_humans:${DB_PASSWORD:-changeme}@db:5432/digital_humans_db
+      SECRET_KEY: ${SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4
+      HOST: 0.0.0.0
+      PORT: 8002
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./backend:/app
+      - backend_outputs:/app/outputs
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - digital-humans-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: digital-humans-frontend
+    environment:
+      VITE_API_URL: http://localhost:8002/api
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - digital-humans-network
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_outputs:
+    driver: local
+
+networks:
+  digital-humans-network:
+    driver: bridge
