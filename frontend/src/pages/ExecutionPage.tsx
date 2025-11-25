@@ -1,84 +1,80 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Check, ArrowLeft } from 'lucide-react';
-import { AGENTS, calculateTotalTime, getAgentAvatar } from '../lib/constants';
+import { Play, Loader2, CheckCircle, Users, FileText, ArrowRight } from 'lucide-react';
 import { projects, executions } from '../services/api';
+import Navbar from '../components/Navbar';
+import Avatar from '../components/ui/Avatar';
+import { AGENTS, MANDATORY_AGENTS } from '../constants';
 
 interface Project {
   id: number;
   name: string;
-  salesforce_product: string;
-  organization_type: string;
-  business_requirements: string;
+  description?: string;
   status: string;
+  selected_agents?: string[];
 }
 
 export default function ExecutionPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  
   const [project, setProject] = useState<Project | null>(null);
-  const [selectedAgents, setSelectedAgents] = useState<string[]>(
-    AGENTS.filter(a => a.required).map(a => a.id)
-  );
-  const [isExecuting, setIsExecuting] = useState(false);
+  const [selectedAgents, setSelectedAgents] = useState<string[]>(MANDATORY_AGENTS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
+    const fetchProject = async () => {
+      try {
+        const data = await projects.get(Number(projectId));
+        setProject(data);
+        if (data.selected_agents && data.selected_agents.length > 0) {
+          setSelectedAgents(data.selected_agents);
+        }
+      } catch (err) {
+        console.error('Failed to fetch project:', err);
+        setError('Failed to load project');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     if (projectId) {
-      loadProject();
+      fetchProject();
     }
   }, [projectId]);
 
-  const loadProject = async () => {
-    try {
-      const data = await projects.get(Number(projectId));
-      setProject(data);
-    } catch (error) {
-      console.error('Error loading project:', error);
-      alert('Failed to load project');
-      navigate('/projects');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const toggleAgent = (agentId: string) => {
-    const agent = AGENTS.find(a => a.id === agentId);
-    if (agent?.required) return;
+    if (MANDATORY_AGENTS.includes(agentId)) return;
 
-    if (selectedAgents.includes(agentId)) {
-      setSelectedAgents(selectedAgents.filter(id => id !== agentId));
-    } else {
-      setSelectedAgents([...selectedAgents, agentId]);
-    }
+    setSelectedAgents((prev) =>
+      prev.includes(agentId) ? prev.filter((a) => a !== agentId) : [...prev, agentId]
+    );
   };
 
   const handleStartExecution = async () => {
-    if (!projectId) return;
+    if (!project) return;
+
+    setIsStarting(true);
+    setError('');
 
     try {
-      setIsExecuting(true);
-      
-      // Démarrer l'exécution - le backend gérera le statut
-      const result = await executions.start(Number(projectId), selectedAgents);
-      
-      // Rediriger vers la page de monitoring
+      const result = await executions.start(project.id, selectedAgents);
       navigate(`/execution/${result.execution_id}/monitor`);
-      
-    } catch (error: any) {
-      console.error('Error starting execution:', error);
-      alert(`Failed to start execution: ${error.message}`);
-      setIsExecuting(false);
+    } catch (err: any) {
+      console.error('Failed to start execution:', err);
+      setError(err.message || 'Failed to start execution');
+    } finally {
+      setIsStarting(false);
     }
   };
 
   if (isLoading) {
     return (
-      <div className="max-w-6xl mx-auto flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin h-12 w-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading project...</p>
+          <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mx-auto" />
+          <p className="text-slate-400 mt-4">Loading project...</p>
         </div>
       </div>
     );
@@ -86,170 +82,110 @@ export default function ExecutionPage() {
 
   if (!project) {
     return (
-      <div className="max-w-6xl mx-auto flex items-center justify-center min-h-screen">
+      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">Project not found</p>
-          <button onClick={() => navigate('/projects')} className="text-blue-600 hover:underline">
-            Back to Projects
-          </button>
+          <p className="text-red-400">Project not found</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <button
-        onClick={() => navigate('/projects')}
-        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
-      >
-        <ArrowLeft size={20} />
-        Back to Projects
-      </button>
+    <div className="min-h-screen bg-[#0B1120]">
+      <Navbar />
 
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-lg mb-8">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold mb-2">{project.name}</h1>
-            <p className="text-blue-100">
-              {project.salesforce_product} • {project.organization_type}
-            </p>
-          </div>
-          <div className="px-4 py-2 rounded-lg bg-blue-700">
-            <span className="text-sm font-medium uppercase">{project.status}</span>
-          </div>
-        </div>
+      {/* Background Effects */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
+        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
+        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-2">Select Agents to Execute</h2>
-        <p className="text-gray-600 mb-6">Choose which AI agents will work on your project</p>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-          {AGENTS.map(agent => (
-            <AgentCard
-              key={agent.id}
-              agent={agent}
-              selected={selectedAgents.includes(agent.id)}
-              onToggle={() => toggleAgent(agent.id)}
-              disabled={isExecuting}
-            />
-          ))}
+      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-extrabold text-white">{project.name}</h1>
+          {project.description && (
+            <p className="mt-2 text-slate-400">{project.description}</p>
+          )}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setSelectedAgents(AGENTS.map(a => a.id))}
-              disabled={isExecuting}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Select All
-            </button>
-            <button
-              onClick={() => setSelectedAgents(AGENTS.filter(a => a.required).map(a => a.id))}
-              disabled={isExecuting}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Clear Selection
-            </button>
+        {error && (
+          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+            {error}
           </div>
-          <span className="text-sm text-gray-600">
-            {selectedAgents.length} agent(s) selected
-          </span>
+        )}
+
+        {/* Agent Selection */}
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+              <Users className="w-5 h-5 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">Select Your AI Team</h2>
+              <p className="text-sm text-slate-400">Sophie & Olivia are always included</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {AGENTS.map((agent) => {
+              const isSelected = selectedAgents.includes(agent.id);
+              const isMandatory = MANDATORY_AGENTS.includes(agent.id);
+
+              return (
+                <button
+                  key={agent.id}
+                  onClick={() => toggleAgent(agent.id)}
+                  disabled={isMandatory}
+                  className={`p-4 rounded-xl border transition-all text-center ${
+                    isSelected
+                      ? 'bg-cyan-500/20 border-cyan-500/50 shadow-lg shadow-cyan-500/10'
+                      : 'bg-slate-800/50 border-slate-600 hover:border-slate-500'
+                  } ${isMandatory ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}`}
+                >
+                  <div className="flex justify-center mb-3">
+                    <Avatar
+                      src={agent.avatar}
+                      alt={agent.name}
+                      size="lg"
+                      isActive={isSelected}
+                    />
+                  </div>
+                  <p className="font-medium text-white text-sm">{agent.name}</p>
+                  <p className="text-xs text-slate-400 mt-1">{agent.role}</p>
+                  {isMandatory && (
+                    <span className="inline-block mt-2 px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">
+                      Required
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-lg mb-1">Ready to Execute</h3>
-            <p className="text-sm text-gray-600">
-              {selectedAgents.length} agent(s) selected •
-              Estimated time: {calculateTotalTime(selectedAgents)} minutes
-            </p>
-          </div>
-
+        {/* Launch Button */}
+        <div className="flex justify-center">
           <button
             onClick={handleStartExecution}
-            disabled={selectedAgents.length === 0 || isExecuting}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            disabled={isStarting || selectedAgents.length === 0}
+            className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-lg font-medium rounded-xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isExecuting ? (
+            {isStarting ? (
               <>
-                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-                Executing...
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Launching Agents...
               </>
             ) : (
               <>
-                <Play size={20} />
-                Start Execution
+                <Play className="w-6 h-6" />
+                Launch Execution
+                <ArrowRight className="w-5 h-5" />
               </>
             )}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-interface AgentCardProps {
-  agent: typeof AGENTS[0];
-  selected: boolean;
-  onToggle: () => void;
-  disabled?: boolean;
-}
-
-function AgentCard({ agent, selected, onToggle, disabled = false }: AgentCardProps) {
-  const [imageError, setImageError] = useState(false);
-  
-  return (
-    <div
-      onClick={agent.required || disabled ? undefined : onToggle}
-      className={`
-        border-3 rounded-xl p-4 transition-all duration-300
-        ${selected
-          ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg transform scale-105'
-          : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
-        }
-        ${agent.required || disabled ? 'opacity-75 cursor-not-allowed' : 'cursor-pointer hover:-translate-y-1'}
-      `}
-    >
-      <div className="flex items-center gap-3 mb-3">
-        <div className="relative w-16 h-16 flex-shrink-0">
-          {!imageError ? (
-            <img 
-              src={getAgentAvatar(agent.id, 'small')}
-              alt={agent.name}
-              className="w-full h-full rounded-full object-cover border-2 border-gray-200"
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-xl">
-              {agent.name[0]}
-            </div>
-          )}
-        </div>
-        <div>
-          <h3 className="font-semibold text-gray-900 text-sm">{agent.name}</h3>
-        </div>
-      </div>
-
-      <p className="text-xs text-gray-700 mb-3 line-clamp-2">{agent.description}</p>
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-            selected ? 'bg-blue-600 border-blue-600 scale-110' : 'border-gray-300'
-          }`}>
-            {selected && <Check className="text-white" size={14} />}
-          </div>
-          <span className="text-xs font-medium text-gray-700">
-            {agent.required ? 'Required' : selected ? 'Selected' : 'Select'}
-          </span>
-        </div>
-        <span className="text-xs text-gray-500">~{agent.estimatedTime}min</span>
-      </div>
+      </main>
     </div>
   );
 }
