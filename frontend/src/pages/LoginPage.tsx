@@ -20,7 +20,8 @@ export default function LoginPage() {
       navigate('/');
     } catch (err: any) {
       console.error('Login error:', err);
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
+      // Handle both fetch Error objects and potential response errors
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }

@@ -12,6 +12,8 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 import logging
 
+from app.utils.cost_calculator import calculate_cost
+
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
 from app.database import SessionLocal
@@ -146,6 +148,35 @@ class PMOrchestratorService:
                 finally:
                     execution.agent_execution_status = agent_execution_status
                     self.db.commit()
+
+
+            # Aggregate token usage from all agents
+            total_tokens = 0
+            tokens_by_agent = {}
+            for agent_id, output in agent_outputs.items():
+                # Extract tokens from agent output metadata
+                agent_output_data = output.get("output", {}).get("json_data", {})
+                metadata = agent_output_data.get("metadata", {}) if agent_output_data else {}
+                tokens_used = metadata.get("tokens_used", 0)
+                model_used = metadata.get("model", "gpt-4o-mini")
+                
+                if tokens_used:
+                    total_tokens += tokens_used
+                    tokens_by_agent[agent_id] = {
+                        "tokens": tokens_used,
+                        "model": model_used,
+                        "cost": calculate_cost(tokens_used, model_used)
+                    }
+                    logger.info(f"Agent {agent_id} used {tokens_used} tokens ({model_used})")
+            
+            # Calculate total cost
+            total_cost = calculate_cost(total_tokens, "gpt-4o-mini")
+            
+            # Update execution with token tracking
+            execution.total_tokens_used = total_tokens
+            execution.total_cost = total_cost
+            logger.info(f"Total execution tokens: {total_tokens}, estimated cost: ${total_cost:.4f}")
+            self.db.commit()
 
             # Generate SDS document
             sds_path = await self._generate_sds_document(
