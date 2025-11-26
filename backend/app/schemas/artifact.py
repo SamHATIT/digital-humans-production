@@ -21,6 +21,8 @@ class ArtifactTypeEnum(str, Enum):
     CONFIG = 'config'
     TEST = 'test'
     DOC = 'doc'
+    PLAN = 'plan'
+    REVIEW = 'review'
 
 
 class ArtifactStatusEnum(str, Enum):

@@ -21,8 +21,10 @@ class ArtifactType:
     CONFIG = 'config'
     TEST = 'test'
     DOC = 'doc'
+    PLAN = 'plan'
+    REVIEW = 'review'
     
-    ALL = [REQUIREMENT, BUSINESS_REQ, USE_CASE, QUESTION, ADR, SPEC, CODE, CONFIG, TEST, DOC]
+    ALL = [REQUIREMENT, BUSINESS_REQ, USE_CASE, QUESTION, ADR, SPEC, CODE, CONFIG, TEST, DOC, PLAN, REVIEW]
 
 
 class ArtifactStatus:
