@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -20,7 +20,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     debug=settings.DEBUG,
-    version="1.0.0",
+    version="2.0.0",
     description="Digital Humans API for Salesforce specification generation"
 )
 
@@ -33,11 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
+# Include routers - V1
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pm_orchestrator.router, prefix=f"{settings.API_V1_PREFIX}/pm-orchestrator")
 app.include_router(projects.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router)
+
+# Include routers - V2 Artifacts
+app.include_router(artifacts.router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
@@ -53,8 +56,9 @@ async def root():
     """Root endpoint - API health check."""
     return {
         "message": "Digital Humans API",
-        "version": "1.0.0",
-        "status": "healthy"
+        "version": "2.0.0",
+        "status": "healthy",
+        "features": ["V1 PM Orchestrator", "V2 Artifacts System"]
     }
 
 @app.get("/health")
