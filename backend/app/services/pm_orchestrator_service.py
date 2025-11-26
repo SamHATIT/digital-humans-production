@@ -857,7 +857,7 @@ This document provides detailed specifications across all aspects of the impleme
     ) -> List[Dict]:
         """
         Extract structured artifacts from agent output.
-        Parses the markdown content and creates artifact records.
+        Parses the markdown content for BR-xxx, UC-xxx, ADR-xxx, SPEC-xxx, CODE-xxx, CFG-xxx, TEST-xxx, DOC-xxx patterns.
         """
         artifacts = []
         
@@ -870,152 +870,167 @@ This document provides detailed specifications across all aspects of the impleme
             if not isinstance(json_data, dict):
                 json_data = {}
             
-            # Get content - ensure it's a string
-            content = json_data.get("content", "")
-            if not isinstance(content, str):
-                content = str(content) if content else ""
+            # Get raw markdown content - handle different structures
+            content_field = json_data.get("content", {})
+            if isinstance(content_field, dict):
+                raw_markdown = content_field.get("raw_markdown", "")
+            elif isinstance(content_field, str):
+                raw_markdown = content_field
+            else:
+                raw_markdown = str(content_field) if content_field else ""
             
-            # Get sections - ensure it's a list
-            sections = json_data.get("sections", [])
-            if not isinstance(sections, list):
-                sections = []
-            
-            if not content and not sections:
-                logger.warning(f"No content found in output for agent {agent_id}")
+            if not raw_markdown:
+                logger.warning(f"No raw_markdown found in output for agent {agent_id}")
                 return artifacts
             
-            # Get artifact type based on agent
-            artifact_type = self._get_artifact_type_for_agent(agent_id)
-            if not artifact_type:
-                logger.warning(f"No artifact type mapping for agent {agent_id}")
-                return artifacts
-            
-            # Generate artifact code prefix
-            prefix_map = {
-                'business_req': 'BR',
-                'use_case': 'UC',
-                'spec': 'SPEC',
-                'adr': 'ADR',
-                'code': 'CODE',
-                'config': 'CFG',
-                'test': 'TEST',
-                'doc': 'DOC'
-            }
-            prefix = prefix_map.get(artifact_type, 'ART')
-            
-            # Get next artifact code
-            existing = self.artifact_service.list_artifacts(execution_id, artifact_type=artifact_type)
-            next_num = len(existing) + 1
-            
-            # Create main artifact for the entire output
-            artifact_code = f"{prefix}-{next_num:03d}"
-            
-            # Safely truncate content
-            raw_content = content[:50000] if len(content) > 50000 else content
-            
-            # Safely process sections
-            safe_sections = []
-            for s in sections[:20]:
-                if isinstance(s, dict):
-                    safe_sections.append(s)
-                elif isinstance(s, str):
-                    safe_sections.append({"title": "Section", "content": s})
-            
-            artifact_data = {
-                "execution_id": execution_id,
-                "artifact_type": artifact_type,
-                "artifact_code": artifact_code,
-                "title": f"{agent_id.upper()} Output - {artifact_code}",
-                "producer_agent": agent_id,
-                "content": {
-                    "raw_content": raw_content,
-                    "sections": safe_sections,
-                    "metadata": json_data.get("metadata", {}) if isinstance(json_data.get("metadata"), dict) else {}
-                },
-                "parent_refs": []
+            # Define which patterns to look for based on agent
+            agent_pattern_map = {
+                'ba': [('BR', 'business_req'), ('UC', 'use_case')],
+                'architect': [('ADR', 'adr'), ('SPEC', 'spec')],
+                'apex': [('CODE', 'code')],
+                'lwc': [('CODE', 'code')],
+                'admin': [('CFG', 'config')],
+                'qa': [('TEST', 'test')],
+                'trainer': [('DOC', 'doc')],
             }
             
-            artifacts.append(artifact_data)
-            logger.info(f"Created main artifact {artifact_code} for agent {agent_id}")
+            patterns_to_check = agent_pattern_map.get(agent_id, [])
             
-            # For BA agent, also extract individual BR and UC if present in sections
-            if agent_id == "ba" and safe_sections:
-                for idx, section in enumerate(safe_sections[:10]):
-                    section_title = section.get("title", "") if isinstance(section, dict) else ""
-                    section_content = section.get("content", "") if isinstance(section, dict) else str(section)
+            for prefix, artifact_type in patterns_to_check:
+                # Pattern to match "### BR-001: Title" and capture content until next artifact or ---
+                pattern = rf'###\s+{prefix}-(\d+):\s*([^\n]+)\n(.+?)(?=###\s+(?:BR|UC|ADR|SPEC|CODE|CFG|TEST|DOC)-\d+:|---\s*\n|\Z)'
+                
+                matches = re.finditer(pattern, raw_markdown, re.DOTALL | re.IGNORECASE)
+                
+                for match in matches:
+                    artifact_num = match.group(1)
+                    title = match.group(2).strip()
+                    artifact_content = match.group(3).strip()
                     
-                    # Truncate section content
-                    if isinstance(section_content, str) and len(section_content) > 10000:
-                        section_content = section_content[:10000]
-                    elif not isinstance(section_content, str):
-                        section_content = str(section_content)[:10000]
+                    # Build artifact code
+                    artifact_code = f"{prefix}-{artifact_num.zfill(3)}"
                     
-                    # Check if this is a Business Requirement section
-                    if "business" in section_title.lower() and "requirement" in section_title.lower():
-                        br_code = f"BR-{next_num + idx + 1:03d}"
-                        artifacts.append({
-                            "execution_id": execution_id,
-                            "artifact_type": "business_req",
-                            "artifact_code": br_code,
-                            "title": section_title,
-                            "producer_agent": agent_id,
-                            "content": {
-                                "description": section_content,
-                                "source_section": section_title
-                            },
-                            "parent_refs": [artifact_code]
-                        })
+                    # Parse structured fields from content
+                    parsed_content = self._parse_artifact_fields(artifact_content)
+                    parsed_content["raw_content"] = artifact_content[:10000]
                     
-                    # Check if this is a Use Case section
-                    elif "use case" in section_title.lower():
-                        uc_code = f"UC-{next_num + idx + 1:03d}"
-                        artifacts.append({
-                            "execution_id": execution_id,
-                            "artifact_type": "use_case",
-                            "artifact_code": uc_code,
-                            "title": section_title,
-                            "producer_agent": agent_id,
-                            "content": {
-                                "description": section_content,
-                                "source_section": section_title
-                            },
-                            "parent_refs": [artifact_code]
-                        })
+                    # Find parent references
+                    parent_refs = self._extract_parent_refs(artifact_content)
+                    
+                    artifact_data = {
+                        "execution_id": execution_id,
+                        "artifact_type": artifact_type,
+                        "artifact_code": artifact_code,
+                        "title": title[:255],
+                        "producer_agent": agent_id,
+                        "content": parsed_content,
+                        "parent_refs": parent_refs
+                    }
+                    
+                    artifacts.append(artifact_data)
+                    logger.info(f"Extracted artifact {artifact_code}: {title[:50]}...")
             
-            # For Architect, extract ADR and SPEC
-            if agent_id == "architect" and safe_sections:
-                for idx, section in enumerate(safe_sections[:10]):
-                    section_title = section.get("title", "") if isinstance(section, dict) else ""
-                    section_content = section.get("content", "") if isinstance(section, dict) else str(section)
+            # If no structured artifacts found, create a single artifact for the whole output
+            if not artifacts:
+                logger.info(f"No structured artifacts found for {agent_id}, creating single artifact")
+                artifact_type = self._get_artifact_type_for_agent(agent_id)
+                if artifact_type:
+                    prefix_map = {
+                        'business_req': 'BR',
+                        'use_case': 'UC',
+                        'spec': 'SPEC',
+                        'adr': 'ADR',
+                        'code': 'CODE',
+                        'config': 'CFG',
+                        'test': 'TEST',
+                        'doc': 'DOC'
+                    }
+                    prefix = prefix_map.get(artifact_type, 'ART')
                     
-                    if isinstance(section_content, str) and len(section_content) > 10000:
-                        section_content = section_content[:10000]
-                    elif not isinstance(section_content, str):
-                        section_content = str(section_content)[:10000]
-                    
-                    if "decision" in section_title.lower() or "adr" in section_title.lower():
-                        adr_code = f"ADR-{idx + 1:03d}"
-                        artifacts.append({
-                            "execution_id": execution_id,
-                            "artifact_type": "adr",
-                            "artifact_code": adr_code,
-                            "title": section_title,
-                            "producer_agent": agent_id,
-                            "content": {
-                                "description": section_content,
-                                "source_section": section_title
-                            },
-                            "parent_refs": [artifact_code]
-                        })
+                    artifacts.append({
+                        "execution_id": execution_id,
+                        "artifact_type": artifact_type,
+                        "artifact_code": f"{prefix}-001",
+                        "title": f"{agent_id.upper()} Output",
+                        "producer_agent": agent_id,
+                        "content": {
+                            "raw_content": raw_markdown[:50000],
+                            "metadata": json_data.get("metadata", {})
+                        },
+                        "parent_refs": []
+                    })
             
-            logger.info(f"Extracted {len(artifacts)} artifacts from agent {agent_id}")
+            logger.info(f"Extracted {len(artifacts)} artifacts from {agent_id}")
             return artifacts
             
         except Exception as e:
-            logger.error(f"Error extracting artifacts from agent {agent_id}: {e}")
+            logger.error(f"Error extracting artifacts from {agent_id}: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
             return artifacts
+
+    def _parse_artifact_fields(self, content: str) -> Dict[str, Any]:
+        """Parse structured fields from artifact content."""
+        parsed = {}
+        
+        # Common field patterns
+        field_patterns = {
+            "priority": r'\*\*Priority:\*\*\s*(.+)',
+            "category": r'\*\*Category:\*\*\s*(.+)',
+            "description": r'\*\*Description:\*\*\s*(.+?)(?=\*\*|$)',
+            "parent_br": r'\*\*Parent BR:\*\*\s*(BR-\d+)',
+            "related_uc": r'\*\*Related UC:\*\*\s*([UC\d,\s-]+)',
+            "related_spec": r'\*\*Related SPEC:\*\*\s*(SPEC-\d+)',
+            "related_adr": r'\*\*Related ADR:\*\*\s*(ADR-\d+)',
+            "type": r'\*\*Type:\*\*\s*(.+)',
+            "actor": r'\*\*Actor:\*\*\s*(.+)',
+            "status": r'\*\*Status:\*\*\s*(.+)',
+            "assigned_to": r'\*\*Assigned To:\*\*\s*(.+)',
+            "stakeholder": r'\*\*Stakeholder:\*\*\s*(.+)',
+            "business_value": r'\*\*Business Value:\*\*\s*(.+?)(?=\*\*|$)',
+            "salesforce_feature": r'\*\*Salesforce Feature:\*\*\s*(.+)',
+        }
+        
+        for field, pattern in field_patterns.items():
+            match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+            if match:
+                value = match.group(1).strip()
+                # Clean up the value (remove trailing newlines, limit length)
+                value = value.split('\n')[0].strip()[:500]
+                parsed[field] = value
+        
+        # Extract acceptance criteria
+        ac_match = re.search(r'\*\*Acceptance Criteria:\*\*\s*(.+?)(?=\*\*[A-Z]|---\s*\n|\Z)', content, re.DOTALL | re.IGNORECASE)
+        if ac_match:
+            criteria = re.findall(r'- \[[ x]\]\s*(.+)', ac_match.group(1))
+            if criteria:
+                parsed["acceptance_criteria"] = [c.strip() for c in criteria[:20]]
+        
+        return parsed
+
+    def _extract_parent_refs(self, content: str) -> List[str]:
+        """Extract references to parent artifacts (BR-xxx, UC-xxx, etc.)."""
+        refs = []
+        
+        # Look for explicit parent references
+        parent_patterns = [
+            r'\*\*Parent BR:\*\*\s*(BR-\d+)',
+            r'\*\*Related UC:\*\*\s*((?:UC-\d+[,\s]*)+)',
+            r'\*\*Related SPEC:\*\*\s*(SPEC-\d+)',
+            r'\*\*Related ADR:\*\*\s*(ADR-\d+)',
+            r'\*\*Related CODE:\*\*\s*((?:CODE-\d+[,\s]*)+)',
+        ]
+        
+        for pattern in parent_patterns:
+            matches = re.findall(pattern, content, re.IGNORECASE)
+            for match in matches:
+                # Split if multiple refs (e.g., "UC-001, UC-002")
+                individual_refs = re.findall(r'(?:BR|UC|ADR|SPEC|CODE|CFG|TEST|DOC)-\d+', match)
+                refs.extend(individual_refs)
+        
+        return list(set(refs))[:10]  # Deduplicate and limit
+
+
     def _persist_artifacts(self, artifacts: List[Dict], execution_id: int) -> List[int]:
         """Persist extracted artifacts to database"""
         created_ids = []

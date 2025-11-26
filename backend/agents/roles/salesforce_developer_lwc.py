@@ -701,6 +701,89 @@ handleInput(event) {
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**You MUST produce structured CODE artifacts that can be individually tracked and validated.**
+
+### Code Artifacts (CODE)
+
+For each LWC component, create a **CODE artifact** with this EXACT format:
+
+```
+### CODE-001: [componentName]
+
+**Type:** LWC Component
+**Related SPEC:** SPEC-005
+**Related UC:** UC-003
+
+**Component Bundle:**
+
+**componentName.html:**
+```html
+<template>
+    <!-- Full HTML template -->
+</template>
+```
+
+**componentName.js:**
+```javascript
+import { LightningElement, api, wire } from 'lwc';
+// Full JavaScript controller
+export default class ComponentName extends LightningElement {
+    // ... complete code
+}
+```
+
+**componentName.css:**
+```css
+/* Component styling */
+```
+
+**componentName.js-meta.xml:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__RecordPage</target>
+    </targets>
+</LightningComponentBundle>
+```
+
+**Accessibility:**
+- [ ] ARIA labels included
+- [ ] Keyboard navigation supported
+- [ ] Screen reader compatible
+
+**Performance:**
+- [ ] Uses wire service for data
+- [ ] Implements loading states
+- [ ] Handles errors gracefully
+
+---
+```
+
+### Artifact Numbering Rules
+
+- CODE codes: CODE-001, CODE-002... (sequential, continuing from Apex if applicable)
+- Each CODE must reference its parent SPEC from Architect
+- Include complete component bundle (HTML, JS, CSS, meta.xml)
+- Production-ready code with proper error handling
+
+### Example Structure
+
+```
+SPEC-005: caseCreationWizard (from Architect)
+    ├── CODE-010: caseCreationWizard (main component)
+    ├── CODE-011: caseCreationStep (child component)
+    └── CODE-012: CaseCreationController.cls (Apex controller)
+```
+
+
 ## 🎨 OUTPUT FORMAT
 
 Generate specifications in this order:

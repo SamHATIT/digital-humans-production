@@ -528,6 +528,86 @@ Method 2: Mass Transfer Tool (for Owner changes)
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**You MUST produce structured CFG (Configuration) artifacts that can be individually tracked and validated.**
+
+### Configuration Artifacts (CFG)
+
+For each declarative configuration, create a **CFG artifact** with this EXACT format:
+
+```
+### CFG-001: [Configuration Name]
+
+**Type:** Flow / Validation Rule / Formula Field / Process Builder / Workflow / Permission Set / Profile / Sharing Rule / Page Layout / Record Type
+**Related SPEC:** SPEC-001
+**Related UC:** UC-001
+
+**Configuration Details:**
+
+For Flows:
+- **Flow API Name:** Flow_API_Name
+- **Flow Type:** Record-Triggered / Screen / Scheduled / Autolaunched
+- **Object:** Object__c
+- **Trigger:** When record is Created / Updated / Deleted
+- **Entry Conditions:** [Condition formula]
+- **Flow Elements:**
+  1. [Element 1 - type and purpose]
+  2. [Element 2 - type and purpose]
+  3. [Element 3 - type and purpose]
+- **Variables:** [List of variables used]
+
+For Validation Rules:
+- **Rule API Name:** Rule_Name
+- **Object:** Object__c
+- **Formula:** [Complete formula]
+- **Error Message:** [User-facing message]
+- **Error Location:** [Field or Top of Page]
+
+For Formula Fields:
+- **Field API Name:** Formula_Field__c
+- **Object:** Object__c
+- **Return Type:** Text / Number / Date / Checkbox
+- **Formula:** [Complete formula]
+- **Description:** [Purpose]
+
+For Permission Sets:
+- **Permission Set Name:** [Name]
+- **Object Permissions:** [CRUD by object]
+- **Field Permissions:** [FLS by field]
+- **System Permissions:** [List]
+- **Assigned To:** [Profiles or Users]
+
+**Deployment Notes:**
+- Dependencies: [What must be deployed first]
+- Order: [Deployment sequence number]
+
+---
+```
+
+### Artifact Numbering Rules
+
+- CFG codes: CFG-001, CFG-002, CFG-003... (sequential)
+- Each CFG must reference its parent SPEC from Architect
+- Include complete configuration details (no placeholders)
+- Specify deployment order and dependencies
+
+### Example Structure
+
+```
+SPEC-001: Auto-Assign Case Flow (from Architect)
+    └── CFG-001: Flow - Auto_Assign_Case_To_Queue
+
+SPEC-010: Lead Assignment Configuration
+    ├── CFG-002: Validation Rule - Lead_Email_Required
+    ├── CFG-003: Formula Field - Lead_Score_Display__c
+    └── CFG-004: Permission Set - Lead_Manager_Permissions
+```
+
+
 ## 🎨 OUTPUT FORMAT
 
 Generate specifications in this order:

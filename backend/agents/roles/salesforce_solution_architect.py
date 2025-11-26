@@ -731,6 +731,164 @@ Before finalizing, verify:
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**In addition to the comprehensive SDS documentation, you MUST produce structured artifacts that can be individually tracked and validated.**
+
+### Architecture Decision Records (ADR)
+
+For each significant technical decision, create an **ADR artifact** with this EXACT format:
+
+```
+### ADR-001: [Decision Title]
+
+**Status:** Proposed / Accepted / Deprecated
+**Date:** [YYYY-MM-DD]
+**Related UC:** UC-001, UC-002 (from BA specifications)
+
+**Context:**
+[2-3 sentences describing the situation requiring a decision]
+
+**Decision:**
+[Clear statement of the architectural decision made]
+
+**Salesforce Implementation:**
+- **Feature Used:** [Flow / Apex / LWC / Platform Event / etc.]
+- **Objects Involved:** [List of standard and custom objects]
+- **Governor Limits Consideration:** [How limits are respected]
+
+**Alternatives Considered:**
+
+| Option | Pros | Cons | Why Rejected |
+|--------|------|------|--------------|
+| Option A | Pro1, Pro2 | Con1, Con2 | Reason |
+| Option B | Pro1, Pro2 | Con1, Con2 | Reason |
+
+**Consequences:**
+- Positive: [Benefits of this decision]
+- Negative: [Trade-offs accepted]
+- Risks: [Potential issues to monitor]
+
+**Compliance:**
+- [ ] Respects Salesforce governor limits
+- [ ] Follows Salesforce security best practices
+- [ ] Scalable for projected data volumes
+
+---
+```
+
+### Technical Specifications (SPEC)
+
+For each component to be built, create a **SPEC artifact** with this EXACT format:
+
+```
+### SPEC-001: [Component Name]
+
+**Type:** Apex Class / Apex Trigger / LWC / Flow / Validation Rule / Custom Object / Integration
+**Related ADR:** ADR-001
+**Related UC:** UC-001, UC-002
+**Assigned To:** [apex / lwc / admin / devops]
+
+**Purpose:**
+[What this component does and why]
+
+**Salesforce Object Model:**
+- **Primary Object:** [Object__c]
+- **Related Objects:** [List with relationship types]
+- **Fields Used:** [Key fields involved]
+
+**Technical Design:**
+
+[Detailed technical specification appropriate to the type:]
+
+For Apex:
+- Class/Method signatures
+- Input/Output parameters
+- Exception handling approach
+- Test class requirements (minimum 85% coverage)
+- Bulkification strategy
+
+For LWC:
+- Component structure
+- Wire adapters / Apex calls
+- Event handling
+- CSS/styling requirements
+
+For Flow:
+- Flow type (Record-Triggered, Screen, Scheduled, etc.)
+- Entry conditions
+- Flow elements sequence
+- Variables and formulas
+
+For Integration:
+- Endpoint specifications
+- Authentication method
+- Request/Response format
+- Error handling
+- Retry logic
+
+**Acceptance Criteria:**
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+**Performance Requirements:**
+- Expected volume: [records/day]
+- Response time: [target]
+- Batch size considerations: [if applicable]
+
+**Security Considerations:**
+- FLS requirements
+- Sharing rules impact
+- CRUD permissions needed
+
+---
+```
+
+### Artifact Numbering Rules
+
+- ADR codes: ADR-001, ADR-002, ADR-003... (sequential)
+- SPEC codes: SPEC-001, SPEC-002, SPEC-003... (sequential)
+- Each ADR should reference the UCs it addresses
+- Each SPEC should reference its parent ADR
+- Aim for 3-10 ADRs depending on complexity
+- Aim for 10-30 SPECs total
+
+### Example Mapping
+
+```
+ADR-001: Use Record-Triggered Flow for Case Assignment
+    └── SPEC-001: Flow - Auto_Assign_Case_To_Queue
+
+ADR-002: Custom Apex for Lead Scoring (too complex for Flow)
+    ├── SPEC-002: Apex Class - LeadScoringService
+    ├── SPEC-003: Apex Trigger - LeadScoreTrigger
+    └── SPEC-004: Apex Test - LeadScoringServiceTest
+
+ADR-003: LWC for Custom Case Creation Interface
+    ├── SPEC-005: LWC - caseCreationWizard
+    └── SPEC-006: Apex Controller - CaseCreationController
+
+ADR-004: Platform Events for External System Integration
+    ├── SPEC-007: Platform Event - Order_Update__e
+    ├── SPEC-008: Apex Trigger - OrderUpdateTrigger
+    └── SPEC-009: Integration - SAP_Order_Callout
+```
+
+### Traceability Matrix
+
+Include a traceability matrix showing how artifacts connect:
+
+| UC | ADR | SPEC | Assigned Agent |
+|----|-----|------|----------------|
+| UC-001 | ADR-001 | SPEC-001 | admin |
+| UC-002 | ADR-002 | SPEC-002, SPEC-003 | apex |
+| UC-003 | ADR-003 | SPEC-005, SPEC-006 | lwc |
+
+
 ## 🎬 GENERATION INSTRUCTIONS
 
 When you receive requirements, you will:
@@ -791,6 +949,14 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
 ---
 
 **Generate the complete High-Level Design (HLD) specifications now.**
+
+**CRITICAL REMINDERS FOR ARTIFACTS:**
+1. **MANDATORY: Include ADR artifacts (ADR-001, ADR-002, etc.) with the EXACT format specified**
+2. **MANDATORY: Include SPEC artifacts (SPEC-001, SPEC-002, etc.) linked to their parent ADR**
+3. **Each ADR must reference the UCs it addresses from BA specifications**
+4. **Each SPEC must specify the assigned agent (apex/lwc/admin/devops)**
+5. **Include the traceability matrix UC → ADR → SPEC → Agent**
+6. **Aim for 3-10 ADRs and 10-30 SPECs depending on complexity**
 """
     
     # Call GPT-4

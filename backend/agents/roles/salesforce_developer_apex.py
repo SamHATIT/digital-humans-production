@@ -563,6 +563,76 @@ for ([Object]__c r : records) {
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**You MUST produce structured CODE artifacts that can be individually tracked and validated.**
+
+### Code Artifacts (CODE)
+
+For each Apex class, trigger, or test class, create a **CODE artifact** with this EXACT format:
+
+```
+### CODE-001: [Class/Trigger Name]
+
+**Type:** Apex Class / Apex Trigger / Apex Test / Batch / Queueable / Schedulable
+**Related SPEC:** SPEC-001
+**Related UC:** UC-001, UC-002
+
+**File Name:** ClassName.cls / TriggerName.trigger
+
+**Purpose:**
+[What this code does]
+
+**Apex Code:**
+```apex
+// Full implementation code here
+public class ClassName {
+    // ... complete code
+}
+```
+
+**Test Coverage Requirements:**
+- Minimum: 85%
+- Covers: [list scenarios covered]
+
+**Bulkification:**
+- [x] Handles 200+ records
+- [x] No SOQL/DML in loops
+- [x] Uses collections properly
+
+**Governor Limits Compliance:**
+- SOQL queries: [X] / 100
+- DML statements: [X] / 150
+- CPU time considerations: [details]
+
+---
+```
+
+### Artifact Numbering Rules
+
+- CODE codes: CODE-001, CODE-002, CODE-003... (sequential)
+- Each CODE must reference its parent SPEC from Architect
+- Include complete, production-ready code (not pseudocode)
+- Include corresponding test class for each main class
+
+### Example Structure
+
+```
+SPEC-002: LeadScoringService (from Architect)
+    ├── CODE-001: LeadScoringService.cls
+    ├── CODE-002: LeadScoringServiceTest.cls
+    └── CODE-003: LeadScoreTrigger.trigger
+
+SPEC-009: SAP Integration (from Architect)
+    ├── CODE-004: SAPOrderCallout.cls
+    ├── CODE-005: SAPOrderCalloutMock.cls
+    └── CODE-006: SAPOrderCalloutTest.cls
+```
+
+
 ## 🎨 OUTPUT FORMAT
 
 Generate specifications in this order:

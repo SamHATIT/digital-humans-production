@@ -270,6 +270,105 @@ Before finalizing, verify:
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**In addition to the comprehensive documentation above, you MUST produce structured artifacts that can be individually tracked and validated.**
+
+### Business Requirements (BR)
+
+For each major business need identified, create a **BR artifact** with this EXACT format:
+
+```
+### BR-001: [Descriptive Title]
+
+**Priority:** High / Medium / Low
+**Category:** [Data Model / Process / Integration / Reporting / Security]
+**Stakeholder:** [Who requested this]
+
+**Description:**
+[2-3 sentences describing WHAT the business needs]
+
+**Business Value:**
+[Why this is important for the business]
+
+**Acceptance Criteria:**
+- [ ] Criterion 1
+- [ ] Criterion 2
+- [ ] Criterion 3
+
+**Dependencies:** [Other BR-xxx or "None"]
+
+---
+```
+
+### Use Cases (UC)
+
+For each BR, create one or more **UC artifacts** describing HOW it will be implemented. Use this EXACT format:
+
+```
+### UC-001: [Action-oriented Title]
+
+**Parent BR:** BR-001
+**Actor:** [User role performing this action]
+**Salesforce Feature:** [Flow / Apex / LWC / Validation Rule / Report / etc.]
+
+**Preconditions:**
+- Condition 1
+- Condition 2
+
+**Main Flow:**
+1. Step 1
+2. Step 2
+3. Step 3
+
+**Alternative Flows:**
+- 2a. If [condition], then [action]
+
+**Postconditions:**
+- Result 1
+- Result 2
+
+**Business Rules:**
+- Rule 1 (reference to validation rule or formula)
+- Rule 2
+
+**Related Objects:** [Account, Contact, Custom_Object__c]
+
+---
+```
+
+### Artifact Numbering Rules
+
+- BR codes: BR-001, BR-002, BR-003... (sequential)
+- UC codes: UC-001, UC-002, UC-003... (sequential, across all BRs)
+- Each BR should have 1-5 related UCs
+- Aim for 5-15 BRs depending on project complexity
+- Aim for 15-40 UCs total
+
+### Example Mapping
+
+```
+BR-001: Customer Case Management
+    ├── UC-001: Create case from web form
+    ├── UC-002: Create case from email-to-case
+    ├── UC-003: Auto-assign case to queue
+    └── UC-004: Escalate overdue case
+
+BR-002: Lead Scoring System
+    ├── UC-005: Calculate initial lead score
+    ├── UC-006: Recalculate score on field update
+    └── UC-007: Notify sales rep on hot lead
+
+BR-003: Approval Workflow for Discounts
+    ├── UC-008: Submit discount for approval
+    ├── UC-009: Manager approval step
+    └── UC-010: Director approval for >20%
+```
+
+
 ## 🎬 GENERATION INSTRUCTIONS
 
 When you receive business requirements, you will:
@@ -360,6 +459,9 @@ def main():
 4. Provide realistic examples and values
 5. Make specifications production-ready and implementable
 6. Target 80-120 pages of comprehensive documentation
+7. **MANDATORY: Include structured BR artifacts (BR-001, BR-002, etc.) with the EXACT format specified**
+8. **MANDATORY: Include structured UC artifacts (UC-001, UC-002, etc.) linked to their parent BR**
+9. **Each BR must have 1-5 related UCs. Aim for 5-15 BRs and 15-40 UCs total**
 
 **BEGIN GENERATING SPECIFICATIONS NOW:**
 """

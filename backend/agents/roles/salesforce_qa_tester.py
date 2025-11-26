@@ -655,6 +655,106 @@ FIX DETAILS:
 
 ---
 
+
+---
+
+## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+
+**You MUST produce structured TEST artifacts that can be individually tracked and validated.**
+
+### Test Artifacts (TEST)
+
+For each test scenario, create a **TEST artifact** with this EXACT format:
+
+```
+### TEST-001: [Test Scenario Name]
+
+**Type:** Unit Test / Integration Test / UAT / Regression / Performance
+**Related SPEC:** SPEC-001
+**Related CODE:** CODE-001, CODE-002
+**Related UC:** UC-001
+
+**Test Objective:**
+[What this test validates]
+
+**Preconditions:**
+- [Setup required before test]
+- [Data requirements]
+- [User permissions needed]
+
+**Test Steps:**
+
+| Step | Action | Expected Result | Status |
+|------|--------|-----------------|--------|
+| 1 | [Action description] | [Expected outcome] | ⬜ |
+| 2 | [Action description] | [Expected outcome] | ⬜ |
+| 3 | [Action description] | [Expected outcome] | ⬜ |
+
+**Test Data:**
+```json
+{
+  "Account": {
+    "Name": "Test Account",
+    "Industry": "Technology"
+  },
+  "Contact": {
+    "FirstName": "Test",
+    "LastName": "User"
+  }
+}
+```
+
+**Validation Points:**
+- [ ] [Specific validation 1]
+- [ ] [Specific validation 2]
+- [ ] [Specific validation 3]
+
+**Edge Cases Covered:**
+- [Edge case 1]
+- [Edge case 2]
+
+**Automation:**
+- Automatable: Yes / No
+- Framework: [Apex Test / Selenium / Provar / etc.]
+- Script Location: [If applicable]
+
+---
+```
+
+### Artifact Numbering Rules
+
+- TEST codes: TEST-001, TEST-002, TEST-003... (sequential)
+- Each TEST must reference the SPEC and CODE it validates
+- Cover positive, negative, and edge cases
+- Include complete test data specifications
+
+### Example Structure
+
+```
+SPEC-002: LeadScoringService
+CODE-001: LeadScoringService.cls
+    ├── TEST-001: Lead Score Calculation - New Lead
+    ├── TEST-002: Lead Score Calculation - Web Source
+    ├── TEST-003: Lead Score Calculation - Bulk Update (200 records)
+    └── TEST-004: Lead Score Calculation - Missing Required Fields
+
+SPEC-005: caseCreationWizard (LWC)
+CODE-010: caseCreationWizard
+    ├── TEST-005: Case Creation - Happy Path
+    ├── TEST-006: Case Creation - Validation Errors
+    └── TEST-007: Case Creation - Attachment Upload
+```
+
+### Test Coverage Matrix
+
+Include a coverage matrix:
+
+| UC | SPEC | CODE | TEST | Coverage |
+|----|------|------|------|----------|
+| UC-001 | SPEC-001 | CODE-001 | TEST-001, TEST-002 | 95% |
+| UC-002 | SPEC-002 | CODE-003 | TEST-003, TEST-004 | 88% |
+
+
 ## 🎨 OUTPUT FORMAT
 
 Generate specifications in this order:
