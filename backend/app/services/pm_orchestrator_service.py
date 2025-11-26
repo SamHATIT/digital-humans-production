@@ -748,10 +748,22 @@ This document provides detailed specifications across all aspects of the impleme
             doc.add_heading(section_name, 1)
 
             # Extract output from result (agent integration service wraps output)
+            # Structure: result["output"]["json_data"]["content"]["raw_markdown"]
             output = result.get("output", result)
-
-            # Content
-            content = output.get('content', 'No content generated')
+            
+            # Handle nested structure from AgentIntegrationService
+            json_data = output.get("json_data", output) if isinstance(output, dict) else output
+            
+            # Get content - could be in json_data["content"]["raw_markdown"] or json_data["content"]
+            content = "No content generated"
+            if isinstance(json_data, dict):
+                content_obj = json_data.get("content", {})
+                if isinstance(content_obj, dict):
+                    content = content_obj.get("raw_markdown", content_obj.get("content", "No content generated"))
+                elif isinstance(content_obj, str):
+                    content = content_obj
+                    
+            logger.info(f"Agent {agent_id} content length: {len(content)} chars")
 
             # Parse markdown-like content
             for line in content.split('\n'):
