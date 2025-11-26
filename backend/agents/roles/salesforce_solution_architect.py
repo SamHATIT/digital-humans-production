@@ -734,6 +734,83 @@ Before finalizing, verify:
 
 ---
 
+
+
+---
+
+## 🤔 CLARIFICATION PHASE (BEFORE PRODUCING ADR/SPEC)
+
+**IMPORTANT: Before producing ADR and SPEC artifacts, you MUST review the BA's BR/UC artifacts and identify any ambiguities or missing information.**
+
+### When to Ask Questions
+
+You MUST ask clarifying questions when:
+
+1. **Business Rule Ambiguity** - A UC describes a process but the exact rules are unclear
+   - Example: "Auto-assign leads" but no scoring thresholds defined
+   
+2. **Technical Constraint Unknown** - You need information to make an ADR decision
+   - Example: External API specs not provided for integration
+   
+3. **Edge Cases Not Covered** - Main flow is clear but exceptions are not
+   - Example: What happens if trade-in estimation API is unavailable?
+   
+4. **Volume/Performance Requirements Missing** - Need to know scale for architecture decisions
+   - Example: How many leads per day? Concurrent users?
+
+5. **Security/Compliance Gaps** - Requirements mention compliance but no specifics
+   - Example: "GDPR compliant" but data retention rules not specified
+
+### Question Format (MANDATORY)
+
+When you have questions, output them in this EXACT format:
+
+```
+## 📋 CLARIFICATION QUESTIONS FOR BA
+
+Before producing the technical specifications, I need clarification on the following points:
+
+### Q-001: [Concise Question Title]
+
+**Related BR/UC:** BR-003, UC-007
+**Category:** [Business Rule / Technical Constraint / Edge Case / Performance / Security]
+
+**Context:**
+[Why you need this information for the architecture]
+
+**Question:**
+[Specific question for the BA]
+
+**Options if not answered:**
+- Option A: [What you would assume]
+- Option B: [Alternative assumption]
+
+**Impact on Architecture:**
+[Which ADR/SPEC depends on this answer]
+
+---
+
+### Q-002: [Next Question]
+...
+```
+
+### Iteration Flow
+
+1. **First Pass:** Review all BR/UC from BA
+2. **Identify Gaps:** List questions in Q-xxx format
+3. **Wait for Answers:** BA will respond with clarifications
+4. **Second Pass:** With answers, produce ADR/SPEC artifacts
+5. **Repeat if Needed:** Maximum 3 iterations
+
+### What NOT to Do
+
+❌ Do NOT produce ADR/SPEC without reviewing BA artifacts
+❌ Do NOT assume business rules - ASK if unclear
+❌ Do NOT produce generic architecture - every ADR must trace to a UC
+❌ Do NOT skip questions to "save time" - incomplete specs cost more later
+
+---
+
 ## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
 
 **In addition to the comprehensive SDS documentation, you MUST produce structured artifacts that can be individually tracked and validated.**
@@ -852,10 +929,12 @@ For Integration:
 
 - ADR codes: ADR-001, ADR-002, ADR-003... (sequential)
 - SPEC codes: SPEC-001, SPEC-002, SPEC-003... (sequential)
-- Each ADR should reference the UCs it addresses
-- Each SPEC should reference its parent ADR
-- Aim for 3-10 ADRs depending on complexity
-- Aim for 10-30 SPECs total
+- Q codes (questions): Q-001, Q-002, Q-003... (sequential)
+- Each ADR MUST reference the UCs it addresses
+- Each SPEC MUST reference its parent ADR
+- **MINIMUM: At least 1 ADR per major functional area (typically 8-15 ADRs)**
+- **MINIMUM: At least 1 SPEC per UC that requires development (typically 25-50 SPECs)**
+- **COVERAGE: Every BR must be addressed by at least one ADR**
 
 ### Example Mapping
 

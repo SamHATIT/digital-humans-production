@@ -25,6 +25,9 @@ import re
 
 logger = logging.getLogger(__name__)
 
+# V2: Maximum iterations for BA <-> Architect Q&A cycle
+MAX_ITERATIONS = 3
+
 
 class PMOrchestratorService:
     """Main orchestration service for PM workflow"""
@@ -103,8 +106,30 @@ class PMOrchestratorService:
 
             # Execute each agent
             agent_outputs = {}
+            
+            # V2: Check if we should use iteration mode (BA + Architect in sorted_agents)
+            use_iteration_mode = "ba" in sorted_agents and "architect" in sorted_agents
+            ba_architect_done = False
 
             for agent_id in sorted_agents:
+                # V2: Handle BA and Architect together with iterations
+                if use_iteration_mode and agent_id in ["ba", "architect"] and not ba_architect_done:
+                    if agent_id == "ba":
+                        # Execute BA + Architect with iteration
+                        iteration_result = await self._handle_ba_architect_iterations(
+                            project=project,
+                            execution=execution,
+                            agent_outputs=agent_outputs,
+                            agent_execution_status=agent_execution_status
+                        )
+                        agent_outputs["ba"] = iteration_result["ba"]
+                        agent_outputs["architect"] = iteration_result["architect"]
+                        ba_architect_done = True
+                        logger.info(f"[V2] BA-Architect iteration completed in {iteration_result['iterations']} iterations")
+                        continue
+                    elif agent_id == "architect":
+                        # Already done in iteration with BA
+                        continue
                 try:
                     # Update status to running
                     agent_execution_status[agent_id]["state"] = "running"
@@ -236,6 +261,307 @@ class PMOrchestratorService:
                 execution.current_agent = None
                 self.db.commit()
             raise
+
+    # ============ V2: BA <-> ARCHITECT ITERATION LOGIC ============
+    
+    async def _handle_ba_architect_iterations(
+        self,
+        project: "Project",
+        execution: "Execution",
+        agent_outputs: Dict[str, Any],
+        agent_execution_status: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Handle iterative refinement between BA and Architect.
+        
+        Flow:
+        1. BA produces BR/UC
+        2. Architect reviews and may ask questions (Q-xxx)
+        3. BA answers questions
+        4. Repeat until no questions or MAX_ITERATIONS
+        5. Architect produces final ADR/SPEC
+        
+        Returns:
+            Dict with ba_output and architect_output
+        """
+        iteration = 0
+        questions_pending = True
+        
+        # First, execute BA
+        logger.info(f"[V2 Iteration] Starting BA execution")
+        agent_execution_status["ba"]["state"] = "running"
+        agent_execution_status["ba"]["message"] = "Analyzing business requirements..."
+        agent_execution_status["ba"]["started_at"] = datetime.now(timezone.utc).isoformat()
+        execution.agent_execution_status = agent_execution_status
+        execution.current_agent = "ba"
+        self.db.commit()
+        
+        ba_result = await self._execute_single_agent(
+            agent_id="ba",
+            project=project,
+            previous_outputs={},
+            execution=execution,
+            agent_status=agent_execution_status["ba"]
+        )
+        agent_outputs["ba"] = ba_result
+        
+        # Extract BA artifacts
+        try:
+            extracted = self._extract_artifacts_from_agent_output("ba", ba_result, execution.id)
+            if extracted:
+                self._persist_artifacts(extracted, execution.id)
+        except Exception as e:
+            logger.warning(f"BA artifact extraction failed: {e}")
+        
+        agent_execution_status["ba"]["state"] = "completed"
+        agent_execution_status["ba"]["progress"] = 100
+        agent_execution_status["ba"]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        agent_execution_status["ba"]["message"] = "Business analysis completed"
+        
+        # Now iterate with Architect
+        while questions_pending and iteration < MAX_ITERATIONS:
+            iteration += 1
+            logger.info(f"[V2 Iteration] Architect iteration {iteration}/{MAX_ITERATIONS}")
+            
+            # Update status
+            iteration_msg = f"Iteration {iteration}/{MAX_ITERATIONS}" if iteration > 1 else "Designing architecture..."
+            agent_execution_status["architect"]["state"] = "running"
+            agent_execution_status["architect"]["message"] = iteration_msg
+            agent_execution_status["architect"]["started_at"] = datetime.now(timezone.utc).isoformat()
+            agent_execution_status["architect"]["progress"] = 10 + (iteration - 1) * 20
+            execution.agent_execution_status = agent_execution_status
+            execution.current_agent = "architect"
+            self.db.commit()
+            
+            # Build context with BA artifacts and any previous Q&A
+            previous_outputs = {"ba": agent_outputs["ba"].get("output", {})}
+            if "architect" in agent_outputs:
+                previous_outputs["architect"] = agent_outputs["architect"].get("output", {})
+            
+            # Add answered questions context if any
+            answered_questions = self._get_answered_questions(execution.id)
+            if answered_questions:
+                previous_outputs["answered_questions"] = answered_questions
+            
+            # Execute Architect
+            architect_result = await self._execute_single_agent(
+                agent_id="architect",
+                project=project,
+                previous_outputs=previous_outputs,
+                execution=execution,
+                agent_status=agent_execution_status["architect"]
+            )
+            agent_outputs["architect"] = architect_result
+            
+            # Extract Architect artifacts
+            try:
+                extracted = self._extract_artifacts_from_agent_output("architect", architect_result, execution.id)
+                if extracted:
+                    self._persist_artifacts(extracted, execution.id)
+                    
+                    # Check for questions in artifacts
+                    questions = [a for a in extracted if a.get("artifact_type") == "question" or 
+                                 a.get("artifact_code", "").startswith("Q-")]
+                    
+                    if questions and iteration < MAX_ITERATIONS:
+                        # Architect has questions - BA must answer
+                        logger.info(f"[V2 Iteration] Architect asked {len(questions)} questions")
+                        
+                        # Store questions
+                        self._store_questions(questions, execution.id)
+                        
+                        # Have BA answer
+                        ba_answer_result = await self._ba_answer_questions(
+                            project=project,
+                            questions=questions,
+                            ba_artifacts=agent_outputs["ba"],
+                            execution=execution,
+                            agent_status=agent_execution_status["ba"]
+                        )
+                        
+                        # Update BA output with answers
+                        if ba_answer_result.get("success"):
+                            agent_outputs["ba_answers"] = ba_answer_result
+                            self._update_questions_with_answers(ba_answer_result, execution.id)
+                    else:
+                        questions_pending = False
+                else:
+                    questions_pending = False
+                    
+            except Exception as e:
+                logger.warning(f"Architect artifact extraction failed: {e}")
+                questions_pending = False
+        
+        # Final status update
+        agent_execution_status["architect"]["state"] = "completed"
+        agent_execution_status["architect"]["progress"] = 100
+        agent_execution_status["architect"]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        agent_execution_status["architect"]["message"] = f"Architecture completed (iterations: {iteration})"
+        execution.agent_execution_status = agent_execution_status
+        self.db.commit()
+        
+        logger.info(f"[V2 Iteration] Completed with {iteration} iteration(s)")
+        
+        return {
+            "ba": agent_outputs.get("ba"),
+            "architect": agent_outputs.get("architect"),
+            "iterations": iteration
+        }
+    
+    def _get_answered_questions(self, execution_id: int) -> List[Dict]:
+        """Get questions that have been answered"""
+        try:
+            from app.models.execution_artifact import ExecutionArtifact
+            questions = self.db.query(ExecutionArtifact).filter(
+                ExecutionArtifact.execution_id == execution_id,
+                ExecutionArtifact.artifact_type == "question"
+            ).all()
+            
+            answered = []
+            for q in questions:
+                content = q.content or {}
+                if content.get("status") == "answered":
+                    answered.append({
+                        "code": q.artifact_code,
+                        "question": content.get("question"),
+                        "answer": content.get("answer"),
+                        "related": q.parent_refs or []
+                    })
+            return answered
+        except Exception as e:
+            logger.warning(f"Could not get answered questions: {e}")
+            return []
+    
+    def _store_questions(self, questions: List[Dict], execution_id: int) -> None:
+        """Store architect questions as artifacts"""
+        try:
+            from app.models.execution_artifact import ExecutionArtifact
+            for q in questions:
+                existing = self.db.query(ExecutionArtifact).filter(
+                    ExecutionArtifact.execution_id == execution_id,
+                    ExecutionArtifact.artifact_code == q.get("artifact_code")
+                ).first()
+                
+                if not existing:
+                    artifact = ExecutionArtifact(
+                        execution_id=execution_id,
+                        artifact_type="question",
+                        artifact_code=q.get("artifact_code"),
+                        title=q.get("title", "Question from Architect"),
+                        producer_agent="architect",
+                        content={
+                            "question": q.get("content", {}).get("question", q.get("question", "")),
+                            "context": q.get("content", {}).get("context", ""),
+                            "related_artifacts": q.get("parent_refs", []),
+                            "status": "pending"
+                        },
+                        parent_refs=q.get("parent_refs", []),
+                        status="active"
+                    )
+                    self.db.add(artifact)
+            self.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to store questions: {e}")
+    
+    async def _ba_answer_questions(
+        self,
+        project: "Project",
+        questions: List[Dict],
+        ba_artifacts: Dict,
+        execution: "Execution",
+        agent_status: Dict
+    ) -> Dict[str, Any]:
+        """Have BA answer architect's questions"""
+        logger.info(f"[V2 Iteration] BA answering {len(questions)} questions")
+        
+        # Build answer prompt
+        answer_prompt = self._build_answer_prompt(questions, ba_artifacts)
+        
+        # Temporarily update BA status
+        agent_status["state"] = "running"
+        agent_status["message"] = f"Answering {len(questions)} clarification questions..."
+        self.db.commit()
+        
+        try:
+            # Use OpenAI directly for quick answer
+            import openai
+            client = openai.OpenAI()
+            
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a Salesforce Business Analyst. Answer the architect's questions based on the business requirements context."},
+                    {"role": "user", "content": answer_prompt}
+                ],
+                max_tokens=4000,
+                temperature=0.3
+            )
+            
+            answer_text = response.choices[0].message.content
+            
+            return {
+                "success": True,
+                "answers": answer_text,
+                "questions_answered": len(questions)
+            }
+            
+        except Exception as e:
+            logger.error(f"BA answer failed: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _build_answer_prompt(self, questions: List[Dict], ba_artifacts: Dict) -> str:
+        """Build prompt for BA to answer questions"""
+        lines = ["# QUESTIONS FROM SOLUTION ARCHITECT", ""]
+        lines.append("Please answer these clarification questions about the business requirements:")
+        lines.append("")
+        
+        for q in questions:
+            code = q.get("artifact_code", "Q-???")
+            content = q.get("content", {})
+            question_text = content.get("question", q.get("question", "No question text"))
+            context = content.get("context", "")
+            related = q.get("parent_refs", [])
+            
+            lines.append(f"## {code}")
+            if context:
+                lines.append(f"**Context:** {context}")
+            lines.append(f"**Question:** {question_text}")
+            if related:
+                lines.append(f"**Related to:** {', '.join(related)}")
+            lines.append("")
+        
+        lines.append("---")
+        lines.append("For each question, provide:")
+        lines.append("1. A clear, specific answer")
+        lines.append("2. Any additional business rules or constraints")
+        lines.append("3. Recommendation for the architect if applicable")
+        
+        return "\n".join(lines)
+    
+    def _update_questions_with_answers(self, ba_result: Dict, execution_id: int) -> None:
+        """Update question artifacts with BA answers"""
+        try:
+            from app.models.execution_artifact import ExecutionArtifact
+            answers_text = ba_result.get("answers", "")
+            
+            # Mark all pending questions as answered
+            questions = self.db.query(ExecutionArtifact).filter(
+                ExecutionArtifact.execution_id == execution_id,
+                ExecutionArtifact.artifact_type == "question"
+            ).all()
+            
+            for q in questions:
+                content = q.content or {}
+                if content.get("status") == "pending":
+                    content["status"] = "answered"
+                    content["answer"] = f"See BA response in iteration"
+                    content["full_response"] = answers_text
+                    q.content = content
+            
+            self.db.commit()
+        except Exception as e:
+            logger.error(f"Failed to update questions: {e}")
+
 
     async def _execute_single_agent(
         self,
@@ -886,7 +1212,7 @@ This document provides detailed specifications across all aspects of the impleme
             # Define which patterns to look for based on agent
             agent_pattern_map = {
                 'ba': [('BR', 'business_req'), ('UC', 'use_case')],
-                'architect': [('ADR', 'adr'), ('SPEC', 'spec')],
+                'architect': [('ADR', 'adr'), ('SPEC', 'spec'), ('Q', 'question')],
                 'apex': [('CODE', 'code')],
                 'lwc': [('CODE', 'code')],
                 'admin': [('CFG', 'config')],
@@ -898,7 +1224,7 @@ This document provides detailed specifications across all aspects of the impleme
             
             for prefix, artifact_type in patterns_to_check:
                 # Pattern to match "### BR-001: Title" and capture content until next artifact or ---
-                pattern = rf'###\s+{prefix}-(\d+):\s*([^\n]+)\n(.+?)(?=###\s+(?:BR|UC|ADR|SPEC|CODE|CFG|TEST|DOC)-\d+:|---\s*\n|\Z)'
+                pattern = rf'###\s+{prefix}-(\d+):\s*([^\n]+)\n(.+?)(?=###\s+(?:BR|UC|ADR|SPEC|CODE|CFG|TEST|DOC|Q)-\d+:|---\s*\n|\Z)'
                 
                 matches = re.finditer(pattern, raw_markdown, re.DOTALL | re.IGNORECASE)
                 
