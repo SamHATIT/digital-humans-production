@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, orchestrator_v2
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -41,7 +41,6 @@ app.include_router(analytics.router)
 
 # Include routers - V2 Artifacts & Orchestrator
 app.include_router(artifacts.router)
-app.include_router(orchestrator_v2.router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
