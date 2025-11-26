@@ -19,6 +19,9 @@ from app.models.execution import Execution, ExecutionStatus
 from app.database import SessionLocal
 from app.services.agent_integration import AgentIntegrationService, AgentExecutionError
 from app.services.quality_gates import QualityGatesService, QualityGateStatus
+from app.services.artifact_service import ArtifactService
+from app.schemas.artifact import ArtifactCreate, ArtifactTypeEnum
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +33,7 @@ class PMOrchestratorService:
         self.db = db
         self.agent_service = AgentIntegrationService()
         self.quality_service = QualityGatesService()
+        self.artifact_service = ArtifactService(db)
 
     async def execute_agents(
         self,
@@ -74,6 +78,12 @@ class PMOrchestratorService:
 
             # Update execution
             execution.status = ExecutionStatus.RUNNING
+
+            # V2: Initialize validation gates
+            try:
+                self._initialize_validation_gates(execution_id)
+            except Exception as e:
+                logger.warning(f"Could not initialize validation gates: {e}")
             execution.started_at = datetime.now(timezone.utc)
             execution.agent_execution_status = agent_execution_status
             self.db.commit()
@@ -116,6 +126,22 @@ class PMOrchestratorService:
 
                     # Store full result (includes output, quality_check, execution_time, etc.)
                     agent_outputs[agent_id] = result
+
+                    # V2: Extract and persist artifacts from agent output
+                    try:
+                        extracted = self._extract_artifacts_from_agent_output(
+                            agent_id=agent_id,
+                            output=result,
+                            execution_id=execution_id
+                        )
+                        if extracted:
+                            self._persist_artifacts(extracted, execution_id)
+                            # Check if gate should be updated
+                            gate_info = self._check_gate_progress(execution_id, agent_id)
+                            if gate_info:
+                                self._update_gate_artifacts_count(execution_id, gate_info["gate_number"])
+                    except Exception as e:
+                        logger.warning(f"Artifact extraction failed for {agent_id}: {e}")
 
                     # Check if agent failed
                     if result.get("status") == "failed":
@@ -798,6 +824,251 @@ This document provides detailed specifications across all aspects of the impleme
 
         return output_path
 
+
+
+    # ============ V2 ARTIFACT METHODS ============
+    
+    def _initialize_validation_gates(self, execution_id: int) -> List[Dict]:
+        """Initialize the 6 validation gates for an execution"""
+        gates = self.artifact_service.initialize_gates(execution_id)
+        logger.info(f"Initialized {len(gates)} validation gates for execution {execution_id}")
+        return [g.to_dict() for g in gates]
+    
+    def _get_artifact_type_for_agent(self, agent_id: str) -> Optional[str]:
+        """Map agent ID to primary artifact type"""
+        mapping = {
+            'ba': 'business_req',      # BA produces BR and UC
+            'architect': 'spec',        # Architect produces ADR and SPEC
+            'apex': 'code',             # Apex produces CODE
+            'lwc': 'code',              # LWC produces CODE
+            'admin': 'config',          # Admin produces CONFIG
+            'qa': 'test',               # QA produces TEST
+            'devops': 'config',         # DevOps produces CONFIG
+            'data': 'config',           # Data produces CONFIG
+            'trainer': 'doc',           # Trainer produces DOC
+        }
+        return mapping.get(agent_id)
+    
+    def _extract_artifacts_from_agent_output(
+        self,
+        agent_id: str,
+        output: Dict[str, Any],
+        execution_id: int
+    ) -> List[Dict]:
+        """
+        Extract structured artifacts from agent output.
+        Parses the markdown content and creates artifact records.
+        """
+        artifacts = []
+        
+        try:
+            # Get the content from output
+            json_data = output.get("output", {}).get("json_data", {})
+            if not json_data:
+                json_data = output.get("output", {})
+            
+            content = json_data.get("content", "")
+            sections = json_data.get("sections", [])
+            
+            if not content and not sections:
+                logger.warning(f"No content found in output for agent {agent_id}")
+                return artifacts
+            
+            # Get artifact type based on agent
+            artifact_type = self._get_artifact_type_for_agent(agent_id)
+            if not artifact_type:
+                logger.warning(f"No artifact type mapping for agent {agent_id}")
+                return artifacts
+            
+            # Generate artifact code prefix
+            prefix_map = {
+                'business_req': 'BR',
+                'use_case': 'UC',
+                'spec': 'SPEC',
+                'adr': 'ADR',
+                'code': 'CODE',
+                'config': 'CFG',
+                'test': 'TEST',
+                'doc': 'DOC'
+            }
+            prefix = prefix_map.get(artifact_type, 'ART')
+            
+            # Get next artifact code
+            existing = self.artifact_service.list_artifacts(execution_id, artifact_type=artifact_type)
+            next_num = len(existing) + 1
+            
+            # Create main artifact for the entire output
+            artifact_code = f"{prefix}-{next_num:03d}"
+            
+            artifact_data = {
+                "execution_id": execution_id,
+                "artifact_type": artifact_type,
+                "artifact_code": artifact_code,
+                "title": f"{agent_id.upper()} Output - {artifact_code}",
+                "producer_agent": agent_id,
+                "content": {
+                    "raw_content": content[:50000] if content else "",  # Limit size
+                    "sections": sections[:20] if sections else [],  # Limit sections
+                    "metadata": json_data.get("metadata", {})
+                },
+                "parent_refs": []
+            }
+            
+            artifacts.append(artifact_data)
+            
+            # For BA agent, also extract individual BR and UC if present in sections
+            if agent_id == "ba" and sections:
+                for idx, section in enumerate(sections[:10]):  # Limit to 10 sections
+                    section_title = section.get("title", "")
+                    
+                    # Check if this is a Business Requirement section
+                    if "business" in section_title.lower() and "requirement" in section_title.lower():
+                        br_code = f"BR-{next_num + idx + 1:03d}"
+                        artifacts.append({
+                            "execution_id": execution_id,
+                            "artifact_type": "business_req",
+                            "artifact_code": br_code,
+                            "title": section_title,
+                            "producer_agent": agent_id,
+                            "content": {
+                                "description": section.get("content", "")[:10000],
+                                "source_section": section_title
+                            },
+                            "parent_refs": [artifact_code]
+                        })
+                    
+                    # Check if this is a Use Case section
+                    elif "use case" in section_title.lower():
+                        uc_code = f"UC-{next_num + idx + 1:03d}"
+                        artifacts.append({
+                            "execution_id": execution_id,
+                            "artifact_type": "use_case",
+                            "artifact_code": uc_code,
+                            "title": section_title,
+                            "producer_agent": agent_id,
+                            "content": {
+                                "description": section.get("content", "")[:10000],
+                                "source_section": section_title
+                            },
+                            "parent_refs": [artifact_code]
+                        })
+            
+            # For Architect, extract ADR and SPEC
+            if agent_id == "architect" and sections:
+                for idx, section in enumerate(sections[:10]):
+                    section_title = section.get("title", "")
+                    
+                    if "decision" in section_title.lower() or "adr" in section_title.lower():
+                        adr_code = f"ADR-{idx + 1:03d}"
+                        artifacts.append({
+                            "execution_id": execution_id,
+                            "artifact_type": "adr",
+                            "artifact_code": adr_code,
+                            "title": section_title,
+                            "producer_agent": agent_id,
+                            "content": {
+                                "description": section.get("content", "")[:10000],
+                                "source_section": section_title
+                            },
+                            "parent_refs": [artifact_code]
+                        })
+            
+            logger.info(f"Extracted {len(artifacts)} artifacts from agent {agent_id}")
+            return artifacts
+            
+        except Exception as e:
+            logger.error(f"Error extracting artifacts from agent {agent_id}: {e}")
+            return artifacts
+    
+    def _persist_artifacts(self, artifacts: List[Dict], execution_id: int) -> List[int]:
+        """Persist extracted artifacts to database"""
+        created_ids = []
+        
+        for artifact_data in artifacts:
+            try:
+                # Map string type to enum
+                type_str = artifact_data.get("artifact_type", "doc")
+                type_enum = ArtifactTypeEnum(type_str)
+                
+                artifact = self.artifact_service.create_artifact(ArtifactCreate(
+                    execution_id=execution_id,
+                    artifact_type=type_enum,
+                    artifact_code=artifact_data["artifact_code"],
+                    title=artifact_data["title"],
+                    producer_agent=artifact_data["producer_agent"],
+                    content=artifact_data["content"],
+                    parent_refs=artifact_data.get("parent_refs", [])
+                ))
+                created_ids.append(artifact.id)
+                logger.info(f"Created artifact {artifact.artifact_code} (ID: {artifact.id})")
+                
+            except Exception as e:
+                logger.error(f"Error persisting artifact {artifact_data.get('artifact_code')}: {e}")
+        
+        return created_ids
+    
+    def _check_gate_progress(self, execution_id: int, agent_id: str) -> Optional[Dict]:
+        """Check if a validation gate should be triggered after this agent"""
+        # Gate 1: After BA (BR/UC validation)
+        if agent_id == "ba":
+            return {
+                "gate_number": 1,
+                "gate_name": "BR/UC Validation",
+                "artifact_types": ["business_req", "use_case"]
+            }
+        
+        # Gate 2: After Architect (SDS/ADR validation)
+        if agent_id == "architect":
+            return {
+                "gate_number": 2,
+                "gate_name": "SDS/ADR Validation",
+                "artifact_types": ["adr", "spec"]
+            }
+        
+        # Gate 3: After all developers (Code validation)
+        if agent_id in ["apex", "lwc", "admin"]:
+            return {
+                "gate_number": 3,
+                "gate_name": "Code/Config Validation",
+                "artifact_types": ["code", "config"]
+            }
+        
+        # Gate 4: After QA
+        if agent_id == "qa":
+            return {
+                "gate_number": 4,
+                "gate_name": "QA Validation",
+                "artifact_types": ["test"]
+            }
+        
+        # Gate 5: After Trainer
+        if agent_id == "trainer":
+            return {
+                "gate_number": 5,
+                "gate_name": "Training Validation",
+                "artifact_types": ["doc"]
+            }
+        
+        return None
+    
+    def _update_gate_artifacts_count(self, execution_id: int, gate_number: int) -> None:
+        """Update the artifacts count for a gate"""
+        try:
+            gate = self.artifact_service.get_gate(execution_id, gate_number)
+            if gate:
+                artifact_types = gate.artifact_types or []
+                total = 0
+                for art_type in artifact_types:
+                    artifacts = self.artifact_service.list_artifacts(
+                        execution_id, artifact_type=art_type
+                    )
+                    total += len(artifacts)
+                
+                gate.artifacts_count = total
+                self.db.commit()
+                logger.info(f"Gate {gate_number} artifacts count updated to {total}")
+        except Exception as e:
+            logger.error(f"Error updating gate artifacts count: {e}")
 
 # Background task wrapper
 async def execute_agents_background(
