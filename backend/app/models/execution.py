@@ -55,3 +55,8 @@ class Execution(Base):
     user = relationship("User", back_populates="executions")
     execution_agents = relationship("ExecutionAgent", back_populates="execution", cascade="all, delete-orphan")
     outputs = relationship("Output", back_populates="execution", cascade="all, delete-orphan")
+
+    # V2 Artifacts relationships
+    artifacts = relationship("ExecutionArtifact", back_populates="execution", cascade="all, delete-orphan")
+    validation_gates = relationship("ValidationGate", back_populates="execution", cascade="all, delete-orphan")
+    agent_questions = relationship("AgentQuestion", back_populates="execution", cascade="all, delete-orphan")

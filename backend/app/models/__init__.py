@@ -15,7 +15,19 @@ from app.models.training_content import TrainingContent, ContentStatus, Formatti
 from app.models.quality_gate import QualityGate, GateStatus
 from app.models.agent_iteration import AgentIteration, IterationStatus
 
+# V2 Artifacts System
+from app.models.artifact import (
+    ExecutionArtifact,
+    ValidationGate,
+    AgentQuestion,
+    ArtifactType,
+    ArtifactStatus,
+    GateStatus as ArtifactGateStatus,  # Alias to avoid conflict with quality_gate.GateStatus
+    QuestionStatus,
+)
+
 __all__ = [
+    # Core models
     "User",
     "Project",
     "ProjectStatus",
@@ -37,4 +49,12 @@ __all__ = [
     "GateStatus",
     "AgentIteration",
     "IterationStatus",
+    # V2 Artifacts
+    "ExecutionArtifact",
+    "ValidationGate",
+    "AgentQuestion",
+    "ArtifactType",
+    "ArtifactStatus",
+    "ArtifactGateStatus",
+    "QuestionStatus",
 ]
