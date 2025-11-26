@@ -411,7 +411,7 @@ class PMOrchestratorService:
     def _get_answered_questions(self, execution_id: int) -> List[Dict]:
         """Get questions that have been answered"""
         try:
-            from app.models.execution_artifact import ExecutionArtifact
+            from app.models.artifact import ExecutionArtifact
             questions = self.db.query(ExecutionArtifact).filter(
                 ExecutionArtifact.execution_id == execution_id,
                 ExecutionArtifact.artifact_type == "question"
@@ -435,7 +435,7 @@ class PMOrchestratorService:
     def _store_questions(self, questions: List[Dict], execution_id: int) -> None:
         """Store architect questions as artifacts"""
         try:
-            from app.models.execution_artifact import ExecutionArtifact
+            from app.models.artifact import ExecutionArtifact
             for q in questions:
                 existing = self.db.query(ExecutionArtifact).filter(
                     ExecutionArtifact.execution_id == execution_id,
@@ -541,7 +541,7 @@ class PMOrchestratorService:
     def _update_questions_with_answers(self, ba_result: Dict, execution_id: int) -> None:
         """Update question artifacts with BA answers"""
         try:
-            from app.models.execution_artifact import ExecutionArtifact
+            from app.models.artifact import ExecutionArtifact
             answers_text = ba_result.get("answers", "")
             
             # Mark all pending questions as answered
