@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, orchestrator_v2
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -39,8 +39,9 @@ app.include_router(pm_orchestrator.router, prefix=f"{settings.API_V1_PREFIX}/pm-
 app.include_router(projects.router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics.router)
 
-# Include routers - V2 Artifacts
+# Include routers - V2 Artifacts & Orchestrator
 app.include_router(artifacts.router)
+app.include_router(orchestrator_v2.router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
@@ -58,7 +59,7 @@ async def root():
         "message": "Digital Humans API",
         "version": "2.0.0",
         "status": "healthy",
-        "features": ["V1 PM Orchestrator", "V2 Artifacts System"]
+        "features": ["V1 PM Orchestrator", "V2 Artifacts System", "V2 Orchestrator"]
     }
 
 @app.get("/health")
