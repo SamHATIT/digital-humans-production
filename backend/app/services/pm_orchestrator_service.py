@@ -862,13 +862,23 @@ This document provides detailed specifications across all aspects of the impleme
         artifacts = []
         
         try:
-            # Get the content from output
-            json_data = output.get("output", {}).get("json_data", {})
-            if not json_data:
-                json_data = output.get("output", {})
+            # Get the content from output - handle nested structure
+            json_data = output.get("output", {})
+            if isinstance(json_data, dict):
+                json_data = json_data.get("json_data", json_data)
             
+            if not isinstance(json_data, dict):
+                json_data = {}
+            
+            # Get content - ensure it's a string
             content = json_data.get("content", "")
+            if not isinstance(content, str):
+                content = str(content) if content else ""
+            
+            # Get sections - ensure it's a list
             sections = json_data.get("sections", [])
+            if not isinstance(sections, list):
+                sections = []
             
             if not content and not sections:
                 logger.warning(f"No content found in output for agent {agent_id}")
@@ -900,6 +910,17 @@ This document provides detailed specifications across all aspects of the impleme
             # Create main artifact for the entire output
             artifact_code = f"{prefix}-{next_num:03d}"
             
+            # Safely truncate content
+            raw_content = content[:50000] if len(content) > 50000 else content
+            
+            # Safely process sections
+            safe_sections = []
+            for s in sections[:20]:
+                if isinstance(s, dict):
+                    safe_sections.append(s)
+                elif isinstance(s, str):
+                    safe_sections.append({"title": "Section", "content": s})
+            
             artifact_data = {
                 "execution_id": execution_id,
                 "artifact_type": artifact_type,
@@ -907,19 +928,27 @@ This document provides detailed specifications across all aspects of the impleme
                 "title": f"{agent_id.upper()} Output - {artifact_code}",
                 "producer_agent": agent_id,
                 "content": {
-                    "raw_content": content[:50000] if content else "",  # Limit size
-                    "sections": sections[:20] if sections else [],  # Limit sections
-                    "metadata": json_data.get("metadata", {})
+                    "raw_content": raw_content,
+                    "sections": safe_sections,
+                    "metadata": json_data.get("metadata", {}) if isinstance(json_data.get("metadata"), dict) else {}
                 },
                 "parent_refs": []
             }
             
             artifacts.append(artifact_data)
+            logger.info(f"Created main artifact {artifact_code} for agent {agent_id}")
             
             # For BA agent, also extract individual BR and UC if present in sections
-            if agent_id == "ba" and sections:
-                for idx, section in enumerate(sections[:10]):  # Limit to 10 sections
-                    section_title = section.get("title", "")
+            if agent_id == "ba" and safe_sections:
+                for idx, section in enumerate(safe_sections[:10]):
+                    section_title = section.get("title", "") if isinstance(section, dict) else ""
+                    section_content = section.get("content", "") if isinstance(section, dict) else str(section)
+                    
+                    # Truncate section content
+                    if isinstance(section_content, str) and len(section_content) > 10000:
+                        section_content = section_content[:10000]
+                    elif not isinstance(section_content, str):
+                        section_content = str(section_content)[:10000]
                     
                     # Check if this is a Business Requirement section
                     if "business" in section_title.lower() and "requirement" in section_title.lower():
@@ -931,7 +960,7 @@ This document provides detailed specifications across all aspects of the impleme
                             "title": section_title,
                             "producer_agent": agent_id,
                             "content": {
-                                "description": section.get("content", "")[:10000],
+                                "description": section_content,
                                 "source_section": section_title
                             },
                             "parent_refs": [artifact_code]
@@ -947,16 +976,22 @@ This document provides detailed specifications across all aspects of the impleme
                             "title": section_title,
                             "producer_agent": agent_id,
                             "content": {
-                                "description": section.get("content", "")[:10000],
+                                "description": section_content,
                                 "source_section": section_title
                             },
                             "parent_refs": [artifact_code]
                         })
             
             # For Architect, extract ADR and SPEC
-            if agent_id == "architect" and sections:
-                for idx, section in enumerate(sections[:10]):
-                    section_title = section.get("title", "")
+            if agent_id == "architect" and safe_sections:
+                for idx, section in enumerate(safe_sections[:10]):
+                    section_title = section.get("title", "") if isinstance(section, dict) else ""
+                    section_content = section.get("content", "") if isinstance(section, dict) else str(section)
+                    
+                    if isinstance(section_content, str) and len(section_content) > 10000:
+                        section_content = section_content[:10000]
+                    elif not isinstance(section_content, str):
+                        section_content = str(section_content)[:10000]
                     
                     if "decision" in section_title.lower() or "adr" in section_title.lower():
                         adr_code = f"ADR-{idx + 1:03d}"
@@ -967,7 +1002,7 @@ This document provides detailed specifications across all aspects of the impleme
                             "title": section_title,
                             "producer_agent": agent_id,
                             "content": {
-                                "description": section.get("content", "")[:10000],
+                                "description": section_content,
                                 "source_section": section_title
                             },
                             "parent_refs": [artifact_code]
@@ -978,8 +1013,9 @@ This document provides detailed specifications across all aspects of the impleme
             
         except Exception as e:
             logger.error(f"Error extracting artifacts from agent {agent_id}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return artifacts
-    
     def _persist_artifacts(self, artifacts: List[Dict], execution_id: int) -> List[int]:
         """Persist extracted artifacts to database"""
         created_ids = []
