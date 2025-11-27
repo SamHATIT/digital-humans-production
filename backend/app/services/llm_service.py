@@ -59,9 +59,9 @@ class LLMConfig:
 
 # Model mappings per tier
 ANTHROPIC_MODELS = {
-    AgentTier.ORCHESTRATOR: "claude-opus-4-20250514",      # Best reasoning
-    AgentTier.ANALYST: "claude-sonnet-4-20250514",         # Balanced
-    AgentTier.WORKER: "claude-haiku-4-20250514",           # Fast & economical
+    AgentTier.ORCHESTRATOR: "claude-opus-4-5-20251101",      # Best reasoning
+    AgentTier.ANALYST: "claude-sonnet-4-5-20250929",         # Balanced
+    AgentTier.WORKER: "claude-haiku-4-5-20251001",           # Fast & economical
 }
 
 OPENAI_MODELS = {
