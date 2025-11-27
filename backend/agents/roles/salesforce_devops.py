@@ -3,6 +3,14 @@
 import os, sys, argparse, json
 from pathlib import Path
 from datetime import datetime
+# LLM imports - supports both OpenAI and Anthropic
+import sys as _sys
+_sys.path.insert(0, "/app")
+try:
+    from app.services.llm_service import generate_llm_response, LLMProvider
+    LLM_SERVICE_AVAILABLE = True
+except ImportError:
+    LLM_SERVICE_AVAILABLE = False
 from openai import OpenAI
 import time
 # from docx import Document
@@ -99,18 +107,35 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
 **Generate the complete specifications now.**
 """
     
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": DEVOPS_PROMPT},
-            {"role": "user", "content": full_prompt}
-        ],
-        max_tokens=16000,
-        temperature=0.3
-    )
-    
-    specifications = response.choices[0].message.content
-    tokens_used = response.usage.total_tokens
+    # LLM Service (Claude Haiku for workers) with fallback
+    if LLM_SERVICE_AVAILABLE:
+        print(f"🤖 Calling Claude API (Haiku - devops tier)...", file=_sys.stderr)
+        _llm_resp = generate_llm_response(
+            prompt=full_prompt,
+            agent_type="devops",
+            system_prompt=DEVOPS_PROMPT[:4000] if len(DEVOPS_PROMPT) > 4000 else DEVOPS_PROMPT,
+            max_tokens=16000,
+            temperature=0.3
+        )
+        specifications = _llm_resp["content"]
+        tokens_used = _llm_resp["tokens_used"]
+        model_used = _llm_resp["model"]
+        provider_used = _llm_resp["provider"]
+        print(f"✅ Using {provider_used} / {model_used}", file=_sys.stderr)
+    else:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": DEVOPS_PROMPT},
+                {"role": "user", "content": full_prompt}
+            ],
+            max_tokens=16000,
+            temperature=0.3
+        )
+        specifications = response.choices[0].message.content
+        tokens_used = response.usage.total_tokens
+        model_used = "gpt-4o-mini"
+        provider_used = "openai"
     
     sections = []
     current_section = None
@@ -142,7 +167,8 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
         },
         "metadata": {
             "tokens_used": tokens_used,
-            "model": "gpt-4o-mini",
+            "model": model_used,
+            "provider": provider_used,
             "execution_time_seconds": round(execution_time, 2),
             "content_length": len(specifications),
             "sections_count": len(sections),

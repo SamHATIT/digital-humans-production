@@ -3,7 +3,15 @@
 import os, sys, argparse, json
 from pathlib import Path
 from datetime import datetime
-from openai import OpenAI
+# LLM imports - supports both OpenAI and Anthropic
+import sys
+sys.path.insert(0, "/app")
+try:
+    from app.services.llm_service import generate_llm_response, LLMProvider
+    LLM_SERVICE_AVAILABLE = True
+except ImportError:
+    LLM_SERVICE_AVAILABLE = False
+    from openai import OpenAI
 from docx import Document
 
 QA_PROMPT = """# 🧪 SALESFORCE QA ENGINEER - COMPREHENSIVE TEST STRATEGY V3
@@ -789,17 +797,40 @@ def main():
         with open(args.input) as f:
             reqs = f.read()
         
-        client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an expert Salesforce QA Engineer."},
-                {"role": "user", "content": f"{QA_PROMPT}\n\nREQUIREMENTS:\n{reqs}"}
-            ],
-            max_tokens=16000,
-            temperature=0.7
-        )
-        content = response.choices[0].message.content
+        full_prompt = f"{QA_PROMPT}\n\nREQUIREMENTS:\n{reqs}"
+        system_prompt = "You are an expert Salesforce QA Engineer creating comprehensive test specifications."
+        
+        # LLM Service with fallback to OpenAI
+        if LLM_SERVICE_AVAILABLE:
+            print(f"🤖 Calling Claude API (Haiku - QA tier)...", file=sys.stderr)
+            llm_response = generate_llm_response(
+                prompt=full_prompt,
+                agent_type="qa",
+                system_prompt=system_prompt,
+                max_tokens=16000,
+                temperature=0.7
+            )
+            content = llm_response["content"]
+            tokens_used = llm_response["tokens_used"]
+            model_used = llm_response["model"]
+            provider_used = llm_response["provider"]
+            print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
+        else:
+            # Fallback to OpenAI
+            client = OpenAI(api_key=os.environ['OPENAI_API_KEY'])
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": full_prompt}
+                ],
+                max_tokens=16000,
+                temperature=0.7
+            )
+            content = response.choices[0].message.content
+            tokens_used = response.usage.total_tokens
+            model_used = "gpt-4o-mini"
+            provider_used = "openai"
         
         # Generate JSON output
         output_data = {
@@ -813,8 +844,9 @@ def main():
                 "sections": []
             },
             "metadata": {
-                "tokens_used": response.usage.total_tokens,
-                "model": "gpt-4o-mini",
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
                 "content_length": len(content),
                 "generated_at": datetime.now().isoformat()
             }

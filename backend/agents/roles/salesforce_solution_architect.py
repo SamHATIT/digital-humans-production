@@ -10,7 +10,15 @@ import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-from openai import OpenAI
+# LLM imports - supports both OpenAI and Anthropic
+import sys
+sys.path.insert(0, "/app")
+try:
+    from app.services.llm_service import generate_llm_response, LLMProvider
+    LLM_SERVICE_AVAILABLE = True
+except ImportError:
+    LLM_SERVICE_AVAILABLE = False
+    from openai import OpenAI
 import time
 # from docx import Document
 # from docx.shared import Pt
@@ -1009,13 +1017,6 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
     """
     start_time = time.time()
     
-    # Get API key
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
-    
-    client = OpenAI(api_key=api_key)
-    
     # Build prompt
     full_prompt = f"""{ARCHITECT_PROMPT}
 
@@ -1035,22 +1036,49 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
 3. **Each ADR must reference the UCs it addresses from BA specifications**
 4. **Each SPEC must specify the assigned agent (apex/lwc/admin/devops)**
 5. **Include the traceability matrix UC → ADR → SPEC → Agent**
-6. **Aim for 3-10 ADRs and 10-30 SPECs depending on complexity**
+6. **Aim for 8-15 ADRs and 25-50 SPECs depending on complexity**
 """
     
-    # Call GPT-4
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are an expert Salesforce Solution Architect (CTA) creating production-ready HLD."},
-            {"role": "user", "content": full_prompt}
-        ],
-        max_tokens=16000,
-        temperature=0.3
-    )
+    system_prompt = "You are an expert Salesforce Solution Architect (CTA) creating production-ready HLD. Follow ALL instructions precisely, especially regarding ADR and SPEC artifact generation with proper traceability."
     
-    specifications = response.choices[0].message.content
-    tokens_used = response.usage.total_tokens
+    print(f"📝 Prompt size: {len(full_prompt)} characters", file=sys.stderr)
+    
+    # Use LLM Service if available (Claude Sonnet for Architect tier), fallback to OpenAI
+    if LLM_SERVICE_AVAILABLE:
+        print(f"🤖 Calling Claude API (Sonnet - Architect tier)...", file=sys.stderr)
+        response = generate_llm_response(
+            prompt=full_prompt,
+            agent_type="architect",
+            system_prompt=system_prompt,
+            max_tokens=16000,
+            temperature=0.3
+        )
+        specifications = response["content"]
+        tokens_used = response["tokens_used"]
+        model_used = response["model"]
+        provider_used = response["provider"]
+        print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
+    else:
+        # Fallback to direct OpenAI call
+        print(f"🤖 Calling OpenAI API (GPT-4) - fallback mode...", file=sys.stderr)
+        from openai import OpenAI
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": full_prompt}
+            ],
+            max_tokens=16000,
+            temperature=0.3
+        )
+        specifications = response.choices[0].message.content
+        tokens_used = response.usage.total_tokens
+        model_used = "gpt-4o-mini"
+        provider_used = "openai"
     
     # Parse sections from markdown
     sections = []
@@ -1084,7 +1112,8 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
         },
         "metadata": {
             "tokens_used": tokens_used,
-            "model": "gpt-4o-mini",
+            "model": model_used,
+            "provider": provider_used,
             "execution_time_seconds": round(execution_time, 2),
             "content_length": len(specifications),
             "sections_count": len(sections),
