@@ -40,6 +40,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_outputs:/app/outputs
+      - /opt/digital-humans/rag/chromadb_data:/opt/digital-humans/rag/chromadb_data:ro
     depends_on:
       db:
         condition: service_healthy
