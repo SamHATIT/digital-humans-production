@@ -18,6 +18,12 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# RAG Service
+try:
+    from app.services.rag_service import get_salesforce_context
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
     from openai import OpenAI
 import time
 # from docx import Document
@@ -1017,8 +1023,21 @@ def main(requirements: str, project_name: str = "unknown", execution_id: str = N
     """
     start_time = time.time()
     
-    # Build prompt
+    # Get RAG context if available
+    rag_context = ""
+    if RAG_AVAILABLE:
+        try:
+            print(f"🔍 Querying RAG for Salesforce architecture best practices...", file=sys.stderr)
+            rag_context = get_salesforce_context(requirements[:2000], n_results=8)
+            print(f"✅ RAG context retrieved ({len(rag_context)} chars)", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ RAG unavailable: {e}", file=sys.stderr)
+            rag_context = ""
+    
+    # Build prompt with RAG context
     full_prompt = f"""{ARCHITECT_PROMPT}
+
+{rag_context}
 
 ---
 

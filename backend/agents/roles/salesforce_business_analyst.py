@@ -19,6 +19,12 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# RAG Service
+try:
+    from app.services.rag_service import get_salesforce_context
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
     from openai import OpenAI
 from docx import Document
 from docx.shared import Pt, Inches, RGBColor
@@ -612,8 +618,21 @@ def main():
         
         print(f"✅ Read {len(requirements)} characters", file=sys.stderr)
         
-        # Construct full prompt
+        # Get RAG context if available
+        rag_context = ""
+        if RAG_AVAILABLE:
+            try:
+                print(f"🔍 Querying RAG for Salesforce best practices...", file=sys.stderr)
+                rag_context = get_salesforce_context(requirements[:2000], n_results=8)
+                print(f"✅ RAG context retrieved ({len(rag_context)} chars)", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ RAG unavailable: {e}", file=sys.stderr)
+                rag_context = ""
+        
+        # Construct full prompt with RAG context
         full_prompt = f"""{BA_PROMPT_PART1}
+
+{rag_context}
 
 ---
 
