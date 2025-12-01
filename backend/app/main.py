@@ -74,3 +74,14 @@ if __name__ == "__main__":
         port=8000,
         reload=settings.DEBUG
     )
+
+# Quick download endpoint
+from fastapi.responses import FileResponse
+import os
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    filepath = f"/app/outputs/{filename}"
+    if os.path.exists(filepath):
+        return FileResponse(filepath, filename=filename, media_type="application/octet-stream")
+    return {"error": "File not found"}
