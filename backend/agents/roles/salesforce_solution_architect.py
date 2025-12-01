@@ -250,13 +250,34 @@ Generate a WBS with:
 - "critical_path": Array of TASK IDs on the critical path
 - "risks_and_mitigations": Array of project risks
 
-## RULES
+## AVAILABLE AGENTS (use ONLY these names for assigned_agent)
+- **Diego** (Apex Developer): Custom Apex classes, triggers, batch jobs, integrations code
+- **Zara** (LWC Developer): Lightning Web Components, Aura components, UI development
+- **Raj** (Salesforce Admin): Object/field configuration, flows, validation rules, profiles, permission sets, sharing rules
+- **Elena** (QA Engineer): Test plans, test execution, UAT coordination, bug tracking
+- **Jordan** (DevOps): CI/CD, deployment pipelines, environments, release management
+- **Aisha** (Data Migration): Data mapping, ETL, data validation, migration scripts
+- **Lucas** (Trainer): Training materials, documentation, user guides, training sessions
+- **Marcus** (Architect): Architecture reviews, technical oversight, design decisions
+
+## TASK ASSIGNMENT RULES
+- Configuration tasks (fields, objects, flows, validation rules) → Raj
+- Apex code development → Diego
+- LWC/UI development → Zara
+- Testing tasks → Elena
+- Deployment/CI-CD → Jordan
+- Data migration → Aisha
+- Training/Documentation → Lucas
+- Architecture/Design reviews → Marcus
+
+## GENERAL RULES
 1. Group related tasks into logical phases
 2. Respect task dependencies
 3. Balance workload across agents
 4. Include buffer for testing and fixes
 5. Identify critical path
 6. Realistic timelines
+7. NEVER invent agent names - use ONLY the 8 agents listed above
 
 ---
 
@@ -339,7 +360,7 @@ def main():
                 prompt=prompt,
                 agent_type="architect",
                 system_prompt=system_prompt,
-                max_tokens=8000,
+                max_tokens=16000,
                 temperature=0.4
             )
             content = response["content"]
@@ -357,7 +378,7 @@ def main():
             client = Anthropic(api_key=api_key)
             response = client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=8000,
+                max_tokens=16000,
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}]
             )
