@@ -1,1173 +1,428 @@
 #!/usr/bin/env python3
 """
-Salesforce Solution Architect Agent - Professional Version
-Generates comprehensive 100-140 page High-Level Design
+Salesforce Solution Architect (Marcus) Agent - Refactored Version
+4 distinct modes:
+1. design: UC → Architecture globale (ARCH-001)
+2. as_is: SFDX metadata → Résumé structuré (ASIS-001)  
+3. gap: ARCH + ASIS → Deltas (GAP-001)
+4. wbs: GAP → Tâches + Planning (WBS-001)
 """
 
 import os
+import time
 import sys
 import json
 import argparse
 from pathlib import Path
 from datetime import datetime
-# LLM imports - supports both OpenAI and Anthropic
-import sys
+
+# LLM imports
 sys.path.insert(0, "/app")
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+
 # RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
-    from openai import OpenAI
-import time
-# from docx import Document
-# from docx.shared import Pt
-# from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-ARCHITECT_PROMPT = """# 🏗️ SALESFORCE SOLUTION ARCHITECT - HIGH-LEVEL DESIGN V3
+# ============================================================================
+# PROMPT 1: SOLUTION DESIGN (UC → Architecture)
+# ============================================================================
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "") -> str:
+    uc_text = ""
+    for uc in use_cases[:15]:  # Limit to avoid token overflow
+        uc_text += f"\n**{uc.get('id', 'UC-XXX')}: {uc.get('title', 'Untitled')}**\n"
+        uc_text += f"- Actor: {uc.get('actor', 'User')}\n"
+        sf = uc.get('salesforce_components', {})
+        if sf:
+            uc_text += f"- Objects: {', '.join(sf.get('objects', []))}\n"
+            uc_text += f"- Automation: {', '.join(sf.get('automation', []))}\n"
+    
+    rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
+    
+    return f'''# 🏗️ SOLUTION DESIGN SPECIFICATION
 
-**Version:** 3.0 Professional  
-**Date:** 14 November 2025  
-**Objective:** Generate 100-140 pages of professional Salesforce High-Level Design
+You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
+
+## YOUR MISSION
+Create a **High-Level Solution Design** from the Use Cases provided.
+
+## PROJECT CONTEXT
+{project_summary}
+
+## USE CASES TO ARCHITECT
+{uc_text}
+{rag_section}
+
+## OUTPUT FORMAT (JSON)
+Generate a solution design with:
+- "artifact_id": "ARCH-001"
+- "title": "Solution Design Specification"
+- "data_model": Object with:
+  - "standard_objects": Array of standard objects used with customizations
+  - "custom_objects": Array of custom objects with fields summary
+  - "relationships": Array of object relationships
+  - "erd_mermaid": ERD diagram in Mermaid syntax
+- "security_model": Object with:
+  - "profiles": Array of profiles needed
+  - "permission_sets": Array of permission sets
+  - "sharing_rules": Summary of sharing approach
+  - "field_level_security": Key FLS considerations
+- "automation_design": Object with:
+  - "flows": Array of Flows with purpose
+  - "triggers": Array of Apex triggers if needed
+  - "scheduled_jobs": Array of batch/scheduled processes
+- "integration_points": Array of external integrations with:
+  - "system": External system name
+  - "direction": Inbound/Outbound/Bidirectional
+  - "method": API type (REST, SOAP, etc.)
+  - "frequency": Real-time, Batch, etc.
+- "ui_components": Object with:
+  - "lightning_pages": Array of custom pages
+  - "lwc_components": Array of LWC needed
+  - "quick_actions": Array of actions
+- "technical_considerations": Array of key technical decisions
+- "risks": Array of technical risks identified
+
+## RULES
+1. Use Salesforce standard objects before creating custom ones
+2. Prefer declarative (Flows) over code (Apex) where possible
+3. Follow Salesforce naming conventions
+4. Consider governor limits in design
+5. ERD must use valid Mermaid erDiagram syntax
+6. Be specific about object and field API names
 
 ---
 
-## 🎯 YOUR PROFESSIONAL IDENTITY
+**Generate the Solution Design now. Output ONLY valid JSON.**
+'''
 
-You are a **Salesforce Certified Technical Architect** (CTA) with:
+# ============================================================================
+# PROMPT 2: AS-IS ANALYSIS (SFDX → Summary)
+# ============================================================================
+def get_as_is_prompt(sfdx_metadata: str) -> str:
+    sfdx_metadata_truncated = sfdx_metadata[:15000] if len(sfdx_metadata) > 15000 else sfdx_metadata
+    return f'''# 📊 AS-IS ANALYSIS
 
-- ✅ **15+ years** of enterprise Salesforce experience
-- ✅ **Application Architect** + **System Architect** + **B2C Commerce Architect** certifications
-- ✅ Expertise in **Multi-Cloud Salesforce** (Sales, Service, Marketing, Commerce, Experience Cloud)
-- ✅ Mastery of **Integration Architecture** (REST, SOAP, Platform Events, Change Data Capture)
-- ✅ Deep knowledge of **Security Architecture** (OWD, Roles, Profiles, Permission Sets, Shield)
-- ✅ Experience with **Governor Limits optimization** and **performance tuning**
-- ✅ **Large-scale implementations** (1000+ users, multi-org, multi-region)
-- ✅ **Industry best practices** (FSI, Healthcare, Manufacturing, Retail, Telecom)
+You are **Marcus**, a Salesforce Certified Technical Architect.
 
-You design architectures that are:
-- **Scalable** to 10x growth
-- **Secure** with defense-in-depth
-- **Performant** under high load
-- **Maintainable** by future teams
-- **Compliant** with regulations (GDPR, HIPAA, SOX, etc.)
-- **Cost-effective** with optimal licensing
+## YOUR MISSION
+Analyze the existing Salesforce org metadata and create a structured summary.
 
----
+## SFDX METADATA EXTRACT
+{sfdx_metadata_truncated}  <!-- Truncate to avoid token overflow -->
 
-## 📋 MISSION STATEMENT
+## OUTPUT FORMAT (JSON)
+Generate an As-Is analysis with:
+- "artifact_id": "ASIS-001"
+- "title": "Current State Analysis"
+- "data_model_summary": Object with:
+  - "custom_objects_count": Number
+  - "key_objects": Array of main objects with field counts
+  - "relationships_summary": Brief description
+- "automation_summary": Object with:
+  - "flows_count": Number
+  - "triggers_count": Number
+  - "key_automations": Array of main automations
+- "security_summary": Object with:
+  - "profiles_count": Number
+  - "permission_sets_count": Number
+  - "sharing_model": Brief description
+- "integration_summary": Object with:
+  - "connected_apps": Array
+  - "named_credentials": Array
+  - "external_services": Array
+- "ui_summary": Object with:
+  - "lightning_pages_count": Number
+  - "lwc_components": Array
+  - "custom_tabs": Array
+- "technical_debt": Array of issues identified
+- "recommendations": Array of quick wins
 
-Design a **comprehensive technical architecture** that:
-
-1. **Aligns business requirements** with Salesforce capabilities
-2. **Defines data architecture** including objects, relationships, and data flows
-3. **Specifies security model** with fine-grained access control
-4. **Documents integration architecture** for all external systems
-5. **Defines deployment strategy** with environments and CI/CD
-6. **Ensures performance** within Governor Limits
-7. **Plans for scale** with growth projections
-8. **Mitigates risks** with RAID analysis
-9. **Provides implementation roadmap** with phases and milestones
-
----
-
-## 📤 DELIVERABLE: HIGH-LEVEL DESIGN (100-140 PAGES)
-
-### MANDATORY STRUCTURE
-
-Generate a **professional Salesforce HLD document** with the following sections:
-
----
-
-## 1. EXECUTIVE SUMMARY (2-3 pages)
-
-### 1.1 Architecture Vision
-Describe the overall architectural vision:
-- Strategic alignment with business goals
-- Key architectural principles (e.g., security-first, API-first, mobile-first)
-- Technology modernization approach
-- Long-term scalability vision
-
-### 1.2 Key Architectural Decisions
-Document major decisions with rationale:
-
-| Decision | Options Considered | Selected Approach | Rationale | Impact |
-|----------|-------------------|-------------------|-----------|--------|
-| Org Strategy | Single Org vs Multi-Org | Single Production Org with Sandboxes | Simplified data model, easier integrations | Lower complexity, higher data volume |
-| Integration Middleware | MuleSoft vs Dell Boomi | MuleSoft Anypoint | Enterprise-grade, native Salesforce integration | Higher cost, better reliability |
-| Authentication | Username/Password vs SSO | SAML SSO with Okta | Enhanced security, single sign-on | Requires IdP setup |
-
-### 1.3 Technology Stack Overview
-
-**Salesforce Products:**
-- Sales Cloud Enterprise Edition
-- Service Cloud Enterprise Edition
-- Experience Cloud (Customer Community)
-- Shield Platform Encryption
-- Salesforce Connect (External Objects)
-
-**Integration Layer:**
-- MuleSoft Anypoint Platform
-- Platform Events for real-time sync
-- Change Data Capture for data replication
-
-**Development Tools:**
-- Visual Studio Code with Salesforce Extensions
-- Git for version control
-- Jenkins for CI/CD
-- SFDX for deployment
-
-### 1.4 High-Level System Architecture Diagram
-
-**MANDATORY: Complete system architecture diagram**
-
-```mermaid
-graph TB
-    subgraph "End Users"
-        U1[Sales Reps<br/>150 users]
-        U2[Service Agents<br/>80 users]
-        U3[Customers<br/>50K users]
-        U4[Partners<br/>200 users]
-    end
-    
-    subgraph "Salesforce Platform"
-        SF[Salesforce Core<br/>Sales + Service Cloud]
-        EXP[Experience Cloud<br/>Customer Portal]
-        SHIELD[Shield Encryption]
-    end
-    
-    subgraph "Integration Layer"
-        MULE[MuleSoft<br/>API Gateway]
-        PE[Platform Events]
-        CDC[Change Data Capture]
-    end
-    
-    subgraph "External Systems"
-        ERP[ERP System<br/>SAP]
-        LEGACY[Legacy CRM<br/>Oracle]
-        DW[Data Warehouse<br/>Snowflake]
-        EMAIL[Email Service<br/>SendGrid]
-    end
-    
-    U1 --> SF
-    U2 --> SF
-    U3 --> EXP
-    U4 --> EXP
-    
-    SF --> MULE
-    SF --> PE
-    SF --> CDC
-    
-    MULE <--> ERP
-    MULE <--> LEGACY
-    PE --> DW
-    CDC --> DW
-    SF --> EMAIL
-```
+## RULES
+1. Focus on summarizing, not listing everything
+2. Identify patterns and anti-patterns
+3. Highlight technical debt
+4. Note deprecated features in use
 
 ---
 
-## 2. DATA ARCHITECTURE (15-20 pages)
+**Generate the As-Is Analysis now. Output ONLY valid JSON.**
+'''
 
-### 2.1 Conceptual Data Model
+# ============================================================================
+# PROMPT 3: GAP ANALYSIS (ARCH + ASIS → Deltas)
+# ============================================================================
+def get_gap_prompt(arch_summary: str, asis_summary: str) -> str:
+    return f'''# 🔍 GAP ANALYSIS
 
-**MANDATORY: Complete Entity Relationship Diagram**
+You are **Marcus**, a Salesforce Certified Technical Architect.
 
-```mermaid
-erDiagram
-    Account ||--o{ Contact : "has"
-    Account ||--o{ Opportunity : "generates"
-    Account ||--o{ Case : "submits"
-    Account ||--o{ Contract__c : "signs"
-    Account ||--o{ Asset : "owns"
-    
-    Contact ||--o{ Opportunity : "influences"
-    Contact ||--o{ Case : "creates"
-    Contact ||--o{ Event : "attends"
-    
-    Opportunity ||--o{ OpportunityLineItem : "contains"
-    Opportunity }|--|| Quote : "generates"
-    Opportunity ||--o{ OpportunityContactRole : "involves"
-    
-    Product2 ||--o{ OpportunityLineItem : "included_in"
-    Product2 ||--o{ PricebookEntry : "priced_in"
-    
-    Quote ||--o{ QuoteLineItem : "contains"
-    Quote }|--|| Contract__c : "converts_to"
-    
-    Contract__c ||--o{ Contract_Line_Item__c : "includes"
-    Contract__c ||--o{ Invoice__c : "generates"
-    
-    Case ||--o{ CaseComment : "has"
-    Case }|--|| WorkOrder : "triggers"
-    
-    Asset }|--|| Account : "belongs_to"
-    Asset ||--o{ Case : "related_to"
-    
-    WorkOrder ||--o{ WorkOrderLineItem : "contains"
-    WorkOrder }|--|| ServiceAppointment : "scheduled_as"
-```
+## YOUR MISSION
+Compare the Target Architecture with the Current State to identify gaps.
 
-### 2.2 Object Inventory
+## TARGET ARCHITECTURE (ARCH-001)
+{arch_summary}
 
-**Standard Objects Used:**
+## CURRENT STATE (ASIS-001)
+{asis_summary}
 
-| Object | Purpose | Customizations | Records (Year 1) | Growth Rate |
-|--------|---------|----------------|------------------|-------------|
-| Account | Customers and prospects | 15 custom fields, 3 validation rules | 50,000 | 20% YoY |
-| Contact | Customer contacts | 12 custom fields, 2 validation rules | 150,000 | 15% YoY |
-| Opportunity | Sales pipeline | 20 custom fields, 5 validation rules | 100,000 | 25% YoY |
-| Case | Service requests | 10 custom fields, 3 validation rules | 200,000 | 30% YoY |
-| Product2 | Product catalog | 8 custom fields | 5,000 | 10% YoY |
-| Asset | Installed products | 12 custom fields | 75,000 | 20% YoY |
+## OUTPUT FORMAT (JSON)
+Generate a gap analysis with:
+- "artifact_id": "GAP-001"
+- "title": "Gap Analysis"
+- "gaps": Array of gap objects, each with:
+  - "id": "GAP-001-01", "GAP-001-02", etc.
+  - "category": One of DATA_MODEL, AUTOMATION, SECURITY, INTEGRATION, UI, OTHER
+  - "current_state": What exists now
+  - "target_state": What is needed
+  - "gap_description": Clear description of the delta
+  - "complexity": One of LOW, MEDIUM, HIGH
+  - "effort_days": Estimated effort in days
+  - "dependencies": Array of other gap IDs this depends on
+  - "assigned_agent": Which agent should handle (Diego, Zara, Raj, etc.)
+- "summary": Object with:
+  - "total_gaps": Number
+  - "by_category": Object with counts per category
+  - "by_complexity": Object with counts per complexity
+  - "total_effort_days": Sum of all efforts
+- "migration_considerations": Array of data migration notes
+- "risk_areas": Array of high-risk changes
 
-**Custom Objects:**
-
-| Object | Purpose | Relationships | Records (Year 1) | Growth Rate |
-|--------|---------|---------------|------------------|-------------|
-| Contract__c | Service contracts | Master-Detail to Account | 40,000 | 18% YoY |
-| Invoice__c | Billing records | Master-Detail to Contract__c | 480,000 | 20% YoY |
-| Quote_Line_Item__c | Quote details | Master-Detail to Quote | 150,000 | 25% YoY |
-| Service_History__c | Service audit trail | Master-Detail to Asset | 300,000 | 35% YoY |
-
-### 2.3 Data Volume Analysis
-
-**Year 5 Projections:**
-
-| Object | Year 1 | Year 5 | Storage (Year 5) | Strategy |
-|--------|--------|--------|------------------|----------|
-| Account | 50K | 124K | 250 MB | Standard retention |
-| Contact | 150K | 304K | 600 MB | Standard retention |
-| Opportunity | 100K | 305K | 1.2 GB | Archive after 7 years |
-| Case | 200K | 742K | 2.5 GB | Archive after 5 years |
-| Invoice__c | 480K | 1.2M | 4.8 GB | Archive after 7 years |
-
-**Total Storage Projection (Year 5):** 15 GB data + 30 GB files = 45 GB total
-
-### 2.4 Data Governance
-
-**Data Quality Rules:**
-1. All Accounts must have Industry, Annual Revenue, and Billing Address
-2. All Opportunities must have Amount, Close Date, and Primary Contact
-3. Email addresses must be validated and unique per Account
-4. Phone numbers must follow E.164 format
-
-**Master Data Management:**
-- Account deduplication using Duplicate Rules
-- Contact matching on Email + Phone
-- Product catalog managed by Product Management team
-- Territory assignments updated quarterly
-
-### 2.5 Data Retention & Archiving
-
-**Retention Policies:**
-
-| Object Type | Active Period | Archive Period | Deletion |
-|-------------|---------------|----------------|----------|
-| Opportunities | 7 years | 3 years | After 10 years |
-| Cases | 5 years | 5 years | After 10 years |
-| Invoices | 7 years (legal) | Indefinite | Never |
-| Logs/Activities | 2 years | 1 year | After 3 years |
-
-**Archiving Strategy:**
-- Use Big Objects for historical data (>5 years old)
-- Export to external data warehouse (Snowflake)
-- Maintain summary records in Salesforce for reporting
+## RULES
+1. Be specific about what exists vs what's needed
+2. Realistic effort estimates (consider testing)
+3. Identify dependencies between gaps
+4. Assign appropriate agent for each gap
+5. Flag breaking changes
 
 ---
 
-## 3. SECURITY ARCHITECTURE (12-15 pages)
+**Generate the Gap Analysis now. Output ONLY valid JSON.**
+'''
 
-### 3.1 Organization-Wide Defaults (OWD)
+# ============================================================================
+# PROMPT 4: WBS (GAP → Tasks + Planning)
+# ============================================================================
+def get_wbs_prompt(gap_analysis: str, project_constraints: str = "") -> str:
+    return f'''# 📅 WORK BREAKDOWN STRUCTURE
 
-| Object | OWD Setting | Rationale | Grant Access Via |
-|--------|-------------|-----------|------------------|
-| Account | Private | Competitive sensitivity | Role Hierarchy, Sharing Rules |
-| Contact | Controlled by Parent | Inherit from Account | Account sharing |
-| Opportunity | Private | Deal confidentiality | Role Hierarchy, Teams |
-| Case | Public Read/Write | All agents can view | Standard access |
-| Product2 | Public Read Only | Product catalog is public | Standard access |
-| Contract__c | Private | Contract confidentiality | Role Hierarchy |
-| Invoice__c | Private | Financial sensitivity | Role Hierarchy |
+You are **Marcus**, a Salesforce Certified Technical Architect.
 
-### 3.2 Role Hierarchy Design
+## YOUR MISSION
+Create a detailed Work Breakdown Structure from the Gap Analysis.
 
-**MANDATORY: Role hierarchy diagram**
+## GAP ANALYSIS (GAP-001)
+{gap_analysis}
 
-```mermaid
-graph TD
-    CEO[CEO]
-    CEO --> VP_Sales[VP Sales]
-    CEO --> VP_Service[VP Service]
-    CEO --> VP_Ops[VP Operations]
-    
-    VP_Sales --> Dir_Sales_NA[Director Sales NA]
-    VP_Sales --> Dir_Sales_EU[Director Sales EU]
-    
-    Dir_Sales_NA --> Mgr_Sales_East[Manager Sales East]
-    Dir_Sales_NA --> Mgr_Sales_West[Manager Sales West]
-    
-    Mgr_Sales_East --> Rep_East[Sales Rep East]
-    Mgr_Sales_West --> Rep_West[Sales Rep West]
-    
-    VP_Service --> Mgr_Service[Service Manager]
-    Mgr_Service --> Agent[Service Agent]
-    
-    VP_Ops --> Ops_Mgr[Operations Manager]
-    Ops_Mgr --> Ops_Coord[Operations Coordinator]
-```
+## PROJECT CONSTRAINTS
+{project_constraints if project_constraints else "Standard Salesforce implementation timeline"}
 
-**Role Configuration:**
+## OUTPUT FORMAT (JSON)
+Generate a WBS with:
+- "artifact_id": "WBS-001"
+- "title": "Work Breakdown Structure"
+- "phases": Array of phase objects, each with:
+  - "id": "PHASE-01", "PHASE-02", etc.
+  - "name": Phase name (e.g., "Foundation", "Core Build", "Integration")
+  - "duration_weeks": Estimated duration
+  - "tasks": Array of task objects with:
+    - "id": "TASK-001", "TASK-002", etc.
+    - "name": Task name
+    - "description": What needs to be done
+    - "gap_refs": Array of GAP IDs this addresses
+    - "assigned_agent": Agent responsible
+    - "effort_days": Effort estimate
+    - "dependencies": Array of TASK IDs
+    - "deliverables": Array of expected outputs
+- "milestones": Array of milestone objects with:
+  - "id": "MS-01", "MS-02", etc.
+  - "name": Milestone name
+  - "target_week": Week number
+  - "criteria": Definition of done
+- "resource_allocation": Object with agents and their allocation %
+- "critical_path": Array of TASK IDs on the critical path
+- "risks_and_mitigations": Array of project risks
 
-| Role | Users | Access Granted | Subordinates |
-|------|-------|----------------|--------------|
-| CEO | 1 | All Accounts, Opportunities, Cases | All roles |
-| VP Sales | 2 | All Sales data | Sales Directors |
-| Director Sales NA | 1 | NA Accounts and Opportunities | Sales Managers |
-| Sales Manager | 8 | Territory Accounts and Opportunities | Sales Reps |
-| Sales Rep | 120 | Owned Accounts and Opportunities | None |
-
-### 3.3 Permission Sets & Profiles
-
-**Profile Strategy:**
-- Minimal permissions at profile level
-- Grant additional access via Permission Sets
-- Use Permission Set Groups for role-based bundles
-
-**Permission Sets:**
-
-| Permission Set | Purpose | Permissions Granted | Assigned To |
-|----------------|---------|---------------------|-------------|
-| Sales_Core | Basic sales access | Read/Edit Accounts, Contacts, Opportunities | All sales users |
-| Sales_Reports | Advanced reporting | View All Data, Run Reports | Sales managers |
-| Service_Core | Basic service access | Read/Edit Cases, Knowledge | All service users |
-| Contract_Management | Contract admin | Create/Edit Contracts, Invoices | Contract admins |
-| API_Integration | API access | API Enabled, View Setup | Integration users |
-
-### 3.4 Field-Level Security
-
-**Sensitive Fields Matrix:**
-
-| Object | Field | Admin | Sales Manager | Sales Rep | Service Agent |
-|--------|-------|-------|---------------|-----------|---------------|
-| Account | Annual Revenue | ✅ Edit | ✅ Edit | 📖 Read | ❌ Hidden |
-| Account | Credit Limit__c | ✅ Edit | 📖 Read | ❌ Hidden | ❌ Hidden |
-| Opportunity | Amount | ✅ Edit | ✅ Edit | ✅ Edit | 📖 Read |
-| Opportunity | Discount__c | ✅ Edit | ✅ Edit | 📖 Read | ❌ Hidden |
-| Contract__c | Contract Value__c | ✅ Edit | 📖 Read | 📖 Read | 📖 Read |
-| Invoice__c | Payment Terms__c | ✅ Edit | 📖 Read | ❌ Hidden | ❌ Hidden |
-
-### 3.5 Data Encryption
-
-**Shield Platform Encryption:**
-- Encrypt fields: SSN__c, Credit_Card__c, Bank_Account__c
-- Encryption at rest for all file attachments
-- Key rotation policy: Annual
-- Backup encryption keys stored in HSM
-
-**Encryption Scope:**
-
-| Data Type | Encryption Method | Key Management | Compliance |
-|-----------|------------------|----------------|------------|
-| PII fields | Shield Platform Encryption | Salesforce-managed tenant secrets | GDPR, HIPAA |
-| File attachments | Shield Platform Encryption | Salesforce-managed | GDPR |
-| Data in transit | TLS 1.2+ | Certificate-based | PCI-DSS |
+## RULES
+1. Group related tasks into logical phases
+2. Respect task dependencies
+3. Balance workload across agents
+4. Include buffer for testing and fixes
+5. Identify critical path
+6. Realistic timelines
 
 ---
 
-## 4. INTEGRATION ARCHITECTURE (20-25 pages)
+**Generate the WBS now. Output ONLY valid JSON.**
+'''
 
-### 4.1 Integration Landscape
-
-**MANDATORY: Complete integration architecture diagram**
-
-```mermaid
-graph LR
-    subgraph "Salesforce"
-        SF_CORE[Salesforce Core]
-        SF_PE[Platform Events]
-        SF_CDC[Change Data Capture]
-        SF_EXT[External Objects]
-    end
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+def main():
+    parser = argparse.ArgumentParser(description='Marcus Architect Agent')
+    parser.add_argument('--mode', required=False, default='design', 
+                        choices=['design', 'as_is', 'gap', 'wbs'],
+                        help='Operation mode')
+    parser.add_argument('--input', required=True, help='Input JSON file')
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', type=int, default=0)
+    parser.add_argument('--project-id', type=int, default=0)
+    parser.add_argument('--use-rag', action='store_true', default=True)
     
-    subgraph "Integration Layer - MuleSoft"
-        MULE_API[API Gateway]
-        MULE_PROC[Process APIs]
-        MULE_SYS[System APIs]
-    end
-    
-    subgraph "External Systems"
-        ERP[ERP - SAP<br/>SOAP]
-        CRM[Legacy CRM<br/>REST]
-        DW[Data Warehouse<br/>Snowflake]
-        EMAIL[Email Service<br/>SendGrid]
-        PAYMENT[Payment Gateway<br/>Stripe]
-    end
-    
-    SF_CORE <-->|REST/SOAP| MULE_API
-    SF_PE -->|Real-time Events| MULE_PROC
-    SF_CDC -->|Data Changes| DW
-    SF_EXT <-->|OData| ERP
-    
-    MULE_API <--> MULE_PROC
-    MULE_PROC <--> MULE_SYS
-    
-    MULE_SYS <-->|SOAP| ERP
-    MULE_SYS <-->|REST| CRM
-    MULE_SYS <-->|HTTPS| EMAIL
-    MULE_SYS <-->|REST| PAYMENT
-    
-    MULE_PROC -->|Bulk API| DW
-```
-
-### 4.2 Integration Specifications
-
-**Integration 1: Salesforce ↔ SAP ERP**
-
-| Attribute | Value |
-|-----------|-------|
-| **Pattern** | Request-Reply (synchronous) |
-| **Protocol** | SOAP Web Services |
-| **Direction** | Bi-directional |
-| **Frequency** | Real-time (on demand) |
-| **Data Volume** | 100-500 records/hour |
-| **SLA** | Response time < 3 seconds |
-| **Error Handling** | Retry 3 times with exponential backoff |
-| **Authentication** | OAuth 2.0 Client Credentials |
-
-**Use Cases:**
-1. **Account Sync:** Create/Update Accounts in SAP when created in Salesforce
-2. **Order Creation:** Create Sales Orders in SAP from Salesforce Opportunities
-3. **Inventory Check:** Real-time product availability lookup
-4. **Pricing:** Retrieve pricing from SAP for quotes
-
-**API Specification:**
-
-```
-Endpoint: https://api.sap.company.com/accounts
-Method: POST
-Headers:
-  Content-Type: application/json
-  Authorization: Bearer {oauth_token}
-
-Request Body:
-{
-  "accountId": "001xxx",
-  "name": "Acme Corp",
-  "billingAddress": {...},
-  "taxId": "123456789"
-}
-
-Response:
-{
-  "sapAccountId": "SA-12345",
-  "status": "success",
-  "message": "Account created"
-}
-```
-
-### 4.3 Platform Events Architecture
-
-**Event-Driven Architecture:**
-
-| Event | Publisher | Subscribers | Use Case | Volume |
-|-------|-----------|-------------|----------|--------|
-| Order_Placed__e | Salesforce | ERP, Warehouse, Email | Order fulfillment workflow | 200/day |
-| Inventory_Updated__e | ERP | Salesforce | Update product availability | 500/day |
-| Payment_Received__e | Payment Gateway | Salesforce, Finance | Update invoice status | 300/day |
-| Case_Escalated__e | Salesforce | Slack, Manager App | Critical case alerts | 50/day |
-
-**Event Schema Example:**
-
-```apex
-// Order_Placed__e Platform Event
-{
-    "Order_ID__c": "ORD-12345",
-    "Account_ID__c": "001xxx",
-    "Total_Amount__c": 15000.00,
-    "Items__c": "[{productId:'P001', qty:10}]",
-    "Priority__c": "High",
-    "Timestamp__c": "2025-11-14T10:30:00Z"
-}
-```
-
-### 4.4 Change Data Capture
-
-**CDC Configuration:**
-
-| Object | CDC Enabled | Target System | Sync Frequency | Use Case |
-|--------|-------------|---------------|----------------|----------|
-| Account | ✅ Yes | Data Warehouse | Real-time | Analytics, BI reporting |
-| Opportunity | ✅ Yes | Data Warehouse | Real-time | Sales analytics |
-| Case | ✅ Yes | Analytics Platform | Real-time | Service metrics |
-| Product2 | ✅ Yes | E-commerce Site | Real-time | Product catalog sync |
-
-### 4.5 API Governance
-
-**API Standards:**
-- RESTful API design principles
-- OAuth 2.0 for authentication
-- Rate limiting: 10,000 calls/day per integration user
-- API versioning: /v1/, /v2/ in URL path
-- JSON response format (not XML)
-
-**Monitoring & SLAs:**
-
-| Integration | Availability SLA | Response Time SLA | Error Rate SLA |
-|-------------|-----------------|-------------------|----------------|
-| ERP Sync | 99.9% | < 3 seconds | < 0.1% |
-| Data Warehouse | 99.5% | < 5 seconds | < 1% |
-| Email Service | 99% | < 10 seconds | < 2% |
-
----
-
-## 5. AUTOMATION ARCHITECTURE (10-12 pages)
-
-### 5.1 Flow Builder Workflows
-
-**Flow Inventory:**
-
-| Flow Name | Type | Trigger | Purpose | Complexity |
-|-----------|------|---------|---------|------------|
-| Lead_Assignment_Flow | Record-Triggered | Lead Created | Auto-assign leads to reps | Medium |
-| Opportunity_Approval_Flow | Record-Triggered | Opportunity > $50K | Multi-step approval | High |
-| Case_Escalation_Flow | Scheduled | Daily at 8 AM | Escalate overdue cases | Medium |
-| Order_Fulfillment_Flow | Record-Triggered | Order Placed | Trigger external systems | High |
-| Contract_Renewal_Flow | Scheduled | Weekly | Alert on expiring contracts | Low |
-
-### 5.2 Apex Trigger Architecture
-
-**Trigger Framework:**
-- One trigger per object
-- Trigger handler pattern
-- Recursion prevention using static variables
-- Bulkification (200 records minimum)
-
-**Trigger Inventory:**
-
-| Object | Trigger Name | Context | Handler Class | Purpose |
-|--------|--------------|---------|---------------|---------|
-| Account | AccountTrigger | before insert, after update | AccountTriggerHandler | Validation, cascading updates |
-| Opportunity | OpportunityTrigger | before insert, after insert | OpportunityTriggerHandler | Amount validation, task creation |
-| Case | CaseTrigger | before insert, after update | CaseTriggerHandler | SLA tracking, escalation |
-| Contract__c | ContractTrigger | before insert, after insert | ContractTriggerHandler | Invoice generation |
-
-### 5.3 Batch Jobs
-
-**Scheduled Batch Jobs:**
-
-| Job Name | Frequency | Purpose | Records Processed | Duration |
-|----------|-----------|---------|-------------------|----------|
-| Opportunity_Stale_Cleanup | Daily at 2 AM | Archive old opportunities | ~1,000 | 10 min |
-| Account_Health_Score_Update | Daily at 3 AM | Recalculate health scores | ~50,000 | 45 min |
-| Invoice_Generation_Batch | 1st of month | Generate monthly invoices | ~5,000 | 30 min |
-| Data_Quality_Audit_Batch | Weekly Sunday | Identify data issues | ~100,000 | 2 hours |
-
-### 5.4 Governor Limits Compliance
-
-**Limit Analysis:**
-
-| Resource | Limit | Estimated Usage | Buffer | Status |
-|----------|-------|-----------------|--------|--------|
-| SOQL Queries | 100 | 45 | 55% | ✅ Safe |
-| DML Statements | 150 | 60 | 60% | ✅ Safe |
-| Heap Size | 6 MB | 3.5 MB | 42% | ✅ Safe |
-| CPU Time | 10 seconds | 4 seconds | 60% | ✅ Safe |
-| Callouts | 100 | 25 | 75% | ✅ Safe |
-
----
-
-## 6. PERFORMANCE & SCALABILITY (8-10 pages)
-
-### 6.1 Performance Optimization Strategies
-
-**Query Optimization:**
-- Use selective SOQL queries with indexed fields
-- Avoid queries in loops (bulkify)
-- Use query cursors for large data volumes
-- Implement caching for frequently accessed data
-
-**Index Strategy:**
-
-| Object | Indexed Fields | Cardinality | Query Volume |
-|--------|----------------|-------------|--------------|
-| Account | Industry, Type, Territory__c | High | Very High |
-| Opportunity | StageName, CloseDate, AccountId | High | Very High |
-| Case | Status, Priority, OwnerId | High | Very High |
-| Contract__c | Status__c, Expiry_Date__c | Medium | High |
-
-### 6.2 Scalability Planning
-
-**User Growth:**
-
-| Year | Users | Concurrent Users | Peak Load | Strategy |
-|------|-------|------------------|-----------|----------|
-| Year 1 | 250 | 200 | 220 | Current capacity |
-| Year 3 | 450 | 360 | 396 | Add licenses |
-| Year 5 | 700 | 560 | 616 | Consider multi-org |
-
-**Data Growth:**
-
-| Metric | Year 1 | Year 3 | Year 5 | Mitigation |
-|--------|--------|--------|--------|------------|
-| Total Records | 1.5M | 4.2M | 8.1M | Archive old data |
-| Storage | 10 GB | 25 GB | 45 GB | Big Objects, external storage |
-| API Calls/Day | 50K | 120K | 250K | Caching, bulk APIs |
-
----
-
-## 7. DEPLOYMENT ARCHITECTURE (10-12 pages)
-
-### 7.1 Environment Strategy
-
-| Environment | Purpose | Refresh Frequency | Data Volume | Users |
-|-------------|---------|-------------------|-------------|-------|
-| Production | Live system | N/A | 100% | All users |
-| UAT | User acceptance testing | Monthly from Prod | 50% (sample) | 20 testers |
-| QA | Testing and validation | Weekly from Dev | 25% (sample) | 10 QA |
-| Dev | Development | On-demand | 10% (sample) | 5 developers |
-| CI/CD | Automated testing | Daily | 5% (sample) | Automated |
-
-### 7.2 CI/CD Pipeline
-
-**Pipeline Stages:**
-
-```mermaid
-graph LR
-    DEV[Development] -->|Git Commit| BUILD[Build & Validate]
-    BUILD -->|Tests Pass| QA[Deploy to QA]
-    QA -->|QA Approval| UAT[Deploy to UAT]
-    UAT -->|UAT Sign-off| STAGE[Deploy to Staging]
-    STAGE -->|Final Validation| PROD[Deploy to Production]
-    
-    BUILD -->|Tests Fail| NOTIFY[Notify Developers]
-    NOTIFY --> DEV
-```
-
-**Deployment Frequency:**
-- Development: Continuous (multiple times/day)
-- QA: Daily (automated)
-- UAT: Weekly (planned releases)
-- Production: Bi-weekly (planned releases)
-
-### 7.3 Change Management
-
-**Change Control Process:**
-
-| Change Type | Approval Required | Testing Required | Rollback Plan |
-|-------------|------------------|------------------|---------------|
-| Emergency Fix | VP + CTO | Smoke tests | Immediate |
-| Minor Enhancement | Product Owner | Full regression | Next release |
-| Major Feature | Steering Committee | UAT + Full regression | Detailed plan |
-
----
-
-## 8. RISK ANALYSIS (6-8 pages)
-
-### 8.1 RAID Matrix
-
-**Risks:**
-
-| Risk | Probability | Impact | Mitigation | Owner |
-|------|-------------|--------|------------|-------|
-| Data migration failure | Medium | High | Phased approach, extensive testing | Data Team |
-| User adoption resistance | High | Medium | Change management, training | Training Team |
-| Integration downtime | Low | High | Circuit breakers, retry logic | Integration Team |
-| Governor Limits exceeded | Medium | High | Bulkification, monitoring | Development Team |
-
-**Assumptions:**
-1. ERP system will be available for integration testing
-2. Users will complete training before go-live
-3. Data quality in source systems is acceptable
-4. No major Salesforce platform changes during implementation
-
-**Issues:**
-- Current CRM data quality is poor (30% missing data)
-- Legacy system documentation is incomplete
-- Limited integration expertise in-house
-
-**Dependencies:**
-- ERP vendor must deliver API specifications by Q1 2026
-- Network infrastructure upgrade must complete by Q2 2026
-- Third-party middleware (MuleSoft) licensing
-
----
-
-## 9. IMPLEMENTATION ROADMAP (5-7 pages)
-
-### 9.1 Phased Rollout
-
-**Phase 1: Foundation (Months 1-3)**
-- Environment setup
-- Data model implementation
-- Security configuration
-- Basic automation
-
-**Phase 2: Core Features (Months 4-6)**
-- Sales Cloud configuration
-- Service Cloud setup
-- Integration development
-- User training
-
-**Phase 3: Advanced Features (Months 7-9)**
-- Experience Cloud launch
-- Advanced automation
-- Reporting and analytics
-- Performance optimization
-
-**Phase 4: Production & Hypercare (Months 10-12)**
-- Go-live preparation
-- Production deployment
-- Post-go-live support
-- Continuous improvement
-
----
-
-## 🎯 QUALITY CHECKLIST
-
-Before finalizing, verify:
-
-- ✅ **Complete architecture diagrams** (system, data, integration)
-- ✅ **All sections detailed** (no "TBD" or placeholders)
-- ✅ **Salesforce-specific terminology** (not generic cloud terms)
-- ✅ **Realistic examples and estimates**
-- ✅ **Governor Limits addressed**
-- ✅ **Security model comprehensive**
-- ✅ **Integration patterns specified**
-- ✅ **Scalability considered**
-- ✅ **100-140 pages of content**
-
----
-
-
----
-
-
-
----
-
-## 🤔 CLARIFICATION PHASE (BEFORE PRODUCING ADR/SPEC)
-
-**IMPORTANT: Before producing ADR and SPEC artifacts, you MUST review the BA's BR/UC artifacts and identify any ambiguities or missing information.**
-
-### When to Ask Questions
-
-You MUST ask clarifying questions when:
-
-1. **Business Rule Ambiguity** - A UC describes a process but the exact rules are unclear
-   - Example: "Auto-assign leads" but no scoring thresholds defined
-   
-2. **Technical Constraint Unknown** - You need information to make an ADR decision
-   - Example: External API specs not provided for integration
-   
-3. **Edge Cases Not Covered** - Main flow is clear but exceptions are not
-   - Example: What happens if trade-in estimation API is unavailable?
-   
-4. **Volume/Performance Requirements Missing** - Need to know scale for architecture decisions
-   - Example: How many leads per day? Concurrent users?
-
-5. **Security/Compliance Gaps** - Requirements mention compliance but no specifics
-   - Example: "GDPR compliant" but data retention rules not specified
-
-### Question Format (MANDATORY)
-
-When you have questions, output them in this EXACT format:
-
-```
-## 📋 CLARIFICATION QUESTIONS FOR BA
-
-Before producing the technical specifications, I need clarification on the following points:
-
-### Q-001: [Concise Question Title]
-
-**Related BR/UC:** BR-003, UC-007
-**Category:** [Business Rule / Technical Constraint / Edge Case / Performance / Security]
-
-**Context:**
-[Why you need this information for the architecture]
-
-**Question:**
-[Specific question for the BA]
-
-**Options if not answered:**
-- Option A: [What you would assume]
-- Option B: [Alternative assumption]
-
-**Impact on Architecture:**
-[Which ADR/SPEC depends on this answer]
-
----
-
-### Q-002: [Next Question]
-...
-```
-
-### Iteration Flow
-
-1. **First Pass:** Review all BR/UC from BA
-2. **Identify Gaps:** List questions in Q-xxx format
-3. **Wait for Answers:** BA will respond with clarifications
-4. **Second Pass:** With answers, produce ADR/SPEC artifacts
-5. **Repeat if Needed:** Maximum 3 iterations
-
-### What NOT to Do
-
-❌ Do NOT produce ADR/SPEC without reviewing BA artifacts
-❌ Do NOT assume business rules - ASK if unclear
-❌ Do NOT produce generic architecture - every ADR must trace to a UC
-❌ Do NOT skip questions to "save time" - incomplete specs cost more later
-
----
-
-## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
-
-**In addition to the comprehensive SDS documentation, you MUST produce structured artifacts that can be individually tracked and validated.**
-
-### Architecture Decision Records (ADR)
-
-For each significant technical decision, create an **ADR artifact** with this EXACT format:
-
-```
-### ADR-001: [Decision Title]
-
-**Status:** Proposed / Accepted / Deprecated
-**Date:** [YYYY-MM-DD]
-**Related UC:** UC-001, UC-002 (from BA specifications)
-
-**Context:**
-[2-3 sentences describing the situation requiring a decision]
-
-**Decision:**
-[Clear statement of the architectural decision made]
-
-**Salesforce Implementation:**
-- **Feature Used:** [Flow / Apex / LWC / Platform Event / etc.]
-- **Objects Involved:** [List of standard and custom objects]
-- **Governor Limits Consideration:** [How limits are respected]
-
-**Alternatives Considered:**
-
-| Option | Pros | Cons | Why Rejected |
-|--------|------|------|--------------|
-| Option A | Pro1, Pro2 | Con1, Con2 | Reason |
-| Option B | Pro1, Pro2 | Con1, Con2 | Reason |
-
-**Consequences:**
-- Positive: [Benefits of this decision]
-- Negative: [Trade-offs accepted]
-- Risks: [Potential issues to monitor]
-
-**Compliance:**
-- [ ] Respects Salesforce governor limits
-- [ ] Follows Salesforce security best practices
-- [ ] Scalable for projected data volumes
-
----
-```
-
-### Technical Specifications (SPEC)
-
-For each component to be built, create a **SPEC artifact** with this EXACT format:
-
-```
-### SPEC-001: [Component Name]
-
-**Type:** Apex Class / Apex Trigger / LWC / Flow / Validation Rule / Custom Object / Integration
-**Related ADR:** ADR-001
-**Related UC:** UC-001, UC-002
-**Assigned To:** [apex / lwc / admin / devops]
-
-**Purpose:**
-[What this component does and why]
-
-**Salesforce Object Model:**
-- **Primary Object:** [Object__c]
-- **Related Objects:** [List with relationship types]
-- **Fields Used:** [Key fields involved]
-
-**Technical Design:**
-
-[Detailed technical specification appropriate to the type:]
-
-For Apex:
-- Class/Method signatures
-- Input/Output parameters
-- Exception handling approach
-- Test class requirements (minimum 85% coverage)
-- Bulkification strategy
-
-For LWC:
-- Component structure
-- Wire adapters / Apex calls
-- Event handling
-- CSS/styling requirements
-
-For Flow:
-- Flow type (Record-Triggered, Screen, Scheduled, etc.)
-- Entry conditions
-- Flow elements sequence
-- Variables and formulas
-
-For Integration:
-- Endpoint specifications
-- Authentication method
-- Request/Response format
-- Error handling
-- Retry logic
-
-**Acceptance Criteria:**
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
-
-**Performance Requirements:**
-- Expected volume: [records/day]
-- Response time: [target]
-- Batch size considerations: [if applicable]
-
-**Security Considerations:**
-- FLS requirements
-- Sharing rules impact
-- CRUD permissions needed
-
----
-```
-
-### Artifact Numbering Rules
-
-- ADR codes: ADR-001, ADR-002, ADR-003... (sequential)
-- SPEC codes: SPEC-001, SPEC-002, SPEC-003... (sequential)
-- Q codes (questions): Q-001, Q-002, Q-003... (sequential)
-- Each ADR MUST reference the UCs it addresses
-- Each SPEC MUST reference its parent ADR
-- **MINIMUM: At least 1 ADR per major functional area (typically 8-15 ADRs)**
-- **MINIMUM: At least 1 SPEC per UC that requires development (typically 25-50 SPECs)**
-- **COVERAGE: Every BR must be addressed by at least one ADR**
-
-### Example Mapping
-
-```
-ADR-001: Use Record-Triggered Flow for Case Assignment
-    └── SPEC-001: Flow - Auto_Assign_Case_To_Queue
-
-ADR-002: Custom Apex for Lead Scoring (too complex for Flow)
-    ├── SPEC-002: Apex Class - LeadScoringService
-    ├── SPEC-003: Apex Trigger - LeadScoreTrigger
-    └── SPEC-004: Apex Test - LeadScoringServiceTest
-
-ADR-003: LWC for Custom Case Creation Interface
-    ├── SPEC-005: LWC - caseCreationWizard
-    └── SPEC-006: Apex Controller - CaseCreationController
-
-ADR-004: Platform Events for External System Integration
-    ├── SPEC-007: Platform Event - Order_Update__e
-    ├── SPEC-008: Apex Trigger - OrderUpdateTrigger
-    └── SPEC-009: Integration - SAP_Order_Callout
-```
-
-### Traceability Matrix
-
-Include a traceability matrix showing how artifacts connect:
-
-| UC | ADR | SPEC | Assigned Agent |
-|----|-----|------|----------------|
-| UC-001 | ADR-001 | SPEC-001 | admin |
-| UC-002 | ADR-002 | SPEC-002, SPEC-003 | apex |
-| UC-003 | ADR-003 | SPEC-005, SPEC-006 | lwc |
-
-
-## 🎬 GENERATION INSTRUCTIONS
-
-When you receive requirements, you will:
-
-1. **Analyze** business and technical requirements
-2. **Design** comprehensive architecture
-3. **Create** all mandatory diagrams (Mermaid syntax)
-4. **Specify** all integrations with examples
-5. **Document** security model in detail
-6. **Plan** for scale and performance
-7. **Assess** risks and dependencies
-8. **Provide** implementation roadmap
-9. **Generate** 100-140 pages of professional HLD
-10. **Format** in Markdown ready for Word conversion
-
-**Remember:**
-- Be EXHAUSTIVE, not summarized
-- Use SPECIFIC Salesforce terminology
-- Include ALL mandatory diagrams
-- Provide REALISTIC configurations
-- Make architecture PRODUCTION-READY
-
----
-
-**Let's design world-class Salesforce architecture!**
-"""
-
-def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:
-    """
-    Generate JSON specifications instead of .docx
-    
-    Args:
-        requirements: Business requirements text
-        project_name: Project identifier
-        execution_id: Execution ID for tracking
-        
-    Returns:
-        dict: Structured JSON output
-    """
-    start_time = time.time()
-    
-    # Get RAG context if available
-    rag_context = ""
-    if RAG_AVAILABLE:
-        try:
-            print(f"🔍 Querying RAG for Salesforce architecture best practices...", file=sys.stderr)
-            rag_context = get_salesforce_context(requirements[:2000], n_results=8)
-            print(f"✅ RAG context retrieved ({len(rag_context)} chars)", file=sys.stderr)
-        except Exception as e:
-            print(f"⚠️ RAG unavailable: {e}", file=sys.stderr)
-            rag_context = ""
-    
-    # Build prompt with RAG context
-    full_prompt = f"""{ARCHITECT_PROMPT}
-
-{rag_context}
-
----
-
-## REQUIREMENTS TO ANALYZE:
-
-{requirements}
-
----
-
-**Generate the complete High-Level Design (HLD) specifications now.**
-
-**CRITICAL REMINDERS FOR ARTIFACTS:**
-1. **MANDATORY: Include ADR artifacts (ADR-001, ADR-002, etc.) with the EXACT format specified**
-2. **MANDATORY: Include SPEC artifacts (SPEC-001, SPEC-002, etc.) linked to their parent ADR**
-3. **Each ADR must reference the UCs it addresses from BA specifications**
-4. **Each SPEC must specify the assigned agent (apex/lwc/admin/devops)**
-5. **Include the traceability matrix UC → ADR → SPEC → Agent**
-6. **Aim for 8-15 ADRs and 25-50 SPECs depending on complexity**
-"""
-    
-    system_prompt = "You are an expert Salesforce Solution Architect (CTA) creating production-ready HLD. Follow ALL instructions precisely, especially regarding ADR and SPEC artifact generation with proper traceability."
-    
-    print(f"📝 Prompt size: {len(full_prompt)} characters", file=sys.stderr)
-    
-    # Use LLM Service if available (Claude Sonnet for Architect tier), fallback to OpenAI
-    if LLM_SERVICE_AVAILABLE:
-        print(f"🤖 Calling Claude API (Sonnet - Architect tier)...", file=sys.stderr)
-        response = generate_llm_response(
-            prompt=full_prompt,
-            agent_type="architect",
-            system_prompt=system_prompt,
-            max_tokens=16000,
-            temperature=0.3
-        )
-        specifications = response["content"]
-        tokens_used = response["tokens_used"]
-        model_used = response["model"]
-        provider_used = response["provider"]
-        print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
-    else:
-        # Fallback to direct OpenAI call
-        print(f"🤖 Calling OpenAI API (GPT-4) - fallback mode...", file=sys.stderr)
-        from openai import OpenAI
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set")
-        client = OpenAI(api_key=api_key)
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": full_prompt}
-            ],
-            max_tokens=16000,
-            temperature=0.3
-        )
-        specifications = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens
-        model_used = "gpt-4o-mini"
-        provider_used = "openai"
-    
-    # Parse sections from markdown
-    sections = []
-    current_section = None
-    
-    for line in specifications.split('\n'):
-        if line.startswith('#'):
-            level = len(line) - len(line.lstrip('#'))
-            title = line.lstrip('#').strip()
-            current_section = {
-                "title": title,
-                "level": level,
-                "content": ""
-            }
-            sections.append(current_section)
-        elif current_section:
-            current_section["content"] += line + "\n"
-    
-    # Build JSON output
-    execution_time = time.time() - start_time
-    
-    output = {
-        "agent_id": "architect",
-        "agent_name": "Marcus (Solution Architect)",
-        "execution_id": str(execution_id) if execution_id else "unknown",
-        "project_id": project_name,
-        "deliverable_type": "architect_specification",
-        "content": {
-            "raw_markdown": specifications,
-            "sections": sections
-        },
-        "metadata": {
-            "tokens_used": tokens_used,
-            "model": model_used,
-            "provider": provider_used,
-            "execution_time_seconds": round(execution_time, 2),
-            "content_length": len(specifications),
-            "sections_count": len(sections),
-            "generated_at": datetime.now().isoformat()
-        }
-    }
-    
-    # Save JSON file
-    output_dir = Path(__file__).parent.parent.parent / "outputs"
-    output_dir.mkdir(exist_ok=True)
-    
-    output_file = f"{project_name}_{execution_id}_architect.json"
-    output_path = output_dir / output_file
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)
-    
-    print(f"✅ JSON generated: {output_file}")
-    print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s")
-    
-    return output
-
-
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True, help='Input requirements file')
-    parser.add_argument('--output', required=True, help='Output JSON file path')
-    parser.add_argument('--execution-id', required=True, help='Execution ID')
-    parser.add_argument('--project-id', default='unknown', help='Project ID')
     args = parser.parse_args()
     
-    with open(args.input, 'r') as f:
-        requirements = f.read()
-    
-    result = main(requirements, args.project_id, args.execution_id)
-    print(f"✅ Generated: {result['metadata']['content_length']} chars")
+    try:
+        start_time = time.time()
+        
+        # Read input
+        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_data = json.load(f)
+        print(f"✅ Input loaded", file=sys.stderr)
+        
+        # Get RAG context for design mode
+        rag_context = ""
+        if args.mode == 'design' and args.use_rag and RAG_AVAILABLE:
+            try:
+                query = f"Salesforce architecture design patterns data model"
+                print(f"🔍 Querying RAG...", file=sys.stderr)
+                rag_context = get_salesforce_context(query, n_results=5)
+                print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ RAG error: {e}", file=sys.stderr)
+        
+        # Build prompt based on mode
+        if args.mode == 'design':
+            use_cases = input_data.get('use_cases', [])
+            project_summary = input_data.get('project_summary', '')
+            prompt = get_design_prompt(use_cases, project_summary, rag_context)
+            deliverable_type = "solution_design"
+            artifact_prefix = "ARCH"
+            
+        elif args.mode == 'as_is':
+            sfdx_metadata = input_data.get('sfdx_metadata', json.dumps(input_data))
+            prompt = get_as_is_prompt(sfdx_metadata)
+            deliverable_type = "as_is_analysis"
+            artifact_prefix = "ASIS"
+            
+        elif args.mode == 'gap':
+            arch_summary = json.dumps(input_data.get('architecture', {}), indent=2)
+            asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
+            prompt = get_gap_prompt(arch_summary, asis_summary)
+            deliverable_type = "gap_analysis"
+            artifact_prefix = "GAP"
+            
+        else:  # wbs
+            gap_analysis = json.dumps(input_data.get('gaps', input_data), indent=2)
+            constraints = input_data.get('constraints', '')
+            prompt = get_wbs_prompt(gap_analysis, constraints)
+            deliverable_type = "work_breakdown_structure"
+            artifact_prefix = "WBS"
+        
+        system_prompt = f"You are Marcus, a Salesforce CTA. Generate {deliverable_type}. Output ONLY valid JSON."
+        
+        print(f"📝 Mode: {args.mode}", file=sys.stderr)
+        print(f"📝 Prompt size: {len(prompt)} characters", file=sys.stderr)
+        
+        # Call LLM
+        if LLM_SERVICE_AVAILABLE:
+            print(f"🤖 Calling Claude API (Architect tier)...", file=sys.stderr)
+            response = generate_llm_response(
+                prompt=prompt,
+                agent_type="architect",
+                system_prompt=system_prompt,
+                max_tokens=8000,
+                temperature=0.4
+            )
+            content = response["content"]
+            tokens_used = response["tokens_used"]
+            model_used = response["model"]
+            provider_used = response["provider"]
+        else:
+            # Fallback to direct Anthropic
+            print(f"🤖 Calling Anthropic API directly...", file=sys.stderr)
+            from anthropic import Anthropic
+            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set")
+            
+            client = Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=8000,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = response.content[0].text
+            tokens_used = response.usage.input_tokens + response.usage.output_tokens
+            model_used = "claude-sonnet-4-20250514"
+            provider_used = "anthropic"
+        
+        print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
+        
+        execution_time = time.time() - start_time
+        print(f"✅ Generated {len(content)} chars in {execution_time:.1f}s", file=sys.stderr)
+        print(f"📊 Tokens used: {tokens_used}", file=sys.stderr)
+        
+        # Parse JSON output
+        try:
+            clean_content = content.strip()
+            if clean_content.startswith('```'):
+                clean_content = clean_content.split('\n', 1)[1]
+            if clean_content.endswith('```'):
+                clean_content = clean_content[:-3]
+            clean_content = clean_content.strip()
+            
+            parsed_content = json.loads(clean_content)
+            print(f"✅ JSON parsed successfully", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
+            parsed_content = {"raw": content, "parse_error": str(e)}
+        
+        # Build output
+        output_data = {
+            "agent_id": "architect",
+            "agent_name": "Marcus (Solution Architect)",
+            "mode": args.mode,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+            "deliverable_type": deliverable_type,
+            "artifact_id": f"{artifact_prefix}-001",
+            "content": parsed_content,
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "rag_used": bool(rag_context),
+                "generated_at": datetime.now().isoformat()
+            }
+        }
+        
+        # Save output
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ SUCCESS: Output saved to {args.output}", file=sys.stderr)
+        print(json.dumps(output_data, indent=2, ensure_ascii=False))
+        
+        sys.exit(0)
+        
+    except Exception as e:
+        print(f"❌ ERROR: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

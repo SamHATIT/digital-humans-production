@@ -11,6 +11,13 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# RAG Service for Salesforce expert context
+try:
+    from app.services.rag_service import get_salesforce_context
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+
 from openai import OpenAI
 import time
 # from docx import Document
@@ -236,11 +243,36 @@ if __name__ == "__main__":
     parser.add_argument('--input', required=True, help='Input requirements file')
     parser.add_argument('--output', required=True, help='Output JSON file path')
     parser.add_argument('--execution-id', required=True, help='Execution ID')
+    parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG for Salesforce context')
     parser.add_argument('--project-id', default='unknown', help='Project ID')
     args = parser.parse_args()
     
     with open(args.input, 'r') as f:
         requirements = f.read()
+    # Get RAG context for Salesforce expertise
+    rag_context = ""
+    if args.use_rag and RAG_AVAILABLE:
+        try:
+            # Build query from input content
+            query_text = requirements[:500] if isinstance(requirements, str) else str(requirements)[:500]
+            query = f"Salesforce best practices {query_text[:200]}"
+            print(f"🔍 Querying RAG for expert context...", file=sys.stderr)
+            rag_context = get_salesforce_context(query, n_results=5)
+            print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ RAG error: {e}", file=sys.stderr)
+            rag_context = ""
+    
+    # Inject RAG context into requirements
+    if rag_context:
+        requirements = f"{requirements}\n\n{rag_context}"
+
+    
+    # CRITICAL: Truncate input to avoid token overflow
+    MAX_INPUT_CHARS = 30000
+    if len(requirements) > MAX_INPUT_CHARS:
+        print(f"⚠️ Input truncated from {len(requirements)} to {MAX_INPUT_CHARS} chars", file=sys.stderr)
+        requirements = requirements[:MAX_INPUT_CHARS] + "\n\n[... TRUNCATED FOR TOKEN LIMIT ...]"
     
     result = main(requirements, args.project_id, args.execution_id)
     print(f"✅ Generated: {result['metadata']['content_length']} chars")

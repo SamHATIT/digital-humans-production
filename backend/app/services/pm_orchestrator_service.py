@@ -1,4 +1,5 @@
 """
+from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
 PM Orchestrator Service - Core orchestration logic
 Executes agents sequentially and generates SDS document
 """
@@ -240,6 +241,10 @@ class PMOrchestratorService:
             execution.status = ExecutionStatus.COMPLETED
             execution.completed_at = datetime.now(timezone.utc)
             execution.sds_document_path = sds_path
+            
+            # IMPORTANT: Update project status to completed
+            project.status = "completed"
+            logger.info(f"Project {project.id} marked as completed")
             execution.duration_seconds = int(
                 (execution.completed_at - execution.started_at).total_seconds()
             )
@@ -994,12 +999,35 @@ Implementation phase ready to commence with clear technical specifications and c
         execution_id: int
     ) -> str:
         """
-        Generate SDS document using python-docx
-
-        CRITICAL: Uses "Digital Humans System" template
-        Business Requirements: MAX 3-7 lines
+        Generate professional SDS document
+        
+        CRITICAL: Uses "Digital Humans System" template with:
+        - Professional tables with colored headers  
+        - Mermaid diagrams converted to images
+        - Properly formatted code blocks
+        - Business Requirements: MAX 3-7 lines
         """
-
+        try:
+            output_dir = "/app/outputs"
+            os.makedirs(output_dir, exist_ok=True)
+            
+            output_path = generate_professional_sds(
+                project=project,
+                agent_outputs=agent_outputs,
+                execution_id=execution_id,
+                output_dir=output_dir
+            )
+            
+            logger.info(f"Professional SDS document generated: {output_path}")
+            return output_path
+            
+        except Exception as e:
+            logger.error(f"Error with professional generator, using fallback: {e}")
+            import traceback
+            traceback.print_exc()
+            # Continue with basic generation below
+        
+        # ===== FALLBACK: Basic document generation =====
         doc = Document()
 
         # ===== TITLE PAGE =====

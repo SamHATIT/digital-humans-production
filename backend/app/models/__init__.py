@@ -14,6 +14,7 @@ from app.models.document_fusion import DocumentFusion, FusionStatus
 from app.models.training_content import TrainingContent, ContentStatus, FormattingStatus
 from app.models.quality_gate import QualityGate, GateStatus
 from app.models.agent_iteration import AgentIteration, IterationStatus
+from app.models.deliverable_item import DeliverableItem
 
 # V2 Artifacts System
 from app.models.artifact import (
@@ -49,6 +50,8 @@ __all__ = [
     "GateStatus",
     "AgentIteration",
     "IterationStatus",
+    # Database-first items
+    "DeliverableItem",
     # V2 Artifacts
     "ExecutionArtifact",
     "ValidationGate",

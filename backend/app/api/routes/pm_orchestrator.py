@@ -27,7 +27,7 @@ from app.schemas.execution import (
     ExecutionProgress
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
-from app.services.pm_orchestrator_service import execute_agents_background
+from app.services.pm_orchestrator_service_v2 import execute_workflow_background
 
 router = APIRouter(tags=["PM Orchestrator"])
 
@@ -318,7 +318,7 @@ async def start_execution(
     db.refresh(execution)
 
     # Start background task for execution
-    asyncio.create_task(execute_agents_background(execution.id, project.id, execution_data.selected_agents))
+    asyncio.create_task(execute_workflow_background(db, execution.id, project.id, execution_data.selected_agents))
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -335,6 +335,7 @@ async def get_execution_progress(
 ):
     """
     Get current progress of an execution.
+    Returns format compatible with frontend ExecutionProgress interface.
     """
     execution = db.query(Execution).join(Project).filter(
         Execution.id == execution_id,
@@ -347,14 +348,76 @@ async def get_execution_progress(
             detail="Execution not found"
         )
 
+    # Parse agent_execution_status JSON
+    agent_status = {}
+    if execution.agent_execution_status:
+        if isinstance(execution.agent_execution_status, str):
+            agent_status = json.loads(execution.agent_execution_status)
+        else:
+            agent_status = execution.agent_execution_status
+
+    # Build agent_progress array for frontend
+    agent_progress = []
+    selected_agents = execution.selected_agents or []
+    if isinstance(selected_agents, str):
+        selected_agents = json.loads(selected_agents)
+    
+    # Agent display names mapping
+    agent_names = {
+        "pm": "Sophie (PM)",
+        "ba": "Olivia (BA)",
+        "architect": "Marcus (Architect)",
+        "apex": "Diego (Apex)",
+        "lwc": "Zara (LWC)",
+        "admin": "Raj (Admin)",
+        "qa": "Elena (QA)",
+        "devops": "Jordan (DevOps)",
+        "data": "Aisha (Data)",
+        "trainer": "Lucas (Trainer)"
+    }
+    
+    for agent_id in selected_agents:
+        status_info = agent_status.get(agent_id, {})
+        state = status_info.get("state", "waiting")
+        
+        # Map state to frontend expected status
+        status_map = {
+            "waiting": "pending",
+            "running": "in_progress",
+            "completed": "completed",
+            "failed": "failed"
+        }
+        
+        agent_progress.append({
+            "agent_name": agent_names.get(agent_id, agent_id),
+            "status": status_map.get(state, state),
+            "progress": status_info.get("progress", 0),
+            "current_task": status_info.get("message", ""),
+            "output_summary": status_info.get("message", "")
+        })
+
+    # Calculate overall progress based on completed agents
+    total_agents = len(selected_agents)
+    completed_agents = sum(1 for a in agent_status.values() if a.get("state") == "completed")
+    overall_progress = int((completed_agents / total_agents) * 100) if total_agents > 0 else 0
+
+    # Determine current phase
+    current_phase = "Initializing..."
+    if execution.current_agent:
+        current_phase = f"Running {agent_names.get(execution.current_agent, execution.current_agent)}"
+    if execution.status == ExecutionStatus.COMPLETED:
+        current_phase = "Completed"
+        overall_progress = 100
+    elif execution.status == ExecutionStatus.FAILED:
+        current_phase = "Failed"
+
     return {
         "execution_id": execution.id,
-        "project_id": execution.project_id,
         "status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
-        "progress": execution.progress or 0,
-        "current_agent": execution.current_agent,
-        "started_at": execution.started_at.isoformat() if execution.started_at else None,
-        "completed_at": execution.completed_at.isoformat() if execution.completed_at else None
+        "overall_progress": overall_progress,
+        "current_phase": current_phase,
+        "agent_progress": agent_progress,
+        "sds_document_path": execution.sds_document_path
     }
 
 

@@ -60,3 +60,4 @@ class Execution(Base):
     artifacts = relationship("ExecutionArtifact", back_populates="execution", cascade="all, delete-orphan")
     validation_gates = relationship("ValidationGate", back_populates="execution", cascade="all, delete-orphan")
     agent_questions = relationship("AgentQuestion", back_populates="execution", cascade="all, delete-orphan")
+    deliverable_items = relationship("DeliverableItem", back_populates="execution", cascade="all, delete-orphan")

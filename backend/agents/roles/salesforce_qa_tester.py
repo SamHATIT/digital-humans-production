@@ -11,6 +11,13 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# RAG Service for Salesforce expert context
+try:
+    from app.services.rag_service import get_salesforce_context
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+
     from openai import OpenAI
 from docx import Document
 
@@ -790,12 +797,35 @@ def main():
     parser.add_argument('--input', required=True)
     parser.add_argument('--output', required=True, help='Output JSON file path')
     parser.add_argument('--execution-id', required=True, help='Execution ID')
+    parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG for Salesforce context')
     parser.add_argument('--project-id', required=True)
     args = parser.parse_args()
     
     try:
         with open(args.input) as f:
             reqs = f.read()
+        
+        # Get RAG context for Salesforce expertise
+        rag_context = ""
+        if args.use_rag and RAG_AVAILABLE:
+            try:
+                query = f"Salesforce QA testing best practices {reqs[:200]}"
+                print(f"🔍 Querying RAG for expert context...", file=sys.stderr)
+                rag_context = get_salesforce_context(query, n_results=5)
+                print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ RAG error: {e}", file=sys.stderr)
+                rag_context = ""
+        
+        # Inject RAG context into requirements
+        if rag_context:
+            reqs = f"{reqs}\n\n{rag_context}"
+        
+        # CRITICAL: Truncate input to avoid token overflow (max ~30K chars = ~7.5K tokens)
+        MAX_INPUT_CHARS = 30000
+        if len(reqs) > MAX_INPUT_CHARS:
+            print(f"⚠️ Input truncated from {len(reqs)} to {MAX_INPUT_CHARS} chars", file=sys.stderr)
+            reqs = reqs[:MAX_INPUT_CHARS] + "\n\n[... TRUNCATED FOR TOKEN LIMIT ...]"
         
         full_prompt = f"{QA_PROMPT}\n\nREQUIREMENTS:\n{reqs}"
         system_prompt = "You are an expert Salesforce QA Engineer creating comprehensive test specifications."
@@ -858,7 +888,7 @@ def main():
             json.dump(output_data, f, indent=2, ensure_ascii=False)
         
         print(f"SUCCESS: {args.output}", file=sys.stderr)
-        print(f"Generated QA specification with {response.usage.total_tokens} tokens")
+        print(f"Generated QA specification with {tokens_used} tokens")
         sys.exit(0)
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
