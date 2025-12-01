@@ -5,6 +5,8 @@ Generates high-quality Word documents with:
 - ERD diagrams as images (via mermaid)
 - Properly formatted code blocks
 - Professional styling
+
+FIXED VERSION: Properly extracts data from database
 """
 
 import os
@@ -23,14 +25,19 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.style import WD_STYLE_TYPE
 from docx.oxml.ns import qn, nsdecls
 from docx.oxml import parse_xml
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
-# Color constants (matching reference document)
+# Color constants
 HEADER_BLUE = RGBColor(31, 78, 121)  # #1F4E79
 HEADER_LIGHT_BLUE = RGBColor(68, 114, 196)  # #4472C4
 LINK_BLUE = RGBColor(37, 99, 235)  # #2563EB
 GRAY_TEXT = RGBColor(107, 114, 128)
+
+# Database connection
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db")
 
 
 class ProfessionalDocumentGenerator:
@@ -96,20 +103,16 @@ class ProfessionalDocumentGenerator:
     
     def add_table(self, headers: List[str], rows: List[List[str]], 
                   title: Optional[str] = None, first_col_bold: bool = True) -> None:
-        """
-        Add a professionally formatted table
-        
-        Args:
-            headers: Column headers
-            rows: Table data rows
-            title: Optional table title
-            first_col_bold: Whether to bold the first column
-        """
+        """Add a professionally formatted table"""
         if title:
             p = self.doc.add_paragraph()
             run = p.add_run(title)
             run.font.bold = True
             run.font.size = Pt(11)
+        
+        if not rows:
+            self.doc.add_paragraph("No data available.")
+            return
         
         # Create table
         table = self.doc.add_table(rows=1, cols=len(headers))
@@ -151,40 +154,27 @@ class ProfessionalDocumentGenerator:
         self.doc.add_paragraph()
     
     def parse_markdown_table(self, markdown: str) -> Tuple[List[str], List[List[str]]]:
-        """
-        Parse a markdown table into headers and rows
-        
-        Args:
-            markdown: Markdown table string
-            
-        Returns:
-            Tuple of (headers, rows)
-        """
+        """Parse a markdown table into headers and rows"""
         lines = [l.strip() for l in markdown.strip().split('\n') if l.strip()]
         
         if len(lines) < 2:
             return [], []
         
-        # Parse header
         header_line = lines[0]
         headers = [h.strip() for h in header_line.split('|') if h.strip()]
         
-        # Skip separator line (line with dashes)
         rows = []
-        for line in lines[2:]:  # Skip header and separator
+        for line in lines[2:]:
             if '|' in line and not re.match(r'^[\s\-|]+$', line):
-                cells = [c.strip() for c in line.split('|') if c.strip() or line.count('|') > len(headers)]
-                # Handle empty cells
                 raw_cells = line.split('|')
                 cells = [c.strip() for c in raw_cells[1:-1]] if raw_cells[0] == '' else [c.strip() for c in raw_cells]
                 if cells:
-                    rows.append(cells[:len(headers)])  # Ensure same number of columns
+                    rows.append(cells[:len(headers)])
         
         return headers, rows
     
     def add_code_block(self, code: str, language: str = "apex"):
         """Add a formatted code block"""
-        # Add light gray background box effect via paragraph
         for line in code.split('\n'):
             p = self.doc.add_paragraph()
             run = p.add_run(line)
@@ -195,25 +185,14 @@ class ProfessionalDocumentGenerator:
             p.paragraph_format.left_indent = Cm(0.5)
     
     def add_mermaid_diagram(self, mermaid_code: str, title: str = None) -> bool:
-        """
-        Convert Mermaid diagram to image and add to document
-        
-        Args:
-            mermaid_code: Mermaid diagram code
-            title: Optional diagram title
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        """Convert Mermaid diagram to image and add to document"""
         try:
-            # Try using mermaid-cli if available
             with tempfile.NamedTemporaryFile(mode='w', suffix='.mmd', delete=False) as f:
                 f.write(mermaid_code)
                 mmd_file = f.name
             
             png_file = mmd_file.replace('.mmd', '.png')
             
-            # Try mmdc (mermaid-cli)
             result = subprocess.run(
                 ['mmdc', '-i', mmd_file, '-o', png_file, '-b', 'white', '-w', '800'],
                 capture_output=True,
@@ -224,19 +203,18 @@ class ProfessionalDocumentGenerator:
                 if title:
                     self.doc.add_heading(title, 3)
                 self.doc.add_picture(png_file, width=Inches(6))
-                self.doc.add_paragraph()  # Spacing
+                self.doc.add_paragraph()
                 
-                # Cleanup
                 os.unlink(mmd_file)
                 os.unlink(png_file)
                 return True
                 
         except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logger.warning(f"Mermaid CLI not available or failed: {e}")
+            logger.warning(f"Mermaid CLI not available: {e}")
         except Exception as e:
             logger.error(f"Error generating mermaid diagram: {e}")
         
-        # Fallback: Add as formatted code block with note
+        # Fallback: Add as code block
         if title:
             self.doc.add_heading(title, 3)
         
@@ -249,41 +227,21 @@ class ProfessionalDocumentGenerator:
         self.add_code_block(mermaid_code, "mermaid")
         return False
     
-    def add_adr_table(self, adr_data: Dict[str, str]):
-        """Add an Architecture Decision Record as a formatted table"""
-        rows = []
-        for key in ['Décision', 'Decision', 'Contexte', 'Context', 
-                    'Options évaluées', 'Options', 'Justification', 
-                    'Conséquences', 'Consequences']:
-            if key in adr_data:
-                rows.append([key, adr_data[key]])
-        
-        if rows:
-            self.add_table(['Aspect', 'Description'], rows, first_col_bold=True)
-    
     def process_markdown_content(self, content: str, section_title: str = None):
-        """
-        Process markdown content and add to document with proper formatting
-        
-        Handles:
-        - Headings (# ## ###)
-        - Tables
-        - Code blocks
-        - Mermaid diagrams
-        - Lists
-        - Regular paragraphs
-        """
+        """Process markdown content and add to document with proper formatting"""
         if section_title:
             self.doc.add_heading(section_title, 1)
         
-        # Split content into blocks
+        if not content or content == "No content":
+            self.doc.add_paragraph("Content pending generation.")
+            return
+        
         lines = content.split('\n')
         i = 0
         
         while i < len(lines):
             line = lines[i].strip()
             
-            # Skip empty lines
             if not line:
                 i += 1
                 continue
@@ -313,16 +271,14 @@ class ProfessionalDocumentGenerator:
                 i += 1
                 continue
             
-            # Table detection
+            # Table
             if '|' in line and i + 1 < len(lines) and re.match(r'^[\s\-|:]+$', lines[i + 1].strip()):
-                # Collect table lines
                 table_lines = [line]
                 i += 1
                 while i < len(lines) and '|' in lines[i]:
                     table_lines.append(lines[i])
                     i += 1
                 
-                # Parse and add table
                 markdown_table = '\n'.join(table_lines)
                 headers, rows = self.parse_markdown_table(markdown_table)
                 if headers and rows:
@@ -343,7 +299,7 @@ class ProfessionalDocumentGenerator:
             elif re.match(r'^\d+\.\s', line):
                 self.doc.add_paragraph(re.sub(r'^\d+\.\s', '', line), style='List Number')
             
-            # Bold text handling
+            # Bold text
             elif '**' in line:
                 p = self.doc.add_paragraph()
                 parts = re.split(r'(\*\*[^*]+\*\*)', line)
@@ -368,6 +324,101 @@ class ProfessionalDocumentGenerator:
         return filepath
 
 
+def get_deliverables_from_db(execution_id: int) -> Dict[str, Any]:
+    """
+    Fetch all deliverables from database for an execution
+    
+    Returns dict with:
+    - business_requirements: list of BRs
+    - use_cases: list of UCs  
+    - architect_outputs: dict with solution_design, gap_analysis, wbs
+    """
+    engine = create_engine(DATABASE_URL)
+    
+    result = {
+        "business_requirements": [],
+        "project_summary": "",
+        "use_cases": [],
+        "architect_solution": None,
+        "architect_gap": None,
+        "architect_wbs": None
+    }
+    
+    with engine.connect() as conn:
+        # Get agent_deliverables
+        deliverables = conn.execute(text("""
+            SELECT deliverable_type, content 
+            FROM agent_deliverables 
+            WHERE execution_id = :exec_id
+        """), {"exec_id": execution_id}).fetchall()
+        
+        for dtype, content in deliverables:
+            try:
+                data = json.loads(content) if isinstance(content, str) else content
+                
+                if dtype == "pm_br_extraction":
+                    content_data = data.get("content", {})
+                    result["project_summary"] = content_data.get("project_summary", "")
+                    result["business_requirements"] = content_data.get("business_requirements", [])
+                    
+                elif dtype == "architect_solution_design":
+                    result["architect_solution"] = extract_json_content_robust(data)
+                    
+                elif dtype == "architect_gap_analysis":
+                    result["architect_gap"] = extract_json_content_robust(data)
+                    
+                elif dtype == "architect_wbs":
+                    result["architect_wbs"] = extract_json_content_robust(data)
+                    
+            except Exception as e:
+                logger.error(f"Error parsing {dtype}: {e}")
+        
+        # Get use cases from deliverable_items
+        use_cases = conn.execute(text("""
+            SELECT item_id, content_parsed, content_raw, parse_success
+            FROM deliverable_items 
+            WHERE execution_id = :exec_id AND item_type = 'use_case'
+            ORDER BY item_id
+        """), {"exec_id": execution_id}).fetchall()
+        
+        for item_id, content_parsed, content_raw, parse_success in use_cases:
+            try:
+                if parse_success and content_parsed:
+                    uc_data = content_parsed if isinstance(content_parsed, dict) else json.loads(content_parsed)
+                elif content_raw:
+                    uc_data = json.loads(content_raw) if isinstance(content_raw, str) else content_raw
+                else:
+                    uc_data = {"id": item_id, "title": "Untitled"}
+                result["use_cases"].append(uc_data)
+            except Exception as e:
+                logger.warning(f"Error parsing UC {item_id}: {e}")
+                result["use_cases"].append({"id": item_id, "title": "Parse error"})
+    
+    logger.info(f"Fetched from DB: {len(result['business_requirements'])} BRs, {len(result['use_cases'])} UCs")
+    return result
+
+
+def extract_json_content(data: Dict) -> Optional[Dict]:
+    """Extract JSON content, handling ```json wrapper"""
+    try:
+        content = data.get("content", {})
+        if isinstance(content, dict):
+            raw = content.get("raw", "")
+            if isinstance(raw, str):
+                # Strip ```json wrapper
+                raw = re.sub(r'^```json\s*', '', raw.strip())
+                raw = re.sub(r'```\s*$', '', raw.strip())
+                return json.loads(raw)
+            return content
+        return None
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parse error: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Extract error: {e}")
+        return None
+
+
 def generate_professional_sds(
     project: Any,
     agent_outputs: Dict[str, Any],
@@ -377,95 +428,289 @@ def generate_professional_sds(
     """
     Generate a professional SDS document
     
-    Args:
-        project: Project model instance
-        agent_outputs: Dictionary of agent outputs
-        execution_id: Execution ID
-        output_dir: Output directory path
-        
-    Returns:
-        Path to generated document
+    FIXED: Now properly fetches data from database
     """
     generator = ProfessionalDocumentGenerator()
     generator.create_document()
     
+    # Fetch real data from database
+    db_data = get_deliverables_from_db(execution_id)
+    
     # Title page
     generator.add_title_page(
         project_name=project.name,
-        product=project.salesforce_product,
-        org_type=project.organization_type
+        product=project.salesforce_product or "Salesforce",
+        org_type=project.organization_type or "New Implementation"
     )
     
-    # Executive Summary
+    # ===================
+    # EXECUTIVE SUMMARY
+    # ===================
     generator.doc.add_heading("Executive Summary", 1)
-    summary = f"""This Solution Design Specification outlines the technical implementation for {project.name}, a {project.salesforce_product} solution.
-
-The Digital Humans AI system has orchestrated {len(agent_outputs)} specialized AI agents to produce comprehensive technical specifications covering business analysis, solution architecture, development specifications, and deployment strategy."""
+    
+    summary = db_data.get("project_summary", "")
+    if not summary:
+        summary = f"This Solution Design Specification outlines the technical implementation for {project.name}."
+    
     generator.doc.add_paragraph(summary)
     
-    # Business Requirements
+    stats = f"""
+This document includes:
+• {len(db_data['business_requirements'])} Business Requirements
+• {len(db_data['use_cases'])} Use Cases
+• Solution Architecture with Data Model
+• Gap Analysis and Work Breakdown Structure
+"""
+    generator.doc.add_paragraph(stats)
+    
+    # ===================
+    # BUSINESS REQUIREMENTS
+    # ===================
+    generator.doc.add_page_break()
     generator.doc.add_heading("Business Requirements", 1)
-    requirements = project.business_requirements or "No requirements specified"
-    for line in requirements.strip().split('\n')[:7]:
-        if line.strip():
-            generator.doc.add_paragraph(line.strip(), style='List Bullet')
     
-    # Agent outputs
-    agent_names = {
-        'ba': 'Business Analysis',
-        'architect': 'Solution Architecture', 
-        'apex': 'Apex Development Specifications',
-        'lwc': 'Lightning Web Components',
-        'admin': 'Configuration & Administration',
-        'qa': 'Quality Assurance & Testing',
-        'devops': 'DevOps & Deployment',
-        'data': 'Data Migration',
-        'trainer': 'Training & Documentation',
-        'pm': 'Project Management Summary'
-    }
+    brs = db_data.get("business_requirements", [])
+    if brs:
+        headers = ["ID", "Title", "Category", "Priority"]
+        rows = []
+        for br in brs:
+            rows.append([
+                br.get("id", ""),
+                br.get("title", ""),
+                br.get("category", ""),
+                br.get("priority", "")
+            ])
+        generator.add_table(headers, rows)
+        
+        # Details
+        generator.doc.add_heading("Requirement Details", 2)
+        for br in brs[:20]:  # Limit to first 20 for brevity
+            p = generator.doc.add_paragraph()
+            run = p.add_run(f"{br.get('id', '')}: {br.get('title', '')}")
+            run.font.bold = True
+            generator.doc.add_paragraph(br.get("description", "No description"))
+    else:
+        generator.doc.add_paragraph("No business requirements extracted.")
     
-    for agent_id, result in agent_outputs.items():
+    # ===================
+    # USE CASES
+    # ===================
+    generator.doc.add_page_break()
+    generator.doc.add_heading("Use Cases", 1)
+    
+    ucs = db_data.get("use_cases", [])
+    if ucs:
+        generator.doc.add_paragraph(f"Total: {len(ucs)} use cases generated.")
+        
+        # Summary table
+        headers = ["ID", "Title", "Actor"]
+        rows = []
+        for uc in ucs[:50]:  # First 50 in summary
+            rows.append([
+                uc.get("id", ""),
+                uc.get("title", "")[:60] + ("..." if len(uc.get("title", "")) > 60 else ""),
+                uc.get("actor", "")
+            ])
+        generator.add_table(headers, rows)
+        
+        # Detailed UCs (first 20)
         generator.doc.add_page_break()
-        section_name = agent_names.get(agent_id, agent_id.upper())
+        generator.doc.add_heading("Use Case Details", 2)
         
-        # Extract content
-        output = result.get("output", result) if isinstance(result, dict) else result
-        json_data = output.get("json_data", output) if isinstance(output, dict) else output
-        
-        content = "No content generated"
-        if isinstance(json_data, dict):
-            content_obj = json_data.get("content", {})
-            if isinstance(content_obj, dict):
-                content = content_obj.get("raw_markdown", content_obj.get("content", "No content"))
-            elif isinstance(content_obj, str):
-                content = content_obj
-        
-        generator.process_markdown_content(content, section_title=section_name)
+        for uc in ucs[:20]:
+            generator.doc.add_heading(f"{uc.get('id', '')}: {uc.get('title', '')}", 3)
+            
+            # Actor
+            p = generator.doc.add_paragraph()
+            run = p.add_run("Actor: ")
+            run.font.bold = True
+            p.add_run(uc.get("actor", "N/A"))
+            
+            # Preconditions
+            preconds = uc.get("preconditions", [])
+            if preconds:
+                p = generator.doc.add_paragraph()
+                run = p.add_run("Preconditions:")
+                run.font.bold = True
+                for pc in preconds[:5]:
+                    generator.doc.add_paragraph(pc, style='List Bullet')
+            
+            # Main Flow
+            main_flow = uc.get("main_flow", [])
+            if main_flow:
+                p = generator.doc.add_paragraph()
+                run = p.add_run("Main Flow:")
+                run.font.bold = True
+                for i, step in enumerate(main_flow[:8], 1):
+                    step_text = step.get("action", step) if isinstance(step, dict) else step
+                    generator.doc.add_paragraph(f"{i}. {step_text}")
+            
+            # Postconditions
+            postconds = uc.get("postconditions", [])
+            if postconds:
+                p = generator.doc.add_paragraph()
+                run = p.add_run("Postconditions:")
+                run.font.bold = True
+                for pc in postconds[:3]:
+                    generator.doc.add_paragraph(pc, style='List Bullet')
+            
+            generator.doc.add_paragraph()  # Spacing
+    else:
+        generator.doc.add_paragraph("No use cases generated.")
     
-    # Save document
+    # ===================
+    # SOLUTION ARCHITECTURE
+    # ===================
+    generator.doc.add_page_break()
+    generator.doc.add_heading("Solution Architecture", 1)
+    
+    arch_data = db_data.get("architect_solution")
+    if arch_data:
+        # Data Model
+        data_model = arch_data.get("data_model", {})
+        
+        # Standard Objects
+        std_objects = data_model.get("standard_objects", [])
+        if std_objects:
+            generator.doc.add_heading("Standard Objects", 2)
+            for obj in std_objects:
+                generator.doc.add_heading(obj.get("object", "Unknown"), 3)
+                generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
+                
+                custom_fields = obj.get("custom_fields", [])
+                if custom_fields:
+                    headers = ["API Name", "Type", "Description"]
+                    rows = [[f.get("api_name", ""), f.get("type", ""), f.get("description", f.get("values", ""))[:50]] for f in custom_fields[:10]]
+                    generator.add_table(headers, rows)
+        
+        # Custom Objects
+        custom_objects = data_model.get("custom_objects", [])
+        if custom_objects:
+            generator.doc.add_heading("Custom Objects", 2)
+            for obj in custom_objects:
+                generator.doc.add_heading(obj.get("label", obj.get("api_name", "Unknown")), 3)
+                generator.doc.add_paragraph(f"API Name: {obj.get('api_name', 'N/A')}")
+                generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
+                
+                fields = obj.get("fields", [])
+                if fields:
+                    headers = ["API Name", "Type", "Required"]
+                    rows = [[f.get("api_name", ""), f.get("type", ""), "Yes" if f.get("required") else "No"] for f in fields]
+                    generator.add_table(headers, rows)
+        
+        # ERD Diagram
+        erd = data_model.get("erd_mermaid", "")
+        if erd:
+            generator.doc.add_page_break()
+            generator.doc.add_heading("Entity Relationship Diagram", 2)
+            generator.add_mermaid_diagram(erd, None)
+        
+        # Security Model
+        security = arch_data.get("security_model", {})
+        if security:
+            generator.doc.add_page_break()
+            generator.doc.add_heading("Security Model", 2)
+            
+            profiles = security.get("profiles", [])
+            if profiles:
+                generator.doc.add_heading("Profiles", 3)
+                for profile in profiles:
+                    p = generator.doc.add_paragraph()
+                    run = p.add_run(profile.get("name", "Unknown"))
+                    run.font.bold = True
+                    generator.doc.add_paragraph(profile.get("description", ""))
+            
+            perm_sets = security.get("permission_sets", [])
+            if perm_sets:
+                generator.doc.add_heading("Permission Sets", 3)
+                headers = ["Name", "Description"]
+                rows = [[ps.get("name", ""), ps.get("description", "")[:80]] for ps in perm_sets]
+                generator.add_table(headers, rows)
+        
+        # Automation
+        automation = arch_data.get("automation_design", {})
+        flows = automation.get("flows", [])
+        if flows:
+            generator.doc.add_page_break()
+            generator.doc.add_heading("Automation Design - Flows", 2)
+            headers = ["Name", "Type", "Trigger", "Purpose"]
+            rows = []
+            for flow in flows[:15]:
+                rows.append([
+                    flow.get("name", ""),
+                    flow.get("type", ""),
+                    flow.get("trigger", "")[:40],
+                    flow.get("purpose", "")[:50]
+                ])
+            generator.add_table(headers, rows)
+    else:
+        generator.doc.add_paragraph("Architecture design pending.")
+    
+    # ===================
+    # GAP ANALYSIS
+    # ===================
+    gap_data = db_data.get("architect_gap")
+    if gap_data:
+        generator.doc.add_page_break()
+        generator.doc.add_heading("Gap Analysis", 1)
+        
+        gaps = gap_data.get("gaps", [])
+        if gaps:
+            headers = ["ID", "Category", "Gap Description", "Complexity", "Effort (days)"]
+            rows = []
+            for gap in gaps[:20]:
+                rows.append([
+                    gap.get("id", ""),
+                    gap.get("category", ""),
+                    gap.get("gap_description", "")[:60],
+                    gap.get("complexity", ""),
+                    str(gap.get("effort_days", ""))
+                ])
+            generator.add_table(headers, rows)
+    
+    # ===================
+    # WORK BREAKDOWN STRUCTURE
+    # ===================
+    wbs_data = db_data.get("architect_wbs")
+    if wbs_data:
+        generator.doc.add_page_break()
+        generator.doc.add_heading("Work Breakdown Structure", 1)
+        
+        phases = wbs_data.get("phases", [])
+        for phase in phases:
+            generator.doc.add_heading(f"{phase.get('id', '')}: {phase.get('name', '')}", 2)
+            generator.doc.add_paragraph(f"Duration: {phase.get('duration_weeks', 'TBD')} weeks")
+            
+            tasks = phase.get("tasks", [])
+            if tasks:
+                headers = ["Task ID", "Name", "Assigned To", "Effort (days)"]
+                rows = []
+                for task in tasks[:10]:
+                    rows.append([
+                        task.get("id", ""),
+                        task.get("name", "")[:50],
+                        task.get("assigned_agent", ""),
+                        str(task.get("effort_days", ""))
+                    ])
+                generator.add_table(headers, rows)
+    
+    # ===================
+    # SAVE
+    # ===================
     safe_name = "".join(c for c in project.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
     safe_name = safe_name.replace(' ', '_')
-    filepath = f"{output_dir}/SDS_{execution_id}_{safe_name}.docx"
+    filepath = f"{output_dir}/SDS_{safe_name}_{execution_id}.docx"
     
     return generator.save(filepath)
 
 
 async def mermaid_to_image_kroki(mermaid_code: str) -> Optional[bytes]:
-    """
-    Convert Mermaid diagram to PNG using Kroki API
-    
-    Args:
-        mermaid_code: Mermaid diagram code
-        
-    Returns:
-        PNG image bytes or None if failed
-    """
+    """Convert Mermaid diagram to PNG using Kroki API"""
     import httpx
     import base64
     import zlib
     
     try:
-        # Encode for Kroki
         encoded = base64.urlsafe_b64encode(
             zlib.compress(mermaid_code.encode('utf-8'), 9)
         ).decode('ascii')
@@ -480,3 +725,36 @@ async def mermaid_to_image_kroki(mermaid_code: str) -> Optional[bytes]:
         logger.error(f"Kroki API error: {e}")
     
     return None
+
+
+def extract_json_content_robust(data: Dict) -> Optional[Dict]:
+    """Extract JSON content with repair for truncated responses"""
+    try:
+        from json_repair import repair_json
+    except ImportError:
+        logger.warning("json-repair not installed, falling back to basic extraction")
+        return extract_json_content(data)
+    
+    try:
+        content = data.get("content", {})
+        if isinstance(content, dict):
+            raw = content.get("raw", "")
+            if isinstance(raw, str):
+                # Strip ```json wrapper
+                raw = re.sub(r'^```json\s*', '', raw.strip())
+                raw = re.sub(r'```\s*$', '', raw.strip())
+                
+                # Try normal parse first
+                try:
+                    return json.loads(raw)
+                except json.JSONDecodeError:
+                    # Use json-repair
+                    repaired = repair_json(raw, return_objects=True)
+                    if isinstance(repaired, dict):
+                        logger.info(f"Successfully repaired truncated JSON ({len(raw)} chars)")
+                        return repaired
+            return content
+        return None
+    except Exception as e:
+        logger.error(f"JSON extraction error: {e}")
+        return None
