@@ -36,3 +36,4 @@ PyPDF2==3.0.1
 
 # Anthropic API for Claude models
 anthropic==0.39.0
+json-repair>=0.30.0
