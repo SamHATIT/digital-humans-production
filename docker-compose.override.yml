@@ -1,11 +1,21 @@
 version: '3.8'
 
 services:
+  db:
+    deploy:
+      replicas: 0
+  
   backend:
+    networks: !override []
+    network_mode: "host"
     environment:
-      DATABASE_URL: postgresql://digital_humans:DH_SecurePass2025!@host.docker.internal:5432/digital_humans_db
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    ports:
-      - "8002:8002"
-    depends_on: []
+      DATABASE_URL: postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db
+    volumes:
+      - ./backend:/app
+      - backend_outputs:/app/outputs
+      - /opt/digital-humans/rag/chromadb_data:/opt/digital-humans/rag/chromadb_data:ro
+      - /root/.sf:/root/.sf
+      - /root/.sfdx:/root/.sfdx
+      - /root/workspace/salesforce-workspace:/root/workspace/salesforce-workspace
+    depends_on: {}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
