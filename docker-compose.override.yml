@@ -19,3 +19,8 @@ services:
       - /root/workspace/salesforce-workspace:/root/workspace/salesforce-workspace
     depends_on: {}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+
+  frontend:
+    networks: !override []
+    network_mode: "host"
+    command: npm run dev -- --host 0.0.0.0 --port 3002

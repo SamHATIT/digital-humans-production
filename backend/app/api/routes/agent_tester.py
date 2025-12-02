@@ -15,8 +15,15 @@ from app.salesforce_config import salesforce_config, AGENT_PATHS
 
 router = APIRouter(prefix="/agent-tester", tags=["Agent Tester"])
 
-# Agent definitions
+# 7 agents who need Salesforce access
 AGENTS = {
+    "marcus": {
+        "name": "Marcus",
+        "role": "Solution Architect",
+        "description": "Analyse l'org existante, conçoit l'architecture et les spécifications techniques",
+        "capabilities": ["architecture", "design", "as_is_analysis"],
+        "color": "#8B5CF6"
+    },
     "diego": {
         "name": "Diego",
         "role": "Apex Developer",
@@ -26,7 +33,7 @@ AGENTS = {
     },
     "zara": {
         "name": "Zara",
-        "role": "LWC Developer", 
+        "role": "LWC Developer",
         "description": "Développe des Lightning Web Components et Aura",
         "capabilities": ["lwc", "aura"],
         "color": "#7C3AED"
@@ -34,18 +41,33 @@ AGENTS = {
     "raj": {
         "name": "Raj",
         "role": "Salesforce Admin",
-        "description": "Configure les objets, flows, permissions",
+        "description": "Configure les objets, flows, permissions et profiles",
         "capabilities": ["objects", "flows", "permissionsets", "profiles"],
         "color": "#059669"
     },
     "elena": {
         "name": "Elena",
         "role": "QA Engineer",
-        "description": "Crée des tests et valide le code",
-        "capabilities": ["classes"],
+        "description": "Crée et exécute les tests Apex, valide les déploiements",
+        "capabilities": ["test_classes", "validation"],
         "color": "#DC2626"
+    },
+    "jordan": {
+        "name": "Jordan",
+        "role": "DevOps Engineer",
+        "description": "Gère les déploiements, CI/CD et environnements",
+        "capabilities": ["deployment", "cicd", "environments"],
+        "color": "#F59E0B"
+    },
+    "aisha": {
+        "name": "Aisha",
+        "role": "Data Migration Specialist",
+        "description": "Migre et transforme les données, gère les imports/exports",
+        "capabilities": ["data_migration", "data_import", "data_export"],
+        "color": "#10B981"
     }
 }
+
 
 class AgentTestRequest(BaseModel):
     agent_id: str
@@ -53,12 +75,14 @@ class AgentTestRequest(BaseModel):
     project_context: Optional[dict] = None
     deploy_to_org: bool = False
 
+
 class SFDXResult(BaseModel):
     success: bool
     command: str
     stdout: str
     stderr: str
     duration_ms: int
+
 
 @router.get("/agents")
 async def list_agents():
@@ -73,12 +97,14 @@ async def list_agents():
         }
     }
 
+
 @router.get("/agents/{agent_id}")
 async def get_agent(agent_id: str):
     """Get details for a specific agent"""
     if agent_id not in AGENTS:
         raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     return AGENTS[agent_id]
+
 
 @router.post("/execute-sfdx")
 async def execute_sfdx_command(command: str):
@@ -103,6 +129,7 @@ async def execute_sfdx_command(command: str):
         duration_ms=int(duration)
     )
 
+
 @router.get("/org/query")
 async def query_org(soql: str):
     """Execute a SOQL query on the connected org"""
@@ -117,6 +144,7 @@ async def query_org(soql: str):
         raise HTTPException(status_code=400, detail=result.stderr)
     
     return json.loads(result.stdout)
+
 
 @router.post("/deploy")
 async def deploy_to_org(path: Optional[str] = None):
@@ -139,10 +167,12 @@ async def deploy_to_org(path: Optional[str] = None):
         "stderr": result.stderr
     }
 
+
 def make_log_event(event_type: str, **kwargs) -> str:
     """Create a SSE log event"""
     data = {"type": event_type, **kwargs}
     return f"data: {json.dumps(data)}\n\n"
+
 
 async def generate_test_logs(agent_id: str, task: str) -> AsyncGenerator[str, None]:
     """Generate SSE logs for agent test execution"""
@@ -189,6 +219,7 @@ async def generate_test_logs(agent_id: str, task: str) -> AsyncGenerator[str, No
     # End
     yield make_log_event("end", message="Test terminé - Mode démo (LLM non connecté)", timestamp=datetime.now().isoformat())
 
+
 @router.post("/test/{agent_id}/stream")
 async def test_agent_stream(agent_id: str, request: AgentTestRequest):
     """Test an agent with SSE streaming logs"""
@@ -200,6 +231,7 @@ async def test_agent_stream(agent_id: str, request: AgentTestRequest):
             "Connection": "keep-alive",
         }
     )
+
 
 @router.get("/workspace/files")
 async def list_workspace_files():

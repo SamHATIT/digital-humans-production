@@ -5,6 +5,7 @@ import Projects from './pages/Projects';
 import NewProject from './pages/NewProject';
 import ExecutionPage from './pages/ExecutionPage';
 import ExecutionMonitoringPage from './pages/ExecutionMonitoringPage';
+import AgentTesterPage from './pages/AgentTesterPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -52,6 +53,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ExecutionMonitoringPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent-tester"
+          element={
+            <ProtectedRoute>
+              <AgentTesterPage />
             </ProtectedRoute>
           }
         />

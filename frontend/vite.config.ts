@@ -7,6 +7,5 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3002,
-    // No proxy - use VITE_API_URL environment variable directly
   }
 })
