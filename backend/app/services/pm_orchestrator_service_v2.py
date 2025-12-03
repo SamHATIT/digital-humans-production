@@ -1,20 +1,27 @@
 """
-PM Orchestrator Service V2 - Refactored Atomic Workflow
+PM Orchestrator Service V2 - Complete SDS Workflow
 
-New workflow:
+Workflow:
 1. Sophie PM → extract_br (atomic BRs from raw requirements)
 2. Olivia BA → called N times (1 per BR) → generates UCs
-3. Marcus Architect → 4 sequential calls (design, as_is, gap, wbs)
-4. [Optional] Worker agents (Diego, Zara, Raj, etc.) → technical specs
+3. Marcus Architect → 4 sequential calls (as_is, gap, design, wbs)
+4. SDS Experts (systematic):
+   - Aisha (Data) → Data Migration Strategy
+   - Lucas (Trainer) → Training & Change Management Plan
+   - Elena (QA) → Test Strategy & QA Approach
+   - Jordan (DevOps) → CI/CD & Deployment Strategy
 5. Sophie PM → consolidate_sds (final DOCX document)
 
-Keeps all essential features:
+Note: Diego (Apex), Zara (LWC), Raj (Admin) are BUILD phase agents,
+not included in SDS generation but available for implementation tasks.
+
+Features:
 - Token tracking per agent
-- Validation gates
-- DOCX generation
-- SSE progress updates
-- Error recovery
-- Artifact persistence
+- Real-time SSE progress updates
+- Salesforce metadata retrieval for Marcus
+- Professional DOCX generation
+- Error recovery with fallback
+- Artifact persistence in PostgreSQL
 """
 
 import os
@@ -354,51 +361,75 @@ class PMOrchestratorServiceV2:
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             
             # ========================================
-            # PHASE 4: Worker Agents (Optional)
+            # PHASE 4: SDS Expert Agents (Systematic)
             # ========================================
-            # TEMPORARILY DISABLED - Workers not ready yet, go straight to SDS consolidation
-            if False and selected_agents:
-                worker_agents = [a for a in selected_agents if a in ["apex", "lwc", "admin", "qa", "devops", "data", "trainer"]]
+            # These 4 experts enrich the SDS with specialized sections:
+            # - Aisha (Data): Data Migration Strategy
+            # - Lucas (Trainer): Training & Change Management Plan
+            # - Elena (QA): Test Strategy & QA Approach
+            # - Jordan (DevOps): CI/CD & Deployment Strategy
+            
+            SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+            logger.info(f"[Phase 4] SDS Expert Agents: {SDS_EXPERTS}")
+            
+            expert_progress_start = 75
+            expert_progress_end = 90
+            
+            # Common context for all experts
+            common_context = {
+                "project": {
+                    "name": project.name,
+                    "description": project.description or "",
+                    "requirements": project.business_requirements or project.requirements_text or "",
+                    "product": project.salesforce_product,
+                    "compliance": project.compliance_requirements or ""
+                },
+                "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+                "use_cases": self._get_use_cases(execution_id, 15),
+                "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
+                "wbs": results["artifacts"].get("WBS", {}).get("content", {})
+            }
+            
+            for i, agent_id in enumerate(SDS_EXPERTS):
+                progress = expert_progress_start + ((i + 1) / len(SDS_EXPERTS)) * (expert_progress_end - expert_progress_start)
+                agent_name = AGENT_CONFIG[agent_id]["display_name"]
                 
-                if worker_agents:
-                    logger.info(f"[Phase 4] Worker Agents: {worker_agents}")
-                    worker_progress_start = 75
-                    worker_progress_end = 90
+                self._update_progress(execution, agent_id, "running", int(progress), f"{agent_name} creating specifications...")
+                
+                # Build expert-specific input
+                expert_input = dict(common_context)
+                
+                # Add expert-specific context
+                if agent_id == "data":
+                    expert_input["focus"] = "data_migration"
+                elif agent_id == "trainer":
+                    expert_input["focus"] = "training_adoption"
+                elif agent_id == "qa":
+                    expert_input["focus"] = "quality_assurance"
+                elif agent_id == "devops":
+                    expert_input["focus"] = "deployment_cicd"
+                
+                try:
+                    expert_result = await self._run_agent(
+                        agent_id=agent_id,
+                        input_data=expert_input,
+                        execution_id=execution_id,
+                        project_id=project_id
+                    )
                     
-                    for i, agent_id in enumerate(worker_agents):
-                        progress = worker_progress_start + ((i + 1) / len(worker_agents)) * (worker_progress_end - worker_progress_start)
-                        agent_name = AGENT_CONFIG[agent_id]["display_name"]
-                        
-                        self._update_progress(execution, agent_id, "running", int(progress), f"{agent_name} working...")
-                        
-                        # Build context from previous outputs
-                        worker_input = {
-                            "project": {
-                                "name": project.name,
-                                "requirements": project.business_requirements or project.requirements_text or "",
-                                "product": project.salesforce_product
-                            },
-                            "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                            "use_cases": self._get_use_cases(execution_id, 10),
-                            "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", [])
-                        }
-                        
-                        worker_result = await self._run_agent(
-                            agent_id=agent_id,
-                            input_data=worker_input,
-                            execution_id=execution_id,
-                            project_id=project_id
-                        )
-                        
-                        if worker_result.get("success"):
-                            results["agent_outputs"][agent_id] = worker_result["output"]
-                            self._track_tokens(agent_id, worker_result["output"], results)
-                            self._save_deliverable(execution_id, agent_id, f"{agent_id}_specs", worker_result["output"])
-                            logger.info(f"[Phase 4] ✅ {agent_name} completed")
-                            self._update_progress(execution, agent_id, "completed", int(progress), f"{agent_name} done")
-                        else:
-                            logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {worker_result.get('error')}")
-                            self._update_progress(execution, agent_id, "failed", int(progress), f"Failed: {worker_result.get('error', 'Unknown')[:50]}")
+                    if expert_result.get("success"):
+                        results["agent_outputs"][agent_id] = expert_result["output"]
+                        results["artifacts"][f"{agent_id.upper()}_SPECS"] = expert_result["output"]
+                        self._track_tokens(agent_id, expert_result["output"], results)
+                        self._save_deliverable(execution_id, agent_id, f"{agent_id}_specifications", expert_result["output"])
+                        logger.info(f"[Phase 4] ✅ {agent_name} completed")
+                        self._update_progress(execution, agent_id, "completed", int(progress), f"{agent_name} done")
+                    else:
+                        logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {expert_result.get('error')}")
+                        self._update_progress(execution, agent_id, "failed", int(progress), f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
+                except Exception as e:
+                    logger.error(f"[Phase 4] ❌ {agent_name} exception: {str(e)}")
+                    self._update_progress(execution, agent_id, "failed", int(progress), f"Error: {str(e)[:50]}")
             
             # ========================================
             # PHASE 5: Sophie PM - Consolidate SDS
@@ -675,6 +706,10 @@ class PMOrchestratorServiceV2:
         """Initialize agent execution status"""
         # Core agents always included
         agents = ["pm", "ba", "architect"]
+        # SDS Expert agents (always included for complete SDS)
+        SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+        agents.extend(SDS_EXPERTS)
+        # Add any additional selected agents
         agents.extend([a for a in selected_agents if a not in agents])
         
         return {
