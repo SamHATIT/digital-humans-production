@@ -1,8 +1,9 @@
 """
-from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
 PM Orchestrator Service - Core orchestration logic
 Executes agents sequentially and generates SDS document
 """
+from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
+from app.services.sds_template_generator import generate_sds_from_template
 import asyncio
 import os
 from typing import List, Dict, Any, Optional
@@ -999,30 +1000,26 @@ Implementation phase ready to commence with clear technical specifications and c
         execution_id: int
     ) -> str:
         """
-        Generate professional SDS document
+        Generate professional SDS document using template-based generator
         
-        CRITICAL: Uses "Digital Humans System" template with:
-        - Professional tables with colored headers  
-        - Mermaid diagrams converted to images
-        - Properly formatted code blocks
-        - Business Requirements: MAX 3-7 lines
+        Uses Digital-Humans.fr template with 8 sections:
+        1. Introduction
+        2. Solution Scope
+        3. Roles & Profiles
+        4. Functional Design (per module)
+        5. Data Migration
+        6. Systems Interface
+        7. Assumptions & Dependencies
+        8. Signoff
         """
         try:
-            output_dir = "/app/outputs"
-            os.makedirs(output_dir, exist_ok=True)
-            
-            output_path = generate_professional_sds(
-                project=project,
-                agent_outputs=agent_outputs,
-                execution_id=execution_id,
-                output_dir=output_dir
-            )
-            
-            logger.info(f"Professional SDS document generated: {output_path}")
+            # Use new template-based generator (reads from DB)
+            output_path = generate_sds_from_template(execution_id)
+            logger.info(f"Template SDS document generated: {output_path}")
             return output_path
             
         except Exception as e:
-            logger.error(f"Error with professional generator, using fallback: {e}")
+            logger.error(f"Error with template generator, using fallback: {e}")
             import traceback
             traceback.print_exc()
             # Continue with basic generation below
