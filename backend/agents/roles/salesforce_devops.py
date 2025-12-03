@@ -237,4 +237,12 @@ if __name__ == "__main__":
         requirements = requirements[:MAX_INPUT_CHARS] + "\n\n[... TRUNCATED FOR TOKEN LIMIT ...]"
     
     result = main(requirements, args.project_id, args.execution_id)
+    
+    # Write output to args.output (required by PM Orchestrator)
+    from pathlib import Path
+    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+    with open(args.output, 'w', encoding='utf-8') as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+    
+    print(f"SUCCESS: {args.output}", file=sys.stderr)
     print(f"✅ Generated: {result['metadata']['content_length']} chars")
