@@ -266,7 +266,7 @@ class AgentExecutor:
             
             yield self.log(LogLevel.LLM, f"🤖 Exécution du script {config['script']}...").to_sse()
             
-            # === STEP 6: Execute with STREAMING stderr ===
+            # === STEP 6: Execute with STREAMING stderr + HEARTBEAT ===
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -274,26 +274,42 @@ class AgentExecutor:
                 env={**os.environ}
             )
             
-            # Stream stderr line by line in real-time
+            # Stream stderr line by line with heartbeat to prevent timeout
             stderr_lines = []
+            heartbeat_interval = 5  # seconds
+            last_heartbeat = datetime.now()
+            
             while True:
-                line = await process.stderr.readline()
-                if not line:
-                    break
-                decoded = line.decode().strip()
-                if decoded:
-                    stderr_lines.append(decoded)
-                    # Convert agent logs to SSE
-                    if '✅' in decoded:
-                        yield self.log(LogLevel.SUCCESS, decoded).to_sse()
-                    elif '⚠️' in decoded or 'warning' in decoded.lower():
-                        yield self.log(LogLevel.WARNING, decoded).to_sse()
-                    elif '❌' in decoded or 'error' in decoded.lower():
-                        yield self.log(LogLevel.ERROR, decoded).to_sse()
-                    elif '🔍' in decoded or '🤖' in decoded or '📤' in decoded:
-                        yield self.log(LogLevel.LLM, decoded).to_sse()
+                try:
+                    # Wait for stderr with timeout
+                    line = await asyncio.wait_for(
+                        process.stderr.readline(),
+                        timeout=heartbeat_interval
+                    )
+                    if not line:
+                        break
+                    decoded = line.decode().strip()
+                    if decoded:
+                        stderr_lines.append(decoded)
+                        last_heartbeat = datetime.now()
+                        # Convert agent logs to SSE
+                        if '✅' in decoded:
+                            yield self.log(LogLevel.SUCCESS, decoded).to_sse()
+                        elif '⚠️' in decoded or 'warning' in decoded.lower():
+                            yield self.log(LogLevel.WARNING, decoded).to_sse()
+                        elif '❌' in decoded or 'error' in decoded.lower():
+                            yield self.log(LogLevel.ERROR, decoded).to_sse()
+                        elif '🔍' in decoded or '🤖' in decoded or '📤' in decoded:
+                            yield self.log(LogLevel.LLM, decoded).to_sse()
+                        else:
+                            yield self.log(LogLevel.INFO, decoded).to_sse()
+                except asyncio.TimeoutError:
+                    # Send heartbeat to keep connection alive
+                    if process.returncode is None:  # Process still running
+                        elapsed = (datetime.now() - last_heartbeat).seconds
+                        yield self._sse_event("heartbeat", message=f"⏳ LLM processing... ({elapsed}s)")
                     else:
-                        yield self.log(LogLevel.INFO, decoded).to_sse()
+                        break
             
             # Wait for process to complete
             await process.wait()
@@ -342,7 +358,7 @@ class AgentExecutor:
                         art_type = "test" if "Test" in filename else "code"
                         code_artifact = self._save_artifact(
                             artifact_type=art_type,
-                            content={"filename": filename, "code": code, "lines": len(code.split('\n'))},
+                            content={"filename": filename, "code": code, "lines": len(str(code).split('\n'))},
                             title=filename,
                             agent=agent_id
                         )
@@ -397,7 +413,26 @@ class AgentExecutor:
                     if isinstance(content, str):
                         files.update(self._parse_code_blocks(content, agent_id))
                     elif isinstance(content, dict):
-                        files.update(content)
+                        # Handle dict content - extract only string values
+                        for fname, fvalue in content.items():
+                            if isinstance(fvalue, str):
+                                files[fname] = fvalue
+                            elif isinstance(fvalue, dict):
+                                # Handle nested dict like {"code": "...", "description": "..."}
+                                if "code" in fvalue and isinstance(fvalue["code"], str):
+                                    files[fname] = fvalue["code"]
+                                elif "content" in fvalue and isinstance(fvalue["content"], str):
+                                    files[fname] = fvalue["content"]
+                    elif isinstance(content, list):
+                        # Handle list of code items
+                        for i, item in enumerate(content):
+                            if isinstance(item, str):
+                                files[f"generated_{i+1}.txt"] = item
+                            elif isinstance(item, dict):
+                                fname = item.get("filename", item.get("name", f"file_{i+1}"))
+                                code = item.get("code", item.get("content", ""))
+                                if isinstance(code, str) and code:
+                                    files[str(fname)] = code
         
         return files
     

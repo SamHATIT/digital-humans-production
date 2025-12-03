@@ -312,6 +312,11 @@ const AgentTesterPage: React.FC = () => {
                         <XCircle className="w-4 h-4" />
                         {log.message}
                       </div>
+                    ) : log.type === 'heartbeat' ? (
+                      <div className="text-gray-500 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        {log.message}
+                      </div>
                     ) : (
                       <>
                         {getLogIcon(log.level)}

@@ -1,0 +1,43 @@
+version: '3.8'
+
+# Production config - Backend et Frontend en mode host (PostgreSQL sur l'hôte)
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: digital-humans-backend
+    network_mode: "host"
+    environment:
+      DATABASE_URL: postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db
+      SECRET_KEY: ${SECRET_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4o
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HOST: 0.0.0.0
+      PORT: 8002
+    volumes:
+      - ./backend:/app
+      - backend_outputs:/app/outputs
+      - /opt/digital-humans/rag/chromadb_data:/opt/digital-humans/rag/chromadb_data
+      - /root/.sf:/root/.sf
+      - /root/.sfdx:/root/.sfdx
+      - /root/workspace/salesforce-workspace:/root/workspace/salesforce-workspace
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: digital-humans-frontend
+    network_mode: "host"
+    environment:
+      VITE_API_URL: http://localhost:8002
+    command: npm run dev -- --host 0.0.0.0 --port 3002
+    restart: unless-stopped
+
+volumes:
+  backend_outputs:
+    driver: local
