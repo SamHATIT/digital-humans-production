@@ -65,8 +65,8 @@ Generate a solution design with:
 - "artifact_id": "ARCH-001"
 - "title": "Solution Design Specification"
 - "data_model": Object with:
-  - "standard_objects": Array of standard objects used with customizations
-  - "custom_objects": Array of custom objects with fields summary
+  - "standard_objects": Array of objects, each with: {"api_name": "Case", "purpose": "Why this object is used in the solution", "customizations": ["list of custom fields or changes"]}
+  - "custom_objects": Array of objects, each with: {"api_name": "Error_Log__c", "purpose": "Business purpose of this object", "fields": ["field1__c", "field2__c"]}
   - "relationships": Array of object relationships
   - "erd_mermaid": ERD diagram in Mermaid syntax
 - "security_model": Object with:

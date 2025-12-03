@@ -44,6 +44,7 @@ except ImportError:
     HAS_VALIDATION_GATE = False
 # ValidationGate peut ne pas exister, on le gère dynamiquement
 import logging
+from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
 
 logger = logging.getLogger(__name__)
@@ -234,61 +235,56 @@ class PMOrchestratorServiceV2:
             # PHASE 3: Marcus Architect - 4 Sequential Calls
             # ========================================
             logger.info(f"[Phase 3] Marcus Architect - Solution Design")
-            self._update_progress(execution, "architect", "running", 48, "Starting architecture design...")
+            self._update_progress(execution, "architect", "running", 46, "Retrieving Salesforce metadata...")
             
+            # 3.0: Get Salesforce org metadata FIRST
+            sf_metadata_result = await self._get_salesforce_metadata(execution_id)
+            if sf_metadata_result["success"]:
+                org_metadata = sf_metadata_result["full_metadata"]
+                org_summary = sf_metadata_result["summary"]
+                logger.info(f"[Phase 3.0] ✅ Salesforce metadata retrieved: {org_summary.get('org_edition', 'Unknown')} edition")
+            else:
+                org_metadata = {}
+                org_summary = {"note": "Metadata retrieval failed - proceeding with empty state"}
+                logger.warning(f"[Phase 3.0] ⚠️ Metadata retrieval failed: {sf_metadata_result.get('error', 'Unknown')}")
+            
+            self._update_progress(execution, "architect", "running", 48, "Starting architecture analysis...")
             architect_tokens = 0
             
-            # 3.1: Design (UC → Architecture)
-            self._update_progress(execution, "architect", "running", 50, "Creating Solution Design...")
+            # 3.1: As-Is Analysis (Analyze current Salesforce org - ALWAYS RUN)
+            self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
             
-            design_result = await self._run_agent(
+            asis_result = await self._run_agent(
                 agent_id="architect",
-                mode="design",
+                mode="as_is",
                 input_data={
-                    "project_summary": br_result["output"]["content"].get("project_summary", ""),
-                    "use_cases": self._get_use_cases(execution_id, 15)
+                    "sfdx_metadata": json.dumps(org_metadata),
+                    "org_summary": org_summary,
+                    "org_info": org_summary
                 },
                 execution_id=execution_id,
                 project_id=project_id
             )
             
-            if design_result.get("success"):
-                results["artifacts"]["ARCHITECTURE"] = design_result["output"]
-                architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
-                # self._update_gate_progress(  # Disabled
-            # execution_id, 2, "ARCH", 1)
-                logger.info(f"[Phase 3.1] ✅ Solution Design (ARCH-001)")
-            
-            # 3.2: As-Is (optional)
-            if include_as_is and sfdx_metadata:
-                self._update_progress(execution, "architect", "running", 55, "Analyzing current org...")
-                
-                asis_result = await self._run_agent(
-                    agent_id="architect",
-                    mode="as_is",
-                    input_data={"sfdx_metadata": json.dumps(sfdx_metadata)},
-                    execution_id=execution_id,
-                    project_id=project_id
-                )
-                
-                if asis_result.get("success"):
-                    results["artifacts"]["AS_IS"] = asis_result["output"]
-                    architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
-                    self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
-                    logger.info(f"[Phase 3.2] ✅ As-Is Analysis (ASIS-001)")
+            if asis_result.get("success"):
+                results["artifacts"]["AS_IS"] = asis_result["output"]
+                architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
+                self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
+                logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
             else:
-                results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "note": "New implementation"}
+                results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
+                logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
             
-            # 3.3: Gap Analysis
-            self._update_progress(execution, "architect", "running", 62, "Performing Gap Analysis...")
+            # 3.2: Gap Analysis (Compare requirements vs current state)
+            self._update_progress(execution, "architect", "running", 58, "Identifying gaps...")
             
             gap_result = await self._run_agent(
                 agent_id="architect",
                 mode="gap",
                 input_data={
-                    "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                    "as_is": results["artifacts"].get("AS_IS", {})
+                    "requirements": br_result["output"]["content"].get("business_requirements", []),
+                    "use_cases": self._get_use_cases(execution_id, 15),
+                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
                 },
                 execution_id=execution_id,
                 project_id=project_id
@@ -298,18 +294,42 @@ class PMOrchestratorServiceV2:
                 results["artifacts"]["GAP"] = gap_result["output"]
                 architect_tokens += gap_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "gap_analysis", gap_result["output"])
-                # self._update_gate_progress(  # Disabled
-            # execution_id, 2, "GAP", 1)
-                logger.info(f"[Phase 3.3] ✅ Gap Analysis (GAP-001)")
+                logger.info(f"[Phase 3.2] ✅ Gap Analysis (GAP-001)")
+            else:
+                results["artifacts"]["GAP"] = {"artifact_id": "GAP-001", "content": {"gaps": []}}
+                logger.warning(f"[Phase 3.2] ⚠️ Gap Analysis failed")
             
-            # 3.4: WBS
-            self._update_progress(execution, "architect", "running", 70, "Creating Work Breakdown Structure...")
+            # 3.3: Solution Design (Design solution to address gaps)
+            self._update_progress(execution, "architect", "running", 66, "Designing solution...")
+            
+            design_result = await self._run_agent(
+                agent_id="architect",
+                mode="design",
+                input_data={
+                    "project_summary": br_result["output"]["content"].get("project_summary", ""),
+                    "use_cases": self._get_use_cases(execution_id, 15),
+                    "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
+                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
+                },
+                execution_id=execution_id,
+                project_id=project_id
+            )
+            
+            if design_result.get("success"):
+                results["artifacts"]["ARCHITECTURE"] = design_result["output"]
+                architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
+                self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
+                logger.info(f"[Phase 3.3] ✅ Solution Design (ARCH-001)")
+            
+            # 3.4: WBS (Break down implementation tasks)
+            self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
             
             wbs_result = await self._run_agent(
                 agent_id="architect",
                 mode="wbs",
                 input_data={
-                    "gaps": gap_result.get("output", {}).get("content", {}),
+                    "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
+                    "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
                     "constraints": project.compliance_requirements or project.architecture_notes or ""
                 },
                 execution_id=execution_id,
@@ -320,8 +340,6 @@ class PMOrchestratorServiceV2:
                 results["artifacts"]["WBS"] = wbs_result["output"]
                 architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
-                # self._update_gate_progress(  # Disabled
-            # execution_id, 2, "WBS", 1)
                 logger.info(f"[Phase 3.4] ✅ WBS (WBS-001)")
             
             results["agent_outputs"]["architect"] = {
@@ -449,6 +467,138 @@ class PMOrchestratorServiceV2:
             import shutil
             if self.temp_dir.exists():
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+
+    async def _get_salesforce_metadata(self, execution_id: int) -> Dict[str, Any]:
+        """
+        Retrieve Salesforce org metadata for Marcus as_is analysis.
+        
+        Returns:
+            Dict with:
+            - summary: Condensed info for Marcus prompt
+            - full_metadata: Complete data stored in DB
+            - success: bool
+        """
+        logger.info(f"[Metadata] Retrieving Salesforce org metadata...")
+        
+        metadata = {
+            "org_info": {},
+            "metadata_types": [],
+            "objects": [],
+            "installed_packages": [],
+            "limits": {},
+            "retrieved_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        try:
+            # 1. Get org info (edition, version, features)
+            org_cmd = f"sf org display --target-org {salesforce_config.org_alias} --json"
+            org_result = subprocess.run(org_cmd, shell=True, capture_output=True, text=True, timeout=30)
+            if org_result.returncode == 0:
+                org_data = json.loads(org_result.stdout)
+                metadata["org_info"] = org_data.get("result", {})
+                logger.info(f"[Metadata] ✅ Org info retrieved: {metadata['org_info'].get('edition', 'Unknown')} edition")
+            
+            # 2. List available metadata types
+            types_cmd = f"sf org list metadata-types --api-version {salesforce_config.api_version} --target-org {salesforce_config.org_alias} --json"
+            types_result = subprocess.run(types_cmd, shell=True, capture_output=True, text=True, timeout=60)
+            if types_result.returncode == 0:
+                types_data = json.loads(types_result.stdout)
+                metadata["metadata_types"] = types_data.get("result", {}).get("metadataObjects", [])
+                logger.info(f"[Metadata] ✅ {len(metadata['metadata_types'])} metadata types available")
+            
+            # 3. List all objects (standard + custom)
+            objects_cmd = f"sf sobject list --sobject-type all --target-org {salesforce_config.org_alias} --json"
+            objects_result = subprocess.run(objects_cmd, shell=True, capture_output=True, text=True, timeout=60)
+            if objects_result.returncode == 0:
+                objects_data = json.loads(objects_result.stdout)
+                metadata["objects"] = objects_data.get("result", [])
+                custom_count = len([o for o in metadata["objects"] if o.endswith("__c")])
+                logger.info(f"[Metadata] ✅ {len(metadata['objects'])} objects ({custom_count} custom)")
+            
+            # 4. List installed packages (ISV)
+            pkg_cmd = f"sf package installed list --target-org {salesforce_config.org_alias} --json"
+            pkg_result = subprocess.run(pkg_cmd, shell=True, capture_output=True, text=True, timeout=30)
+            if pkg_result.returncode == 0:
+                pkg_data = json.loads(pkg_result.stdout)
+                metadata["installed_packages"] = pkg_data.get("result", [])
+                logger.info(f"[Metadata] ✅ {len(metadata['installed_packages'])} installed packages")
+            
+            # 5. Get org limits
+            limits_cmd = f"sf limits api display --target-org {salesforce_config.org_alias} --json"
+            limits_result = subprocess.run(limits_cmd, shell=True, capture_output=True, text=True, timeout=30)
+            if limits_result.returncode == 0:
+                limits_data = json.loads(limits_result.stdout)
+                # Only keep key limits
+                all_limits = limits_data.get("result", [])
+                key_limits = ["DailyApiRequests", "DataStorageMB", "FileStorageMB", "DailyAsyncApexExecutions"]
+                metadata["limits"] = {l["name"]: l for l in all_limits if l.get("name") in key_limits}
+                logger.info(f"[Metadata] ✅ Org limits retrieved")
+            
+            # Create summary for Marcus
+            summary = self._create_metadata_summary(metadata)
+            
+            # Store full metadata in DB as a deliverable
+            self._save_deliverable(
+                execution_id=execution_id,
+                agent_id="system",
+                deliverable_type="salesforce_metadata",
+                content={
+                    "full_metadata": metadata,
+                    "summary": summary
+                }
+            )
+            logger.info(f"[Metadata] ✅ Full metadata stored in DB")
+            
+            return {
+                "success": True,
+                "summary": summary,
+                "full_metadata": metadata
+            }
+            
+        except subprocess.TimeoutExpired:
+            logger.error(f"[Metadata] ❌ Timeout retrieving metadata")
+            return {"success": False, "summary": {}, "full_metadata": {}, "error": "Timeout"}
+        except Exception as e:
+            logger.error(f"[Metadata] ❌ Error: {str(e)}")
+            return {"success": False, "summary": {}, "full_metadata": {}, "error": str(e)}
+    
+    def _create_metadata_summary(self, metadata: Dict) -> Dict:
+        """Create a condensed summary of metadata for Marcus prompt"""
+        org_info = metadata.get("org_info", {})
+        
+        summary = {
+            "org_edition": org_info.get("edition", "Unknown"),
+            "org_type": org_info.get("instanceName", "Unknown"),
+            "api_version": org_info.get("apiVersion", salesforce_config.api_version),
+            "username": org_info.get("username", ""),
+            "instance_url": org_info.get("instanceUrl", ""),
+            
+            # Object counts
+            "total_objects": len(metadata.get("objects", [])),
+            "custom_objects": [o for o in metadata.get("objects", []) if o.endswith("__c")],
+            "custom_object_count": len([o for o in metadata.get("objects", []) if o.endswith("__c")]),
+            
+            # Installed packages
+            "installed_packages": [
+                {"name": p.get("SubscriberPackageName", ""), "namespace": p.get("SubscriberPackageNamespace", "")}
+                for p in metadata.get("installed_packages", [])
+            ],
+            
+            # Key limits
+            "limits": {
+                name: {"max": info.get("max", 0), "remaining": info.get("remaining", 0)}
+                for name, info in metadata.get("limits", {}).items()
+            },
+            
+            # Metadata capabilities
+            "available_metadata_types": len(metadata.get("metadata_types", [])),
+            
+            # Note for Marcus
+            "note": "Full metadata available in DB - query salesforce_metadata deliverable for details"
+        }
+        
+        return summary
 
     async def _run_agent(
         self,

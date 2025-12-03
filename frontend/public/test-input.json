@@ -1,0 +1,900 @@
+{
+  "project_summary": "A large automotive dealership network seeks to modernize and automate their sales pipeline management. The project encompasses new and used vehicle sales, trade-in management, multi-channel lead tracking, advanced forecasting, and personalized offer configuration including financing and insurance products.",
+  "use_cases": [
+    {
+      "id": "UC-001-01",
+      "title": "Capture Lead from Web-to-Lead Form Submission",
+      "actor": "Website Visitor / System"
+    },
+    {
+      "id": "UC-001-02",
+      "title": "Sales Rep Manually Creates Lead from Phone Call",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-001-03",
+      "title": "System Creates Lead from Email-to-Lead Integration",
+      "actor": "Email System / Salesforce Integration"
+    },
+    {
+      "id": "UC-001-04",
+      "title": "Partner Portal User Submits Lead via Partner Community",
+      "actor": "Partner User"
+    },
+    {
+      "id": "UC-001-05",
+      "title": "Marketing Automation System Syncs Lead via API Integration",
+      "actor": "Marketing Automation Platform / API Integration"
+    },
+    {
+      "id": "UC-002-01",
+      "title": "Sales Rep Manually Updates Lead Status Through Qualification Stages",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-002-02",
+      "title": "System Auto-Qualifies Lead Based on Engagement Score and Activity Criteria",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-002-03",
+      "title": "Sales Manager Reviews and Adjusts Lead Qualification Criteria in Queue",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-002-04",
+      "title": "System Tracks Lead Lifecycle with Status History and Cadence Progress",
+      "actor": "System (Automated Tracking)"
+    },
+    {
+      "id": "UC-002-05",
+      "title": "Sales Rep Converts Qualified Lead to Account, Contact, and Opportunity",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-003-01",
+      "title": "System Auto-Assigns Lead Based on Vehicle Location ZIP Code",
+      "actor": "System (Lead Assignment Rule)"
+    },
+    {
+      "id": "UC-003-02",
+      "title": "Sales Manager Manually Reassigns Lead to Different Territory",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-003-03",
+      "title": "System Routes Lead to Queue When No Sales Rep Available in Territory",
+      "actor": "System (Lead Assignment Automation)"
+    },
+    {
+      "id": "UC-003-04",
+      "title": "Sales Rep Updates Vehicle Location Triggering Automatic Reassignment",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-003-05",
+      "title": "Agentforce SDR Auto-Assigns and Engages Lead Based on Vehicle Location",
+      "actor": "Agentforce SDR Agent"
+    },
+    {
+      "id": "UC-004-01",
+      "title": "System Assigns New Lead to Available Sales Representative",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-004-02",
+      "title": "Sales Representative Updates Availability Status",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-004-03",
+      "title": "Sales Manager Manually Reassigns Lead Based on Availability",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-004-04",
+      "title": "System Balances Lead Distribution Among Available Representatives",
+      "actor": "System (Scheduled Process)"
+    },
+    {
+      "id": "UC-004-05",
+      "title": "System Handles Representative Availability Change During Active Lead Assignment",
+      "actor": "System (Real-time Process)"
+    },
+    {
+      "id": "UC-005-01",
+      "title": "System Automatically Calculates Behavioral Score Based on Lead Engagement",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-005-02",
+      "title": "System Automatically Routes High-Scoring Leads to Priority Sales Queue",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-005-03",
+      "title": "Sales Rep Reviews Lead Behavioral Score and Engagement History Before Outreach",
+      "actor": "Sales Development Representative"
+    },
+    {
+      "id": "UC-005-04",
+      "title": "Sales Manager Configures Behavioral Scoring Rules and Routing Thresholds",
+      "actor": "Sales Operations Manager"
+    },
+    {
+      "id": "UC-005-05",
+      "title": "System Integrates with Agentforce SDR to Prioritize Autonomous Lead Nurture Based on Behavioral Score",
+      "actor": "Agentforce SDR Agent"
+    },
+    {
+      "id": "UC-006-01",
+      "title": "Sales Rep Creates Multi-Product Opportunity with Vehicle and Extensions",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-006-02",
+      "title": "System Validates Product Compatibility and Dependencies in Multi-Product Opportunity",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-006-03",
+      "title": "Sales Manager Analyzes Product Mix and Performance Across Opportunities",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-006-04",
+      "title": "Sales Rep Configures Product Bundle with Dynamic Pricing for Vehicle Package",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-006-05",
+      "title": "System Generates Product Performance Reports for Territory and Split Analysis",
+      "actor": "System (Automated Reporting)"
+    },
+    {
+      "id": "UC-007-01",
+      "title": "Sales Rep Submits Trade-In Request During Opportunity",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-007-02",
+      "title": "Appraisal Team Reviews and Approves Trade-In Request",
+      "actor": "Trade-In Appraiser"
+    },
+    {
+      "id": "UC-007-03",
+      "title": "Sales Rep Applies Approved Trade-In Value to Quote",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-007-04",
+      "title": "System Auto-Escalates Overdue Trade-In Requests",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-007-05",
+      "title": "Sales Manager Reviews Trade-In Request Analytics",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-009-01",
+      "title": "Sales Manager Approves Trade-In Offer Within Discount Threshold",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-009-02",
+      "title": "System Auto-Approves Trade-In Offer Within Standard Discount Range",
+      "actor": "System"
+    },
+    {
+      "id": "UC-009-03",
+      "title": "VP of Sales and VP of Finance Approve High-Value Trade-In Offer",
+      "actor": "VP of Sales, VP of Finance"
+    },
+    {
+      "id": "UC-009-04",
+      "title": "Sales Rep Recalls Trade-In Approval Request to Revise Offer",
+      "actor": "Sales Rep"
+    },
+    {
+      "id": "UC-009-05",
+      "title": "System Escalates Overdue Trade-In Approval to Next Level Manager",
+      "actor": "System"
+    },
+    {
+      "id": "UC-010-01",
+      "title": "Sales Representative Configures Financing Options Using Product Configurator",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-010-02",
+      "title": "Sales Representative Simulates Multiple Financing Scenarios with Loan Calculator",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-010-03",
+      "title": "Sales Representative Creates Personalized Financing Offer with Multiple Options",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-010-04",
+      "title": "Sales Representative Uses OmniScript for Integrated Loan Application Intake with Financing Configuration",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-010-05",
+      "title": "Sales Representative Monitors and Adjusts Financing Offers Based on Real-Time Integration Data",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-011-01",
+      "title": "Sales Representative Adds Insurance Product to Customer Offer",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-011-02",
+      "title": "System Recommends Insurance Products Based on Customer Profile",
+      "actor": "System (Einstein Recommendation Engine)"
+    },
+    {
+      "id": "UC-011-03",
+      "title": "Sales Manager Configures Insurance Product Catalog and Rules",
+      "actor": "Sales Manager / Product Administrator"
+    },
+    {
+      "id": "UC-011-04",
+      "title": "Customer Reviews Insurance Product Offer in Customer Portal",
+      "actor": "Customer (Experience Cloud User)"
+    },
+    {
+      "id": "UC-011-05",
+      "title": "System Generates Insurance Product Performance Analytics",
+      "actor": "System (Automated Reporting)"
+    },
+    {
+      "id": "UC-012-01",
+      "title": "Sales Rep Adds Complementary Service to Customer Offer",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-012-02",
+      "title": "System Auto-Suggests Complementary Services Based on Primary Contract",
+      "actor": "System (Automated Process)"
+    },
+    {
+      "id": "UC-012-03",
+      "title": "Customer Self-Selects Additional Services from Experience Cloud Portal",
+      "actor": "Customer (Experience Cloud User)"
+    },
+    {
+      "id": "UC-012-04",
+      "title": "Sales Manager Configures Complementary Service Bundles and Pricing Rules",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-012-05",
+      "title": "System Automatically Renews Complementary Services with Parent Contract",
+      "actor": "System (Scheduled Process)"
+    },
+    {
+      "id": "UC-013-01",
+      "title": "Executive Generates Consolidated Sales Report Filtered by Single Dealership",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-013-02",
+      "title": "Executive Groups Consolidated Report by Multiple Dealership Regions",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-013-03",
+      "title": "Executive Schedules Automated Dealership Performance Report Distribution",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-013-04",
+      "title": "Executive Creates Custom Dashboard with Dealership Comparison Widgets",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-013-05",
+      "title": "System Administrator Creates Custom Report Type for Dealership Cross-Object Reporting",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-014-01",
+      "title": "Executive Views Sales Performance Dashboard by Vehicle Brand",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-014-02",
+      "title": "Sales Manager Generates Custom Brand Performance Report",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-014-03",
+      "title": "Marketing Analyst Segments Campaign Performance by Brand",
+      "actor": "Marketing Analyst"
+    },
+    {
+      "id": "UC-014-04",
+      "title": "Service Manager Analyzes Warranty Claims by Vehicle Brand",
+      "actor": "Service Manager"
+    },
+    {
+      "id": "UC-014-05",
+      "title": "Data Analyst Creates Brand Performance Einstein Analytics Dashboard",
+      "actor": "Data Analyst"
+    },
+    {
+      "id": "UC-015-01",
+      "title": "Sales Manager Generates Individual Vehicle Performance Report",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-015-02",
+      "title": "System Auto-Generates Vehicle Aging Report for Inventory Management",
+      "actor": "System (Scheduled Automation)"
+    },
+    {
+      "id": "UC-015-03",
+      "title": "Sales Representative Analyzes Vehicle Sales History and Trends",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-015-04",
+      "title": "Sales Manager Reviews Vehicle-Specific Lead Conversion Metrics",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-015-05",
+      "title": "Executive Reviews Vehicle Portfolio Performance via Mobile Dashboard",
+      "actor": "Executive/VP of Sales"
+    },
+    {
+      "id": "UC-016-01",
+      "title": "Marketing Manager Creates Customer Segment Report with CRM Analytics",
+      "actor": "Marketing Manager"
+    },
+    {
+      "id": "UC-016-02",
+      "title": "Marketing Analyst Performs Predictive Segment Analysis Using Einstein Analytics",
+      "actor": "Marketing Analyst"
+    },
+    {
+      "id": "UC-016-03",
+      "title": "Sales Operations Creates Multi-Dimensional Segment Report with Data Cloud Integration",
+      "actor": "Sales Operations Manager"
+    },
+    {
+      "id": "UC-016-04",
+      "title": "Marketing Coordinator Generates Segment Performance Report for Campaign Planning",
+      "actor": "Marketing Coordinator"
+    },
+    {
+      "id": "UC-016-05",
+      "title": "Executive Reviews Customer Segment Health Dashboard with Financial Rollup Data",
+      "actor": "Chief Marketing Officer"
+    },
+    {
+      "id": "UC-017-01",
+      "title": "Marketing Manager Creates Lead Source Performance Report",
+      "actor": "Marketing Manager"
+    },
+    {
+      "id": "UC-017-02",
+      "title": "Marketing Analyst Creates Custom Lead Source Attribution Report Type",
+      "actor": "Marketing Analyst"
+    },
+    {
+      "id": "UC-017-03",
+      "title": "System Automatically Populates Lead Source on Web-to-Lead Forms",
+      "actor": "System"
+    },
+    {
+      "id": "UC-017-04",
+      "title": "Sales Manager Analyzes Lead Source ROI Dashboard",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-017-05",
+      "title": "Marketing Operations Creates Lead Source Attribution Report for Agentforce SDR",
+      "actor": "Marketing Operations Specialist"
+    },
+    {
+      "id": "UC-018-01",
+      "title": "Sales Manager Creates Territory Hierarchy and Assignment Rules",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-018-02",
+      "title": "System Automatically Assigns Accounts to Territories Based on Rules",
+      "actor": "System"
+    },
+    {
+      "id": "UC-018-03",
+      "title": "Sales Rep Views Territory-Filtered Dashboard and Reports",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-018-04",
+      "title": "Sales Operations Plans Territories Using Territory Planning with Live Data",
+      "actor": "Sales Operations Manager"
+    },
+    {
+      "id": "UC-018-05",
+      "title": "Sales Manager Publishes Territory Alignment and Activates Model",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-019-01",
+      "title": "Sales Manager Manually Assigns Account to Territory Override",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-019-02",
+      "title": "System Excludes Manually Assigned Accounts from Automated Rule Processing",
+      "actor": "System"
+    },
+    {
+      "id": "UC-019-03",
+      "title": "Sales Operations Creates Territory-Specific Exception Rule",
+      "actor": "Sales Operations Manager"
+    },
+    {
+      "id": "UC-019-04",
+      "title": "Territory Manager Reviews and Approves Account Territory Exception Request",
+      "actor": "Territory Manager"
+    },
+    {
+      "id": "UC-019-05",
+      "title": "System Audits and Reports on Territory Exception Compliance",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-024-01",
+      "title": "Sales Agent Requests Discount Approval for 11-15% Discount",
+      "actor": "Sales Agent"
+    },
+    {
+      "id": "UC-024-02",
+      "title": "Multi-Level Approval for Discounts Greater Than 15%",
+      "actor": "Sales Agent"
+    },
+    {
+      "id": "UC-024-03",
+      "title": "System Auto-Approves Discounts Under 10% Threshold",
+      "actor": "System"
+    },
+    {
+      "id": "UC-024-04",
+      "title": "Approval Administrator Reassigns Stalled Discount Approval",
+      "actor": "Approval Administrator"
+    },
+    {
+      "id": "UC-024-05",
+      "title": "Sales Manager Reviews and Comments on Pending Discount Approval",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-025-01",
+      "title": "Inventory Manager Submits Destocking Offer for Approval",
+      "actor": "Inventory Manager"
+    },
+    {
+      "id": "UC-025-02",
+      "title": "Regional Director Approves Single-Level Destocking Offer",
+      "actor": "Regional Director"
+    },
+    {
+      "id": "UC-025-03",
+      "title": "System Routes High-Value Destocking Offer to Multi-Level Approval",
+      "actor": "System"
+    },
+    {
+      "id": "UC-025-04",
+      "title": "Approval Administrator Manages Stuck Destocking Approval",
+      "actor": "Approval Administrator"
+    },
+    {
+      "id": "UC-025-05",
+      "title": "System Executes Post-Approval Actions for Finalized Destocking Offer",
+      "actor": "System"
+    },
+    {
+      "id": "UC-026-01",
+      "title": "Sales Agent Requests Custom Offer Approval",
+      "actor": "Sales Agent"
+    },
+    {
+      "id": "UC-026-02",
+      "title": "Sales Manager Approves Custom Offer",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-026-03",
+      "title": "VP of Sales Reviews and Approves High Discount Offers",
+      "actor": "VP of Sales"
+    },
+    {
+      "id": "UC-027-01",
+      "title": "Sales Rep Submits Weekly Sales Forecast",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-027-02",
+      "title": "Sales Manager Reviews Team's Forecast Submissions",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-027-03",
+      "title": "System Generates Forecast Reports for Executive Management",
+      "actor": "Executive Management"
+    },
+    {
+      "id": "UC-028-01",
+      "title": "Automatic Adjustment of Pipeline Forecasts",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-028-02",
+      "title": "Review Historical Performance for Forecast Adjustment",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-028-03",
+      "title": "Notify Sales Team of Forecast Changes",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-029-01",
+      "title": "Sales Team Requests Vehicle Valuation",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-029-02",
+      "title": "System Automatically Logs Valuation Results",
+      "actor": "System"
+    },
+    {
+      "id": "UC-029-03",
+      "title": "Sales Representative Views Valuation History",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-030-01",
+      "title": "Synchronize Trade-In Status from External Valuation Service to Salesforce",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-030-02",
+      "title": "Update External Valuation Service with Trade-In Status Changes from Salesforce",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-030-03",
+      "title": "Monitor Synchronization Status Between Salesforce and External Service",
+      "actor": "IT Team"
+    },
+    {
+      "id": "UC-031-01",
+      "title": "User Edits Offer in Shopping Cart",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-031-02",
+      "title": "User Applies Discount to Entire Cart",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-031-03",
+      "title": "User Deletes an Offer from Shopping Cart",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-032-01",
+      "title": "Finance Team Calculates Dynamic Margin for Offer",
+      "actor": "Finance Team Member"
+    },
+    {
+      "id": "UC-032-02",
+      "title": "System Automatically Updates Margin on Offer Change",
+      "actor": "Finance Team Member"
+    },
+    {
+      "id": "UC-032-03",
+      "title": "Finance Team Reviews Margin Calculation History",
+      "actor": "Finance Team Member"
+    },
+    {
+      "id": "UC-033-01",
+      "title": "Sales Team Receives Notification on Lead Status Change",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-033-02",
+      "title": "Automated Alert for Opportunity Stage Change",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-033-03",
+      "title": "Custom Notification for High-Value Deals",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-034-01",
+      "title": "Sales Rep Generates PDF Quote from Standard Template",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-034-02",
+      "title": "Sales Rep Generates PDF Quote from Custom Template",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-034-03",
+      "title": "Sales Rep Emails Generated PDF Quote to Customer",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-035-01",
+      "title": "Generate Document with Dealership Branding",
+      "actor": "Marketing Team User"
+    },
+    {
+      "id": "UC-035-02",
+      "title": "Update Dealership Branding Template",
+      "actor": "Marketing Team User"
+    },
+    {
+      "id": "UC-035-03",
+      "title": "View Dealership Branding Templates",
+      "actor": "Marketing Team User"
+    },
+    {
+      "id": "UC-036-01",
+      "title": "Customer Signs Document Electronically",
+      "actor": "Customer"
+    },
+    {
+      "id": "UC-036-02",
+      "title": "Sales Rep Initiates Document for Electronic Signature",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-036-03",
+      "title": "Legal Team Reviews Signed Document",
+      "actor": "Legal Team Member"
+    },
+    {
+      "id": "UC-037-01",
+      "title": "User Access Control Based on Agency Type",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-037-02",
+      "title": "Record-Level Access Based on Role Hierarchy",
+      "actor": "Sales User"
+    },
+    {
+      "id": "UC-037-03",
+      "title": "Dynamic Permission Set Assignment",
+      "actor": "System Administrator"
+    },
+    {
+      "id": "UC-038-01",
+      "title": "Define User Roles and Permissions",
+      "actor": "Salesforce Administrator"
+    },
+    {
+      "id": "UC-038-02",
+      "title": "Assign Permission Sets to Users",
+      "actor": "Salesforce Administrator"
+    },
+    {
+      "id": "UC-038-03",
+      "title": "Implement Role Hierarchy for Data Access",
+      "actor": "Salesforce Administrator"
+    },
+    {
+      "id": "UC-038-04",
+      "title": "Conduct Regular Audits of User Permissions",
+      "actor": "IT Security Officer"
+    },
+    {
+      "id": "UC-039-01",
+      "title": "User Views Opportunities Based on Role Permissions",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-039-02",
+      "title": "Admin Configures Opportunity Visibility Settings",
+      "actor": "Salesforce Administrator"
+    },
+    {
+      "id": "UC-039-03",
+      "title": "User Attempts to Access Restricted Opportunity",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-040-01",
+      "title": "Synchronize Inventory Data from DMS",
+      "actor": "Inventory Manager"
+    },
+    {
+      "id": "UC-040-02",
+      "title": "View Synchronization History",
+      "actor": "Inventory Manager"
+    },
+    {
+      "id": "UC-040-03",
+      "title": "Notify Inventory Manager of Synchronization Errors",
+      "actor": "System"
+    },
+    {
+      "id": "UC-041-01",
+      "title": "Finance Team Initiates Invoice Data Exchange",
+      "actor": "Finance Team Member"
+    },
+    {
+      "id": "UC-041-02",
+      "title": "Automated Invoice Generation from DMS Data",
+      "actor": "System"
+    },
+    {
+      "id": "UC-041-03",
+      "title": "Finance Team Reviews and Approves Invoices",
+      "actor": "Finance Team Member"
+    },
+    {
+      "id": "UC-042-01",
+      "title": "Synchronize Delivery Status from DMS to Salesforce",
+      "actor": "Operations Team Member"
+    },
+    {
+      "id": "UC-042-02",
+      "title": "View Delivery Tracking Information in Salesforce",
+      "actor": "Operations Team Member"
+    },
+    {
+      "id": "UC-042-03",
+      "title": "Notify Operations Team of Delivery Status Changes",
+      "actor": "Salesforce System"
+    },
+    {
+      "id": "UC-043-01",
+      "title": "Sales Manager Views Real-Time Lead Conversion Metrics",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-043-02",
+      "title": "Sales Manager Sets Alerts for Low Conversion Rates",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-043-03",
+      "title": "Sales Manager Analyzes Historical Lead Conversion Data",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-044-01",
+      "title": "Generate Alert for Sales Threshold Breach",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-044-02",
+      "title": "View Historical Alert Data",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-044-03",
+      "title": "Configure Alert Notification Preferences",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-045-01",
+      "title": "Generate Pipeline Projection Report",
+      "actor": "Sales Manager"
+    },
+    {
+      "id": "UC-045-02",
+      "title": "View Historical Trends in Forecasts",
+      "actor": "Sales Executive"
+    },
+    {
+      "id": "UC-045-03",
+      "title": "Analyze Manager Judgment Values in Forecasts",
+      "actor": "Sales Director"
+    },
+    {
+      "id": "UC-046-01",
+      "title": "User Changes Language Preference to French",
+      "actor": "End User"
+    },
+    {
+      "id": "UC-046-02",
+      "title": "User Changes Language Preference to Spanish",
+      "actor": "End User"
+    },
+    {
+      "id": "UC-046-03",
+      "title": "User Changes Language Preference to English",
+      "actor": "End User"
+    },
+    {
+      "id": "UC-047-01",
+      "title": "Sales Team Generates Document in User's Language",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-047-02",
+      "title": "System Automatically Adapts Document Language",
+      "actor": "Salesforce System"
+    },
+    {
+      "id": "UC-047-03",
+      "title": "Admin Configures Language Templates for Documents",
+      "actor": "Salesforce Administrator"
+    },
+    {
+      "id": "UC-048-01",
+      "title": "Track Modifications to Offer Records",
+      "actor": "Compliance Team Member"
+    },
+    {
+      "id": "UC-048-02",
+      "title": "Log Pipeline Data Changes",
+      "actor": "Sales Representative"
+    },
+    {
+      "id": "UC-048-03",
+      "title": "Retrieve Audit Trail Data",
+      "actor": "Compliance Team Member"
+    },
+    {
+      "id": "UC-049-01",
+      "title": "Export Project Data for Reversibility",
+      "actor": "Data Administrator"
+    },
+    {
+      "id": "UC-049-02",
+      "title": "Revert Project Data to Previous State",
+      "actor": "Data Administrator"
+    },
+    {
+      "id": "UC-049-03",
+      "title": "Validate Data Export Process",
+      "actor": "Quality Assurance Tester"
+    },
+    {
+      "id": "UC-050-01",
+      "title": "Key User Attends Training Session",
+      "actor": "Key User"
+    },
+    {
+      "id": "UC-050-02",
+      "title": "Admin Schedules Training Session",
+      "actor": "Administrator"
+    },
+    {
+      "id": "UC-050-03",
+      "title": "Key User Provides Feedback on Training",
+      "actor": "Key User"
+    },
+    {
+      "id": "UC-051-01",
+      "title": "IT Team Creates Full Sandbox Environment",
+      "actor": "IT Team Member"
+    },
+    {
+      "id": "UC-051-02",
+      "title": "IT Team Executes Rapid Rollback Procedure",
+      "actor": "IT Team Member"
+    },
+    {
+      "id": "UC-051-03",
+      "title": "IT Team Tests Business Continuity in Sandbox",
+      "actor": "IT Team Member"
+    }
+  ]
+}

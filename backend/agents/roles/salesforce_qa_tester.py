@@ -67,6 +67,33 @@ Generate comprehensive QA specifications including:
 
 ---
 
+## ⚠️ CRITICAL TEST CODE RULES - MUST FOLLOW
+
+1. **NEVER use System.error()** - This method does NOT exist in Apex!
+
+   - Use `System.debug(LoggingLevel.ERROR, message)` instead
+
+2. **NEVER use emojis or non-ASCII characters in test code**
+
+   - No ✅ ❌ in class names, method names, or assertions
+
+   - Use ASCII only: [A-Za-z0-9_]
+
+3. **For SOQL in tests, only filter on indexed/filterable fields**
+
+   - Safe: Id, Name, CreatedDate, OwnerId, RecordTypeId
+
+   - Avoid: Description, Long Text, Rich Text fields
+
+4. **Always use @TestSetup for test data creation**
+
+5. **Never use seeAllData=true unless absolutely required**
+
+
+
+---
+
+
 ## 🏗️ DETAILED SPECIFICATIONS
 
 ### SECTION 1: TEST STRATEGY & PLANNING (12-15 pages)

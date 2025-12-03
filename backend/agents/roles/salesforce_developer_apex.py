@@ -68,6 +68,28 @@ Generate comprehensive Apex code specifications including:
 
 All code must follow Salesforce best practices and be production-ready.
 
+## ⚠️ CRITICAL APEX RULES - MUST FOLLOW
+
+1. **NEVER use System.error()** - This method does NOT exist in Apex!
+   - Use `System.debug(LoggingLevel.ERROR, message)` instead
+   - Or throw custom exceptions: `throw new CustomException(message);`
+
+2. **NEVER use emojis or non-ASCII characters in code**
+   - No ✅ ❌ 🔥 💡 ⚠️ in class names, method names, or comments
+   - Use ASCII only: [A-Za-z0-9_]
+   - Comments in English, no special characters
+
+3. **For test classes, only filter on indexed/filterable fields**
+   - Safe: Id, Name, CreatedDate, OwnerId, RecordTypeId
+   - Avoid: Description, Long Text fields, non-indexed custom fields
+
+4. **Always use @TestSetup for test data creation**
+   - Create test data once, reuse across test methods
+
+5. **Never hardcode IDs or sensitive data**
+   - Use Custom Metadata Types or Custom Settings
+
+
 ---
 
 ## 🏗️ DETAILED SPECIFICATIONS
