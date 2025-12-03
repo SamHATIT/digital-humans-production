@@ -55,7 +55,7 @@ services:
       dockerfile: Dockerfile
     container_name: digital-humans-frontend
     environment:
-      VITE_API_URL: http://localhost:8002/api
+      VITE_API_URL:
     ports:
       - "3000:3002"
     depends_on:

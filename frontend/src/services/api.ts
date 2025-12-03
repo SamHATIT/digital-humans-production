@@ -2,7 +2,7 @@
  * API Service - Centralized API calls using native fetch
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://srv1064321.hstgr.cloud:8002';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {

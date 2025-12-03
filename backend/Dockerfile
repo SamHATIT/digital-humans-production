@@ -5,9 +5,11 @@ WORKDIR /app
 # Install system dependencies + Node.js for SF CLI
 RUN apt-get update && apt-get install -y \
     gcc \
+    g++ \
     postgresql-client \
     curl \
     gnupg \
+    build-essential \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
@@ -15,9 +17,9 @@ RUN apt-get update && apt-get install -y \
 # Install Salesforce CLI
 RUN npm install -g @salesforce/cli
 
-# Python dependencies
+# Python dependencies (includes chromadb, anthropic, openai, etc.)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt python-docx openai==1.3.7
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

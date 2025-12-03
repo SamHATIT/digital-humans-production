@@ -13,7 +13,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_outputs:/app/outputs
-      - /opt/digital-humans/rag/chromadb_data:/opt/digital-humans/rag/chromadb_data:ro
+      - /opt/digital-humans/rag/chromadb_data:/opt/digital-humans/rag/chromadb_data
       - /root/.sf:/root/.sf
       - /root/.sfdx:/root/.sfdx
       - /root/workspace/salesforce-workspace:/root/workspace/salesforce-workspace
