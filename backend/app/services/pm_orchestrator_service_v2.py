@@ -153,6 +153,20 @@ class PMOrchestratorServiceV2:
                 business_requirements = self._get_validated_brs(project_id)
                 self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
                 logger.info(f"[Phase 1] ✅ Loaded {len(business_requirements)} validated BRs from database")
+                
+                # Create br_result structure for compatibility with later phases
+                br_result = {
+                    "success": True,
+                    "output": {
+                        "content": {
+                            "business_requirements": business_requirements,
+                            "project_summary": project.description or project.name or ""
+                        },
+                        "metadata": {"tokens_used": 0}
+                    }
+                }
+                results["artifacts"]["BR_EXTRACTION"] = br_result["output"]
+                results["agent_outputs"]["pm_extract"] = br_result["output"]
             else:
                 # Normal flow - extract BRs with Sophie
                 logger.info(f"[Phase 1] Sophie PM - Extracting Business Requirements")
@@ -359,6 +373,9 @@ class PMOrchestratorServiceV2:
                 architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
                 logger.info(f"[Phase 3.3] ✅ Solution Design (ARCH-001)")
+            else:
+                results["artifacts"]["ARCHITECTURE"] = {"artifact_id": "ARCH-001", "content": {}}
+                logger.warning(f"[Phase 3.3] ⚠️ Solution Design failed: {design_result.get('error', 'Unknown error')}")
             
             # 3.4: WBS (Break down implementation tasks)
             self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
