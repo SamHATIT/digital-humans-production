@@ -27,4 +27,4 @@ export const AGENTS: Agent[] = [
 ];
 
 // Mandatory agents that are always selected (using backend IDs)
-export const MANDATORY_AGENTS = ['pm', 'ba'];
+export const MANDATORY_AGENTS = ['pm'];  // Only Sophie for BR extraction

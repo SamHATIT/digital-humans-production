@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   FileText, Download, Plus, Check, Loader2, ArrowRight, 
   Edit2, Trash2, X, Save, Filter
@@ -63,6 +63,8 @@ const CATEGORIES = [
 
 export default function BRValidationPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const [searchParams] = useSearchParams();
+  const executionId = searchParams.get('executionId');
   const navigate = useNavigate();
   
   const [brs, setBrs] = useState<BusinessRequirement[]>([]);
@@ -147,8 +149,17 @@ export default function BRValidationPage() {
   const handleValidateAll = async () => {
     setIsValidating(true);
     try {
+      // Step 1: Validate all BRs
       await api.post(`/api/br/${projectId}/validate-all`);
-      navigate(`/execution/${projectId}`);
+      
+      // Step 2: If coming from execution, resume it
+      if (executionId) {
+        await api.post(`/api/pm-orchestrator/execute/${executionId}/resume`);
+        navigate(`/execution/${executionId}/monitor`);
+      } else {
+        // New project flow - go to execution page to start
+        navigate(`/execution/${projectId}`);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to validate requirements');
     } finally {

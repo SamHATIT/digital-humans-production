@@ -107,7 +107,7 @@ export default function Projects() {
                 return (
                   <div
                     key={project.id}
-                    onClick={() => navigate(`/br-validation/${project.id}`)}
+                    onClick={() => navigate(`/execution/${project.id}`)}
                     className="p-5 hover:bg-slate-700/30 cursor-pointer transition-all flex items-center justify-between group"
                   >
                     <div className="flex-1 min-w-0">

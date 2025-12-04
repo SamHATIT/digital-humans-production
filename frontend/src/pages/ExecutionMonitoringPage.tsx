@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, ClipboardList } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
@@ -27,6 +27,7 @@ interface AgentProgress {
 
 interface ExecutionProgress {
   execution_id: number;
+  project_id: number;
   status: string;
   overall_progress: number;
   current_phase?: string;
@@ -53,7 +54,7 @@ export default function ExecutionMonitoringPage() {
         setProgress(data);
 
         // Stop polling if completed or failed
-        if (data.status === 'completed' || data.status === 'failed') {
+        if (data.status === 'completed' || data.status === 'failed' || data.status === 'waiting_br_validation') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -128,6 +129,7 @@ export default function ExecutionMonitoringPage() {
 
   const isCompleted = progress?.status === 'completed';
   const isFailed = progress?.status === 'failed';
+  const isWaitingBRValidation = progress?.status === 'waiting_br_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
 
   return (
@@ -164,6 +166,33 @@ export default function ExecutionMonitoringPage() {
         {error && (
           <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
             {error}
+          </div>
+        )}
+
+        {/* BR Validation Required */}
+        {isWaitingBRValidation && (
+          <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                <ClipboardList className="w-6 h-6 text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-amber-400 mb-2">
+                  Business Requirements Validation Required
+                </h3>
+                <p className="text-slate-300 mb-4">
+                  Sophie has extracted the Business Requirements from your project. 
+                  Please review, modify, add or remove requirements before continuing with the analysis.
+                </p>
+                <button
+                  onClick={() => navigate(`/br-validation/${progress?.project_id}?executionId=${progress?.execution_id}`)}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg shadow-amber-500/25"
+                >
+                  <ClipboardList className="w-5 h-5" />
+                  Review & Validate Requirements
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

@@ -327,6 +327,61 @@ async def start_execution(
     )
 
 
+
+@router.post("/execute/{execution_id}/resume", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
+async def resume_execution(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Resume execution after Business Requirements validation.
+    
+    This endpoint:
+    1. Validates the execution is in WAITING_BR_VALIDATION status
+    2. Resets status to RUNNING
+    3. Starts background task to continue from Phase 2 (Olivia BA)
+    """
+    # Get execution
+    execution = db.query(Execution).join(Project).filter(
+        Execution.id == execution_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found"
+        )
+    
+    # Validate status
+    if execution.status != ExecutionStatus.WAITING_BR_VALIDATION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Execution is not waiting for BR validation. Current status: {execution.status.value}"
+        )
+    
+    # Update status
+    execution.status = ExecutionStatus.RUNNING
+    db.commit()
+    
+    # Resume from Phase 2 (Olivia BA)
+    asyncio.create_task(
+        execute_workflow_background(
+            db, 
+            execution.id, 
+            execution.project_id, 
+            execution.selected_agents,
+            resume_from="phase2"
+        )
+    )
+    
+    return ExecutionStartResponse(
+        execution_id=execution.id,
+        status="resumed",
+        message="Execution resumed from Phase 2 (Olivia BA). Use the progress endpoint to track status."
+    )
+
 @router.get("/execute/{execution_id}/progress")
 async def get_execution_progress(
     execution_id: int,
@@ -410,9 +465,12 @@ async def get_execution_progress(
         overall_progress = 100
     elif execution.status == ExecutionStatus.FAILED:
         current_phase = "Failed"
+    elif execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+        current_phase = "Waiting for BR Validation"
 
     return {
         "execution_id": execution.id,
+        "project_id": execution.project_id,
         "status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
         "overall_progress": overall_progress,
         "current_phase": current_phase,

@@ -44,6 +44,7 @@ from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.deliverable_item import DeliverableItem
+from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
 try:
     from app.models.validation_gate import ValidationGate
     HAS_VALIDATION_GATE = True
@@ -98,7 +99,8 @@ class PMOrchestratorServiceV2:
         project_id: int,
         selected_agents: List[str] = None,
         include_as_is: bool = False,
-        sfdx_metadata: Optional[Dict] = None
+        sfdx_metadata: Optional[Dict] = None,
+        resume_from: Optional[str] = None  # "phase2" to skip Phase 1
     ) -> Dict[str, Any]:
         """
         Main execution method - new atomic workflow
@@ -143,33 +145,63 @@ class PMOrchestratorServiceV2:
             }
             
             # ========================================
-            # PHASE 1: Sophie PM - Extract BRs
+            # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
             # ========================================
-            logger.info(f"[Phase 1] Sophie PM - Extracting Business Requirements")
-            self._update_progress(execution, "pm", "running", 5, "Extracting Business Requirements...")
+            if resume_from == "phase2":
+                # Resuming after BR validation - load validated BRs from database
+                logger.info(f"[Phase 1] SKIPPED - Resuming from Phase 2 with validated BRs")
+                business_requirements = self._get_validated_brs(project_id)
+                self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
+                logger.info(f"[Phase 1] ✅ Loaded {len(business_requirements)} validated BRs from database")
+            else:
+                # Normal flow - extract BRs with Sophie
+                logger.info(f"[Phase 1] Sophie PM - Extracting Business Requirements")
+                self._update_progress(execution, "pm", "running", 5, "Extracting Business Requirements...")
             
-            br_result = await self._run_agent(
-                agent_id="pm",
-                mode="extract_br",
-                input_data={"requirements": project.business_requirements or project.requirements_text or ""},
-                execution_id=execution_id,
-                project_id=project_id
-            )
+                br_result = await self._run_agent(
+                    agent_id="pm",
+                    mode="extract_br",
+                    input_data={"requirements": project.business_requirements or project.requirements_text or ""},
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                
+                if not br_result.get("success"):
+                    raise Exception(f"BR extraction failed: {br_result.get('error')}")
+                
+                results["artifacts"]["BR_EXTRACTION"] = br_result["output"]
+                results["agent_outputs"]["pm_extract"] = br_result["output"]
+                business_requirements = br_result["output"]["content"].get("business_requirements", [])
+                
+                self._track_tokens("pm_extract", br_result["output"], results)
+                self._save_deliverable(execution_id, "pm", "br_extraction", br_result["output"])
+                
+                logger.info(f"[Phase 1] ✅ Extracted {len(business_requirements)} Business Requirements")
+                self._update_progress(execution, "pm", "completed", 15, f"Extracted {len(business_requirements)} BRs")
+                
+                # ========================================
+                # PAUSE FOR BR VALIDATION (if full workflow)
+                # ========================================
+                # Save extracted BRs to database for client validation
+                self._save_extracted_brs(execution_id, project_id, business_requirements)
+                
+                # Check if we should pause for BR validation
+                # Pause only if other agents (ba) are selected, meaning full workflow requested
+                if 'ba' in (selected_agents or []):
+                    logger.info(f"[BR Validation] Pausing for client validation - {len(business_requirements)} BRs to review")
+                    execution.status = ExecutionStatus.WAITING_BR_VALIDATION
+                    self.db.commit()
+                    
+                    return {
+                        "execution_id": execution_id,
+                        "project_id": project_id,
+                        "status": "waiting_br_validation",
+                        "brs_extracted": len(business_requirements),
+                        "message": f"Extracted {len(business_requirements)} Business Requirements. Waiting for client validation.",
+                        "artifacts": results["artifacts"],
+                        "metrics": results["metrics"]
+                    }
             
-            if not br_result.get("success"):
-                raise Exception(f"BR extraction failed: {br_result.get('error')}")
-            
-            results["artifacts"]["BR_EXTRACTION"] = br_result["output"]
-            results["agent_outputs"]["pm_extract"] = br_result["output"]
-            business_requirements = br_result["output"]["content"].get("business_requirements", [])
-            
-            self._track_tokens("pm_extract", br_result["output"], results)
-            self._save_deliverable(execution_id, "pm", "br_extraction", br_result["output"])
-            # self._update_gate_progress(  # Disabled
-            # execution_id, 1, "BR", len(business_requirements))
-            
-            logger.info(f"[Phase 1] ✅ Extracted {len(business_requirements)} Business Requirements")
-            self._update_progress(execution, "pm", "completed", 15, f"Extracted {len(business_requirements)} BRs")
             
             # ========================================
             # ========================================
@@ -1067,6 +1099,78 @@ See WBS-001 artifact for details.
         return "\n".join(lines)
 
 
+    def _save_extracted_brs(self, execution_id: int, project_id: int, business_requirements: List[Dict]) -> int:
+        """
+        Save extracted BRs to business_requirements table for client validation.
+        Returns number of BRs saved.
+        """
+        from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
+        
+        saved_count = 0
+        for i, br in enumerate(business_requirements):
+            br_id = br.get("id", f"BR-{i+1:03d}")
+            
+            # Check if already exists
+            existing = self.db.query(BusinessRequirement).filter(
+                BusinessRequirement.project_id == project_id,
+                BusinessRequirement.br_id == br_id
+            ).first()
+            
+            if existing:
+                continue  # Skip if already exists
+            
+            # Map priority
+            priority_map = {
+                "must": BRPriority.MUST,
+                "should": BRPriority.SHOULD,
+                "could": BRPriority.COULD,
+                "wont": BRPriority.WONT,
+            }
+            priority_str = br.get("priority", "should").lower()
+            priority = priority_map.get(priority_str, BRPriority.SHOULD)
+            
+            br_record = BusinessRequirement(
+                execution_id=execution_id,
+                project_id=project_id,
+                br_id=br_id,
+                category=br.get("category", "General"),
+                requirement=br.get("requirement", br.get("description", "")),
+                priority=priority,
+                source=BRSource.EXTRACTED,
+                original_text=br.get("requirement", br.get("description", "")),
+                status=BRStatus.PENDING,
+                order_index=i,
+            )
+            
+            self.db.add(br_record)
+            saved_count += 1
+        
+        self.db.commit()
+        logger.info(f"Saved {saved_count} BRs to database for validation")
+        return saved_count
+
+    def _get_validated_brs(self, project_id: int) -> List[Dict]:
+        """
+        Get validated BRs from database.
+        Returns list of BR dicts compatible with agent input.
+        """
+        from app.models.business_requirement import BusinessRequirement, BRStatus
+        
+        brs = self.db.query(BusinessRequirement).filter(
+            BusinessRequirement.project_id == project_id,
+            BusinessRequirement.status != BRStatus.DELETED
+        ).order_by(BusinessRequirement.order_index).all()
+        
+        return [
+            {
+                "id": br.br_id,
+                "category": br.category,
+                "requirement": br.requirement,
+                "priority": br.priority.value if br.priority else "should",
+            }
+            for br in brs
+        ]
+
 # Background execution helper
 async def execute_workflow_background(
     db: Session,  # Not used - we create our own session
@@ -1074,7 +1178,8 @@ async def execute_workflow_background(
     project_id: int,
     selected_agents: List[str] = None,
     include_as_is: bool = False,
-    sfdx_metadata: Optional[Dict] = None
+    sfdx_metadata: Optional[Dict] = None,
+        resume_from: Optional[str] = None  # "phase2" to skip Phase 1
 ):
     """Background task for workflow execution - creates its own DB session"""
     # Create a new session for background task (original session closes after API response)
@@ -1086,7 +1191,8 @@ async def execute_workflow_background(
             project_id=project_id,
             selected_agents=selected_agents,
             include_as_is=include_as_is,
-            sfdx_metadata=sfdx_metadata
+            sfdx_metadata=sfdx_metadata,
+            resume_from=resume_from
         )
     finally:
         db_session.close()
