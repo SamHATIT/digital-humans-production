@@ -7,6 +7,7 @@ import ExecutionPage from './pages/ExecutionPage';
 import ExecutionMonitoringPage from './pages/ExecutionMonitoringPage';
 import AgentTesterPage from './pages/AgentTesterPage';
 import BRValidationPage from './pages/BRValidationPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -46,6 +47,14 @@ function App() {
           element={
             <ProtectedRoute>
               <BRValidationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:projectId"
+          element={
+            <ProtectedRoute>
+              <ProjectDetailPage />
             </ProtectedRoute>
           }
         />

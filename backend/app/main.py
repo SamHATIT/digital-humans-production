@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -47,6 +47,11 @@ app.include_router(agent_tester.router, prefix=f"{settings.API_V1_PREFIX}")
 
 # Business Requirements Validation
 app.include_router(business_requirements.router)
+
+# Post-SDS Workflow (Chat, Versions, Change Requests)
+app.include_router(project_chat.router)
+app.include_router(sds_versions.router)
+app.include_router(change_requests.router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)

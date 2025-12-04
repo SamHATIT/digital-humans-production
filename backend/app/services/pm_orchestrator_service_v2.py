@@ -512,6 +512,10 @@ class PMOrchestratorServiceV2:
             execution.status = ExecutionStatus.COMPLETED
             execution.completed_at = datetime.now(timezone.utc)
             execution.total_tokens_used = results["metrics"]["total_tokens"]
+            
+            # Create SDS version and update project status
+            self._create_sds_version(project, execution, results.get("sds_path"))
+            
             self.db.commit()
             
             logger.info(f"[Complete] Execution {execution_id} finished")
@@ -1187,6 +1191,50 @@ See WBS-001 artifact for details.
             }
             for br in brs
         ]
+
+    def _create_sds_version(self, project: 'Project', execution: 'Execution', sds_path: Optional[str]) -> None:
+        """
+        Create SDS version entry and update project status.
+        Called after successful execution completion.
+        """
+        from app.models.sds_version import SDSVersion
+        from app.models.project import ProjectStatus
+        import os
+        
+        try:
+            # Determine version number
+            current_version = project.current_sds_version or 0
+            new_version = current_version + 1
+            
+            # Get file info
+            file_name = None
+            file_size = None
+            if sds_path and os.path.exists(sds_path):
+                file_name = os.path.basename(sds_path)
+                file_size = os.path.getsize(sds_path)
+            
+            # Create SDS version
+            sds_version = SDSVersion(
+                project_id=project.id,
+                execution_id=execution.id,
+                version_number=new_version,
+                file_path=sds_path,
+                file_name=file_name or f"SDS_v{new_version}.docx",
+                file_size=file_size,
+                notes=f"Generated from execution #{execution.id}"
+            )
+            self.db.add(sds_version)
+            
+            # Update project
+            project.current_sds_version = new_version
+            project.status = ProjectStatus.SDS_GENERATED
+            
+            logger.info(f"[SDS] Created version {new_version} for project {project.id}")
+            
+        except Exception as e:
+            logger.error(f"[SDS] Failed to create version: {e}")
+            # Don't fail the execution, just log the error
+
 
 # Background execution helper
 async def execute_workflow_background(

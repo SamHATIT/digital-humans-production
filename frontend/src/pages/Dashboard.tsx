@@ -157,7 +157,14 @@ export default function Dashboard() {
               {recentProjects.map((project) => (
                 <div
                   key={project.id}
-                  onClick={() => navigate(`/execution/${project.id}`)}
+                  onClick={() => {
+                    const sdsStatuses = ['sds_generated', 'sds_in_review', 'sds_approved', 'build_ready'];
+                    if (sdsStatuses.includes(project.status)) {
+                      navigate(`/project/${project.id}`);
+                    } else {
+                      navigate(`/execution/${project.id}`);
+                    }
+                  }}
                   className="p-4 hover:bg-slate-700/30 cursor-pointer transition-all flex items-center justify-between group"
                 >
                   <div>

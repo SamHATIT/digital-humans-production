@@ -16,6 +16,11 @@ class ProjectStatus(str, enum.Enum):
     ACTIVE = "active"
     COMPLETED = "completed"
     ARCHIVED = "archived"
+    # Post-SDS workflow statuses
+    SDS_GENERATED = "sds_generated"
+    SDS_IN_REVIEW = "sds_in_review"
+    SDS_APPROVED = "sds_approved"
+    BUILD_READY = "build_ready"
 
 
 class Project(Base):
@@ -53,6 +58,7 @@ class Project(Base):
 
     # Metadata
     status = Column(Enum(ProjectStatus), default=ProjectStatus.DRAFT, nullable=False)
+    current_sds_version = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
@@ -61,3 +67,7 @@ class Project(Base):
     executions = relationship("Execution", back_populates="project", cascade="all, delete-orphan")
     outputs = relationship("Output", back_populates="project", cascade="all, delete-orphan")
     br_items = relationship("BusinessRequirement", back_populates="project", cascade="all, delete-orphan")
+    # Post-SDS workflow relationships
+    sds_versions = relationship("SDSVersion", back_populates="project", cascade="all, delete-orphan")
+    change_requests = relationship("ChangeRequest", back_populates="project", cascade="all, delete-orphan")
+    conversations = relationship("ProjectConversation", back_populates="project", cascade="all, delete-orphan")

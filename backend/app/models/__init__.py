@@ -35,6 +35,11 @@ from app.models.artifact import (
     QuestionStatus,
 )
 
+# Post-SDS Workflow
+from app.models.sds_version import SDSVersion
+from app.models.change_request import ChangeRequest, CRStatus, CRCategory, CRPriority
+from app.models.project_conversation import ProjectConversation
+
 __all__ = [
     # Core models
     "User",
@@ -58,7 +63,6 @@ __all__ = [
     "GateStatus",
     "AgentIteration",
     "IterationStatus",
-    # Database-first items
     "DeliverableItem",
     # BR Validation
     "BusinessRequirement",
@@ -73,4 +77,11 @@ __all__ = [
     "ArtifactStatus",
     "ArtifactGateStatus",
     "QuestionStatus",
+    # Post-SDS Workflow
+    "SDSVersion",
+    "ChangeRequest",
+    "CRStatus",
+    "CRCategory",
+    "CRPriority",
+    "ProjectConversation",
 ]

@@ -63,3 +63,6 @@ class Execution(Base):
     agent_questions = relationship("AgentQuestion", back_populates="execution", cascade="all, delete-orphan")
     deliverable_items = relationship("DeliverableItem", back_populates="execution", cascade="all, delete-orphan")
     business_requirements = relationship("BusinessRequirement", back_populates="execution", cascade="all, delete-orphan")
+    sds_versions = relationship("SDSVersion", back_populates="execution")
+    change_requests = relationship("ChangeRequest", back_populates="execution")
+    conversations = relationship("ProjectConversation", back_populates="execution")

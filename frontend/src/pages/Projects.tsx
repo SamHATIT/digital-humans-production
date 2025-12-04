@@ -54,6 +54,10 @@ export default function Projects() {
       ready: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Clock },
       failed: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: AlertCircle },
       draft: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: Clock },
+      sds_generated: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: CheckCircle },
+      sds_in_review: { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock },
+      sds_approved: { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: CheckCircle },
+      build_ready: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Zap },
     };
     return configs[status] || configs.draft;
   };
@@ -107,7 +111,14 @@ export default function Projects() {
                 return (
                   <div
                     key={project.id}
-                    onClick={() => navigate(`/execution/${project.id}`)}
+                    onClick={() => {
+                      const sdsStatuses = ['sds_generated', 'sds_in_review', 'sds_approved', 'build_ready'];
+                      if (sdsStatuses.includes(project.status)) {
+                        navigate(`/project/${project.id}`);
+                      } else {
+                        navigate(`/execution/${project.id}`);
+                      }
+                    }}
                     className="p-5 hover:bg-slate-700/30 cursor-pointer transition-all flex items-center justify-between group"
                   >
                     <div className="flex-1 min-w-0">
