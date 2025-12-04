@@ -1192,6 +1192,294 @@ See WBS-001 artifact for details.
             for br in brs
         ]
 
+    async def execute_targeted_regeneration(
+        self,
+        execution_id: int,
+        project_id: int,
+        agents_to_run: List[str],
+        change_request: 'ChangeRequest'
+    ) -> Dict[str, Any]:
+        """
+        Execute targeted re-generation for a Change Request.
+        Only runs specified agents and regenerates the SDS.
+        """
+        logger.info(f"[Targeted Regen] ========== START ==========")
+        logger.info(f"[Targeted Regen] Execution: {execution_id}, Project: {project_id}")
+        logger.info(f"[Targeted Regen] CR: {change_request.cr_number} - {change_request.title}")
+        logger.info(f"[Targeted Regen] Agents to run: {agents_to_run}")
+        
+        try:
+            # Get existing execution and project
+            execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+            project = self.db.query(Project).filter(Project.id == project_id).first()
+            
+            if not execution or not project:
+                logger.error(f"[Targeted Regen] Execution or project not found")
+                return {"success": False, "error": "Execution or project not found"}
+            
+            # Load existing artifacts from previous execution
+            logger.info(f"[Targeted Regen] Loading existing artifacts...")
+            existing_artifacts = self._load_existing_artifacts(execution_id)
+            logger.info(f"[Targeted Regen] Found {len(existing_artifacts)} existing artifacts")
+            
+            # Initialize results
+            results = {
+                "artifacts": existing_artifacts.copy(),
+                "agent_outputs": {},
+                "metrics": {"total_tokens": 0, "tokens_by_agent": {}}
+            }
+            
+            # Get validated BRs
+            business_requirements = self._get_validated_brs(project_id)
+            logger.info(f"[Targeted Regen] Loaded {len(business_requirements)} validated BRs")
+            
+            # Build CR context to inject into prompts
+            cr_context = f"""
+=== CHANGE REQUEST ===
+Numéro: {change_request.cr_number}
+Catégorie: {change_request.category}
+Titre: {change_request.title}
+Description: {change_request.description}
+======================
+IMPORTANT: Prends en compte cette modification dans ta génération.
+"""
+            
+            # Run each agent that needs to be re-run
+            for agent_id in agents_to_run:
+                if agent_id == "ba":
+                    logger.info(f"[Targeted Regen] Running BA (Olivia) with CR context...")
+                    await self._run_ba_with_context(execution_id, project_id, business_requirements, cr_context, results)
+                    
+                elif agent_id == "architect":
+                    logger.info(f"[Targeted Regen] Running Architect (Marcus) with CR context...")
+                    await self._run_architect_with_context(execution_id, project_id, results, cr_context)
+                    
+                elif agent_id in ["apex", "lwc", "admin", "qa", "devops", "data", "trainer"]:
+                    logger.info(f"[Targeted Regen] Running {agent_id} with CR context...")
+                    await self._run_sds_expert_with_context(execution_id, project_id, agent_id, results, cr_context)
+            
+            # Re-generate SDS document
+            logger.info(f"[Targeted Regen] Generating new SDS document...")
+            try:
+                sds_path = self._generate_word_sds(project, results["artifacts"], execution_id)
+                results["sds_path"] = sds_path
+                logger.info(f"[Targeted Regen] SDS generated: {sds_path}")
+            except Exception as e:
+                logger.error(f"[Targeted Regen] SDS generation failed: {e}")
+                sds_path = self._generate_markdown_sds(project, results["artifacts"], execution_id)
+                results["sds_path"] = sds_path
+            
+            # Create new SDS version
+            new_version = self._create_sds_version_for_cr(project, execution, sds_path, change_request)
+            
+            logger.info(f"[Targeted Regen] ========== COMPLETE ==========")
+            logger.info(f"[Targeted Regen] New SDS version: {new_version}")
+            logger.info(f"[Targeted Regen] Total tokens: {results['metrics']['total_tokens']}")
+            
+            return {
+                "success": True,
+                "new_sds_version": new_version,
+                "agents_run": agents_to_run,
+                "total_tokens": results["metrics"]["total_tokens"],
+                "sds_path": sds_path
+            }
+            
+        except Exception as e:
+            logger.error(f"[Targeted Regen] Failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+    
+    def _load_existing_artifacts(self, execution_id: int) -> Dict[str, Any]:
+        """Load existing artifacts from a previous execution."""
+        artifacts = {}
+        
+        deliverables = self.db.query(AgentDeliverable).filter(
+            AgentDeliverable.execution_id == execution_id
+        ).all()
+        
+        for d in deliverables:
+            if d.content:
+                content = d.content if isinstance(d.content, dict) else json.loads(d.content)
+                
+                # Map deliverable_type to artifact key
+                if "br_extraction" in d.deliverable_type:
+                    artifacts["BR_EXTRACTION"] = content
+                elif "use_cases" in d.deliverable_type:
+                    artifacts["USE_CASES"] = content
+                elif "as_is" in d.deliverable_type:
+                    artifacts["AS_IS"] = content
+                elif "gap" in d.deliverable_type:
+                    artifacts["GAP"] = content
+                elif "solution_design" in d.deliverable_type or "architecture" in d.deliverable_type:
+                    artifacts["ARCHITECTURE"] = content
+                elif "wbs" in d.deliverable_type:
+                    artifacts["WBS"] = content
+                elif "apex" in d.deliverable_type:
+                    artifacts["APEX_SPECS"] = content
+                elif "lwc" in d.deliverable_type:
+                    artifacts["LWC_SPECS"] = content
+                elif "admin" in d.deliverable_type:
+                    artifacts["ADMIN_SPECS"] = content
+                elif "qa" in d.deliverable_type:
+                    artifacts["QA_SPECS"] = content
+                elif "devops" in d.deliverable_type:
+                    artifacts["DEVOPS_SPECS"] = content
+                elif "data" in d.deliverable_type:
+                    artifacts["DATA_SPECS"] = content
+                elif "trainer" in d.deliverable_type:
+                    artifacts["TRAINER_SPECS"] = content
+        
+        return artifacts
+    
+    async def _run_ba_with_context(
+        self, 
+        execution_id: int, 
+        project_id: int, 
+        business_requirements: List[Dict],
+        cr_context: str,
+        results: Dict
+    ):
+        """Run BA agent with CR context."""
+        logger.info(f"[Targeted Regen] BA: Starting Use Case generation with CR context")
+        
+        # Add CR context to requirements
+        input_data = {
+            "requirements": business_requirements,
+            "change_request_context": cr_context
+        }
+        
+        uc_result = await self._run_agent(
+            agent_id="ba",
+            mode="generate_uc",
+            input_data=input_data,
+            execution_id=execution_id,
+            project_id=project_id
+        )
+        
+        if uc_result.get("success"):
+            results["artifacts"]["USE_CASES"] = uc_result["output"]
+            tokens = uc_result["output"]["metadata"].get("tokens_used", 0)
+            results["metrics"]["total_tokens"] += tokens
+            results["metrics"]["tokens_by_agent"]["ba"] = tokens
+            self._save_deliverable(execution_id, "ba", "use_cases_cr", uc_result["output"])
+            logger.info(f"[Targeted Regen] BA: Use Cases regenerated ({tokens} tokens)")
+        else:
+            logger.warning(f"[Targeted Regen] BA: Failed - {uc_result.get('error')}")
+    
+    async def _run_architect_with_context(
+        self,
+        execution_id: int,
+        project_id: int,
+        results: Dict,
+        cr_context: str
+    ):
+        """Run Architect agent with CR context."""
+        logger.info(f"[Targeted Regen] Architect: Starting with CR context")
+        
+        # Run design phase with CR context
+        design_input = {
+            "use_cases": results["artifacts"].get("USE_CASES", {}).get("content", {}).get("use_cases", []),
+            "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
+            "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+            "change_request_context": cr_context
+        }
+        
+        design_result = await self._run_agent(
+            agent_id="architect",
+            mode="design",
+            input_data=design_input,
+            execution_id=execution_id,
+            project_id=project_id
+        )
+        
+        if design_result.get("success"):
+            results["artifacts"]["ARCHITECTURE"] = design_result["output"]
+            tokens = design_result["output"]["metadata"].get("tokens_used", 0)
+            results["metrics"]["total_tokens"] += tokens
+            results["metrics"]["tokens_by_agent"]["architect"] = tokens
+            self._save_deliverable(execution_id, "architect", "solution_design_cr", design_result["output"])
+            logger.info(f"[Targeted Regen] Architect: Design regenerated ({tokens} tokens)")
+        else:
+            logger.warning(f"[Targeted Regen] Architect: Design failed - {design_result.get('error')}")
+    
+    async def _run_sds_expert_with_context(
+        self,
+        execution_id: int,
+        project_id: int,
+        agent_id: str,
+        results: Dict,
+        cr_context: str
+    ):
+        """Run an SDS expert agent with CR context."""
+        logger.info(f"[Targeted Regen] {agent_id}: Starting with CR context")
+        
+        # Build input based on agent type
+        input_data = {
+            "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+            "use_cases": results["artifacts"].get("USE_CASES", {}).get("content", {}).get("use_cases", []),
+            "change_request_context": cr_context
+        }
+        
+        result = await self._run_agent(
+            agent_id=agent_id,
+            mode="sds_section",
+            input_data=input_data,
+            execution_id=execution_id,
+            project_id=project_id
+        )
+        
+        artifact_key = f"{agent_id.upper()}_SPECS"
+        
+        if result.get("success"):
+            results["artifacts"][artifact_key] = result["output"]
+            tokens = result["output"]["metadata"].get("tokens_used", 0)
+            results["metrics"]["total_tokens"] += tokens
+            results["metrics"]["tokens_by_agent"][agent_id] = tokens
+            self._save_deliverable(execution_id, agent_id, f"{agent_id}_specs_cr", result["output"])
+            logger.info(f"[Targeted Regen] {agent_id}: Specs regenerated ({tokens} tokens)")
+        else:
+            logger.warning(f"[Targeted Regen] {agent_id}: Failed - {result.get('error')}")
+    
+    def _create_sds_version_for_cr(
+        self,
+        project: 'Project',
+        execution: 'Execution',
+        sds_path: Optional[str],
+        change_request: 'ChangeRequest'
+    ) -> int:
+        """Create a new SDS version for a Change Request."""
+        import os
+        
+        current_version = project.current_sds_version or 0
+        new_version = current_version + 1
+        
+        file_name = None
+        file_size = None
+        if sds_path and os.path.exists(sds_path):
+            file_name = os.path.basename(sds_path)
+            file_size = os.path.getsize(sds_path)
+        
+        sds_version = SDSVersion(
+            project_id=project.id,
+            execution_id=execution.id,
+            version_number=new_version,
+            file_path=sds_path,
+            file_name=file_name or f"SDS_v{new_version}.docx",
+            file_size=file_size,
+            change_request_id=change_request.id,
+            notes=f"Generated for {change_request.cr_number}: {change_request.title}"
+        )
+        self.db.add(sds_version)
+        
+        project.current_sds_version = new_version
+        self.db.commit()
+        
+        logger.info(f"[SDS Version] Created v{new_version} for CR {change_request.cr_number}")
+        
+        return new_version
+
+
     def _create_sds_version(self, project: 'Project', execution: 'Execution', sds_path: Optional[str]) -> None:
         """
         Create SDS version entry and update project status.

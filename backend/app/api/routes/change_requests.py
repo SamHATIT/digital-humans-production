@@ -208,7 +208,12 @@ async def submit_change_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Submit a CR for impact analysis by Sophie."""
+    """Submit a CR for impact analysis by Sophie (using Claude)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[CR Route] Submit CR {cr_id} for project {project_id}")
+    
     cr = db.query(ChangeRequest).filter(
         ChangeRequest.id == cr_id,
         ChangeRequest.project_id == project_id
@@ -220,35 +225,32 @@ async def submit_change_request(
     if cr.status != "draft":
         raise HTTPException(status_code=400, detail="CR already submitted")
     
-    # Update status
+    # Update status to submitted
     cr.status = "submitted"
     cr.submitted_at = datetime.utcnow()
     db.commit()
+    logger.info(f"[CR Route] CR {cr.cr_number} status updated to submitted")
     
-    # TODO: Trigger impact analysis in background
-    # background_tasks.add_task(analyze_impact, cr.id)
+    # Run real impact analysis with Claude
+    from app.services.change_request_service import ChangeRequestService
+    service = ChangeRequestService(db)
     
-    # For now, mock the analysis
-    cr.status = "analyzed"
-    cr.analyzed_at = datetime.utcnow()
-    cr.impact_analysis = {
-        "affected_brs": [cr.related_br_id] if cr.related_br_id else [],
-        "affected_use_cases": [],
-        "affected_architecture": [cr.category],
-        "affected_agents": ["ba", "architect"] if cr.category in ["business_rule", "data_model", "process"] else ["architect"],
-        "summary": f"Cette modification impacte la catégorie {cr.category}. Re-génération partielle nécessaire.",
-        "risk_level": "medium" if cr.priority in ["high", "critical"] else "low"
-    }
-    cr.estimated_cost = 2.50
-    cr.agents_to_rerun = cr.impact_analysis["affected_agents"]
-    db.commit()
+    logger.info(f"[CR Route] Starting impact analysis for CR {cr.cr_number}")
+    result = service.analyze_impact(cr_id)
     
-    return {
-        "message": "CR submitted and analyzed",
-        "cr_number": cr.cr_number,
-        "status": cr.status,
-        "impact_analysis": cr.impact_analysis
-    }
+    if result.get("success"):
+        logger.info(f"[CR Route] Impact analysis complete for CR {cr.cr_number}")
+        return {
+            "message": "CR submitted and analyzed",
+            "cr_number": result["cr_number"],
+            "status": "analyzed",
+            "impact_analysis": result["impact_analysis"],
+            "estimated_cost": result["estimated_cost"],
+            "agents_to_rerun": result["agents_to_rerun"]
+        }
+    else:
+        logger.error(f"[CR Route] Impact analysis failed: {result.get('error')}")
+        raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
 
 
 @router.post("/{project_id}/change-requests/{cr_id}/approve")
@@ -260,7 +262,12 @@ async def approve_change_request(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Approve a CR and trigger re-generation."""
+    """Approve a CR and trigger targeted re-generation."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[CR Route] Approve CR {cr_id} for project {project_id}")
+    
     cr = db.query(ChangeRequest).filter(
         ChangeRequest.id == cr_id,
         ChangeRequest.project_id == project_id
@@ -272,20 +279,37 @@ async def approve_change_request(
     if cr.status != "analyzed":
         raise HTTPException(status_code=400, detail="CR must be analyzed before approval")
     
-    # Update status
+    # Update status to approved
     cr.status = "approved"
     cr.approved_at = datetime.utcnow()
     if approval.notes:
         cr.resolution_notes = approval.notes
     db.commit()
+    logger.info(f"[CR Route] CR {cr.cr_number} approved")
     
-    # TODO: Trigger re-generation workflow
-    # background_tasks.add_task(process_change_request, cr.id)
+    # Trigger re-generation in background
+    from app.services.change_request_service import ChangeRequestService
+    
+    async def process_cr_background(cr_id: int):
+        """Background task for CR processing."""
+        from app.database import SessionLocal
+        db_session = SessionLocal()
+        try:
+            service = ChangeRequestService(db_session)
+            result = await service.process_change_request(cr_id)
+            logger.info(f"[CR Route] Background processing complete: {result}")
+        except Exception as e:
+            logger.error(f"[CR Route] Background processing failed: {e}")
+        finally:
+            db_session.close()
+    
+    background_tasks.add_task(process_cr_background, cr_id)
+    logger.info(f"[CR Route] Background task scheduled for CR {cr.cr_number}")
     
     return {
-        "message": "CR approved - re-generation will start",
+        "message": "CR approved - re-generation started in background",
         "cr_number": cr.cr_number,
-        "status": cr.status,
+        "status": "approved",
         "agents_to_rerun": cr.agents_to_rerun
     }
 
