@@ -69,7 +69,7 @@ class BusinessRequirement(Base):
 
     # Relationships
     execution = relationship("Execution", back_populates="business_requirements")
-    project = relationship("Project", back_populates="business_requirements")
+    project = relationship("Project", back_populates="br_items")
     validator = relationship("User", foreign_keys=[validated_by])
 
     def __repr__(self):
