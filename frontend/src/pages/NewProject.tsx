@@ -46,7 +46,7 @@ export default function NewProject() {
         selected_agents: selectedAgents,
       });
 
-      navigate(`/execution/${project.id}`);
+      navigate(`/br-validation/${project.id}`);
     } catch (err: any) {
       console.error('Failed to create project:', err);
       // Better error handling

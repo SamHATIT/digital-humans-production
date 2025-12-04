@@ -61,3 +61,4 @@ class Execution(Base):
     validation_gates = relationship("ValidationGate", back_populates="execution", cascade="all, delete-orphan")
     agent_questions = relationship("AgentQuestion", back_populates="execution", cascade="all, delete-orphan")
     deliverable_items = relationship("DeliverableItem", back_populates="execution", cascade="all, delete-orphan")
+    business_requirements = relationship("BusinessRequirement", back_populates="execution", cascade="all, delete-orphan")

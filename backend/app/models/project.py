@@ -60,3 +60,4 @@ class Project(Base):
     user = relationship("User", back_populates="projects")
     executions = relationship("Execution", back_populates="project", cascade="all, delete-orphan")
     outputs = relationship("Output", back_populates="project", cascade="all, delete-orphan")
+    business_requirements = relationship("BusinessRequirement", back_populates="project", cascade="all, delete-orphan")

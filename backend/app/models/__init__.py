@@ -16,6 +16,14 @@ from app.models.quality_gate import QualityGate, GateStatus
 from app.models.agent_iteration import AgentIteration, IterationStatus
 from app.models.deliverable_item import DeliverableItem
 
+# BR Validation
+from app.models.business_requirement import (
+    BusinessRequirement,
+    BRStatus,
+    BRPriority,
+    BRSource,
+)
+
 # V2 Artifacts System
 from app.models.artifact import (
     ExecutionArtifact,
@@ -52,6 +60,11 @@ __all__ = [
     "IterationStatus",
     # Database-first items
     "DeliverableItem",
+    # BR Validation
+    "BusinessRequirement",
+    "BRStatus",
+    "BRPriority",
+    "BRSource",
     # V2 Artifacts
     "ExecutionArtifact",
     "ValidationGate",

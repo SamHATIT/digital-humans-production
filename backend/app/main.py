@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -44,6 +44,9 @@ app.include_router(artifacts.router)
 
 # Agent Tester (Salesforce integration testing)
 app.include_router(agent_tester.router, prefix=f"{settings.API_V1_PREFIX}")
+
+# Business Requirements Validation
+app.include_router(business_requirements.router)
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
