@@ -577,11 +577,17 @@ This document includes:
                 generator.doc.add_heading(obj.get("object", "Unknown"), 3)
                 generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
                 
-                custom_fields = obj.get("custom_fields", [])
+                custom_fields = obj.get("custom_fields", obj.get("customizations", []))
                 if custom_fields:
-                    headers = ["API Name", "Type", "Description"]
-                    rows = [[f.get("api_name", ""), f.get("type", ""), f.get("description", f.get("values", ""))[:50]] for f in custom_fields[:10]]
-                    generator.add_table(headers, rows)
+                    headers = ["Field"]
+                    rows = []
+                    for f in custom_fields[:15]:
+                        if isinstance(f, dict):
+                            rows.append([f"{f.get('api_name', '')} ({f.get('type', '')})"])
+                        elif isinstance(f, str):
+                            rows.append([f[:80]])
+                    if rows:
+                        generator.add_table(headers, rows)
         
         # Custom Objects
         custom_objects = data_model.get("custom_objects", [])
@@ -594,9 +600,16 @@ This document includes:
                 
                 fields = obj.get("fields", [])
                 if fields:
-                    headers = ["API Name", "Type", "Required"]
-                    rows = [[f.get("api_name", ""), f.get("type", ""), "Yes" if f.get("required") else "No"] for f in fields]
-                    generator.add_table(headers, rows)
+                    headers = ["Field Definition"]
+                    rows = []
+                    for f in fields[:20]:
+                        if isinstance(f, dict):
+                            req = "Required" if f.get("required") else ""
+                            rows.append([f"{f.get('api_name', '')} ({f.get('type', '')}) {req}".strip()])
+                        elif isinstance(f, str):
+                            rows.append([f[:100]])
+                    if rows:
+                        generator.add_table(headers, rows)
         
         # ERD Diagram
         erd = data_model.get("erd_mermaid", "")
@@ -624,7 +637,7 @@ This document includes:
             if perm_sets:
                 generator.doc.add_heading("Permission Sets", 3)
                 headers = ["Name", "Description"]
-                rows = [[ps.get("name", ""), ps.get("description", "")[:80]] for ps in perm_sets]
+                rows = [[ps.get("name", ""), ps.get("description", "")[:80]] for ps in perm_sets if isinstance(ps, dict)]
                 generator.add_table(headers, rows)
         
         # Automation
@@ -728,32 +741,44 @@ async def mermaid_to_image_kroki(mermaid_code: str) -> Optional[bytes]:
 
 
 def extract_json_content_robust(data: Dict) -> Optional[Dict]:
-    """Extract JSON content with repair for truncated responses"""
+    """Extract JSON content - handles both raw JSON strings and structured dicts"""
     try:
         from json_repair import repair_json
+        has_repair = True
     except ImportError:
-        logger.warning("json-repair not installed, falling back to basic extraction")
-        return extract_json_content(data)
+        logger.warning("json-repair not installed")
+        has_repair = False
     
     try:
         content = data.get("content", {})
+        
         if isinstance(content, dict):
+            # Case 1: Content has a "raw" field with JSON string
             raw = content.get("raw", "")
-            if isinstance(raw, str):
+            if isinstance(raw, str) and raw.strip():
                 # Strip ```json wrapper
                 raw = re.sub(r'^```json\s*', '', raw.strip())
                 raw = re.sub(r'```\s*$', '', raw.strip())
                 
-                # Try normal parse first
                 try:
                     return json.loads(raw)
                 except json.JSONDecodeError:
-                    # Use json-repair
-                    repaired = repair_json(raw, return_objects=True)
-                    if isinstance(repaired, dict):
-                        logger.info(f"Successfully repaired truncated JSON ({len(raw)} chars)")
-                        return repaired
-            return content
+                    if has_repair:
+                        repaired = repair_json(raw, return_objects=True)
+                        if isinstance(repaired, dict):
+                            logger.info(f"Successfully repaired truncated JSON ({len(raw)} chars)")
+                            return repaired
+                    return None
+            
+            # Case 2: Content is already a structured dict (no raw field or empty raw)
+            # This is the case for architect outputs
+            if "artifact_id" in content or "title" in content or "data_model" in content:
+                return content
+            
+            # Case 3: Empty or unknown structure
+            if content:
+                return content
+                
         return None
     except Exception as e:
         logger.error(f"JSON extraction error: {e}")

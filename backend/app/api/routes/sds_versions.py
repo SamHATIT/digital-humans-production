@@ -6,7 +6,7 @@ from typing import List
 import os
 
 from app.database import get_db
-from app.utils.dependencies import get_current_user
+from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.models.user import User
 from app.models.project import Project
 from app.models.sds_version import SDSVersion
@@ -55,6 +55,48 @@ async def get_sds_versions(
     )
 
 
+# IMPORTANT: /current routes MUST be defined BEFORE /{version_number} routes
+# otherwise FastAPI will try to parse "current" as an integer
+
+@router.get("/{project_id}/sds-versions/current/download")
+async def download_current_sds(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header)
+):
+    """Download the current (latest) SDS version."""
+    # Verify project exists and belongs to user
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    current_version = project.current_sds_version or 1
+    
+    # Get version
+    version = db.query(SDSVersion).filter(
+        SDSVersion.project_id == project_id,
+        SDSVersion.version_number == current_version
+    ).first()
+    
+    if not version:
+        raise HTTPException(status_code=404, detail="Current SDS version not found")
+    
+    if not version.file_path or not os.path.exists(version.file_path):
+        raise HTTPException(status_code=404, detail="SDS file not found")
+    
+    filename = version.file_name or f"SDS_v{current_version}.docx"
+    
+    return FileResponse(
+        path=version.file_path,
+        filename=filename,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+
+
 @router.get("/{project_id}/sds-versions/{version_number}")
 async def get_sds_version(
     project_id: int,
@@ -93,7 +135,7 @@ async def download_sds_version(
     project_id: int,
     version_number: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """Download an SDS version file."""
     # Verify project exists and belongs to user
@@ -124,27 +166,6 @@ async def download_sds_version(
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
-
-
-@router.get("/{project_id}/sds-versions/current/download")
-async def download_current_sds(
-    project_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Download the current (latest) SDS version."""
-    # Verify project exists and belongs to user
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user.id
-    ).first()
-    
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    current_version = project.current_sds_version or 1
-    
-    return await download_sds_version(project_id, current_version, db, current_user)
 
 
 @router.post("/{project_id}/approve-sds")

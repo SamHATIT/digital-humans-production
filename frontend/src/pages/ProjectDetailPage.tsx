@@ -102,15 +102,15 @@ export default function ProjectDetailPage() {
     try {
       const [projectRes, versionsRes, crsRes, chatRes] = await Promise.all([
         api.get(`/api/projects/${projectId}`),
-        api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ data: { versions: [] } })),
-        api.get(`/api/projects/${projectId}/change-requests`).catch(() => ({ data: { change_requests: [] } })),
-        api.get(`/api/projects/${projectId}/chat/history`).catch(() => ({ data: { messages: [] } }))
+        api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ versions: [] })),
+        api.get(`/api/projects/${projectId}/change-requests`).catch(() => ({ change_requests: [] })),
+        api.get(`/api/projects/${projectId}/chat/history`).catch(() => ({ messages: [] }))
       ]);
       
-      setProject(projectRes.data);
-      setSdsVersions(versionsRes.data.versions || []);
-      setChangeRequests(crsRes.data.change_requests || []);
-      setChatMessages(chatRes.data.messages || []);
+      setProject(projectRes);
+      setSdsVersions(versionsRes.versions || []);
+      setChangeRequests(crsRes.change_requests || []);
+      setChatMessages(chatRes.messages || []);
     } catch (error) {
       console.error('Failed to load project:', error);
     } finally {
@@ -195,7 +195,8 @@ export default function ProjectDetailPage() {
   };
 
   const downloadSDS = async (versionNumber: number) => {
-    window.open(`${api.defaults.baseURL}/api/projects/${projectId}/sds-versions/${versionNumber}/download`, '_blank');
+    const token = localStorage.getItem('token');
+    window.open(`/api/projects/${projectId}/sds-versions/${versionNumber}/download?token=${token}`, '_blank');
   };
 
   if (loading) {

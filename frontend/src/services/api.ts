@@ -152,8 +152,6 @@ export const executions = {
   },
 };
 
-export default { auth, projects, executions };
-
 // ==================== GENERIC API ====================
 
 export const api = {
@@ -179,3 +177,6 @@ export const api = {
     return apiCall(endpoint, { method: 'DELETE' });
   },
 };
+
+// Export default AFTER api is defined
+export default { auth, projects, executions, get: api.get, post: api.post, put: api.put, delete: api.delete };
