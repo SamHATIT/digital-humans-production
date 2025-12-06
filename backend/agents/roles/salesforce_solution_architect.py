@@ -315,7 +315,7 @@ def main():
             try:
                 query = f"Salesforce architecture design patterns data model"
                 print(f"🔍 Querying RAG...", file=sys.stderr)
-                rag_context = get_salesforce_context(query, n_results=5)
+                rag_context = get_salesforce_context(query, n_results=5, agent_type="solution_architect")
                 print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
             except Exception as e:
                 print(f"⚠️ RAG error: {e}", file=sys.stderr)

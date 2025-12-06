@@ -219,7 +219,7 @@ if __name__ == "__main__":
             query_text = requirements[:500] if isinstance(requirements, str) else str(requirements)[:500]
             query = f"Salesforce best practices {query_text[:200]}"
             print(f"🔍 Querying RAG for expert context...", file=sys.stderr)
-            rag_context = get_salesforce_context(query, n_results=5)
+            rag_context = get_salesforce_context(query, n_results=5, agent_type="devops")
             print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
         except Exception as e:
             print(f"⚠️ RAG error: {e}", file=sys.stderr)

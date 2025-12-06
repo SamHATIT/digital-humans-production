@@ -147,7 +147,7 @@ def main():
                 # Build query from BR content
                 query = f"Salesforce {br.get('category', '')} {br.get('title', '')} {br.get('description', '')}"
                 print(f"🔍 Querying RAG: {query[:80]}...", file=sys.stderr)
-                rag_context = get_salesforce_context(query[:500], n_results=5)
+                rag_context = get_salesforce_context(query[:500], n_results=5, agent_type="business_analyst")
                 print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
             except Exception as e:
                 print(f"⚠️ RAG error: {e}", file=sys.stderr)
