@@ -1,0 +1,481 @@
+{
+  "agent_id": "ba",
+  "agent_name": "Olivia (Business Analyst)",
+  "execution_id": 87,
+  "project_id": 61,
+  "deliverable_type": "use_case_specification",
+  "parent_br": "BR-010",
+  "content": {
+    "parent_br": "BR-010",
+    "use_cases": [
+      {
+        "id": "UC-010-01",
+        "title": "Business User Initiates Manual Record Update Automation",
+        "actor": "Business User",
+        "preconditions": [
+          "User has appropriate object permissions",
+          "Record meets automation criteria",
+          "User is authenticated in Salesforce",
+          "Automation process is active and published"
+        ],
+        "main_flow": [
+          "User navigates to target record detail page",
+          "User clicks Quick Action button to trigger automation",
+          "System validates user permissions and record eligibility",
+          "Screen Flow displays input form with required fields",
+          "User enters or confirms data values",
+          "User clicks Submit button",
+          "System executes automation logic and updates related records",
+          "System displays success confirmation message",
+          "User views updated record with refreshed data"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "User lacks required permissions",
+            "steps": [
+              "System displays permission error message",
+              "User is redirected back to record page",
+              "System logs failed automation attempt"
+            ]
+          },
+          {
+            "condition": "Validation rules fail during submission",
+            "steps": [
+              "System displays validation error messages",
+              "User corrects invalid field values",
+              "User resubmits the form"
+            ]
+          },
+          {
+            "condition": "User cancels automation mid-process",
+            "steps": [
+              "User clicks Cancel button",
+              "System discards unsaved changes",
+              "User returns to original record page"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Target record is updated with new values",
+          "Related records are updated per automation logic",
+          "Audit trail captures automation execution",
+          "User receives confirmation notification",
+          "Record last modified timestamp is updated"
+        ],
+        "acceptance_criteria": [
+          "Quick Action button is visible only to authorized users",
+          "Screen Flow loads within 3 seconds",
+          "All required fields display validation messages when empty",
+          "Success message displays within 2 seconds of submission",
+          "Related records update within same transaction",
+          "Error messages are user-friendly and actionable",
+          "Automation executes without governor limit errors"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Contact",
+            "Opportunity",
+            "Task"
+          ],
+          "fields": [
+            "Account.Status__c",
+            "Account.Last_Review_Date__c",
+            "Contact.Engagement_Score__c",
+            "Opportunity.Stage",
+            "Task.Status"
+          ],
+          "automation": [
+            "Screen Flow",
+            "Quick Action",
+            "Record-Triggered Flow (After-Save)"
+          ],
+          "ui_components": [
+            "Quick Action Button",
+            "Screen Flow Component",
+            "Toast Notification",
+            "Record Detail Page"
+          ]
+        }
+      },
+      {
+        "id": "UC-010-02",
+        "title": "System Auto-Updates Records Based on Time-Based Criteria",
+        "actor": "System",
+        "preconditions": [
+          "Scheduled Flow is active and configured",
+          "Target records exist in database",
+          "Time-based criteria conditions are met",
+          "System has available API calls and DML statements"
+        ],
+        "main_flow": [
+          "Scheduled Flow executes at configured time interval",
+          "System queries records matching defined criteria",
+          "System validates each record against business rules",
+          "System updates field values per automation logic",
+          "System creates related Task records for follow-up",
+          "System sends email notifications to record owners",
+          "System logs execution results in custom object",
+          "System commits all changes in bulk transaction"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "No records match criteria",
+            "steps": [
+              "System logs zero records processed",
+              "System completes execution successfully",
+              "No updates or notifications are sent"
+            ]
+          },
+          {
+            "condition": "Governor limits are approached",
+            "steps": [
+              "System processes records in smaller batches",
+              "System queues remaining records for next execution",
+              "System logs batch processing status"
+            ]
+          },
+          {
+            "condition": "Email delivery fails",
+            "steps": [
+              "System logs email failure details",
+              "System creates Task for manual follow-up",
+              "Record updates still commit successfully"
+            ]
+          }
+        ],
+        "postconditions": [
+          "All qualifying records are updated",
+          "Task records are created for record owners",
+          "Email notifications are sent successfully",
+          "Execution log entry is created",
+          "Next scheduled execution is queued"
+        ],
+        "acceptance_criteria": [
+          "Scheduled Flow executes at exact configured time",
+          "System processes up to 2000 records per execution",
+          "All updates complete within 5 minutes",
+          "Email notifications sent within 1 minute of update",
+          "Execution logs capture record count and timestamp",
+          "No governor limit exceptions occur",
+          "Failed records are logged with error details"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Opportunity",
+            "Task",
+            "Automation_Log__c"
+          ],
+          "fields": [
+            "Account.Last_Activity_Date__c",
+            "Account.Account_Status__c",
+            "Opportunity.Close_Date",
+            "Opportunity.Follow_Up_Required__c",
+            "Automation_Log__c.Execution_Time__c",
+            "Automation_Log__c.Records_Processed__c"
+          ],
+          "automation": [
+            "Scheduled Flow",
+            "Email Alert",
+            "Bulk DML Operations"
+          ],
+          "ui_components": [
+            "Email Template",
+            "Custom Object Tab"
+          ]
+        }
+      },
+      {
+        "id": "UC-010-03",
+        "title": "System Triggers Automation on Record Creation or Update",
+        "actor": "System",
+        "preconditions": [
+          "Record-Triggered Flow is active",
+          "User creates or updates qualifying record",
+          "Record meets entry criteria conditions",
+          "Required fields contain valid data"
+        ],
+        "main_flow": [
+          "User saves new or updated record",
+          "System evaluates record against Flow entry criteria",
+          "Record-Triggered Flow executes in before-save context",
+          "System validates field values using formula logic",
+          "System calculates and populates dependent field values",
+          "System evaluates conditional branching logic",
+          "System updates related parent and child records",
+          "System commits record with all automated changes",
+          "System displays saved record to user"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Entry criteria not met",
+            "steps": [
+              "System bypasses Flow execution",
+              "Record saves with user-entered values only",
+              "No automated updates occur"
+            ]
+          },
+          {
+            "condition": "Required related record missing",
+            "steps": [
+              "System displays error message to user",
+              "Record save operation is rolled back",
+              "User must correct data and retry save"
+            ]
+          },
+          {
+            "condition": "Circular automation detected",
+            "steps": [
+              "System prevents recursive Flow execution",
+              "System logs recursion prevention event",
+              "Record saves with current iteration changes only"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Record is saved with automated field updates",
+          "Related records are updated accordingly",
+          "User sees final record state immediately",
+          "Automation execution is logged in debug logs",
+          "Workflow history tracks field changes"
+        ],
+        "acceptance_criteria": [
+          "Flow executes within 1 second of record save",
+          "All field calculations are accurate and complete",
+          "Related record updates occur in same transaction",
+          "User receives clear error messages for failures",
+          "Flow handles null values without errors",
+          "Recursion prevention works for up to 5 iterations",
+          "Debug logs capture all automation steps"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Opportunity",
+            "OpportunityLineItem",
+            "Account",
+            "Contact"
+          ],
+          "fields": [
+            "Opportunity.Amount",
+            "Opportunity.Discount_Applied__c",
+            "Opportunity.Total_Value__c",
+            "Account.Total_Opportunity_Value__c",
+            "Contact.Last_Opportunity_Date__c"
+          ],
+          "automation": [
+            "Record-Triggered Flow (Before-Save)",
+            "Record-Triggered Flow (After-Save)",
+            "Formula Field",
+            "Validation Rule"
+          ],
+          "ui_components": [
+            "Record Detail Page",
+            "Error Message Display"
+          ]
+        }
+      },
+      {
+        "id": "UC-010-04",
+        "title": "Business User Configures Automation Rules via Custom Settings",
+        "actor": "Business User (Administrator)",
+        "preconditions": [
+          "User has Customize Application permission",
+          "Custom Settings object exists and is accessible",
+          "User understands automation configuration requirements",
+          "Backup of current settings is available"
+        ],
+        "main_flow": [
+          "User navigates to Custom Settings in Setup",
+          "User selects automation configuration Custom Setting",
+          "User clicks Manage button to view existing rules",
+          "User clicks New button to create new automation rule",
+          "User enters rule name and description",
+          "User configures threshold values and criteria fields",
+          "User sets active/inactive status for the rule",
+          "User clicks Save button",
+          "System validates configuration values",
+          "System activates automation with new settings",
+          "User tests automation with sample record"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Invalid configuration values entered",
+            "steps": [
+              "System displays validation error messages",
+              "User corrects invalid values",
+              "User saves configuration again"
+            ]
+          },
+          {
+            "condition": "Conflicting rules detected",
+            "steps": [
+              "System displays warning message about conflicts",
+              "User reviews and adjusts rule priority",
+              "User deactivates conflicting rule if needed"
+            ]
+          },
+          {
+            "condition": "User needs to rollback changes",
+            "steps": [
+              "User accesses previous configuration version",
+              "User restores backup settings",
+              "System reactivates previous automation behavior"
+            ]
+          }
+        ],
+        "postconditions": [
+          "New automation rule is active and functional",
+          "Existing automations continue to work correctly",
+          "Configuration changes are logged in Setup Audit Trail",
+          "Documentation is updated with new rule details",
+          "Users are notified of automation behavior changes"
+        ],
+        "acceptance_criteria": [
+          "Custom Settings UI is intuitive and user-friendly",
+          "All configuration fields have help text",
+          "Changes take effect immediately after save",
+          "Invalid values trigger clear error messages",
+          "Setup Audit Trail captures all configuration changes",
+          "Test automation executes successfully with new settings",
+          "No existing automations break due to new configuration"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Automation_Config__c (Custom Setting)",
+            "Automation_Rule__c",
+            "SetupAuditTrail"
+          ],
+          "fields": [
+            "Automation_Config__c.Rule_Name__c",
+            "Automation_Config__c.Threshold_Value__c",
+            "Automation_Config__c.Is_Active__c",
+            "Automation_Config__c.Criteria_Field__c",
+            "Automation_Config__c.Action_Type__c"
+          ],
+          "automation": [
+            "Custom Settings (Hierarchy)",
+            "Record-Triggered Flow (references Custom Settings)",
+            "Validation Rule"
+          ],
+          "ui_components": [
+            "Custom Settings Management Page",
+            "Setup Menu",
+            "Help Text Tooltips"
+          ]
+        }
+      },
+      {
+        "id": "UC-010-05",
+        "title": "System Executes Multi-Step Automation with Error Handling",
+        "actor": "System",
+        "preconditions": [
+          "Complex automation Flow is active",
+          "Triggering event occurs (record update, platform event, etc.)",
+          "All required integration credentials are valid",
+          "External systems are available and responsive"
+        ],
+        "main_flow": [
+          "Triggering event initiates automation Flow",
+          "System retrieves related records from multiple objects",
+          "System evaluates complex business logic with decision elements",
+          "System performs field updates on primary record",
+          "System creates child records as needed",
+          "System calls external web service via HTTP callout",
+          "System processes API response and maps data",
+          "System updates records with external system data",
+          "System sends confirmation email to stakeholders",
+          "System logs successful execution in audit object"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "External API call fails",
+            "steps": [
+              "System catches callout exception",
+              "System logs error details in error log object",
+              "System creates Task for manual intervention",
+              "System sends alert email to administrator",
+              "Partial automation results are committed"
+            ]
+          },
+          {
+            "condition": "Required related record not found",
+            "steps": [
+              "System logs missing record error",
+              "System skips dependent automation steps",
+              "System marks record for manual review",
+              "System continues with remaining automation steps"
+            ]
+          },
+          {
+            "condition": "DML limit exceeded during execution",
+            "steps": [
+              "System processes records in smaller batches",
+              "System queues remaining records for async processing",
+              "System logs batch processing status"
+            ]
+          }
+        ],
+        "postconditions": [
+          "All automation steps complete successfully or fail gracefully",
+          "Records are updated with correct values",
+          "External system is synchronized with Salesforce data",
+          "Stakeholders receive appropriate notifications",
+          "Execution logs and error logs are created",
+          "Follow-up tasks are created for any failures"
+        ],
+        "acceptance_criteria": [
+          "Automation completes within 30 seconds for single record",
+          "External API calls timeout after 10 seconds",
+          "All errors are caught and logged appropriately",
+          "No partial data corruption occurs on failure",
+          "Administrator receives alert within 5 minutes of critical error",
+          "Retry logic attempts failed operations up to 3 times",
+          "Audit logs capture all automation steps and outcomes",
+          "System handles concurrent automation executions correctly"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Opportunity",
+            "Contract",
+            "Task",
+            "Automation_Execution_Log__c",
+            "Error_Log__c"
+          ],
+          "fields": [
+            "Account.External_System_ID__c",
+            "Account.Sync_Status__c",
+            "Opportunity.External_Reference__c",
+            "Contract.Integration_Status__c",
+            "Error_Log__c.Error_Message__c",
+            "Error_Log__c.Stack_Trace__c"
+          ],
+          "automation": [
+            "Record-Triggered Flow (After-Save)",
+            "Subflow",
+            "Apex Action (for HTTP callout)",
+            "Platform Event",
+            "Email Alert"
+          ],
+          "ui_components": [
+            "Email Template",
+            "Custom Error Page",
+            "Lightning Component for Status Display"
+          ]
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "tokens_used": 6687,
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "anthropic",
+    "execution_time_seconds": 66.02,
+    "content_length": 16903,
+    "uc_count": 5,
+    "rag_used": true,
+    "rag_context_length": 9282,
+    "generated_at": "2025-12-05T12:21:08.842536"
+  }
+}

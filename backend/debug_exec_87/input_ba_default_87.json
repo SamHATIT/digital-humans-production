@@ -1,0 +1,8 @@
+{
+  "business_requirement": {
+    "id": "BR-011",
+    "category": "AUTOMATION",
+    "requirement": "Le système doit alerter automatiquement en cas de dépassement des délais de traitement définis (SLA).",
+    "priority": "should"
+  }
+}

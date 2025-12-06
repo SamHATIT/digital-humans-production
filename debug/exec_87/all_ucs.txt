@@ -1,0 +1,64 @@
+  item_id  | parent_ref |                                        title                                        |             actor              
+-----------+------------+-------------------------------------------------------------------------------------+--------------------------------
+ UC-001-01 | BR-001     | Business User Creates Custom Object for New Data Entity                             | Business User
+ UC-001-02 | BR-001     | System Administrator Defines Relationships Between Data Entities                    | System Administrator
+ UC-001-03 | BR-001     | Data Architect Designs Normalized Data Model Following Salesforce Best Practices    | Data Architect
+ UC-001-04 | BR-001     | Administrator Configures Field-Level Security and Data Access Controls              | System Administrator
+ UC-001-05 | BR-001     | Business Analyst Validates Data Model Against Reporting Requirements                | Business Analyst
+ UC-002-01 | BR-002     | Business User Creates Custom Object with Standard Field Types                       | Business User
+ UC-002-02 | BR-002     | System Administrator Establishes Master-Detail Relationship for Data Integrity      | System Administrator
+ UC-002-03 | BR-002     | Data Architect Designs Denormalized Data Model Following Salesforce Best Practices  | Data Architect
+ UC-002-04 | BR-002     | Business User Configures Field-Level Security and Validation Rules for Data Quality | Business User
+ UC-002-05 | BR-002     | System Administrator Implements Data Model for AI-Ready Architecture                | System Administrator
+ UC-003-01 | BR-003     | Business User Defines Custom Data Model for Business Entity                         | Business User
+ UC-003-02 | BR-003     | System Administrator Implements Data Model Relationships                            | System Administrator
+ UC-003-03 | BR-003     | Data Architect Validates Data Model Against Platform Limits                         | Data Architect
+ UC-003-04 | BR-003     | Business Analyst Creates Data Dictionary Documentation                              | Business Analyst
+ UC-003-05 | BR-003     | Developer Implements Data Quality Rules and Validation                              | Salesforce Developer
+ UC-004-01 | BR-004     | Business User Defines Core Data Model Structure                                     | Business User
+ UC-004-02 | BR-004     | System Administrator Implements Field-Level Data Governance                         | System Administrator
+ UC-004-03 | BR-004     | Data Architect Establishes Object Relationships and Data Hierarchy                  | Data Architect
+ UC-004-04 | BR-004     | Business Analyst Configures Record Types and Page Layouts for Data Segmentation     | Business Analyst
+ UC-004-05 | BR-004     | Data Steward Implements Data Quality and Governance Controls                        | Data Steward
+ UC-005-01 | BR-005     | Business User Defines Custom Data Model Structure                                   | Business User
+ UC-005-02 | BR-005     | System Administrator Implements Data Model Relationships                            | System Administrator
+ UC-005-03 | BR-005     | Data Architect Optimizes Data Model for Performance                                 | Data Architect
+ UC-005-04 | BR-005     | Business Analyst Documents Data Model Metadata                                      | Business Analyst
+ UC-005-05 | BR-005     | System Administrator Implements Data Quality Controls                               | System Administrator
+ UC-006-01 | BR-006     | Business User Defines Custom Data Model for New Business Entity                     | Business User
+ UC-006-02 | BR-006     | System Administrator Normalizes Data Model Following Salesforce Best Practices      | System Administrator
+ UC-006-03 | BR-006     | Data Architect Implements Scalable Data Model for High-Volume Entity                | Data Architect
+ UC-006-04 | BR-006     | Business Analyst Creates Data Model Documentation and Governance Framework          | Business User
+ UC-006-05 | BR-006     | Integration Specialist Maps External Data to Salesforce Data Model                  | Business User
+ UC-007-01 | BR-007     | Business User Defines Core Data Model Structure                                     | Business User
+ UC-007-02 | BR-007     | System Administrator Implements Data Validation Rules                               | System Administrator
+ UC-007-03 | BR-007     | Data Architect Designs Scalable Relationship Model                                  | Data Architect
+ UC-007-04 | BR-007     | Business Analyst Configures Record Types and Page Layouts                           | Business Analyst
+ UC-007-05 | BR-007     | Data Steward Implements Data Quality Monitoring                                     | Data Steward
+ UC-008-01 | BR-008     | Business User Defines Custom Data Model Structure                                   | Business User
+ UC-008-02 | BR-008     | System Administrator Implements Data Quality Controls                               | System Administrator
+ UC-008-03 | BR-008     | Data Architect Establishes Object Relationships and Data Hierarchy                  | Data Architect
+ UC-008-04 | BR-008     | Business Analyst Configures Data Model for AI and Analytics Readiness               | Business Analyst
+ UC-008-05 | BR-008     | System Administrator Plans and Implements Data Scalability Strategy                 | System Administrator
+ UC-009-01 | BR-009     | Business User Initiates Manual Record Update Automation                             | Business User
+ UC-009-02 | BR-009     | System Automatically Processes Records Based on Time-Based Criteria                 | System (Scheduled Flow)
+ UC-009-03 | BR-009     | System Auto-Updates Related Records on Parent Record Change                         | System (Record-Triggered Flow)
+ UC-009-04 | BR-009     | Business User Executes Bulk Automation via List View                                | Business User
+ UC-009-05 | BR-009     | System Validates and Enriches Data Before Record Save                               | System (Before-Save Flow)
+ UC-010-01 | BR-010     | Business User Initiates Manual Record Update Automation                             | Business User
+ UC-010-02 | BR-010     | System Auto-Updates Records Based on Time-Based Criteria                            | System
+ UC-010-03 | BR-010     | System Triggers Automation on Record Creation or Update                             | System
+ UC-010-04 | BR-010     | Business User Configures Automation Rules via Custom Settings                       | Business User (Administrator)
+ UC-010-05 | BR-010     | System Executes Multi-Step Automation with Error Handling                           | System
+ UC-011-01 | BR-011     | Business User Creates Automated Record Update Process                               | Business User
+ UC-011-02 | BR-011     | System Automatically Executes Multi-Step Business Process                           | System (Automated)
+ UC-011-03 | BR-011     | Business User Configures Scheduled Automation for Batch Processing                  | Business User
+ UC-011-04 | BR-011     | Business User Creates Screen Flow for Guided Data Entry                             | Business User
+ UC-011-05 | BR-011     | Administrator Monitors and Troubleshoots Automation Performance                     | System Administrator
+ UC-012-01 | BR-012     | Business User Configures Automated Record Update Process                            | Business User
+ UC-012-02 | BR-012     | System Automatically Sends Notification Based on Field Changes                      | System
+ UC-012-03 | BR-012     | Business User Creates Scheduled Automation for Batch Processing                     | Business User
+ UC-012-04 | BR-012     | Business User Implements Approval Automation with Multi-Step Process                | Business User
+ UC-012-05 | BR-012     | System Automates Data Validation and Enrichment on Record Creation                  | System
+(60 rows)
+

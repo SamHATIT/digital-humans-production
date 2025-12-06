@@ -1,0 +1,512 @@
+{
+  "agent_id": "ba",
+  "agent_name": "Olivia (Business Analyst)",
+  "execution_id": 87,
+  "project_id": 61,
+  "deliverable_type": "use_case_specification",
+  "parent_br": "BR-012",
+  "content": {
+    "parent_br": "BR-012",
+    "use_cases": [
+      {
+        "id": "UC-012-01",
+        "title": "Business User Configures Automated Record Update Process",
+        "actor": "Business User",
+        "preconditions": [
+          "User has appropriate permissions to create and manage Flows",
+          "Target object and fields exist in Salesforce",
+          "Business logic and update criteria are clearly defined",
+          "User has access to Flow Builder"
+        ],
+        "main_flow": [
+          "Business User navigates to Setup > Process Automation > Flows",
+          "User clicks 'New Flow' and selects 'Record-Triggered Flow'",
+          "User selects the object to monitor for changes",
+          "User defines trigger criteria (when record is created or updated)",
+          "User adds entry conditions to filter which records should trigger the automation",
+          "User adds Update Records element to modify field values",
+          "User maps source fields to target fields for the update",
+          "User activates the Flow after testing in debug mode",
+          "System confirms Flow is active and begins monitoring records"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "User needs to update related records",
+            "steps": [
+              "User adds Get Records element to retrieve related records",
+              "User adds Loop element to iterate through related records",
+              "User adds Update Records element inside loop",
+              "User configures bulk update settings for performance"
+            ]
+          },
+          {
+            "condition": "Validation errors occur during update",
+            "steps": [
+              "System captures error in Flow fault path",
+              "User adds Fault Path to handle errors gracefully",
+              "System logs error details to custom object Error_Log__c",
+              "System sends email notification to administrator"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Flow is active and monitoring specified object",
+          "Records meeting criteria are automatically updated",
+          "Audit trail is maintained in Setup Audit Trail",
+          "No manual intervention required for routine updates"
+        ],
+        "acceptance_criteria": [
+          "Flow successfully activates without errors",
+          "Records meeting entry conditions are updated within 5 seconds",
+          "Field values are updated accurately according to defined logic",
+          "Flow handles bulk operations (up to 200 records) without governor limit errors",
+          "Error handling captures and logs all failures",
+          "Flow does not create infinite loops or recursive updates",
+          "Performance metrics show less than 2 second execution time per record"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Opportunity",
+            "Error_Log__c"
+          ],
+          "fields": [
+            "Account.Status__c",
+            "Account.Last_Activity_Date__c",
+            "Opportunity.Stage",
+            "Opportunity.Auto_Updated__c",
+            "Error_Log__c.Flow_Name__c",
+            "Error_Log__c.Error_Message__c",
+            "Error_Log__c.Record_Id__c"
+          ],
+          "automation": [
+            "Record-Triggered Flow (After-save)",
+            "Update Records element",
+            "Get Records element",
+            "Decision element for conditional logic"
+          ],
+          "ui_components": [
+            "Flow Builder canvas",
+            "Flow Properties panel",
+            "Debug console"
+          ]
+        }
+      },
+      {
+        "id": "UC-012-02",
+        "title": "System Automatically Sends Notification Based on Field Changes",
+        "actor": "System",
+        "preconditions": [
+          "Record-Triggered Flow is active and configured",
+          "Email templates are created and available",
+          "User email addresses are valid in the system",
+          "Email deliverability is configured properly"
+        ],
+        "main_flow": [
+          "System detects record field change matching Flow criteria",
+          "System evaluates entry conditions in the Flow",
+          "System retrieves recipient information from related records",
+          "System selects appropriate email template based on conditions",
+          "System merges record data into email template",
+          "System sends email notification to designated recipients",
+          "System logs email send activity in record's Activity History",
+          "System updates notification tracking field on record"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Multiple recipients need different notification types",
+            "steps": [
+              "System uses Decision element to determine recipient type",
+              "System branches to different email template paths",
+              "System sends customized emails to each recipient group",
+              "System consolidates all notifications in single transaction"
+            ]
+          },
+          {
+            "condition": "Email send fails due to invalid address",
+            "steps": [
+              "System captures email send failure",
+              "System logs error to Error_Log__c object",
+              "System creates Task for manual follow-up",
+              "System notifies system administrator of failure"
+            ]
+          },
+          {
+            "condition": "Record changes trigger multiple notifications",
+            "steps": [
+              "System checks if notification was already sent today",
+              "System consolidates multiple changes into single notification",
+              "System prevents duplicate notifications using tracking field"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Email notification is sent to all valid recipients",
+          "Activity History reflects email send action",
+          "Notification tracking field is updated with timestamp",
+          "Any errors are logged for administrator review"
+        ],
+        "acceptance_criteria": [
+          "Email is sent within 30 seconds of field change",
+          "Email content accurately reflects current record data",
+          "All designated recipients receive notification",
+          "Email template formatting renders correctly",
+          "System handles up to 50 email sends per transaction without errors",
+          "Failed email attempts are logged with specific error messages",
+          "Duplicate notifications are prevented within 24-hour period",
+          "Email deliverability rate is above 95%"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Contact",
+            "Opportunity",
+            "Task",
+            "Error_Log__c"
+          ],
+          "fields": [
+            "Account.Priority__c",
+            "Account.Last_Notification_Date__c",
+            "Contact.Email",
+            "Opportunity.Stage",
+            "Task.Subject",
+            "Task.Priority"
+          ],
+          "automation": [
+            "Record-Triggered Flow (After-save)",
+            "Send Email action",
+            "Get Records element",
+            "Decision element",
+            "Create Records element for Task creation"
+          ],
+          "ui_components": [
+            "Email Templates",
+            "Activity History related list",
+            "Email Logs"
+          ]
+        }
+      },
+      {
+        "id": "UC-012-03",
+        "title": "Business User Creates Scheduled Automation for Batch Processing",
+        "actor": "Business User",
+        "preconditions": [
+          "User has permission to create Scheduled Flows",
+          "Batch processing requirements are documented",
+          "Target records can be identified by specific criteria",
+          "System resources are available for scheduled execution"
+        ],
+        "main_flow": [
+          "Business User navigates to Flow Builder",
+          "User creates new Scheduled-Triggered Flow",
+          "User defines schedule frequency (daily, weekly, monthly)",
+          "User sets specific execution time for the Flow",
+          "User adds Get Records element with filter criteria to identify target records",
+          "User adds Loop element to process records in batches",
+          "User adds Update Records or Create Records elements within loop",
+          "User configures batch size to optimize performance",
+          "User tests Flow with sample data set",
+          "User activates scheduled Flow",
+          "System confirms schedule and begins monitoring"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Processing requires external system integration",
+            "steps": [
+              "User adds HTTP Callout element within loop",
+              "User configures external service credentials",
+              "User adds error handling for callout failures",
+              "User implements retry logic for failed callouts"
+            ]
+          },
+          {
+            "condition": "Batch processing exceeds governor limits",
+            "steps": [
+              "System detects approaching governor limits",
+              "Flow pauses processing and logs current state",
+              "System creates follow-up scheduled job for remaining records",
+              "Administrator receives notification of partial completion"
+            ]
+          },
+          {
+            "condition": "No records meet criteria on scheduled run",
+            "steps": [
+              "Flow completes successfully with zero records processed",
+              "System logs execution with 'No records found' status",
+              "Flow waits for next scheduled execution time"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Scheduled Flow is active and will run at specified times",
+          "Target records are processed according to defined logic",
+          "Execution logs are available for monitoring",
+          "System performance remains within acceptable limits"
+        ],
+        "acceptance_criteria": [
+          "Flow executes at exact scheduled time with less than 1 minute variance",
+          "Flow processes minimum of 1000 records per execution",
+          "Execution completes within 10 minutes for typical batch size",
+          "Flow handles governor limits gracefully without failures",
+          "All processed records are updated accurately",
+          "Execution logs show clear success/failure status",
+          "Failed record processing does not stop entire batch",
+          "System sends summary email after each execution",
+          "Flow can be paused and resumed without data loss"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Account",
+            "Opportunity",
+            "Case",
+            "Batch_Processing_Log__c"
+          ],
+          "fields": [
+            "Account.Last_Batch_Process_Date__c",
+            "Opportunity.Batch_Status__c",
+            "Case.Auto_Close_Eligible__c",
+            "Batch_Processing_Log__c.Execution_Date__c",
+            "Batch_Processing_Log__c.Records_Processed__c",
+            "Batch_Processing_Log__c.Success_Count__c",
+            "Batch_Processing_Log__c.Failure_Count__c"
+          ],
+          "automation": [
+            "Scheduled-Triggered Flow",
+            "Get Records element with filtering",
+            "Loop element for batch processing",
+            "Update Records element",
+            "Create Records element for logging"
+          ],
+          "ui_components": [
+            "Flow Builder",
+            "Schedule configuration panel",
+            "Flow execution history",
+            "Time-Based Workflow queue"
+          ]
+        }
+      },
+      {
+        "id": "UC-012-04",
+        "title": "Business User Implements Approval Automation with Multi-Step Process",
+        "actor": "Business User",
+        "preconditions": [
+          "Approval hierarchy is defined in Salesforce",
+          "Approval criteria and business rules are documented",
+          "Email templates for approval requests exist",
+          "Users have appropriate approval permissions"
+        ],
+        "main_flow": [
+          "Business User navigates to Setup > Process Automation > Approval Processes",
+          "User creates new Approval Process for target object",
+          "User defines entry criteria for records requiring approval",
+          "User configures approval steps with specific approvers",
+          "User sets up approval actions (field updates, email alerts)",
+          "User defines rejection actions and recall behavior",
+          "User creates Record-Triggered Flow to submit records for approval automatically",
+          "User adds Submit for Approval action in Flow",
+          "User configures approval assignment logic (manager, queue, specific user)",
+          "User activates both Approval Process and Flow",
+          "System begins monitoring records for approval submission"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Record requires multi-level approval",
+            "steps": [
+              "System routes to first-level approver",
+              "Upon approval, system automatically routes to second-level approver",
+              "System continues through approval chain until final approval",
+              "System executes final approval actions only after all levels approve"
+            ]
+          },
+          {
+            "condition": "Approver rejects the request",
+            "steps": [
+              "System executes rejection actions defined in Approval Process",
+              "System updates record status to 'Rejected'",
+              "System sends rejection notification to record owner",
+              "System unlocks record for editing",
+              "Record owner can modify and resubmit for approval"
+            ]
+          },
+          {
+            "condition": "Approver is unavailable or out of office",
+            "steps": [
+              "System checks for delegated approver",
+              "System routes approval to delegate if configured",
+              "If no delegate, system escalates to next level after timeout period",
+              "System logs delegation or escalation in approval history"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Records meeting criteria are automatically submitted for approval",
+          "Approval requests are routed to appropriate approvers",
+          "Approval history is maintained on record",
+          "Approved records have fields updated according to approval actions",
+          "Email notifications are sent to all relevant parties"
+        ],
+        "acceptance_criteria": [
+          "Records are submitted for approval within 5 seconds of meeting criteria",
+          "Approval requests appear in approver's queue immediately",
+          "Email notifications are sent to approvers within 1 minute",
+          "Approval/rejection actions execute correctly 100% of time",
+          "Multi-level approvals route correctly through entire chain",
+          "Record locking prevents unauthorized edits during approval",
+          "Approval history shows complete audit trail with timestamps",
+          "System handles concurrent approval requests without conflicts",
+          "Delegated approver functionality works when primary approver unavailable"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Opportunity",
+            "Account",
+            "Contract",
+            "ProcessInstance",
+            "ProcessInstanceStep"
+          ],
+          "fields": [
+            "Opportunity.Approval_Status__c",
+            "Opportunity.Submitted_Date__c",
+            "Opportunity.Approved_Date__c",
+            "Opportunity.Approver__c",
+            "Contract.Approval_Level__c",
+            "Account.Requires_Approval__c"
+          ],
+          "automation": [
+            "Approval Process with multiple steps",
+            "Record-Triggered Flow for auto-submission",
+            "Submit for Approval action",
+            "Email Alert actions",
+            "Field Update actions",
+            "Decision element for routing logic"
+          ],
+          "ui_components": [
+            "Approval Process setup wizard",
+            "Approval History related list",
+            "Approval Request email template",
+            "Approver queue view",
+            "Approval button on record page"
+          ]
+        }
+      },
+      {
+        "id": "UC-012-05",
+        "title": "System Automates Data Validation and Enrichment on Record Creation",
+        "actor": "System",
+        "preconditions": [
+          "Validation rules are defined for data quality",
+          "Data enrichment sources are configured (internal or external)",
+          "Record-Triggered Flow is active for target object",
+          "Required fields and picklist values are properly configured"
+        ],
+        "main_flow": [
+          "User creates new record through UI or API",
+          "System triggers Before-save Record-Triggered Flow",
+          "System validates required fields are populated",
+          "System checks field format and data type compliance",
+          "System performs cross-field validation logic",
+          "System enriches record with calculated or derived values",
+          "System populates default values based on business rules",
+          "System checks for duplicate records using matching rules",
+          "If all validations pass, system saves record",
+          "System triggers After-save Flow for additional processing",
+          "System sends confirmation to user"
+        ],
+        "alternative_flows": [
+          {
+            "condition": "Validation fails on required field",
+            "steps": [
+              "System prevents record save",
+              "System displays specific error message to user",
+              "User corrects invalid data",
+              "User resubmits record for validation",
+              "System re-runs validation process"
+            ]
+          },
+          {
+            "condition": "Duplicate record is detected",
+            "steps": [
+              "System displays duplicate warning with matching records",
+              "User reviews potential duplicates",
+              "User chooses to merge with existing or create new",
+              "If merge, system consolidates data from both records",
+              "If create new, system adds unique identifier to differentiate"
+            ]
+          },
+          {
+            "condition": "External data enrichment is required",
+            "steps": [
+              "After-save Flow makes callout to external API",
+              "System retrieves additional data from external source",
+              "System updates record with enriched data",
+              "If callout fails, system logs error and queues for retry"
+            ]
+          }
+        ],
+        "postconditions": [
+          "Record is saved with validated and enriched data",
+          "All required fields contain valid values",
+          "Calculated fields are populated correctly",
+          "Duplicate check results are logged",
+          "Data quality metrics are updated"
+        ],
+        "acceptance_criteria": [
+          "Validation rules execute before record save 100% of time",
+          "Error messages clearly indicate which field failed validation",
+          "Field format validation catches invalid data types",
+          "Cross-field validation logic executes correctly",
+          "Default values populate automatically when conditions met",
+          "Duplicate detection identifies matches with 95% accuracy",
+          "Data enrichment completes within 3 seconds",
+          "Failed enrichment does not prevent record save",
+          "Validation performance does not exceed 1 second per record",
+          "Bulk data loads respect validation rules for all records"
+        ],
+        "salesforce_components": {
+          "objects": [
+            "Lead",
+            "Account",
+            "Contact",
+            "Data_Quality_Log__c"
+          ],
+          "fields": [
+            "Lead.Email",
+            "Lead.Phone",
+            "Lead.Industry",
+            "Lead.Validation_Status__c",
+            "Account.Industry",
+            "Account.Annual_Revenue__c",
+            "Contact.Email_Valid__c",
+            "Data_Quality_Log__c.Validation_Type__c",
+            "Data_Quality_Log__c.Pass_Fail__c"
+          ],
+          "automation": [
+            "Record-Triggered Flow (Before-save)",
+            "Record-Triggered Flow (After-save)",
+            "Validation Rules",
+            "Formula Fields for calculations",
+            "Duplicate Rules and Matching Rules",
+            "HTTP Callout for external enrichment"
+          ],
+          "ui_components": [
+            "Error message display on record page",
+            "Duplicate warning modal",
+            "Field validation indicators",
+            "Data quality dashboard"
+          ]
+        }
+      }
+    ]
+  },
+  "metadata": {
+    "tokens_used": 7368,
+    "model": "claude-sonnet-4-5-20250929",
+    "provider": "anthropic",
+    "execution_time_seconds": 79.42,
+    "content_length": 20259,
+    "uc_count": 5,
+    "rag_used": true,
+    "rag_context_length": 9282,
+    "generated_at": "2025-12-05T12:23:44.735388"
+  }
+}

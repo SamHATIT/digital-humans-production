@@ -1,0 +1,8 @@
+{
+  "business_requirement": {
+    "id": "BR-013",
+    "category": "UI_UX",
+    "requirement": "Les clients doivent pouvoir soumettre leurs demandes de service via un portail ou formulaire dédié.",
+    "priority": "should"
+  }
+}
