@@ -34,6 +34,33 @@ except ImportError:
     Anthropic = None
 
 
+# === DEBUG LOGGING FOR AGENT TESTS ===
+def _log_llm_debug(step: str, data: dict):
+    """Log LLM data to debug file if AGENT_TEST_LOG_FILE is set"""
+    import json as _json
+    from pathlib import Path as _Path
+    from datetime import datetime as _dt
+    log_file = os.environ.get("AGENT_TEST_LOG_FILE")
+    if not log_file:
+        return
+    try:
+        log_path = _Path(log_file)
+        existing = {"steps": []}
+        if log_path.exists():
+            with open(log_path, "r") as f:
+                existing = _json.load(f)
+        existing["steps"].append({
+            "timestamp": _dt.now().isoformat(),
+            "component": "llm_service",
+            "step": step,
+            "data": data
+        })
+        with open(log_path, "w") as f:
+            _json.dump(existing, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(f"LLM debug log error: {e}", file=sys.stderr)
+
+
 class LLMProvider(str, Enum):
     """Supported LLM providers"""
     OPENAI = "openai"
@@ -256,12 +283,33 @@ class LLMService:
         if temperature <= 1.0:
             kwargs["temperature"] = temperature
         
+        # Log LLM request for debugging
+        _log_llm_debug("llm_request", {
+            "provider": "anthropic",
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": kwargs.get("temperature", 0.7),
+            "system_prompt_length": len(system_prompt) if system_prompt else 0,
+            "user_prompt_length": len(prompt),
+            "user_prompt_preview": prompt[:500]
+        })
+        
         response = self._anthropic_client.messages.create(**kwargs)
         
         content = response.content[0].text
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         
         print(f"✅ Anthropic response: {len(content)} chars, {tokens_used} tokens", file=sys.stderr)
+        
+        # Log LLM response for debugging
+        _log_llm_debug("llm_response", {
+            "provider": "anthropic",
+            "model": model,
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+            "response_length": len(content),
+            "response_preview": content[:1000]
+        })
         
         return {
             "content": content,
@@ -288,6 +336,17 @@ class LLMService:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
+        # Log LLM request for debugging
+        _log_llm_debug("llm_request", {
+            "provider": "openai",
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "system_prompt_length": len(system_prompt) if system_prompt else 0,
+            "user_prompt_length": len(prompt),
+            "user_prompt_preview": prompt[:500]
+        })
+        
         response = self._openai_client.chat.completions.create(
             model=model,
             messages=messages,
@@ -299,6 +358,16 @@ class LLMService:
         tokens_used = response.usage.total_tokens
         
         print(f"✅ OpenAI response: {len(content)} chars, {tokens_used} tokens", file=sys.stderr)
+        
+        # Log LLM response for debugging
+        _log_llm_debug("llm_response", {
+            "provider": "openai",
+            "model": model,
+            "input_tokens": response.usage.prompt_tokens,
+            "output_tokens": response.usage.completion_tokens,
+            "response_length": len(content),
+            "response_preview": content[:1000]
+        })
         
         return {
             "content": content,

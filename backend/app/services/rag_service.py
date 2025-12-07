@@ -14,6 +14,33 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# === DEBUG LOGGING FOR AGENT TESTS ===
+def _log_rag_debug(step: str, data: dict):
+    """Log RAG data to debug file if AGENT_TEST_LOG_FILE is set"""
+    import json as _json
+    from pathlib import Path as _Path
+    from datetime import datetime as _dt
+    log_file = os.environ.get("AGENT_TEST_LOG_FILE")
+    if not log_file:
+        return
+    try:
+        log_path = _Path(log_file)
+        existing = {"steps": []}
+        if log_path.exists():
+            with open(log_path, "r") as f:
+                existing = _json.load(f)
+        existing["steps"].append({
+            "timestamp": _dt.now().isoformat(),
+            "component": "rag_service",
+            "step": step,
+            "data": data
+        })
+        with open(log_path, "w") as f:
+            _json.dump(existing, f, indent=2, ensure_ascii=False)
+    except Exception as e:
+        logger.warning(f"RAG debug log error: {e}")
+
+
 CHROMA_PATH = "/opt/digital-humans/rag/chromadb_data"
 
 # Collections avec leur type d'embedding
@@ -158,6 +185,7 @@ def query_rag(
     n_candidates: int = 30
 ) -> Dict:
     """Recherche multi-collection avec reranking"""
+    _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking})
     collection_keys = AGENT_COLLECTIONS.get(agent_type, AGENT_COLLECTIONS["default"])
     
     all_documents = []
@@ -203,6 +231,16 @@ def query_rag(
         sources.add(source)
         score_info = f" (pertinence: {final_scores[i]:.2f})" if use_reranking and i < len(final_scores) else ""
         context_parts.append(f"--- Source: {source}{score_info} ---\n{doc}")
+    
+    # Log RAG results for debugging
+    _log_rag_debug("rag_query_result", {
+        "documents_count": len(all_documents),
+        "sources": list(sources),
+        "context_length": len("\n\n".join(context_parts)),
+        "scores": final_scores[:5] if final_scores else [],  # First 5 scores
+        "collections_used": collection_keys,
+        "documents_preview": [d[:200] for d in all_documents[:3]]  # First 3 docs preview
+    })
     
     return {
         "documents": all_documents,

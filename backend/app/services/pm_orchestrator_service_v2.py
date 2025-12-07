@@ -1185,9 +1185,11 @@ See WBS-001 artifact for details.
         return [
             {
                 "id": br.br_id,
-                "category": br.category,
-                "requirement": br.requirement,
-                "priority": br.priority.value if br.priority else "should",
+                "title": br.br_id,
+                "description": br.requirement,
+                "category": br.category or "OTHER",
+                "priority": (br.priority.value.upper() + "_HAVE") if br.priority else "SHOULD_HAVE",
+                "stakeholder": "Business User"
             }
             for br in brs
         ]

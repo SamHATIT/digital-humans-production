@@ -25,6 +25,13 @@ from app.models.execution import Execution, ExecutionStatus
 from app.models.artifact import ExecutionArtifact, ArtifactType, ArtifactStatus
 from app.salesforce_config import salesforce_config
 
+# Test logger for debugging
+try:
+    from app.services.agent_test_logger import AgentTestLogger
+    TEST_LOGGER_AVAILABLE = True
+except ImportError:
+    TEST_LOGGER_AVAILABLE = False
+
 # RAG check
 try:
     from app.services.rag_service import get_salesforce_context
@@ -213,6 +220,23 @@ class AgentExecutor:
         self.logs = []
         code_files = {}
         
+        # === INIT DEBUG LOG FILE ===
+        debug_log_file = None
+        test_log = None
+        if TEST_LOGGER_AVAILABLE:
+            config = AGENT_CONFIG.get(agent_id, {})
+            test_log = AgentTestLogger.start_test(
+                agent_id=agent_id,
+                agent_name=config.get("display_name", agent_id),
+                task=task,
+                use_rag=use_rag
+            )
+            # Create debug log file for RAG/LLM to write to
+            debug_log_file = self.temp_dir / f"debug_log_{agent_id}_{test_log.test_id[:8]}.json"
+            import json as _json
+            with open(debug_log_file, 'w') as f:
+                _json.dump({"test_id": test_log.test_id, "steps": []}, f)
+        
         config = AGENT_CONFIG.get(agent_id)
         if not config:
             yield self._sse_event("error", message=f"Agent inconnu: {agent_id}")
@@ -261,17 +285,26 @@ class AgentExecutor:
                 "--project-id", str(project_id)
             ]
             
+            # Sophie (PM) requires --mode argument
+            if agent_id == "sophie":
+                cmd.extend(["--mode", "extract_br"])
+            
             if use_rag and agent_id != "sophie":
                 cmd.append("--use-rag")
             
             yield self.log(LogLevel.LLM, f"🤖 Exécution du script {config['script']}...").to_sse()
             
             # === STEP 6: Execute with STREAMING stderr + HEARTBEAT ===
+            # Prepare env with debug log file if available
+            agent_env = {**os.environ}
+            if debug_log_file:
+                agent_env["AGENT_TEST_LOG_FILE"] = str(debug_log_file)
+            
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env={**os.environ}
+                env=agent_env
             )
             
             # Stream stderr line by line with heartbeat to prevent timeout
@@ -383,6 +416,19 @@ class AgentExecutor:
             # === STEP 10: Finalize ===
             self._update_execution(ExecutionStatus.COMPLETED)
             yield self.log(LogLevel.DB, f"✅ Exécution #{execution.id} terminée").to_sse()
+            
+            # === FINALIZE DEBUG LOG ===
+            if TEST_LOGGER_AVAILABLE and test_log and debug_log_file and debug_log_file.exists():
+                try:
+                    import json as _json
+                    with open(debug_log_file, 'r') as f:
+                        debug_data = _json.load(f)
+                    # Transfer steps to persistent log
+                    for step in debug_data.get("steps", []):
+                        test_log.add_step(step.get("step", "unknown"), step.get("data", {}))
+                    AgentTestLogger.complete_test("success", output=output_data if 'output_data' in dir() else None)
+                except Exception as e:
+                    logger.warning(f"Debug log finalization error: {e}")
             
             yield self._sse_event(
                 "end",

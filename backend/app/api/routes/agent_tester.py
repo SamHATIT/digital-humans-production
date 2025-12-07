@@ -19,13 +19,16 @@ router = APIRouter(prefix="/agent-tester", tags=["Agent Tester"])
 
 # UI Agent definitions (display info only - real config is in agent_executor.py)
 AGENTS = {
-    "marcus": {"name": "Marcus", "role": "Solution Architect", "description": "Analyse l'org existante, conçoit l'architecture", "capabilities": ["architecture", "design"], "color": "#8B5CF6"},
+    "olivia": {"name": "Olivia", "role": "Business Analyst", "description": "Analyse les besoins business, crée les Use Cases à partir des BRs", "capabilities": ["requirements", "use_cases", "process_flows"], "color": "#EC4899"},
+    "marcus": {"name": "Marcus", "role": "Solution Architect", "description": "Analyse l org existante, conçoit l architecture", "capabilities": ["architecture", "design"], "color": "#8B5CF6"},
+    "sophie": {"name": "Sophie", "role": "Product Manager", "description": "Orchestre le projet, extrait les Business Requirements du brief", "capabilities": ["pm", "requirements", "orchestration"], "color": "#6366F1"},
     "diego": {"name": "Diego", "role": "Apex Developer", "description": "Développe classes Apex, triggers et tests", "capabilities": ["classes", "triggers"], "color": "#1E40AF"},
     "zara": {"name": "Zara", "role": "LWC Developer", "description": "Développe Lightning Web Components", "capabilities": ["lwc", "aura"], "color": "#7C3AED"},
     "raj": {"name": "Raj", "role": "Salesforce Admin", "description": "Configure objets, flows, permissions", "capabilities": ["objects", "flows"], "color": "#059669"},
     "elena": {"name": "Elena", "role": "QA Engineer", "description": "Crée et exécute les tests Apex", "capabilities": ["test_classes"], "color": "#DC2626"},
     "jordan": {"name": "Jordan", "role": "DevOps Engineer", "description": "Gère déploiements et CI/CD", "capabilities": ["deployment"], "color": "#F59E0B"},
-    "aisha": {"name": "Aisha", "role": "Data Migration Specialist", "description": "Migre et transforme les données", "capabilities": ["data_migration"], "color": "#10B981"}
+    "aisha": {"name": "Aisha", "role": "Data Migration Specialist", "description": "Migre et transforme les données", "capabilities": ["data_migration"], "color": "#10B981"},
+    "lucas": {"name": "Lucas", "role": "Trainer", "description": "Crée documentation utilisateur et guides de formation", "capabilities": ["training", "documentation"], "color": "#14B8A6"}
 }
 
 class AgentTestRequest(BaseModel):
@@ -111,3 +114,57 @@ async def get_llm_status():
         return get_llm_service().get_status()
     except Exception as e:
         return {"error": str(e), "available": False}
+
+# ===== TEST LOGS ENDPOINTS =====
+# For debugging and post-execution analysis
+
+@router.get("/logs")
+async def list_test_logs(limit: int = 20):
+    """List recent agent test logs for debugging"""
+    try:
+        from app.services.agent_test_logger import get_logger
+        logger = get_logger()
+        return {"logs": logger.list_logs(limit=limit)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/logs/{test_id}")
+async def get_test_log(test_id: str):
+    """Get detailed log for a specific test"""
+    try:
+        from app.services.agent_test_logger import get_logger
+        logger = get_logger()
+        log = logger.get_log(test_id)
+        if not log:
+            # Try by filename
+            log = logger.get_log_by_filename(test_id)
+        if not log:
+            raise HTTPException(status_code=404, detail=f"Log {test_id} not found")
+        return log
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/logs/{test_id}/step/{step_number}")
+async def get_test_log_step(test_id: str, step_number: int):
+    """Get a specific step from a test log"""
+    try:
+        from app.services.agent_test_logger import get_logger
+        logger = get_logger()
+        log = logger.get_log(test_id)
+        if not log:
+            log = logger.get_log_by_filename(test_id)
+        if not log:
+            raise HTTPException(status_code=404, detail=f"Log {test_id} not found")
+        
+        steps = log.get("steps", [])
+        for step in steps:
+            if step.get("step_number") == step_number:
+                return step
+        
+        raise HTTPException(status_code=404, detail=f"Step {step_number} not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
