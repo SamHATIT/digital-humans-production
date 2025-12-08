@@ -53,3 +53,18 @@ Prochaine étape: CRIT-03 (sentence_transformers pour reranker RAG) ou CRIT-04 (
 Rappel: Lire features.json au début de la prochaine session
 
 ================================================================================
+
+=== Session 2025-12-08 [14:45] - Suite ===
+Objectif: CRIT-03 - Installer sentence_transformers
+Actions:
+  - Ajouté sentence-transformers>=2.2.0 à requirements.txt
+  - Installé dans le container (torch 2.9.1, transformers 4.57.3)
+  - Testé import sentence_transformers ✅
+  - Testé CrossEncoder (reranker BGE) ✅
+  - Testé RAG query avec reranking ✅
+  - Modèles en cache: bge-reranker-v2-m3, nomic-embed-text-v1.5
+Fonctionnalités traitées: CRIT-03
+Statut: COMPLETED
+Commits: dbb8ed1
+Prochaine étape: CRIT-04 (persistance DB) ou FRNT-02 (page vide)
+================================================================================
