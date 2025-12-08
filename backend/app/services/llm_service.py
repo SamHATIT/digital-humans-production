@@ -122,15 +122,15 @@ AGENT_TIER_MAP = {
     "admin": AgentTier.WORKER,
     "sf_admin": AgentTier.WORKER,
     "raj": AgentTier.WORKER,
-    "qa": AgentTier.WORKER,
+    "qa": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
     "qa_tester": AgentTier.WORKER,
-    "elena": AgentTier.WORKER,
-    "devops": AgentTier.WORKER,
-    "jordan": AgentTier.WORKER,
+    "elena": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
+    "devops": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
+    "jordan": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
     "data_migration": AgentTier.WORKER,
     "aisha": AgentTier.WORKER,
-    "trainer": AgentTier.WORKER,
-    "lucas": AgentTier.WORKER,
+    "trainer": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
+    "lucas": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
 }
 
 
@@ -298,8 +298,49 @@ class LLMService:
         
         content = response.content[0].text
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
+        stop_reason = response.stop_reason
         
-        print(f"✅ Anthropic response: {len(content)} chars, {tokens_used} tokens", file=sys.stderr)
+        print(f"✅ Anthropic response: {len(content)} chars, {tokens_used} tokens, stop={stop_reason}", file=sys.stderr)
+        
+        # CRIT-02 FIX: Auto-continue if truncated (max_tokens reached)
+        continuation_count = 0
+        max_continuations = 3  # Limit to avoid infinite loops
+        
+        while stop_reason == "max_tokens" and continuation_count < max_continuations:
+            continuation_count += 1
+            print(f"⚠️ Response truncated! Continuing generation ({continuation_count}/{max_continuations})...", file=sys.stderr)
+            
+            # Build continuation messages
+            continuation_kwargs = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": content},
+                    {"role": "user", "content": "Continue from where you left off. Do not repeat what you already wrote."}
+                ]
+            }
+            if system_prompt:
+                continuation_kwargs["system"] = system_prompt
+            if temperature <= 1.0:
+                continuation_kwargs["temperature"] = temperature
+            
+            try:
+                continuation_response = self._anthropic_client.messages.create(**continuation_kwargs)
+                continuation_content = continuation_response.content[0].text
+                stop_reason = continuation_response.stop_reason
+                
+                # Append continuation
+                content += "\n" + continuation_content
+                tokens_used += continuation_response.usage.input_tokens + continuation_response.usage.output_tokens
+                
+                print(f"✅ Continuation {continuation_count}: +{len(continuation_content)} chars, stop={stop_reason}", file=sys.stderr)
+            except Exception as e:
+                print(f"❌ Continuation failed: {e}", file=sys.stderr)
+                break
+        
+        if continuation_count > 0:
+            print(f"📝 Total after {continuation_count} continuation(s): {len(content)} chars", file=sys.stderr)
         
         # Log LLM response for debugging
         _log_llm_debug("llm_response", {
@@ -308,7 +349,9 @@ class LLMService:
             "input_tokens": response.usage.input_tokens,
             "output_tokens": response.usage.output_tokens,
             "response_length": len(content),
-            "response_preview": content[:1000]
+            "response_preview": content[:1000],
+            "stop_reason": stop_reason,
+            "continuations": continuation_count
         })
         
         return {
@@ -317,7 +360,9 @@ class LLMService:
             "provider": LLMProvider.ANTHROPIC.value,
             "tokens_used": tokens_used,
             "input_tokens": response.usage.input_tokens,
-            "output_tokens": response.usage.output_tokens
+            "output_tokens": response.usage.output_tokens,
+            "stop_reason": stop_reason,
+            "continuations": continuation_count
         }
     
     def _call_openai(
