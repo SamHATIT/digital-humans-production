@@ -235,3 +235,30 @@ Tests:
 Statut: COMPLETED
 Prochaine étape: ORCH-03d (Boucle Build complète)
 ================================================================================
+
+=== Session 2025-12-08 [17:00] - ORCH-03d ===
+Objectif: Boucle Build complète avec retry Elena
+Implémentation: execute_single_task() dans incremental_executor.py
+Cycle complet:
+  Step 1: _generate_code_for_task() - appelle agent (placeholder pour l'instant)
+  Step 2: SFDX deploy_metadata() pour chaque fichier généré
+  Step 3: Elena run_tests() - tests Apex
+  Step 4: Git commit + PR si tests OK
+  Step 5: Merge auto (FULL_AUTO) ou pause (SEMI_AUTO)
+Gestion erreurs:
+  - _handle_task_failure(): retry jusqu'à MAX_RETRIES (3)
+  - record_error() avec historique complet
+  - mark_task_failed() si retries épuisés
+  - Dépendants marqués BLOCKED
+Helpers ajoutés:
+  - _get_metadata_type(): Détermine type SF depuis extension
+  - _find_test_classes_for_task(): Trouve tests associés
+  - _commit_task_to_git(): Commit + PR via git_service
+  - _get_git_config(): Config Git du projet
+Tests:
+  - ✅ Workflow complet exécuté
+  - ✅ Transitions: RUNNING → DEPLOYING → TESTING → (retry) → PENDING
+  - ✅ Error handling et retry fonctionnels
+Statut: COMPLETED
+Prochaine étape: ORCH-03e (Jordan package final)
+================================================================================

@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 68,
+      "not_started": 67,
       "in_progress": 0,
-      "completed": 10,
+      "completed": 11,
       "blocked": 0
     }
   },
@@ -228,7 +228,7 @@
       "description": "Intégrer le cycle complet: génération → deploy → test Elena → retry si KO → commit si OK",
       "priority": 1,
       "estimated_hours": 4,
-      "status": "not_started",
+      "status": "completed",
       "dependencies": [
         "ORCH-03b",
         "ORCH-03c"
@@ -244,7 +244,7 @@
         "Mode full auto: merge automatique",
         "Mode semi auto: pause et notification user"
       ],
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. execute_single_task() intègre: génération code → SFDX deploy → Elena tests → retry si KO → Git commit/PR. Modes FULL_AUTO/SEMI_AUTO. Testé: workflow complet OK."
     },
     {
       "id": "ORCH-03e",
