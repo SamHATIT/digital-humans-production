@@ -410,16 +410,31 @@ class PMOrchestratorServiceV2:
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             
             # ========================================
-            # PHASE 4: SDS Expert Agents (Systematic)
+            # PHASE 4: SDS Expert Agents (Conditional)
             # ========================================
-            # These 4 experts enrich the SDS with specialized sections:
+            # These experts enrich the SDS with specialized sections:
             # - Aisha (Data): Data Migration Strategy
-            # - Lucas (Trainer): Training & Change Management Plan
+            # - Lucas (Trainer): Training & Change Management Plan  
             # - Elena (QA): Test Strategy & QA Approach
             # - Jordan (DevOps): CI/CD & Deployment Strategy
+            # ORCH-01: Only execute agents that were selected by the user
             
-            SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
-            logger.info(f"[Phase 4] SDS Expert Agents: {SDS_EXPERTS}")
+            ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+            
+            # Filter to only include experts selected by user (if selection provided)
+            if selected_agents:
+                SDS_EXPERTS = [agent for agent in ALL_SDS_EXPERTS if agent in selected_agents]
+                skipped = [agent for agent in ALL_SDS_EXPERTS if agent not in selected_agents]
+                if skipped:
+                    logger.info(f"[Phase 4] ⏭️ Skipping non-selected agents: {skipped}")
+            else:
+                # No selection = run all (backward compatibility)
+                SDS_EXPERTS = ALL_SDS_EXPERTS
+            
+            if SDS_EXPERTS:
+                logger.info(f"[Phase 4] SDS Expert Agents to execute: {SDS_EXPERTS}")
+            else:
+                logger.info(f"[Phase 4] No SDS Expert Agents selected - skipping Phase 4")
             
             expert_progress_start = 75
             expert_progress_end = 90
@@ -756,14 +771,21 @@ class PMOrchestratorServiceV2:
             return {"success": False, "error": str(e)}
 
     def _init_agent_status(self, selected_agents: List[str]) -> Dict:
-        """Initialize agent execution status"""
-        # Core agents always included
+        """Initialize agent execution status - ORCH-01: respects selected_agents"""
+        # Core agents always included (mandatory for SDS)
         agents = ["pm", "ba", "architect"]
-        # SDS Expert agents (always included for complete SDS)
-        SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
-        agents.extend(SDS_EXPERTS)
-        # Add any additional selected agents
-        agents.extend([a for a in selected_agents if a not in agents])
+        
+        # SDS Expert agents - only include if selected (or if no selection for backward compat)
+        ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+        if selected_agents:
+            # Only add SDS experts that were selected
+            sds_selected = [a for a in ALL_SDS_EXPERTS if a in selected_agents]
+            agents.extend(sds_selected)
+            # Add any BUILD agents that were selected
+            agents.extend([a for a in selected_agents if a not in agents])
+        else:
+            # No selection = include all for backward compatibility
+            agents.extend(ALL_SDS_EXPERTS)
         
         return {
             agent_id: {

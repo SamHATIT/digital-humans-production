@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 68,
+      "not_started": 67,
       "in_progress": 0,
-      "completed": 4,
+      "completed": 5,
       "blocked": 0
     }
   },
@@ -98,7 +98,7 @@
       "title": "Logique conditionnelle agents BUILD",
       "description": "Implémenter la sélection dynamique des agents BUILD basée sur le WBS de Marcus",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "WBS sans Apex → Diego non exécuté",
         "WBS sans LWC → Zara non exécutée",
@@ -112,7 +112,7 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 4,
-      "notes": "Actuellement tous les agents sont exécutés systématiquement"
+      "notes": "Implémenté 08/12/2025. Frontend: MANDATORY_AGENTS=[pm,ba,architect]. Backend: Phase 4 filtre SDS_EXPERTS selon selected_agents. Tests unitaires OK."
     },
     {
       "id": "ORCH-02",

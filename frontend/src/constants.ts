@@ -16,7 +16,7 @@ export interface Agent {
 export const AGENTS: Agent[] = [
   { id: 'pm', name: 'Sophie', role: 'Project Manager', description: 'Orchestrates the entire project lifecycle and ensures requirements are met.', avatar: '/avatars/sophie-pm.png', isMandatory: true },
   { id: 'ba', name: 'Olivia', role: 'Business Analyst', description: 'Analyzes business needs and translates them into functional requirements.', avatar: '/avatars/olivia-ba.png', isMandatory: true },
-  { id: 'architect', name: 'Marcus', role: 'Solution Architect', description: 'Designs the technical architecture and data model.', avatar: '/avatars/marcus-architect.png' },
+  { id: 'architect', name: 'Marcus', role: 'Solution Architect', description: 'Designs the technical architecture and data model.', avatar: '/avatars/marcus-architect.png', isMandatory: true },
   { id: 'apex', name: 'Diego', role: 'Apex Developer', description: 'Implements backend logic, triggers, and batch processes.', avatar: '/avatars/diego-apex.png' },
   { id: 'lwc', name: 'Zara', role: 'LWC Developer', description: 'Builds modern user interfaces using Lightning Web Components.', avatar: '/avatars/zara-lwc.png' },
   { id: 'admin', name: 'Raj', role: 'Salesforce Admin', description: 'Handles configuration, security, and declarative setups.', avatar: '/avatars/raj-admin.png' },
@@ -27,4 +27,5 @@ export const AGENTS: Agent[] = [
 ];
 
 // Mandatory agents that are always selected (using backend IDs)
-export const MANDATORY_AGENTS = ['pm'];  // Only Sophie for BR extraction
+// ORCH-01: Sophie (PM) + Olivia (BA) + Marcus (Architect) form the core SDS team
+export const MANDATORY_AGENTS = ['pm', 'ba', 'architect'];

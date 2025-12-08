@@ -85,3 +85,27 @@ Décision: Documentation plutôt que modification de code (pas de bug réel)
 Statut: COMPLETED
 Prochaine étape: ORCH-01 (logique conditionnelle agents BUILD)
 ================================================================================
+
+=== Session 2025-12-08 [15:20] - ORCH-01 ===
+Objectif: Logique conditionnelle agents SDS (Phase 1)
+Clarification utilisateur:
+  - Phase 1 (SDS): PM → BA → Architect → [SDS Experts optionnels] → Document SDS
+  - Phase 2 (BUILD): Gérée par WBS, sera améliorée plus tard
+  - WorkflowEditor existait déjà mais était sous-utilisé
+Actions:
+  - Frontend (constants.ts):
+    - MANDATORY_AGENTS = ['pm', 'ba', 'architect'] (avant: ['pm'] seulement)
+    - Marcus: isMandatory: true
+  - Backend (pm_orchestrator_service_v2.py):
+    - Phase 4: filtre SDS_EXPERTS selon selected_agents
+    - _init_agent_status: respecte la sélection utilisateur
+    - Log explicite des agents skippés
+  - Tests unitaires: 4/4 passent (filtrage correct)
+Validation:
+  - ✅ Selection vide → aucun SDS expert exécuté
+  - ✅ Selection partielle → seuls les sélectionnés exécutés
+  - ✅ Backward compat: pas de selection = tous les agents (ancien comportement)
+Fonctionnalité: ORCH-01
+Statut: COMPLETED
+Prochaine étape: À définir
+================================================================================
