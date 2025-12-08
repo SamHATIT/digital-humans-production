@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 62,
+      "not_started": 61,
       "in_progress": 0,
-      "completed": 16,
+      "completed": 17,
       "blocked": 0
     }
   },
@@ -1381,7 +1381,7 @@
       "title": "Schema JSON WBS enrichi",
       "description": "Définir le schéma JSON pour le WBS enrichi avec critères de validation",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Schéma JSON documenté",
         "Validation Pydantic créée",
@@ -1392,7 +1392,7 @@
         "backend/app/schemas/wbs_schema.py"
       ],
       "estimated_hours": 2,
-      "notes": "Base du mode incrémental"
+      "notes": "08/12/2025: Schéma Pydantic complet pour WBS. Validé avec WBS réel (52 tasks, 7 phases, 10 risks). Flexible pour accepter variations de Marcus."
     },
     {
       "id": "INC-02",

@@ -339,3 +339,26 @@ FRNT-01 - AgentThoughtModal:
   - Scroll overflow pour longs contenus
 Stats: 16/78 features (21%)
 ================================================================================
+
+=== Session 2025-12-08 [18:20] - INC-01 ===
+Objectif: Schema JSON WBS enrichi
+Fichier créé: backend/app/schemas/wbs_schema.py
+Classes Pydantic:
+  - WBSContent: Schéma principal
+  - WBSPhase: Phase avec tasks
+  - WBSTask: Tâche individuelle
+  - WBSMilestone: Jalon projet
+  - WBSRisk: Risque avec mitigation (flexible: string ou list)
+  - ResourceAllocation: Allocation ressources (flexible)
+  - DependencyInfo, WBSDependencies: Dépendances
+Enums:
+  - TaskStatus, RiskSeverity, AgentType
+Méthodes utiles:
+  - get_all_tasks(): Toutes les tâches
+  - get_tasks_by_agent(): Par agent
+  - validate_dependencies(): Vérifie cohérence
+Tests:
+  - ✅ WBS réel validé: 52 tasks, 7 phases, 10 risks
+  - ✅ Flexible pour variations de Marcus
+Statut: COMPLETED
+================================================================================
