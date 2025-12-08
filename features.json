@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 64,
+      "not_started": 62,
       "in_progress": 0,
-      "completed": 14,
+      "completed": 16,
       "blocked": 0
     }
   },
@@ -436,7 +436,7 @@
       "title": "Fix AgentThoughtModal",
       "description": "Corriger le modal qui affiche les pensées/raisonnements des agents",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Modal s'ouvre au clic sur un agent",
         "Affiche le raisonnement en temps réel",
@@ -447,7 +447,7 @@
         "frontend/src/components/AgentThoughtModal.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "Sam a signalé que ça ne fonctionne pas"
+      "notes": "08/12/2025: Réécrit AgentThoughtModal avec vraies données (currentTask, outputSummary, status). Affiche expertise et tools par agent."
     },
     {
       "id": "FRNT-02",
@@ -455,7 +455,7 @@
       "title": "Fix page qui se vide entre agents",
       "description": "Corriger le bug où la page se vide quand on passe d'un agent à l'autre",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Contenu des agents précédents reste visible",
         "Scroll fluide vers le nouvel agent",
@@ -466,7 +466,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": ""
+      "notes": "08/12/2025: Protège les données existantes lors du polling - ne remplace que si nouvelles données valides."
     },
     {
       "id": "FRNT-03",

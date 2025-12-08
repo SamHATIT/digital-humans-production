@@ -46,6 +46,8 @@ export default function ExecutionMonitoringPage() {
   // Thought modal state
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedAgentTask, setSelectedAgentTask] = useState<string>('');
+  const [selectedAgentOutput, setSelectedAgentOutput] = useState<string>('');
+  const [selectedAgentStatus, setSelectedAgentStatus] = useState<string>('');
   
   // ORCH-04: Retry state
   const [isRetrying, setIsRetrying] = useState(false);
@@ -55,10 +57,18 @@ export default function ExecutionMonitoringPage() {
     const fetchProgress = async () => {
       try {
         const data = await executions.getProgress(Number(executionId));
-        setProgress(data);
+        
+        // FRNT-02: Only update if we have valid data (don't clear existing data)
+        if (data && data.agent_progress && data.agent_progress.length > 0) {
+          setProgress(data);
+        } else if (data && !progress) {
+          // Initial load - accept even empty data
+          setProgress(data);
+        }
+        // If data is invalid but we have existing progress, keep it
 
         // Stop polling if completed or failed
-        if (data.status === 'completed' || data.status === 'failed' || data.status === 'waiting_br_validation') {
+        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'waiting_br_validation') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -66,7 +76,10 @@ export default function ExecutionMonitoringPage() {
         }
       } catch (err: any) {
         console.error('Failed to fetch progress:', err);
-        setError(err.message || 'Failed to fetch progress');
+        // FRNT-02: Don't set error on poll failures if we already have data
+        if (!progress) {
+          setError(err.message || 'Failed to fetch progress');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -94,7 +107,9 @@ export default function ExecutionMonitoringPage() {
     const agent = AGENTS.find((a) => a.name.toLowerCase() === agentProgress.agent_name.toLowerCase());
     if (agent) {
       setSelectedAgent(agent as Agent);
-      setSelectedAgentTask(agentProgress.current_task || agentProgress.output_summary || '');
+      setSelectedAgentTask(agentProgress.current_task || '');
+      setSelectedAgentOutput(agentProgress.output_summary || '');
+      setSelectedAgentStatus(agentProgress.status || '');
     }
   };
 
@@ -347,6 +362,8 @@ export default function ExecutionMonitoringPage() {
           isOpen={!!selectedAgent}
           onClose={() => setSelectedAgent(null)}
           currentTask={selectedAgentTask}
+          outputSummary={selectedAgentOutput}
+          status={selectedAgentStatus}
         />
       )}
     </div>

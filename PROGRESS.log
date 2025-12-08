@@ -325,3 +325,17 @@ Corrections:
 Impact: Garantit mapping correct vers configs rouge/vert/bleu
 Statut: COMPLETED
 ================================================================================
+
+=== Session 2025-12-08 [18:00] - FRNT-01, FRNT-02 ===
+FRNT-02 - Fix page qui se vide:
+  - fetchProgress() protège les données existantes
+  - Ne remplace progress que si nouvelles données valides
+  - Pas d'erreur affichée si déjà des données
+FRNT-01 - AgentThoughtModal:
+  - Réécrit complètement avec vraies données
+  - Utilise currentTask, outputSummary, status du parent
+  - Affiche expertise et tools spécifiques par agent
+  - Status badge dynamique (running/completed/failed)
+  - Scroll overflow pour longs contenus
+Stats: 16/78 features (21%)
+================================================================================
