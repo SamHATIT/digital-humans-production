@@ -68,3 +68,20 @@ Statut: COMPLETED
 Commits: dbb8ed1
 Prochaine étape: CRIT-04 (persistance DB) ou FRNT-02 (page vide)
 ================================================================================
+
+=== Session 2025-12-08 [15:00] - Suite ===
+Objectif: CRIT-04 - Audit persistance DB
+Actions:
+  - Audit complet du schéma de stockage des livrables
+  - Découverte: PAS de bug, les données sont bien persistées dans 4 tables différentes
+    - agent_deliverables: outputs bruts des agents (JSON complet)
+    - deliverable_items: items parsés individuellement (UCs)
+    - business_requirements: BRs extraits par Sophie
+    - execution_artifacts: utilisé par testeur agents (hors workflow PM)
+  - Documentation ajoutée dans CONTEXT.md section 7 "Schéma de stockage des livrables"
+  - Mise à jour section bugs (BUG-001, BUG-002, BUG-005 marqués résolus)
+Fonctionnalités traitées: CRIT-04
+Décision: Documentation plutôt que modification de code (pas de bug réel)
+Statut: COMPLETED
+Prochaine étape: ORCH-01 (logique conditionnelle agents BUILD)
+================================================================================

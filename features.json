@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 69,
+      "not_started": 68,
       "in_progress": 0,
-      "completed": 3,
+      "completed": 4,
       "blocked": 0
     }
   },
@@ -78,7 +78,7 @@
       "title": "Fix persistance DB confuse",
       "description": "Clarifier et corriger la logique de persistance des résultats agents dans PostgreSQL",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Chaque output agent est sauvegardé correctement",
         "Pas de duplication de données",
@@ -90,7 +90,7 @@
         "backend/app/models/"
       ],
       "estimated_hours": 3,
-      "notes": "Sam a signalé que 'Claude se perd' avec la persistance actuelle"
+      "notes": "Audit 08/12/2025: Stockage OK dans 4 tables (agent_deliverables, deliverable_items, business_requirements, execution_artifacts). Documentation ajoutée dans CONTEXT.md section 7."
     },
     {
       "id": "ORCH-01",

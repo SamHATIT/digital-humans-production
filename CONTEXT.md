@@ -1,6 +1,6 @@
 # DIGITAL HUMANS - CONTEXTE PROJET
 
-> **Version** : 1.0 | **Dernière MAJ** : 8 décembre 2025
+> **Version** : 1.1 | **Dernière MAJ** : 8 décembre 2025
 
 ---
 
@@ -160,21 +160,69 @@ Livrables validés → Jordan (package + déploiement) → Lucas (formation)
 - **Décision** : Exécution tâche par tâche avec validation Elena entre chaque
 - **Raison** : Éviter la dérive sur projets complexes (méthodologie Anthropic)
 
+
 ---
 
-## 7. BUGS CONNUS & LIMITATIONS
+## 7. SCHÉMA DE STOCKAGE DES LIVRABLES
+
+> **Important** : Les livrables des agents sont stockés dans **4 tables différentes** selon leur nature.
+
+### Tables de stockage
+
+| Table | Contenu | Clé de recherche |
+|-------|---------|------------------|
+| `agent_deliverables` | Outputs bruts complets de chaque agent | `execution_id` + `deliverable_type` |
+| `deliverable_items` | Items parsés individuellement (UCs) | `execution_id` + `item_type` + `agent_id` |
+| `business_requirements` | BRs extraits par Sophie | `execution_id` + `br_id` |
+| `execution_artifacts` | Utilisé par le testeur d'agents (hors workflow PM) | `execution_id` + `artifact_code` |
+
+### Où trouver chaque type de livrable
+
+| Livrable | Table | Exemple de query |
+|----------|-------|------------------|
+| BRs de Sophie | `business_requirements` | `WHERE execution_id = X` |
+| UCs d'Olivia | `deliverable_items` | `WHERE execution_id = X AND item_type = 'use_case'` |
+| Solution Design de Marcus | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'architect_solution_design'` |
+| WBS de Marcus | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'architect_wbs'` |
+| Specs des agents BUILD | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type LIKE '%_specifications'` |
+| Tests d'Elena | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'qa_qa_specifications'` |
+| Plan de Jordan | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'devops_devops_specifications'` |
+| Formation de Lucas | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'trainer_trainer_specifications'` |
+
+### Colonnes importantes
+
+**agent_deliverables** (outputs bruts) :
+- `content` : TEXT - JSON stringifié du output complet
+- `content_metadata` : JSONB - métadonnées (tokens, model, etc.)
+- `deliverable_type` : format `{agent}_{type}` (ex: `architect_solution_design`)
+
+**deliverable_items** (items parsés) :
+- `content_parsed` : JSONB - contenu structuré
+- `content_raw` : TEXT - contenu brut si parsing échoué
+- `parse_success` : BOOLEAN - indique si le parsing a réussi
+- `item_id` : identifiant unique (ex: `UC-001-02`)
+
+**business_requirements** (BRs) :
+- `br_id` : identifiant (ex: `BR-001`)
+- `requirement` : TEXT - description du BR
+- `category` : catégorie (DATA_MODEL, AUTOMATION, INTEGRATION, etc.)
+- `priority` : priorité (MUST, SHOULD, COULD)
+
+---
+
+## 8. BUGS CONNUS & LIMITATIONS
 
 | ID | Description | Statut |
 |----|-------------|--------|
-| BUG-001 | SSE Progress 403 (EventSource + auth) | 🔴 Non résolu |
-| BUG-002 | Troncature outputs agents (limite tokens) | 🔴 Non résolu |
+| BUG-001 | SSE Progress 403 (EventSource + auth) | ✅ Résolu (commit c28d224) |
+| BUG-002 | Troncature outputs agents (limite tokens) | ✅ Résolu (continuation auto + Sonnet) |
 | BUG-003 | AgentThoughtModal ne fonctionne pas | 🔴 Non résolu |
 | BUG-004 | Page se vide entre agents | 🔴 Non résolu |
-| BUG-005 | sentence_transformers manquant (reranker) | 🟡 Fallback OK |
+| BUG-005 | sentence_transformers manquant (reranker) | ✅ Résolu (installé 08/12/2025) |
 
 ---
 
-## 8. FICHIERS DE SUIVI
+## 9. FICHIERS DE SUIVI
 
 | Fichier | Rôle | Fréquence MAJ |
 |---------|------|---------------|
@@ -184,7 +232,7 @@ Livrables validés → Jordan (package + déploiement) → Lucas (formation)
 
 ---
 
-## 9. CONTACTS & RESSOURCES
+## 10. CONTACTS & RESSOURCES
 
 - **Propriétaire** : Sam HATIT
 - **Repo GitHub** : https://github.com/SamHATIT/digital-humans-production
