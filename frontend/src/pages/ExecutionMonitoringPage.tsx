@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, ClipboardList } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
@@ -46,6 +46,10 @@ export default function ExecutionMonitoringPage() {
   // Thought modal state
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedAgentTask, setSelectedAgentTask] = useState<string>('');
+  
+  // ORCH-04: Retry state
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState('');
 
   useEffect(() => {
     const fetchProgress = async () => {
@@ -91,6 +95,32 @@ export default function ExecutionMonitoringPage() {
     if (agent) {
       setSelectedAgent(agent as Agent);
       setSelectedAgentTask(agentProgress.current_task || agentProgress.output_summary || '');
+    }
+  };
+
+  // ORCH-04: Handle retry
+  const handleRetry = async () => {
+    if (!executionId) return;
+    setIsRetrying(true);
+    setRetryError('');
+    
+    try {
+      const result = await executions.retry(Number(executionId));
+      // Restart polling
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      pollingRef.current = setInterval(async () => {
+        const data = await executions.getProgress(Number(executionId));
+        setProgress(data);
+        if (data.status === 'completed' || data.status === 'failed') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      }, 3000);
+    } catch (err: any) {
+      setRetryError(err.message || 'Failed to retry execution');
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -221,9 +251,31 @@ export default function ExecutionMonitoringPage() {
               </span>
             )}
             {isFailed && (
-              <span className="inline-flex items-center gap-1 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4" /> Execution failed
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="inline-flex items-center gap-1 text-red-400 text-sm">
+                  <AlertCircle className="w-4 h-4" /> Execution failed
+                </span>
+                <button
+                  onClick={handleRetry}
+                  disabled={isRetrying}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-medium rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isRetrying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Retrying...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      Retry Execution
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+            {retryError && (
+              <span className="text-red-400 text-sm ml-4">{retryError}</span>
             )}
             {!isCompleted && !isFailed && (
               <span className="inline-flex items-center gap-1 text-cyan-400 text-sm">

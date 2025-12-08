@@ -29,6 +29,7 @@ interface ChangeRequest {
   id: number;
   cr_number: string;
   title: string;
+  description?: string;
   category: string;
   status: string;
   priority: string;

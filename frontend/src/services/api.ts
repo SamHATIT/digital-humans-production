@@ -144,6 +144,20 @@ export const executions = {
     return `${API_URL}/api/pm-orchestrator/execute/${executionId}/download?token=${token}`;
   },
 
+  // ORCH-04: Retry failed execution
+  retry: async (executionId: number) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/retry`, {
+      method: 'POST',
+    });
+  },
+
+  // ORCH-04: Get retry info for failed execution
+  getRetryInfo: async (executionId: number) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/retry-info`, {
+      method: 'GET',
+    });
+  },
+
   chatWithPM: async (executionId: number, message: string) => {
     return apiCall(`/api/pm-orchestrator/chat/${executionId}`, {
       method: 'POST',

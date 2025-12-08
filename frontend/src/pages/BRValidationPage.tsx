@@ -76,7 +76,7 @@ export default function BRValidationPage() {
   // Modal states
   const [editingBR, setEditingBR] = useState<BusinessRequirement | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newBR, setNewBR] = useState({ category: '', requirement: '', priority: 'should' as const, client_notes: '' });
+  const [newBR, setNewBR] = useState({ category: '', requirement: '', priority: 'should' as 'must' | 'should' | 'could' | 'wont', client_notes: '' });
   
   // Filter state
   const [filterCategory, setFilterCategory] = useState('');

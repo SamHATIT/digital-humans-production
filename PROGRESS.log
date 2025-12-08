@@ -293,3 +293,25 @@ Total: ~15h implémentées
 
 Prochaine étape: ORCH-04 (Gestion reprises après erreur)
 ================================================================================
+
+=== Session 2025-12-08 [17:30] - ORCH-04 ===
+Objectif: Gestion des reprises après erreur
+Backend - nouveaux endpoints:
+  - POST /execute/{id}/retry: Relance exécution failed/cancelled
+  - GET /execute/{id}/retry-info: Info sur options de reprise
+Logique retry:
+  - Identifie dernier point stable (phases ou tâches)
+  - Reset des tâches failed à pending
+  - Resume depuis le bon point (phase1/phase2/build_tasks)
+Frontend:
+  - api.ts: retry() et getRetryInfo() ajoutés
+  - ExecutionMonitoringPage.tsx: Bouton "Retry Execution"
+    - Visible quand isFailed
+    - Loading state pendant retry
+    - Redémarre le polling après retry
+Corrections TS pré-existantes:
+  - BRValidationPage: Type priority corrigé
+  - ProjectDetailPage: description ajouté à ChangeRequest
+Statut: COMPLETED
+Stats: 13/78 features terminées
+================================================================================
