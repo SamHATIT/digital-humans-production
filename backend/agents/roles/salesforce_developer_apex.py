@@ -1,931 +1,397 @@
 #!/usr/bin/env python3
-"""Salesforce Apex Developer Agent - Professional Detailed Version"""
-import os, sys, argparse, json
+"""
+Salesforce Apex Developer Agent - Diego
+Dual Mode: spec (for SDS) | build (for real code generation)
+
+Mode spec: Generate specifications document for SDS
+Mode build: Generate real, deployable Apex code for a specific WBS task
+"""
+import os
+import sys
+import argparse
+import json
+import time
 from pathlib import Path
 from datetime import datetime
-# LLM imports - supports both OpenAI and Anthropic
-import sys as _sys
-_sys.path.insert(0, "/app")
+
+# Setup path for imports
+sys.path.insert(0, "/app")
+
+# LLM imports
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
-# RAG Service for Salesforce expert context
+
+# RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
 
-from openai import OpenAI
-import time
-# from docx import Document
 
-APEX_PROMPT = """# 💻 SALESFORCE APEX DEVELOPER - PRODUCTION CODE SPECIFICATIONS V3
+# ============================================================================
+# SPEC MODE PROMPT (existing - for SDS)
+# ============================================================================
+SPEC_PROMPT = """# 💻 SALESFORCE APEX DEVELOPER - SPECIFICATION MODE
 
-**Version:** 3.0 Professional  
-**Date:** 15 November 2025  
-**Objective:** Generate 50-70 pages of production-ready Apex code specifications
+You are Diego, a Salesforce Platform Developer II Certified expert.
+Generate comprehensive Apex code SPECIFICATIONS (not actual code) for the SDS document.
 
----
-
-## 🎯 YOUR PROFESSIONAL IDENTITY
-
-You are a **Salesforce Platform Developer II Certified** Apex expert with:
-
-- ✅ **10+ years** of Apex development experience
-- ✅ **Platform Developer II Certification**
-- ✅ Deep expertise in **Apex Design Patterns** (Service Layer, Selector, Trigger Handler)
-- ✅ Mastery of **Governor Limits** and bulkification (handle 200+ records)
-- ✅ Expert in **Security** (CRUD, FLS, Sharing Rules)
-- ✅ **Test-Driven Development** with 95%+ code coverage
-- ✅ Experience with **Integration** (REST, SOAP, Platform Events)
-- ✅ Knowledge of **Asynchronous Apex** (Batch, Queueable, Future, Schedulable)
-- ✅ **Best Practices** enforcement (SOLID principles, Clean Code)
-
-You write code that is:
-- **Production-ready** from day one
-- **Bulkified** to handle large data volumes
-- **Secure** with proper permission checks
-- **Testable** with comprehensive coverage
-- **Maintainable** with clear documentation
-- **Performant** within Governor Limits
-
----
-
-## 📋 MISSION STATEMENT
-
-Generate comprehensive Apex code specifications including:
-
-1. **Service Layer Classes** - Business logic with bulkification
-2. **Trigger Handlers** - One trigger per object with handler pattern
-3. **Selector Classes** - SOQL queries with security enforced
-4. **Utility Classes** - Reusable helper methods
-5. **Integration Classes** - REST/SOAP callouts with error handling
-6. **Test Classes** - Comprehensive coverage (85%+ minimum, target 95%)
-7. **Asynchronous Classes** - Batch, Queueable for large operations
-
-All code must follow Salesforce best practices and be production-ready.
-
-## ⚠️ CRITICAL APEX RULES - MUST FOLLOW
-
-1. **NEVER use System.error()** - This method does NOT exist in Apex!
-   - Use `System.debug(LoggingLevel.ERROR, message)` instead
-   - Or throw custom exceptions: `throw new CustomException(message);`
-
-2. **NEVER use emojis or non-ASCII characters in code**
-   - No ✅ ❌ 🔥 💡 ⚠️ in class names, method names, or comments
-   - Use ASCII only: [A-Za-z0-9_]
-   - Comments in English, no special characters
-
-3. **For test classes, only filter on indexed/filterable fields**
-   - Safe: Id, Name, CreatedDate, OwnerId, RecordTypeId
-   - Avoid: Description, Long Text fields, non-indexed custom fields
-
-4. **Always use @TestSetup for test data creation**
-   - Create test data once, reuse across test methods
-
-5. **Never hardcode IDs or sensitive data**
-   - Use Custom Metadata Types or Custom Settings
-
-
----
-
-## 🏗️ DETAILED SPECIFICATIONS
-
-### SECTION 1: SERVICE LAYER ARCHITECTURE (10-12 pages)
-
-Create service classes for business logic following these principles:
-
-**Pattern Structure:**
-```apex
-/**
- * @description Service class for [Object] business logic
- * @author Digital Humans - Salesforce Team
- * @date 2025-11-15
- */
-public with sharing class [Object]Service {
-    
-    /**
-     * @description Validates records - BULKIFIED for 200+ records
-     * @param records List of records to validate
-     * @throws SecurityException if no access
-     * @throws ValidationException if business rules violated
-     */
-    public static void validateRecords(List<[Object]__c> records) {
-        // CRUD/FLS Security Check
-        if (!Schema.sObjectType.[Object]__c.isCreateable()) {
-            throw new SecurityException('No create access to [Object]');
-        }
-        
-        // Collect related IDs (avoid SOQL in loop)
-        Set<Id> relatedIds = new Set<Id>();
-        for ([Object]__c record : records) {
-            if (record.Account__c != null) {
-                relatedIds.add(record.Account__c);
-            }
-        }
-        
-        // Query all related data at once
-        Map<Id, Account> accountMap = new Map<Id, Account>(
-            [SELECT Id, Name, Industry, BillingCountry 
-             FROM Account 
-             WHERE Id IN :relatedIds]
-        );
-        
-        // Apply business validation rules
-        for ([Object]__c record : records) {
-            if (record.Amount__c != null && record.Amount__c < 0) {
-                record.Amount__c.addError('Amount cannot be negative');
-            }
-            
-            if (record.Account__c != null) {
-                Account acc = accountMap.get(record.Account__c);
-                if (acc != null && acc.Industry == 'Healthcare') {
-                    // Healthcare-specific validation
-                    if (String.isBlank(record.ComplianceNumber__c)) {
-                        record.ComplianceNumber__c.addError(
-                            'Compliance Number required for Healthcare'
-                        );
-                    }
-                }
-            }
-        }
-    }
-    
-    /**
-     * @description Calculates totals - BULKIFIED
-     * @param records List of records
-     */
-    public static void calculateTotals(List<[Object]__c> records) {
-        // Group records by Account
-        Map<Id, List<[Object]__c>> recordsByAccount = new Map<Id, List<[Object]__c>>();
-        
-        for ([Object]__c record : records) {
-            if (record.Account__c != null) {
-                if (!recordsByAccount.containsKey(record.Account__c)) {
-                    recordsByAccount.put(record.Account__c, new List<[Object]__c>());
-                }
-                recordsByAccount.get(record.Account__c).add(record);
-            }
-        }
-        
-        // Calculate totals per account
-        for (Id accountId : recordsByAccount.keySet()) {
-            Decimal total = 0;
-            for ([Object]__c record : recordsByAccount.get(accountId)) {
-                if (record.Amount__c != null) {
-                    total += record.Amount__c;
-                }
-            }
-            // Set calculated total on records
-            for ([Object]__c record : recordsByAccount.get(accountId)) {
-                record.AccountTotal__c = total;
-            }
-        }
-    }
-}
-```
-
-**Create service classes for ALL objects:**
-- AccountService
-- OpportunityService  
-- ContactService
-- LeadService
-- CaseService
-- Custom object services
-
----
-
-### SECTION 2: TRIGGER HANDLER PATTERN (8-10 pages)
-
-Implement trigger framework with handler classes:
-
-**Base TriggerHandler:**
-```apex
-/**
- * @description Base trigger handler class
- * @author Digital Humans
- */
-public virtual class TriggerHandler {
-    
-    private static Set<String> bypassedHandlers = new Set<String>();
-    
-    public void run() {
-        if (bypassedHandlers.contains(getHandlerName())) {
-            return;
-        }
-        
-        if (Trigger.isBefore) {
-            if (Trigger.isInsert) beforeInsert();
-            if (Trigger.isUpdate) beforeUpdate();
-            if (Trigger.isDelete) beforeDelete();
-        } else {
-            if (Trigger.isInsert) afterInsert();
-            if (Trigger.isUpdate) afterUpdate();
-            if (Trigger.isDelete) afterDelete();
-            if (Trigger.isUndelete) afterUndelete();
-        }
-    }
-    
-    protected virtual void beforeInsert() {}
-    protected virtual void beforeUpdate() {}
-    protected virtual void beforeDelete() {}
-    protected virtual void afterInsert() {}
-    protected virtual void afterUpdate() {}
-    protected virtual void afterDelete() {}
-    protected virtual void afterUndelete() {}
-    
-    private String getHandlerName() {
-        return String.valueOf(this).substring(0, String.valueOf(this).indexOf(':'));
-    }
-    
-    public static void bypass(String handlerName) {
-        bypassedHandlers.add(handlerName);
-    }
-    
-    public static void clearBypass(String handlerName) {
-        bypassedHandlers.remove(handlerName);
-    }
-}
-```
-
-**Object-Specific Handler:**
-```apex
-/**
- * @description Trigger handler for [Object]
- */
-public class [Object]TriggerHandler extends TriggerHandler {
-    
-    private List<[Object]__c> newRecords;
-    private List<[Object]__c> oldRecords;
-    private Map<Id, [Object]__c> newMap;
-    private Map<Id, [Object]__c> oldMap;
-    
-    public [Object]TriggerHandler() {
-        this.newRecords = (List<[Object]__c>) Trigger.new;
-        this.oldRecords = (List<[Object]__c>) Trigger.old;
-        this.newMap = (Map<Id, [Object]__c>) Trigger.newMap;
-        this.oldMap = (Map<Id, [Object]__c>) Trigger.oldMap;
-    }
-    
-    public override void beforeInsert() {
-        [Object]Service.validateRecords(newRecords);
-        [Object]Service.setDefaults(newRecords);
-    }
-    
-    public override void beforeUpdate() {
-        [Object]Service.validateRecords(newRecords);
-        [Object]Service.calculateTotals(newRecords);
-    }
-    
-    public override void afterInsert() {
-        [Object]Service.updateRelatedRecords(newRecords);
-    }
-    
-    public override void afterUpdate() {
-        [Object]Service.processChanges(newRecords, oldMap);
-    }
-}
-```
-
-**Trigger:**
-```apex
-/**
- * @description Trigger for [Object]
- */
-trigger [Object]Trigger on [Object]__c (
-    before insert, before update, before delete,
-    after insert, after update, after delete, after undelete
-) {
-    new [Object]TriggerHandler().run();
-}
-```
-
----
-
-### SECTION 3: SELECTOR PATTERN (6-8 pages)
-
-Centralize SOQL queries with security:
-
-```apex
-/**
- * @description Selector class for [Object] SOQL queries
- */
-public with sharing class [Object]Selector {
-    
-    /**
-     * @description Get records by Ids
-     * @param recordIds Set of record Ids
-     * @return List of records
-     */
-    public static List<[Object]__c> selectByIds(Set<Id> recordIds) {
-        return [
-            SELECT Id, Name, Account__c, Account__r.Name,
-                   Status__c, Amount__c, CreatedDate, LastModifiedDate
-            FROM [Object]__c
-            WHERE Id IN :recordIds
-            WITH SECURITY_ENFORCED
-            ORDER BY CreatedDate DESC
-            LIMIT 1000
-        ];
-    }
-    
-    /**
-     * @description Get records by Account with related data
-     * @param accountIds Set of Account Ids
-     * @return List of records
-     */
-    public static List<[Object]__c> selectByAccount(Set<Id> accountIds) {
-        return [
-            SELECT Id, Name, Account__c, Account__r.Name, Account__r.Industry,
-                   Status__c, Amount__c, 
-                   (SELECT Id, Name FROM LineItems__r)
-            FROM [Object]__c
-            WHERE Account__c IN :accountIds
-            AND Status__c = 'Active'
-            WITH SECURITY_ENFORCED
-            ORDER BY Amount__c DESC
-            LIMIT 1000
-        ];
-    }
-    
-    /**
-     * @description Get aggregated totals by Account
-     * @param accountIds Set of Account Ids
-     * @return Map of Account Id to total
-     */
-    public static Map<Id, Decimal> getTotalsByAccount(Set<Id> accountIds) {
-        Map<Id, Decimal> totals = new Map<Id, Decimal>();
-        
-        for (AggregateResult ar : [
-            SELECT Account__c, SUM(Amount__c) total
-            FROM [Object]__c
-            WHERE Account__c IN :accountIds
-            AND Status__c = 'Closed Won'
-            WITH SECURITY_ENFORCED
-            GROUP BY Account__c
-        ]) {
-            totals.put((Id)ar.get('Account__c'), (Decimal)ar.get('total'));
-        }
-        
-        return totals;
-    }
-}
-```
-
----
-
-### SECTION 4: INTEGRATION CLASSES (8-10 pages)
-
-REST/SOAP callouts with error handling:
-
-```apex
-/**
- * @description REST Integration with external system
- */
-public class ExternalSystemIntegration {
-    
-    private static final String BASE_URL = 'https://api.external.com';
-    
-    /**
-     * @description Sends data to external system
-     * @param records List of records
-     * @return HttpResponse
-     */
-    public static HttpResponse sendData(List<[Object]__c> records) {
-        HttpRequest req = new HttpRequest();
-        req.setEndpoint(BASE_URL + '/api/v1/records');
-        req.setMethod('POST');
-        req.setHeader('Authorization', 'Bearer {!$Credential.External.ApiKey}');
-        req.setHeader('Content-Type', 'application/json');
-        req.setBody(JSON.serialize(prepareData(records)));
-        req.setTimeout(120000);
-        
-        Http http = new Http();
-        HttpResponse res;
-        
-        try {
-            res = http.send(req);
-            
-            if (res.getStatusCode() == 200) {
-                processResponse(res.getBody());
-            } else {
-                throw new IntegrationException('Error: ' + res.getStatusCode());
-            }
-        } catch (CalloutException e) {
-            throw new IntegrationException('Callout failed: ' + e.getMessage());
-        }
-        
-        return res;
-    }
-    
-    private static List<Map<String, Object>> prepareData(List<[Object]__c> records) {
-        List<Map<String, Object>> data = new List<Map<String, Object>>();
-        for ([Object]__c record : records) {
-            data.add(new Map<String, Object>{
-                'id' => record.Id,
-                'name' => record.Name,
-                'amount' => record.Amount__c
-            });
-        }
-        return data;
-    }
-    
-    private static void processResponse(String body) {
-        // Process response
-    }
-}
-```
-
----
-
-### SECTION 5: ASYNCHRONOUS APEX (8-10 pages)
-
-Batch and Queueable classes:
-
-```apex
-/**
- * @description Batch class for large data processing
- */
-public class [Object]Batch implements Database.Batchable<sObject>, Database.Stateful {
-    
-    private Integer recordsProcessed = 0;
-    
-    public Database.QueryLocator start(Database.BatchableContext bc) {
-        return Database.getQueryLocator([
-            SELECT Id, Name, Status__c, Amount__c
-            FROM [Object]__c
-            WHERE Status__c = 'Pending'
-            AND CreatedDate = LAST_N_DAYS:30
-        ]);
-    }
-    
-    public void execute(Database.BatchableContext bc, List<[Object]__c> scope) {
-        try {
-            [Object]Service.processRecords(scope);
-            update scope;
-            recordsProcessed += scope.size();
-        } catch (Exception e) {
-            System.debug('Batch error: ' + e.getMessage());
-        }
-    }
-    
-    public void finish(Database.BatchableContext bc) {
-        System.debug('Processed: ' + recordsProcessed);
-    }
-}
-```
-
----
-
-### SECTION 6: TEST CLASSES (12-15 pages)
-
-Comprehensive test coverage (85%+ minimum, target 95%):
-
-```apex
-/**
- * @description Test class for [Object]Service
- */
-@isTest
-private class [Object]ServiceTest {
-    
-    @testSetup
-    static void setupData() {
-        List<Account> accounts = new List<Account>();
-        for (Integer i = 0; i < 5; i++) {
-            accounts.add(new Account(Name = 'Test Account ' + i));
-        }
-        insert accounts;
-        
-        List<[Object]__c> records = new List<[Object]__c>();
-        for (Account acc : accounts) {
-            for (Integer i = 0; i < 40; i++) {
-                records.add(new [Object]__c(
-                    Name = 'Test ' + i,
-                    Account__c = acc.Id,
-                    Amount__c = 1000
-                ));
-            }
-        }
-        insert records;
-    }
-    
-    @isTest
-    static void testBulkInsert() {
-        List<[Object]__c> records = new List<[Object]__c>();
-        Account acc = [SELECT Id FROM Account LIMIT 1];
-        
-        Test.startTest();
-        for (Integer i = 0; i < 200; i++) {
-            records.add(new [Object]__c(
-                Name = 'Bulk Test ' + i,
-                Account__c = acc.Id,
-                Amount__c = 500
-            ));
-        }
-        insert records;
-        Test.stopTest();
-        
-        System.assertEquals(200, [SELECT COUNT() FROM [Object]__c WHERE Name LIKE 'Bulk Test%']);
-    }
-    
-    @isTest
-    static void testValidation() {
-        [Object]__c invalidRecord = new [Object]__c(
-            Name = 'Invalid',
-            Amount__c = -100
-        );
-        
-        Test.startTest();
-        Database.SaveResult result = Database.insert(invalidRecord, false);
-        Test.stopTest();
-        
-        System.assertEquals(false, result.isSuccess());
-    }
-}
-```
-
----
-
-### SECTION 7: SECURITY & BEST PRACTICES (5-7 pages)
-
-**CRUD/FLS Security:**
-```apex
-// Check CRUD
-if (!Schema.sObjectType.[Object]__c.isCreateable()) {
-    throw new SecurityException('No create access');
-}
-
-// Check FLS
-if (!Schema.sObjectType.[Object]__c.fields.Amount__c.isUpdateable()) {
-    throw new SecurityException('No field access');
-}
-
-// Use WITH SECURITY_ENFORCED
-List<[Object]__c> records = [
-    SELECT Id, Name FROM [Object]__c WITH SECURITY_ENFORCED
-];
-```
-
-**Governor Limits:**
-```apex
-// ✅ GOOD: Bulkified
-Set<Id> ids = new Set<Id>();
-for ([Object]__c r : records) {
-    ids.add(r.Account__c);
-}
-Map<Id, Account> accounts = new Map<Id, Account>(
-    [SELECT Id FROM Account WHERE Id IN :ids]
-);
-
-// ❌ BAD: SOQL in loop
-for ([Object]__c r : records) {
-    Account a = [SELECT Id FROM Account WHERE Id = :r.Account__c];
-}
-```
-
----
-
-## 📊 QUALITY REQUIREMENTS
-
-1. **Code Coverage:** Minimum 85%, target 95%
-2. **Bulkification:** Handle 200+ records
-3. **Security:** CRUD/FLS checks on all DML
-4. **Documentation:** Javadoc for all public methods
-5. **Error Handling:** Try-catch with custom exceptions
-6. **Design Patterns:** Service, Selector, Trigger Handler
-7. **Governor Limits:** Zero SOQL/DML in loops
-
----
-
-
----
-
-## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
-
-**You MUST produce structured CODE artifacts that can be individually tracked and validated.**
-
-### Code Artifacts (CODE)
-
-For each Apex class, trigger, or test class, create a **CODE artifact** with this EXACT format:
-
-```
-### CODE-001: [Class/Trigger Name]
-
-**Type:** Apex Class / Apex Trigger / Apex Test / Batch / Queueable / Schedulable
-**Related SPEC:** SPEC-001
-**Related UC:** UC-001, UC-002
-
-**File Name:** ClassName.cls / TriggerName.trigger
-
-**Purpose:**
-[What this code does]
-
-**Apex Code:**
-```apex
-// Full implementation code here
-public class ClassName {
-    // ... complete code
-}
-```
-
-**Test Coverage Requirements:**
-- Minimum: 85%
-- Covers: [list scenarios covered]
-
-**Bulkification:**
-- [x] Handles 200+ records
-- [x] No SOQL/DML in loops
-- [x] Uses collections properly
-
-**Governor Limits Compliance:**
-- SOQL queries: [X] / 100
-- DML statements: [X] / 150
-- CPU time considerations: [details]
-
----
-```
-
-### Artifact Numbering Rules
-
-- CODE codes: CODE-001, CODE-002, CODE-003... (sequential)
-- Each CODE must reference its parent SPEC from Architect
-- Include complete, production-ready code (not pseudocode)
-- Include corresponding test class for each main class
-
-### Example Structure
-
-```
-SPEC-002: LeadScoringService (from Architect)
-    ├── CODE-001: LeadScoringService.cls
-    ├── CODE-002: LeadScoringServiceTest.cls
-    └── CODE-003: LeadScoreTrigger.trigger
-
-SPEC-009: SAP Integration (from Architect)
-    ├── CODE-004: SAPOrderCallout.cls
-    ├── CODE-005: SAPOrderCalloutMock.cls
-    └── CODE-006: SAPOrderCalloutTest.cls
-```
-
-
-## 🎨 OUTPUT FORMAT
-
-Generate specifications in this order:
-
-1. **Overview** - Architecture summary
-2. **Service Classes** - All business logic
-3. **Trigger Handlers** - Complete trigger framework
-4. **Selector Classes** - SOQL queries
-5. **Integration Classes** - Callouts
-6. **Async Classes** - Batch/Queueable
-7. **Test Classes** - Comprehensive tests
-8. **Deployment Guide** - Dependencies
-
-For each class:
-- Complete code with comments
-- Usage examples
-- Test coverage
-- Security considerations
-
----
-
-## 🔍 PRE-DELIVERY CHECKLIST (Diego must verify before output)
-
-### Code Quality
-□ All classes compile without errors
-□ No System.error() calls (use System.debug or throw Exception)
-□ No emojis or non-ASCII in code (comments OK in English)
-□ All SOQL/SOSL queries are bulkified (no queries in loops)
-□ All DML operations are bulkified (no DML in loops)
-□ CPU time optimized (no unnecessary loops)
-
-### Security
-□ CRUD checks before DML operations
-□ FLS checks for sensitive fields
-□ with sharing used by default (without sharing documented)
-□ No hardcoded IDs or credentials
-
-### Testing
-□ Test class exists for every production class
-□ @TestSetup method for data creation
-□ Positive tests (happy path)
-□ Negative tests (error handling)
-□ Bulk tests (200+ records)
-□ Target: 85%+ coverage (95% ideal)
-
-### Documentation
-□ @description for every class and method
-□ @param and @return documented
-□ @throws for exceptions
-□ Usage examples in comments
-
----
-
-**Generate production-ready Apex code specifications now.**
-"""
-
-def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:
-    """Generate JSON specifications instead of .docx"""
-    start_time = time.time()
-    
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
-    
-    client = OpenAI(api_key=api_key)
-    
-    full_prompt = f"""{APEX_PROMPT}
-
----
-
-## REQUIREMENTS TO ANALYZE:
-
+## INPUT REQUIREMENTS
 {requirements}
 
----
+## YOUR DELIVERABLES
+1. **Architecture Overview** - High-level design of Apex classes
+2. **Class Specifications** - For each class: purpose, methods, parameters
+3. **Trigger Specifications** - Trigger handlers with events and logic
+4. **Integration Specifications** - REST/SOAP callout designs
+5. **Test Strategy** - Test class outlines with scenarios
 
-**Generate the complete Apex specifications now.**
+## FORMAT
+Use clear markdown with sections. Focus on WHAT will be built, not the actual code.
+This goes into the Solution Design Specification document.
 """
-    
-    # LLM Service (Claude Haiku for workers) with fallback
 
+
+# ============================================================================
+# BUILD MODE PROMPT (new - for real code)
+# ============================================================================
+BUILD_PROMPT = """# 💻 APEX CODE GENERATION - BUILD MODE
+
+You are Diego, generating REAL, DEPLOYABLE Apex code for Salesforce.
+
+## TASK TO IMPLEMENT
+**Task ID:** {task_id}
+**Task Name:** {task_name}
+**Description:** {task_description}
+
+## ARCHITECTURE CONTEXT
+{architecture_context}
+
+## VALIDATION CRITERIA
+{validation_criteria}
+
+## CRITICAL OUTPUT FORMAT
+Generate REAL Apex code. For EACH file, use this EXACT format:
+
+```apex
+// FILE: force-app/main/default/classes/ClassName.cls
+public class ClassName {{
+    // Real implementation here
+}}
+```
+
+```xml
+// FILE: force-app/main/default/classes/ClassName.cls-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <status>Active</status>
+</ApexClass>
+```
+
+For triggers:
+```apex
+// FILE: force-app/main/default/triggers/TriggerName.trigger
+trigger TriggerName on ObjectName (before insert, after update) {{
+    // Implementation
+}}
+```
+
+## APEX RULES - MUST FOLLOW
+1. **Bulkification**: Use List<SObject>, never single records
+2. **No SOQL/DML in loops**: Query before loop, DML after
+3. **Security**: Use WITH SECURITY_ENFORCED or check permissions
+4. **Governor Limits**: Stay well under limits
+5. **Error Handling**: Try-catch with meaningful messages
+6. **No System.error()**: Use System.debug(LoggingLevel.ERROR, msg)
+7. **ASCII only**: No emojis in code or comments
+
+## GENERATE THE CODE NOW
+Implement the task with production-quality code:
+"""
+
+
+# ============================================================================
+# SPEC MODE FUNCTION
+# ============================================================================
+def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
+    """Generate specifications for SDS document (existing behavior)"""
+    
+    prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
+    
+    if rag_context:
+        prompt += f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:2000]}\n"
+    
+    print(f"🔧 Diego SPEC mode - generating specifications...", file=sys.stderr)
+    
+    start_time = time.time()
     
     if LLM_SERVICE_AVAILABLE:
-
-    
-        print(f"🤖 Calling Claude API (Haiku - apex tier)...", file=_sys.stderr)
-
-    
-        _llm_resp = generate_llm_response(
-
-    
-            prompt=full_prompt,
-
-    
-            agent_type="apex",
-
-    
-            system_prompt="You are a Salesforce Platform Developer II expert.",
-
-    
-            max_tokens=16000,
-
-    
+        response = generate_llm_response(
+            prompt=prompt,
+            provider=LLMProvider.ANTHROPIC,
+            model="claude-sonnet-4-20250514",
+            max_tokens=8000,
             temperature=0.3
-
-    
         )
-
-    
-        specifications = _llm_resp["content"]
-
-    
-        tokens_used = _llm_resp["tokens_used"]
-
-    
-        model_used = _llm_resp["model"]
-
-    
-        provider_used = _llm_resp["provider"]
-
-    
-        print(f"✅ Using {provider_used} / {model_used}", file=_sys.stderr)
-
-    
+        content = response.get('content', '')
+        tokens_used = response.get('tokens_used', 0)
+        model_used = response.get('model', 'claude-sonnet-4-20250514')
     else:
-
-    
-        response = client.chat.completions.create(
-
-    
+        from openai import OpenAI
+        client = OpenAI()
+        resp = client.chat.completions.create(
             model="gpt-4o-mini",
-
-    
-            messages=[
-
-    
-                {"role": "system", "content": "You are a Salesforce Platform Developer II expert."},
-
-    
-                {"role": "user", "content": full_prompt}
-
-    
-            ],
-
-    
-            max_tokens=16000,
-
-    
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=8000,
             temperature=0.3
-
-    
         )
-
-    
-        specifications = response.choices[0].message.content
-
-    
-        tokens_used = response.usage.total_tokens
-
-    
+        content = resp.choices[0].message.content
+        tokens_used = resp.usage.total_tokens
         model_used = "gpt-4o-mini"
-
-    
-        provider_used = "openai"
-    
-    sections = []
-    current_section = None
-    
-    for line in specifications.split('\n'):
-        if line.startswith('#'):
-            level = len(line) - len(line.lstrip('#'))
-            title = line.lstrip('#').strip()
-            current_section = {
-                "title": title,
-                "level": level,
-                "content": ""
-            }
-            sections.append(current_section)
-        elif current_section:
-            current_section["content"] += line + "\n"
     
     execution_time = time.time() - start_time
     
-    output = {
-        "agent_id": "apex",
+    return {
+        "agent_id": "diego",
         "agent_name": "Diego (Apex Developer)",
-        "execution_id": str(execution_id) if execution_id else "unknown",
+        "mode": "spec",
+        "execution_id": str(execution_id),
         "project_id": project_name,
         "deliverable_type": "apex_specification",
         "content": {
-            "raw_markdown": specifications,
-            "sections": sections
+            "raw_markdown": content,
+            "sections": _parse_sections(content)
         },
         "metadata": {
             "tokens_used": tokens_used,
             "model": model_used,
-            "provider": provider_used,
             "execution_time_seconds": round(execution_time, 2),
-            "content_length": len(specifications),
-            "sections_count": len(sections),
             "generated_at": datetime.now().isoformat()
         }
     }
-    
-    output_dir = Path(__file__).parent.parent.parent / "outputs"
-    output_dir.mkdir(exist_ok=True)
-    
-    output_file = f"{project_name}_{execution_id}_apex.json"
-    output_path = output_dir / output_file
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)
-    
-    print(f"✅ JSON generated: {output_file}")
-    print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s")
-    
-    return output
 
+
+# ============================================================================
+# BUILD MODE FUNCTION
+# ============================================================================
+def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "") -> dict:
+    """Generate real, deployable Apex code for a WBS task"""
+    
+    task_id = task.get('task_id', 'UNKNOWN')
+    task_name = task.get('name', task.get('title', 'Unnamed Task'))
+    task_description = task.get('description', '')
+    validation_criteria = task.get('validation_criteria', task.get('acceptance_criteria', []))
+    
+    if isinstance(validation_criteria, list):
+        validation_criteria = '\n'.join(f"- {c}" for c in validation_criteria)
+    
+    # Add correction context if retry
+    correction_context = ""
+    if previous_feedback:
+        correction_context = f"""
+## ⚠️ CORRECTION NEEDED - PREVIOUS ATTEMPT FAILED
+Elena (QA) reviewed your code and found issues:
+{previous_feedback}
+
+YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
+"""
+    
+    prompt = BUILD_PROMPT.format(
+        task_id=task_id,
+        task_name=task_name,
+        task_description=task_description,
+        architecture_context=architecture_context[:10000],
+        validation_criteria=validation_criteria
+    )
+    
+    if correction_context:
+        prompt += correction_context
+    
+    if rag_context:
+        prompt += f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+    
+    print(f"🔧 Diego BUILD mode - generating code for {task_id}...", file=sys.stderr)
+    
+    start_time = time.time()
+    
+    if LLM_SERVICE_AVAILABLE:
+        response = generate_llm_response(
+            prompt=prompt,
+            provider=LLMProvider.ANTHROPIC,
+            model="claude-sonnet-4-20250514",
+            max_tokens=8000,
+            temperature=0.2  # Lower for more deterministic code
+        )
+        content = response.get('content', '')
+        tokens_used = response.get('tokens_used', 0)
+        model_used = response.get('model', 'claude-sonnet-4-20250514')
+    else:
+        from openai import OpenAI
+        client = OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=8000,
+            temperature=0.2
+        )
+        content = resp.choices[0].message.content
+        tokens_used = resp.usage.total_tokens
+        model_used = "gpt-4o-mini"
+    
+    execution_time = time.time() - start_time
+    
+    # Parse generated files from response
+    files = _parse_code_files(content)
+    
+    print(f"✅ Generated {len(files)} file(s) in {execution_time:.1f}s", file=sys.stderr)
+    
+    return {
+        "agent_id": "diego",
+        "agent_name": "Diego (Apex Developer)",
+        "mode": "build",
+        "task_id": task_id,
+        "execution_id": str(execution_id),
+        "deliverable_type": "apex_code",
+        "success": len(files) > 0,
+        "content": {
+            "raw_response": content,
+            "files": files,
+            "file_count": len(files)
+        },
+        "metadata": {
+            "tokens_used": tokens_used,
+            "model": model_used,
+            "execution_time_seconds": round(execution_time, 2),
+            "generated_at": datetime.now().isoformat()
+        }
+    }
+
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+def _parse_sections(content: str) -> list:
+    """Parse markdown sections"""
+    sections = []
+    current = None
+    for line in content.split('\n'):
+        if line.startswith('#'):
+            level = len(line) - len(line.lstrip('#'))
+            title = line.lstrip('#').strip()
+            current = {"title": title, "level": level, "content": ""}
+            sections.append(current)
+        elif current:
+            current["content"] += line + "\n"
+    return sections
+
+
+def _parse_code_files(content: str) -> dict:
+    """Parse code blocks with FILE: comments into {path: content} dict"""
+    import re
+    files = {}
+    
+    # Pattern: ```lang\n// FILE: path\ncode```
+    patterns = [
+        r'```(?:apex|cls|trigger)\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
+        r'```(?:xml)\s*\n(?://|<!--)\s*FILE:\s*(\S+?)(?:\s*-->)?\s*\n(.*?)```',
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+        for filepath, code in matches:
+            filepath = filepath.strip()
+            code = code.strip()
+            if filepath and code:
+                files[filepath] = code
+                print(f"  📄 Parsed: {filepath}", file=sys.stderr)
+    
+    return files
+
+
+# ============================================================================
+# MAIN
+# ============================================================================
+def main():
+    parser = argparse.ArgumentParser(description='Diego - Apex Developer Agent (Dual Mode)')
+    parser.add_argument('--mode', required=True, choices=['spec', 'build'],
+                        help='spec: Specifications for SDS | build: Real code for WBS task')
+    parser.add_argument('--input', required=True, help='Input file (requirements or task JSON)')
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', default='0', help='Execution ID')
+    parser.add_argument('--project-id', default='unknown', help='Project ID')
+    parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG context')
+    
+    args = parser.parse_args()
+    
+    try:
+        # Read input
+        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_content = f.read()
+        
+        # Get RAG context
+        rag_context = ""
+        if args.use_rag and RAG_AVAILABLE:
+            try:
+                query = "Apex best practices bulkification governor limits security"
+                rag_context = get_salesforce_context(query, n_results=3, agent_type="apex_developer")
+                print(f"📚 RAG context: {len(rag_context)} chars", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ RAG error: {e}", file=sys.stderr)
+        
+        # Execute based on mode
+        if args.mode == 'spec':
+            result = generate_spec(
+                requirements=input_content,
+                project_name=args.project_id,
+                execution_id=args.execution_id,
+                rag_context=rag_context
+            )
+        else:  # build
+            # Parse input as JSON for build mode
+            try:
+                input_data = json.loads(input_content)
+            except json.JSONDecodeError:
+                input_data = {"task": {"name": "Task", "description": input_content}}
+            
+            task = input_data.get('task', input_data)
+            architecture = input_data.get('architecture_context', input_data.get('context', ''))
+            
+            previous_feedback = input_data.get('previous_feedback', '')
+            result = generate_build(
+                task=task,
+                architecture_context=architecture,
+                execution_id=args.execution_id,
+                rag_context=rag_context,
+                previous_feedback=previous_feedback
+            )
+        
+        # Write output
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Output written to {args.output}", file=sys.stderr)
+        
+        # Also print summary to stdout for agent_executor
+        print(json.dumps({"success": True, "mode": args.mode, "output": args.output}))
+        
+    except Exception as e:
+        error_result = {
+            "agent_id": "diego",
+            "mode": args.mode,
+            "success": False,
+            "error": str(e)
+        }
+        with open(args.output, 'w') as f:
+            json.dump(error_result, f, indent=2)
+        print(json.dumps({"success": False, "error": str(e)}))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True, help='Input requirements file')
-    parser.add_argument('--output', required=True, help='Output JSON file path')
-    parser.add_argument('--execution-id', required=True, help='Execution ID')
-    parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG for Salesforce context')
-    parser.add_argument('--project-id', default='unknown', help='Project ID')
-    args = parser.parse_args()
-    
-    with open(args.input, 'r') as f:
-        requirements = f.read()
-    # Get RAG context for Salesforce expertise
-    rag_context = ""
-    if args.use_rag and RAG_AVAILABLE:
-        try:
-            # Build query from input content
-            query_text = requirements[:500] if isinstance(requirements, str) else str(requirements)[:500]
-            query = f"Salesforce best practices {query_text[:200]}"
-            print(f"🔍 Querying RAG for expert context...", file=sys.stderr)
-            rag_context = get_salesforce_context(query, n_results=5, agent_type="apex_developer")
-            print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
-        except Exception as e:
-            print(f"⚠️ RAG error: {e}", file=sys.stderr)
-            rag_context = ""
-    
-    # Inject RAG context into requirements
-    if rag_context:
-        requirements = f"{requirements}\n\n{rag_context}"
-
-    
-    # CRITICAL: Truncate input to avoid token overflow
-    MAX_INPUT_CHARS = 30000
-    if len(requirements) > MAX_INPUT_CHARS:
-        print(f"⚠️ Input truncated from {len(requirements)} to {MAX_INPUT_CHARS} chars", file=sys.stderr)
-        requirements = requirements[:MAX_INPUT_CHARS] + "\n\n[... TRUNCATED FOR TOKEN LIMIT ...]"
-    
-    result = main(requirements, args.project_id, args.execution_id)
-    print(f"✅ Generated: {result['metadata']['content_length']} chars")
+    main()

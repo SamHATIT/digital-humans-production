@@ -595,3 +595,116 @@ def get_agent_executor() -> AgentExecutor:
     if _executor is None:
         _executor = AgentExecutor()
     return _executor
+
+
+# ============================================================================
+# BUILD MODE: Run agent synchronously (for IncrementalExecutor)
+# ============================================================================
+
+async def run_agent_task(
+    agent_id: str,
+    mode: str,
+    input_data: dict,
+    execution_id: int = 0,
+    project_id: int = 0,
+    timeout: int = 300
+) -> dict:
+    """
+    Run an agent in build mode and return the result.
+    Used by IncrementalExecutor for BUILD phase.
+    
+    Args:
+        agent_id: Agent identifier (diego, zara, raj, aisha, elena)
+        mode: Agent mode (spec, build, test)
+        input_data: Input data dict for the agent
+        execution_id: Current execution ID
+        project_id: Current project ID
+        timeout: Timeout in seconds
+        
+    Returns:
+        dict with success, files, and agent output
+    """
+    import tempfile
+    import subprocess
+    import asyncio
+    
+    config = AGENT_CONFIG.get(agent_id)
+    if not config:
+        return {"success": False, "error": f"Unknown agent: {agent_id}"}
+    
+    script_path = AGENTS_PATH / config["script"]
+    if not script_path.exists():
+        return {"success": False, "error": f"Script not found: {script_path}"}
+    
+    logger.info(f"[run_agent_task] Running {agent_id} in {mode} mode")
+    
+    try:
+        # Create temp files for input/output
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(input_data, f, ensure_ascii=False)
+            input_file = f.name
+        
+        output_file = tempfile.mktemp(suffix='.json')
+        
+        # Build command
+        cmd = [
+            "python3",
+            str(script_path),
+            "--mode", mode,
+            "--input", input_file,
+            "--output", output_file,
+            "--execution-id", str(execution_id),
+            "--project-id", str(project_id),
+            "--use-rag"
+        ]
+        
+        logger.info(f"[run_agent_task] Command: {' '.join(cmd)}")
+        
+        # Run subprocess
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd="/app"
+        )
+        
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            return {"success": False, "error": f"Agent {agent_id} timed out after {timeout}s"}
+        
+        # Log stderr
+        if stderr:
+            for line in stderr.decode().split('\n'):
+                if line.strip():
+                    logger.info(f"[{agent_id}] {line.strip()}")
+        
+        # Read output file
+        if os.path.exists(output_file):
+            with open(output_file, 'r') as f:
+                result = json.load(f)
+            
+            # Clean up
+            os.unlink(input_file)
+            os.unlink(output_file)
+            
+            # Ensure success flag
+            result["success"] = result.get("success", True)
+            logger.info(f"[run_agent_task] {agent_id} completed: {result.get('success')}")
+            return result
+        else:
+            os.unlink(input_file)
+            return {
+                "success": False,
+                "error": f"No output file from {agent_id}",
+                "stdout": stdout.decode() if stdout else "",
+                "stderr": stderr.decode() if stderr else ""
+            }
+            
+    except Exception as e:
+        logger.error(f"[run_agent_task] Error: {str(e)}")
+        return {"success": False, "error": str(e)}

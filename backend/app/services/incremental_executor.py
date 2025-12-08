@@ -283,6 +283,7 @@ class IncrementalExecutor:
             Dict with success status and details
         """
         from app.services.sfdx_service import get_sfdx_service
+        from app.services.agent_executor import run_agent_task
         from app.services.git_service import GitService
         
         logger.info(f"[IncrementalExecutor] ══════════════════════════════════════")
@@ -344,29 +345,37 @@ class IncrementalExecutor:
             logger.info(f"[Step 2] ✅ Deployed {len(deploy_results)} file(s)")
             
             # ════════════════════════════════════════════════════════════════
-            # STEP 3: Run tests with Elena
+            # STEP 3: Validate code with Elena (QA)
             # ════════════════════════════════════════════════════════════════
-            logger.info(f"[Step 3] Running tests (Elena)...")
+            logger.info(f"[Step 3] Validating code with Elena...")
             self.update_task_status(task, TaskStatus.TESTING)
             
-            # Find related test classes
-            test_classes = self._find_test_classes_for_task(task, generated_files)
+            # Call Elena in test mode
+            elena_input = {
+                "task": {
+                    "task_id": task.task_id,
+                    "name": task.task_name
+                },
+                "code_files": generated_files
+            }
             
-            if test_classes:
-                test_result = await sfdx.run_tests(test_classes=test_classes)
-            else:
-                # Run all local tests if no specific tests found
-                test_result = await sfdx.run_tests()
+            elena_result = await run_agent_task(
+                agent_id="elena",
+                mode="test",
+                input_data=elena_input,
+                execution_id=self.execution_id,
+                timeout=180
+            )
             
-            task.test_result = test_result
+            task.test_result = elena_result.get("content", {})
             self.db.commit()
             
-            if not test_result.get("success") or test_result.get("failing", 0) > 0:
-                error = f"Tests failed: {test_result.get('failing', 0)} failures"
-                logger.warning(f"[Step 3] ⚠️ {error}")
-                return await self._handle_task_failure(task, error, "testing")
+            if not elena_result.get("success") or elena_result.get("verdict") == "FAIL":
+                feedback = elena_result.get("feedback", "Code validation failed")
+                logger.warning(f"[Step 3] ❌ Elena FAIL: {feedback[:100]}")
+                return await self._handle_task_failure(task, feedback, "testing")
             
-            logger.info(f"[Step 3] ✅ Tests passed: {test_result.get('passing', 0)}/{test_result.get('tests_run', 0)}")
+            logger.info(f"[Step 3] ✅ Elena PASS - code validated")
             self.update_task_status(task, TaskStatus.PASSED)
             
             # ════════════════════════════════════════════════════════════════
@@ -420,22 +429,94 @@ class IncrementalExecutor:
     
     async def _generate_code_for_task(self, task: TaskExecution) -> Dict[str, Any]:
         """
-        Call the appropriate agent to generate code for this task.
+        Call the appropriate agent (via run_agent_task) to generate code for this task.
+        Uses agent scripts in BUILD mode.
         
         Returns:
-            Dict with 'files': {path: content} mapping
+            Dict with 'success' and 'files': {path: content} mapping
         """
-        # TODO: Integrate with actual agent execution
-        # For now, return placeholder
-        logger.info(f"[CodeGen] Would call agent {task.assigned_agent} for task {task.task_id}")
+        from app.services.agent_executor import run_agent_task
         
-        # Placeholder - actual implementation will call agent service
-        return {
-            "success": True,
-            "files": {},  # Empty for now - agents will populate
-            "message": "Placeholder - agent integration pending"
+        logger.info(f"[CodeGen] Calling {task.assigned_agent} in BUILD mode for task {task.task_id}")
+        
+        # Get architecture context from previous agents
+        architecture_context = self._get_architecture_context()
+        
+        # Build input data for the agent
+        input_data = {
+            "task": {
+                "task_id": task.task_id,
+                "name": task.task_name,
+                "title": task.task_name,
+                "description": task.task_name,
+                "phase": task.phase_name,
+                "validation_criteria": []
+            },
+            "architecture_context": architecture_context,
+            "execution_id": self.execution_id
         }
+        
+        # If retry, include Elena's feedback for correction
+        if task.attempt_count > 0 and task.last_error:
+            logger.info(f"[CodeGen] Retry #{task.attempt_count} - including Elena feedback")
+            input_data["previous_feedback"] = task.last_error
+            input_data["task"]["correction_needed"] = True
+        
+        # Map to agent scripts (diego, zara, raj, aisha have build mode)
+        build_agents = ["diego", "zara", "raj", "aisha"]
+        
+        if task.assigned_agent not in build_agents:
+            logger.info(f"[CodeGen] {task.assigned_agent} is not a build agent, skipping")
+            return {"success": True, "files": {}, "message": f"No code generation for {task.assigned_agent}"}
+        
+        try:
+            result = await run_agent_task(
+                agent_id=task.assigned_agent,
+                mode="build",
+                input_data=input_data,
+                execution_id=self.execution_id,
+                project_id=0,
+                timeout=300
+            )
+            
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Agent failed"),
+                    "files": {}
+                }
+            
+            files = result.get("content", {}).get("files", {})
+            logger.info(f"[CodeGen] {task.assigned_agent} generated {len(files)} file(s)")
+            
+            return {"success": True, "files": files, "agent_result": result}
+            
+        except Exception as e:
+            logger.error(f"[CodeGen] Error calling {task.assigned_agent}: {str(e)}")
+            return {"success": False, "error": str(e), "files": {}}
     
+    def _get_architecture_context(self) -> str:
+        """Get architecture context from Marcus/Olivia artifacts."""
+        try:
+            from app.models.execution_artifact import ExecutionArtifact
+            
+            artifacts = self.db.query(ExecutionArtifact).filter(
+                ExecutionArtifact.execution_id == self.execution_id,
+                ExecutionArtifact.producer_agent.in_(["marcus", "olivia"])
+            ).all()
+            
+            context_parts = []
+            for artifact in artifacts:
+                content = artifact.content
+                if isinstance(content, dict):
+                    content = json.dumps(content, indent=2)
+                context_parts.append(f"### {artifact.producer_agent.upper()}:\n{content[:5000]}")
+            
+            return "\n\n".join(context_parts) if context_parts else ""
+        except Exception as e:
+            logger.warning(f"[CodeGen] Could not get context: {e}")
+            return ""
+
     async def _handle_task_failure(
         self, 
         task: TaskExecution, 
@@ -605,7 +686,8 @@ class IncrementalExecutor:
         Returns:
             Dict with package info and deployment result
         """
-        from app.services.sfdx_service import get_sfdx_service, SFDXService
+        from app.services.sfdx_service import get_sfdx_service
+        from app.services.agent_executor import run_agent_task, SFDXService
         import zipfile
         import tempfile
         

@@ -980,8 +980,8 @@ async def start_build_phase(
     
     db.commit()
     
-    # TODO: Start background task for BUILD execution
-    # asyncio.create_task(execute_build_phase(db, execution.id))
+    # Start BUILD execution in background
+    asyncio.create_task(execute_build_phase(execution.id))
     
     return {
         "message": f"BUILD phase started with {created_tasks} tasks",
@@ -1340,3 +1340,124 @@ async def get_retry_info(
         "failed_tasks": task_summary["failed"],
         "resume_point": "build_tasks" if task_summary["failed"] else ("phase2" if "pm" in completed_phases else "phase1")
     }
+
+
+# ==================== BUILD PHASE EXECUTION ====================
+
+async def execute_build_phase(execution_id: int):
+    """
+    Background task to execute all BUILD phase tasks.
+    Uses IncrementalExecutor to run each task through the full cycle:
+    Agent → SFDX Deploy → Elena Tests → Git Commit
+    """
+    from app.database import SessionLocal
+    from app.services.incremental_executor import IncrementalExecutor
+    from app.models.execution import Execution, ExecutionStatus
+    from app.models.project import Project, ProjectStatus
+    
+    logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
+    logger.info(f"[BUILD] Starting BUILD phase for execution {execution_id}")
+    
+    db = SessionLocal()
+    
+    try:
+        # Get execution
+        execution = db.query(Execution).filter(Execution.id == execution_id).first()
+        if not execution:
+            logger.error(f"[BUILD] Execution {execution_id} not found")
+            return
+        
+        # Update execution status
+        execution.status = ExecutionStatus.RUNNING
+        db.commit()
+        
+        # Initialize IncrementalExecutor
+        executor = IncrementalExecutor(db, execution_id)
+        
+        # Execute tasks one by one
+        tasks_completed = 0
+        tasks_failed = 0
+        
+        while True:
+            # Get next available task
+            next_task = executor.get_next_task()
+            
+            if next_task is None:
+                # No more tasks or all blocked
+                if executor.is_build_complete():
+                    logger.info(f"[BUILD] ✅ All tasks completed!")
+                    break
+                else:
+                    # Check if we have blocked tasks only
+                    summary = executor.get_task_summary()
+                    if summary["blocked"] > 0 and summary["pending"] == 0:
+                        logger.warning(f"[BUILD] ⚠️ {summary['blocked']} tasks blocked - cannot continue")
+                        break
+                    logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['completed']}, blocked: {summary['blocked']})")
+                    await asyncio.sleep(2)
+                    continue
+            
+            # Execute task
+            logger.info(f"[BUILD] ────────────────────────────────────────────")
+            logger.info(f"[BUILD] Processing task {tasks_completed + 1}: {next_task.task_id}")
+            
+            result = await executor.execute_single_task(next_task)
+            
+            if result.get("success"):
+                tasks_completed += 1
+                logger.info(f"[BUILD] ✅ Task {next_task.task_id} completed ({tasks_completed} done)")
+            else:
+                tasks_failed += 1
+                logger.error(f"[BUILD] ❌ Task {next_task.task_id} failed: {result.get('error')}")
+                
+                # Check if we should continue despite failure
+                if tasks_failed > 5:
+                    logger.error(f"[BUILD] Too many failures ({tasks_failed}), stopping BUILD")
+                    break
+            
+            # Small delay between tasks
+            await asyncio.sleep(1)
+        
+        # Finalize build
+        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
+        logger.info(f"[BUILD] Finalizing BUILD phase...")
+        
+        summary = executor.get_task_summary()
+        
+        if summary["failed"] == 0 and summary["completed"] == summary["total"]:
+            # All tasks passed - finalize
+            finalize_result = await executor.finalize_build()
+            
+            # Update project and execution status
+            project = db.query(Project).filter(Project.id == execution.project_id).first()
+            if project:
+                project.status = ProjectStatus.BUILD_COMPLETED
+            execution.status = ExecutionStatus.COMPLETED
+            
+            logger.info(f"[BUILD] ✅ BUILD phase COMPLETED successfully")
+            logger.info(f"[BUILD]    - Tasks completed: {summary['completed']}")
+            logger.info(f"[BUILD]    - Package: {finalize_result.get('package_path', 'N/A')}")
+        else:
+            # Some failures
+            execution.status = ExecutionStatus.FAILED
+            logger.warning(f"[BUILD] ⚠️ BUILD phase finished with issues")
+            logger.warning(f"[BUILD]    - Completed: {summary['completed']}/{summary['total']}")
+            logger.warning(f"[BUILD]    - Failed: {summary['failed']}")
+        
+        db.commit()
+        
+    except Exception as e:
+        logger.error(f"[BUILD] ❌ BUILD phase exception: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        
+        try:
+            execution = db.query(Execution).filter(Execution.id == execution_id).first()
+            if execution:
+                execution.status = ExecutionStatus.FAILED
+                db.commit()
+        except:
+            pass
+    finally:
+        db.close()
+        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
