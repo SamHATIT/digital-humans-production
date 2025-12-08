@@ -75,3 +75,7 @@ agents/backups/
 # Compiled files
 *.pyc
 *.pyo
+-e 
+# Exception pour les fichiers de suivi du projet
+!PROGRESS.log
+!features.json
