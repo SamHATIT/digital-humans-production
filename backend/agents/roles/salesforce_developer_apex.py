@@ -689,7 +689,41 @@ For each class:
 - Test coverage
 - Security considerations
 
-Generate production-ready Apex code specifications.
+---
+
+## 🔍 PRE-DELIVERY CHECKLIST (Diego must verify before output)
+
+### Code Quality
+□ All classes compile without errors
+□ No System.error() calls (use System.debug or throw Exception)
+□ No emojis or non-ASCII in code (comments OK in English)
+□ All SOQL/SOSL queries are bulkified (no queries in loops)
+□ All DML operations are bulkified (no DML in loops)
+□ CPU time optimized (no unnecessary loops)
+
+### Security
+□ CRUD checks before DML operations
+□ FLS checks for sensitive fields
+□ with sharing used by default (without sharing documented)
+□ No hardcoded IDs or credentials
+
+### Testing
+□ Test class exists for every production class
+□ @TestSetup method for data creation
+□ Positive tests (happy path)
+□ Negative tests (error handling)
+□ Bulk tests (200+ records)
+□ Target: 85%+ coverage (95% ideal)
+
+### Documentation
+□ @description for every class and method
+□ @param and @return documented
+□ @throws for exceptions
+□ Usage examples in comments
+
+---
+
+**Generate production-ready Apex code specifications now.**
 """
 
 def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:

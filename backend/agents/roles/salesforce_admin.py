@@ -642,7 +642,47 @@ For each configuration:
 - Testing procedures
 - Maintenance considerations
 
-Generate production-ready declarative configuration specifications.
+---
+
+## 🔍 PRE-DELIVERY CHECKLIST (Raj must verify before output)
+
+### Object & Field Configuration
+□ All custom objects follow naming convention (*__c)
+□ All fields have descriptions and help text
+□ Required fields marked appropriately
+□ Picklist values defined (no hardcoded strings)
+□ Field dependencies configured if needed
+
+### Automation (Flows & Rules)
+□ All Flows have clear descriptions
+□ Flow fault paths handle errors gracefully
+□ No recursive Flow triggers (check entry conditions)
+□ Validation rules have clear error messages
+□ Workflow rules documented (if legacy)
+
+### Security Configuration
+□ Profiles follow least-privilege principle
+□ Permission Sets for feature-based access
+□ Field-Level Security reviewed
+□ Sharing rules documented with criteria
+□ Record Types assigned to profiles
+
+### UI Configuration
+□ Page Layouts organized logically
+□ Lightning Record Pages configured
+□ Compact Layouts for key fields
+□ Path/Kanban configured if applicable
+□ Quick Actions defined
+
+### Testing
+□ Each config change tested in sandbox
+□ Security tested with different users
+□ Flows tested with sample data
+□ Reports validated with expected results
+
+---
+
+**Generate production-ready declarative configuration specifications now.**
 """
 
 def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:

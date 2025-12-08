@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "completed": 18,
+      "completed": 24,
       "in_progress": 0,
-      "not_started": 59,
+      "not_started": 53,
       "blocked": 0
     }
   },
@@ -315,7 +315,7 @@
       "title": "Tuning prompt Olivia - UCs structurés",
       "description": "Optimiser le prompt d'Olivia pour générer des UCs plus structurés et moins verbeux",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "UCs suivent un template strict",
         "Pas de contenu redondant entre UCs",
@@ -326,7 +326,7 @@
         "backend/app/services/prompts/olivia_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. Prompt Olivia restructuré: template JSON strict, limites (6 steps, 3 alt_flows, 4 criteria), format GIVEN/WHEN/THEN, anti-patterns documentés."
     },
     {
       "id": "PRPT-03",
@@ -334,7 +334,7 @@
       "title": "Tuning prompt Marcus - WBS enrichi",
       "description": "Modifier le prompt de Marcus pour générer un WBS avec critères de validation et agents assignés",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Chaque tâche WBS a des critères de validation explicites",
         "Chaque tâche indique quel(s) agent(s) la réalise",
@@ -345,7 +345,7 @@
         "backend/app/services/prompts/marcus_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Base du mode incrémental"
+      "notes": "Implémenté 08/12/2025. Prompt WBS enrichi: validation_criteria obligatoires (DONE WHEN/VERIFIED BY), table agents, règles assignation strictes, format JSON détaillé."
     },
     {
       "id": "PRPT-04",
@@ -353,7 +353,7 @@
       "title": "Tester et tuner prompt Diego (Apex)",
       "description": "Tester le prompt Diego sur des cas réels et ajuster pour la qualité du code généré",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Code Apex généré compile sans erreur",
         "Tests unitaires inclus",
@@ -366,7 +366,7 @@
         "backend/app/services/prompts/diego_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Prompt jamais testé en conditions réelles"
+      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Code Quality, Security, Testing, Documentation. Vérifications obligatoires avant output."
     },
     {
       "id": "PRPT-05",
@@ -374,7 +374,7 @@
       "title": "Tester et tuner prompt Zara (LWC)",
       "description": "Tester le prompt Zara sur des cas réels et ajuster pour la qualité des composants générés",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Composants LWC valides et déployables",
         "HTML/CSS/JS bien structurés",
@@ -387,7 +387,7 @@
         "backend/app/services/prompts/zara_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Prompt jamais testé en conditions réelles"
+      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Component Quality, Salesforce Integration, Accessibility (WCAG 2.1), Testing, Performance."
     },
     {
       "id": "PRPT-06",
@@ -395,7 +395,7 @@
       "title": "Tester et tuner prompt Raj (Admin)",
       "description": "Tester le prompt Raj sur des cas réels et ajuster pour la qualité des configurations",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Métadonnées XML valides",
         "Flows fonctionnels",
@@ -408,7 +408,7 @@
         "backend/app/services/prompts/raj_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Prompt jamais testé en conditions réelles"
+      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Object & Field Config, Automation, Security, UI Config, Testing."
     },
     {
       "id": "PRPT-07",
@@ -416,7 +416,7 @@
       "title": "Configurer Lucas 2 modes (SDS + Delivery)",
       "description": "Implémenter les deux modes de Lucas : stratégie formation (SDS) et supports formation (Delivery)",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Mode SDS génère plan de formation stratégique",
         "Mode Delivery génère supports concrets (guides, vidéos scripts)",
@@ -428,7 +428,7 @@
         "backend/app/services/agent_executor.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. Lucas refactorisé avec 2 modes: sds_strategy (plan formation pour SDS) et delivery (supports concrets). Orchestrateur modifié pour passer mode=sds_strategy."
     },
     {
       "id": "FRNT-01",

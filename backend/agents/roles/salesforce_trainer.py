@@ -1,485 +1,365 @@
 #!/usr/bin/env python3
-"""Salesforce Trainer Agent - Professional Version"""
+"""
+Salesforce Trainer (Lucas) Agent - Two Modes
+Mode 1: sds_strategy - Training Strategy for SDS document
+Mode 2: delivery - Concrete training materials (guides, video scripts)
+"""
 import os, sys, argparse, json
 from pathlib import Path
 from datetime import datetime
-# LLM imports - supports both OpenAI and Anthropic
-import sys as _sys
-_sys.path.insert(0, "/app")
+import time
+
+# LLM imports
+sys.path.insert(0, "/app")
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
-# RAG Service for Salesforce expert context
+
+# RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
 
-from openai import OpenAI
-import time
-# from docx import Document
 
-TRAINER_PROMPT = """# 🎓 SALESFORCE TRAINER V3 PROFESSIONAL
+# ============================================================================
+# MODE 1: SDS STRATEGY - Training & Adoption Strategy for SDS
+# ============================================================================
+def get_sds_strategy_prompt(solution_design: str, use_cases: str) -> str:
+    return f'''# 🎓 TRAINING & ADOPTION STRATEGY (SDS Section)
 
-You are a **Salesforce Certified Instructor** expert in user adoption, change management, and training delivery. Generate comprehensive, engaging training materials that drive user adoption.
+You are **Lucas**, a Salesforce Certified Instructor and Change Management expert.
 
-## PRIMARY OBJECTIVE
-Create a **complete Training & Adoption package** (80-120 pages) covering training strategy, user guides, video scripts, exercises, job aids, FAQs, certification materials, and adoption metrics.
+## MISSION
+Generate the **Training & Adoption Strategy** section for the Solution Design Specification.
+This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
 
-## DELIVERABLES REQUIRED
+## INPUT CONTEXT
+### Solution Design Summary
+{solution_design[:3000]}
 
-### 1. TRAINING STRATEGY (12 pages)
-Define training approach (role-based, phased rollout), audience segmentation (Sales/Service/Management/Admin), training delivery methods (virtual, in-person, self-paced), timeline with 4-week schedule, resource requirements, and success metrics.
+### Key Use Cases
+{use_cases[:2000]}
 
-### 2. COMPREHENSIVE USER GUIDES (25 pages)
+## OUTPUT FORMAT (JSON)
 
-#### Quick Start Guide (Sales Rep) - 8 pages
-1. Logging In and Navigation (2 pages)
-2. Managing Leads (2 pages)
-3. Converting to Opportunities (2 pages)
-4. Closing Deals (2 pages)
-
-Each section includes:
-- Step-by-step instructions with screenshots placeholders
-- Tips and best practices
-- Common mistakes to avoid
-- Quick reference
-
-#### Advanced User Guide (Power Users) - 10 pages
-- Reports and Dashboards
-- Advanced Search
-- Mass Updates
-- Data Import/Export
-- Mobile App Usage
-
-#### Administrator Guide - 7 pages
-- User Management
-- Security Configuration
-- Customization Basics
-- Maintenance Tasks
-- Troubleshooting
-
-### 3. VIDEO TRAINING SCRIPTS (15 pages)
-Provide complete scripts for 10 training videos (5-10 minutes each):
-
-**Video 1: Welcome to Salesforce** (10 min)
-```
-[INTRO - 0:00-0:30]
-Visual: Salesforce logo animation
-Narrator: "Welcome to Salesforce! I'm excited to show you how this powerful platform will transform the way you work..."
-
-[SECTION 1: Dashboard Overview - 0:30-3:00]
-Visual: Screen recording of dashboard
-Narrator: "When you first log in, you'll see your personalized dashboard. Let's explore what each section means..."
-[Point to metrics] "Here you can see your pipeline value..."
-
-[SECTION 2: Navigation - 3:00-6:00]
-Visual: Clicking through different tabs
-Narrator: "The navigation bar at the top gives you quick access to all key areas..."
-
-[SECTION 3: Creating Your First Lead - 6:00-9:00]
-Visual: Step-by-step lead creation
-Narrator: "Let's create your first lead. Click the New button on the Leads tab..."
-
-[OUTRO - 9:00-10:00]
-Visual: Summary slide
-Narrator: "Congratulations! You've completed the basics. Next, we'll dive into opportunity management..."
-```
-
-Include 10 complete video scripts with timestamps, visuals, narration, and on-screen actions.
-
-### 4. HANDS-ON TRAINING EXERCISES (12 pages)
-Provide 20+ practical exercises:
-
-**Exercise 1: Create and Convert a Lead**
-- Difficulty: Beginner
-- Duration: 15 minutes
-- Scenario: "Sarah contacted us about our Premium Package..."
-- Steps:
-  1. Create new Lead with provided details
-  2. Update Lead Status to Qualified
-  3. Convert Lead to Account, Contact, Opportunity
-  4. Verify all records created correctly
-- Expected Outcome: [Screenshots of completed records]
-- Common Issues: [Troubleshooting guide]
-
-Include exercises for all user levels and roles.
-
-### 5. JOB AIDS & QUICK REFERENCE (10 pages)
-Create printable job aids:
-
-**Opportunity Stage Guide** (1-page cheat sheet)
-```
-┌─────────────────────────────────────────┐
-│        OPPORTUNITY STAGES                │
-├─────────────────────────────────────────┤
-│ Prospecting → What: Initial contact      │
-│               Actions: Research, cold    │
-│               call                       │
-│               Required: Company name     │
-├─────────────────────────────────────────┤
-│ Qualification → What: Verify fit         │
-│                 Actions: Discovery call  │
-│                 Required: Budget, Need   │
-└─────────────────────────────────────────┘
+```json
+{{
+  "artifact_id": "TRAIN-STRATEGY-001",
+  "title": "Training & Adoption Strategy",
+  "executive_summary": "2-3 sentence overview of training approach",
+  "audience_analysis": {{
+    "user_personas": [
+      {{
+        "role": "Sales Representative",
+        "count_estimate": "50-100",
+        "sf_experience": "Beginner",
+        "key_features": ["Lead Management", "Opportunity Tracking"],
+        "training_priority": "High"
+      }}
+    ],
+    "total_users_estimate": "100-200"
+  }},
+  "training_approach": {{
+    "methodology": "Blended Learning (virtual + self-paced)",
+    "phasing": [
+      {{
+        "phase": "Phase 1: Core Users",
+        "duration": "Week 1-2",
+        "audience": "Sales Reps, Service Agents",
+        "focus": "Basic navigation, daily tasks"
+      }}
+    ],
+    "delivery_methods": ["Virtual instructor-led", "Video tutorials", "Quick reference guides"]
+  }},
+  "curriculum_outline": [
+    {{
+      "module": "M1: Salesforce Fundamentals",
+      "duration": "2 hours",
+      "topics": ["Navigation", "Record management", "Search"],
+      "audience": "All users"
+    }}
+  ],
+  "adoption_metrics": {{
+    "kpis": [
+      {{
+        "metric": "Login Rate",
+        "target": ">90% weekly",
+        "measurement": "Salesforce Reports"
+      }}
+    ],
+    "success_criteria": "80% user adoption within 30 days"
+  }},
+  "change_management": {{
+    "communication_plan": "Weekly updates via email + Chatter",
+    "champions_program": "5-10 super users per department",
+    "feedback_channels": ["Chatter group", "Monthly survey"]
+  }},
+  "resource_requirements": {{
+    "trainers": "2 FTE for 4 weeks",
+    "materials": "User guides, video scripts, job aids",
+    "tools": "Salesforce Trailhead, video conferencing"
+  }},
+  "timeline": {{
+    "prep_weeks": 2,
+    "delivery_weeks": 4,
+    "reinforcement_weeks": 4,
+    "key_milestones": ["Material ready", "Pilot training", "Full rollout", "Adoption review"]
+  }},
+  "risks": [
+    {{
+      "risk": "Low user engagement",
+      "mitigation": "Gamification with badges and leaderboards"
+    }}
+  ]
+}}
 ```
 
-Include 10 job aids for different processes.
-
-### 6. FAQ DOCUMENT (8 pages)
-Provide 50+ common questions with detailed answers:
-
-**Q1: How do I reset my password?**
-A: Click "Forgot Password" on login page. Enter your username. Check email for reset link...
-
-**Q2: Why can't I see some fields on the Account?**
-A: This is due to Field-Level Security. Contact your administrator...
-
-**Q3: How do I export a report to Excel?**
-A: Open the report, click the dropdown arrow next to Edit, select Export...
-
-Group by category: Login & Access, Data Management, Reports, Common Errors, Mobile App.
-
-### 7. CERTIFICATION QUIZ (8 pages)
-Create 30-question certification quiz:
-
-**Question 1:**
-What is the correct order of Opportunity stages?
-A) Prospecting → Closed Won → Negotiation
-B) Prospecting → Qualification → Negotiation → Closed Won ✓
-C) Qualification → Prospecting → Closed Won
-D) Negotiation → Prospecting → Closed Won
-
-Include answer key with explanations.
-Passing score: 80% (24/30)
-
-### 8. TRAINING SCHEDULE (6 pages)
-Provide detailed 4-week rollout plan:
-
-**Week 1: Foundation Training**
-- Monday: Admin setup (8 hours)
-- Tuesday-Thursday: Sales team (4 hours each day)
-- Friday: Service team (4 hours)
-
-**Week 2: Role-Specific Training**
-- Monday-Wednesday: Advanced sales features
-- Thursday-Friday: Service cloud features
-
-**Week 3: Practice & Coaching**
-- Daily office hours (2 hours/day)
-- One-on-one coaching sessions
-- Sandbox practice
-
-**Week 4: Go-Live Support**
-- Day 1-2: Full-time floor support
-- Day 3-5: Scheduled support hours
-- Post-go-live survey
-
-### 9. ADOPTION METRICS (5 pages)
-Define success metrics and tracking:
-
-| Metric | Week 1 | Week 4 | Week 12 | Target |
-|--------|--------|--------|---------|--------|
-| Login Rate | 60% | 85% | 95% | > 90% |
-| Data Quality | 70% | 85% | 95% | > 90% |
-| User Satisfaction | 3.5/5 | 4.0/5 | 4.5/5 | > 4.0/5 |
-| Support Tickets | 50 | 20 | 5 | < 10 |
-
-### 10. ONGOING ENABLEMENT (4 pages)
-Plan continuous learning:
-- Monthly "Tips & Tricks" sessions
-- Quarterly advanced training
-- Champions program
-- Self-service learning portal
-- Release training for new features
-
-## TRAINING DELIVERY FORMATS
-
-**Virtual Training:**
-- Live Zoom sessions
-- Interactive polls and Q&A
-- Screen sharing demos
-- Breakout rooms for exercises
-
-**In-Person Training:**
-- Hands-on labs
-- Group exercises
-- Role-playing scenarios
-- Printed materials
-
-**Self-Paced Learning:**
-- Video library
-- Interactive tutorials
-- Knowledge checks
-- Certificates of completion
-
-## REQUIRED MATERIALS CHECKLIST
-- [ ] Training strategy document
-- [ ] 3 comprehensive user guides (Beginner/Advanced/Admin)
-- [ ] 10 complete video scripts with timestamps
-- [ ] 20+ hands-on exercises with solutions
-- [ ] 10 job aids (printable, 1-page each)
-- [ ] FAQ with 50+ questions
-- [ ] 30-question certification quiz
-- [ ] 4-week training schedule
-- [ ] Adoption metrics dashboard
-- [ ] Ongoing enablement plan
-
+## RULES
+1. Keep it STRATEGIC - no detailed step-by-step guides here
+2. Focus on WHO, WHEN, HOW MUCH - not HOW TO
+3. Realistic timelines based on user count
+4. Measurable success criteria
+5. Consider different learning styles
 
 ---
 
-## 📦 STRUCTURED ARTIFACTS OUTPUT (MANDATORY)
+**Generate the Training Strategy now. Output ONLY valid JSON.**
+'''
 
-**You MUST produce structured DOC artifacts that can be individually tracked and validated.**
 
-### Documentation Artifacts (DOC)
+# ============================================================================
+# MODE 2: DELIVERY - Concrete Training Materials
+# ============================================================================
+def get_delivery_prompt(solution_design: str, training_strategy: str) -> str:
+    return f'''# 🎓 TRAINING MATERIALS DELIVERY
 
-For each training/documentation deliverable, create a **DOC artifact** with this EXACT format:
+You are **Lucas**, a Salesforce Certified Instructor creating concrete training materials.
 
+## MISSION
+Generate **detailed, ready-to-use training materials** including user guides and video scripts.
+
+## INPUT CONTEXT
+### Solution Design
+{solution_design[:2000]}
+
+### Training Strategy
+{training_strategy[:1500]}
+
+## OUTPUT FORMAT (JSON)
+
+```json
+{{
+  "artifact_id": "TRAIN-DELIVERY-001",
+  "title": "Training Materials Package",
+  "quick_start_guide": {{
+    "title": "Quick Start Guide",
+    "audience": "All Users",
+    "sections": [
+      {{
+        "title": "1. Logging In",
+        "steps": [
+          "1. Open browser and go to [Your Salesforce URL]",
+          "2. Enter your username (email address)",
+          "3. Enter your password",
+          "4. Click 'Log In'"
+        ],
+        "tips": ["Bookmark the URL for quick access", "Use 'Remember Me' on trusted devices"],
+        "screenshot_placeholder": "[Screenshot: Login page with fields highlighted]"
+      }}
+    ],
+    "page_count": 8
+  }},
+  "role_guides": [
+    {{
+      "role": "Sales Representative",
+      "title": "Sales Rep Daily Tasks Guide",
+      "sections": [
+        {{
+          "title": "Managing Your Leads",
+          "content": "Step-by-step instructions...",
+          "best_practices": ["Review leads daily", "Update status within 24h"]
+        }}
+      ],
+      "page_count": 12
+    }}
+  ],
+  "video_scripts": [
+    {{
+      "id": "VID-001",
+      "title": "Welcome to Salesforce",
+      "duration_minutes": 5,
+      "script": {{
+        "intro": {{
+          "timestamp": "0:00-0:30",
+          "visual": "Animated logo, welcome screen",
+          "narration": "Welcome to Salesforce! In this video, you'll learn..."
+        }},
+        "sections": [
+          {{
+            "timestamp": "0:30-2:00",
+            "title": "Dashboard Overview",
+            "visual": "Screen recording: Dashboard navigation",
+            "narration": "When you log in, you'll see your personalized dashboard...",
+            "key_points": ["Pipeline metrics", "Recent records", "Tasks due today"]
+          }}
+        ],
+        "outro": {{
+          "timestamp": "4:30-5:00",
+          "visual": "Summary slide with QR code",
+          "narration": "You now know the basics! Scan this QR code for more resources.",
+          "cta": "Complete Module 1 quiz in Trailhead"
+        }}
+      }}
+    }}
+  ],
+  "job_aids": [
+    {{
+      "title": "Lead Conversion Checklist",
+      "format": "One-page PDF",
+      "content": [
+        "□ Verify contact information",
+        "□ Confirm budget range",
+        "□ Identify decision maker",
+        "□ Set next steps"
+      ]
+    }}
+  ],
+  "faq": [
+    {{
+      "question": "How do I reset my password?",
+      "answer": "Click 'Forgot Password' on login page, enter email, check inbox for reset link."
+    }}
+  ],
+  "exercises": [
+    {{
+      "title": "Exercise 1: Create Your First Lead",
+      "objective": "Practice lead creation with all required fields",
+      "steps": ["Navigate to Leads tab", "Click New", "Fill required fields", "Save"],
+      "expected_result": "New lead appears in your Recent Items"
+    }}
+  ]
+}}
 ```
-### DOC-001: [Document Title]
 
-**Type:** User Guide / Admin Guide / Training Material / Quick Reference / Video Script / FAQ
-**Related UC:** UC-001, UC-002, UC-003
-**Target Audience:** End Users / Administrators / Managers / All
-
-**Document Purpose:**
-[What users will learn from this document]
-
-**Prerequisites:**
-- [Prior knowledge required]
-- [System access needed]
-
-**Content Outline:**
-
-1. **Introduction**
-   - [Brief overview]
-
-2. **Section 1: [Topic]**
-   - [Content details]
-   - [Screenshots/diagrams needed]
-   
-3. **Section 2: [Topic]**
-   - [Content details]
-   - [Step-by-step instructions]
-
-4. **Common Issues & Solutions**
-   - [Issue 1]: [Solution]
-   - [Issue 2]: [Solution]
-
-5. **Quick Reference**
-   - [Key shortcuts/tips]
-
-**Screenshots Required:**
-- [ ] [Screenshot 1 description]
-- [ ] [Screenshot 2 description]
-
-**Estimated Reading Time:** [X minutes]
-
-**Related Documents:** DOC-002, DOC-003
+## RULES
+1. Be SPECIFIC - actual steps, not vague descriptions
+2. Include screenshot placeholders with descriptions
+3. Video scripts must have timestamps
+4. Job aids must fit on one page
+5. FAQs must answer real user questions
+6. Exercises must be hands-on
 
 ---
-```
 
-### Artifact Numbering Rules
-
-- DOC codes: DOC-001, DOC-002, DOC-003... (sequential)
-- Each DOC must reference the UCs it covers
-- Specify target audience clearly
-- Include complete content (not outlines only)
-
-### Example Structure
-
-```
-UC-001, UC-002, UC-003: Case Management
-    ├── DOC-001: User Guide - Creating and Managing Cases
-    ├── DOC-002: Quick Reference Card - Case Status Workflow
-    └── DOC-003: FAQ - Common Case Questions
-
-UC-005, UC-006, UC-007: Lead Scoring
-    ├── DOC-004: Admin Guide - Lead Scoring Configuration
-    └── DOC-005: User Guide - Understanding Your Lead Scores
-```
-
-### Documentation Matrix
-
-| UC | DOC | Type | Audience | Status |
-|----|-----|------|----------|--------|
-| UC-001 | DOC-001 | User Guide | End Users | Draft |
-| UC-001 | DOC-002 | Quick Reference | End Users | Draft |
-| UC-005 | DOC-004 | Admin Guide | Admins | Draft |
+**Generate the Training Materials now. Output ONLY valid JSON.**
+'''
 
 
-## QUALITY STANDARDS
-✅ Engaging and user-friendly
-✅ Role-specific content
-✅ Real-world scenarios
-✅ Complete video scripts with timestamps
-✅ Printable job aids
-✅ Measurable adoption metrics
-✅ 80-120 pages comprehensive package
-
-## CONTEXT
-{context}
-
-Generate this Training package for: {current_date}
-"""
-
-def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:
-    """Generate JSON specifications instead of .docx"""
-    start_time = time.time()
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+def main():
+    parser = argparse.ArgumentParser(description='Lucas Trainer Agent - Two Modes')
+    parser.add_argument('--mode', required=True, choices=['sds_strategy', 'delivery'],
+                        help='sds_strategy: Training strategy for SDS | delivery: Concrete materials')
+    parser.add_argument('--input', required=True, help='Input JSON file')
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', type=int, default=0)
+    parser.add_argument('--project-id', type=int, default=0)
+    parser.add_argument('--use-rag', action='store_true', default=True)
     
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable not set")
+    args = parser.parse_args()
     
-    client = OpenAI(api_key=api_key)
-    
-    full_prompt = f"""{TRAINER_PROMPT}
-
----
-
-## REQUIREMENTS TO ANALYZE:
-
-{requirements}
-
----
-
-**Generate the complete specifications now.**
-"""
-    
-    # LLM Service (Claude Haiku for workers) with fallback
-    if LLM_SERVICE_AVAILABLE:
-        print(f"🤖 Calling Claude API (Haiku - trainer tier)...", file=_sys.stderr)
-        _llm_resp = generate_llm_response(
-            prompt=full_prompt,
-            agent_type="trainer",
-            system_prompt=TRAINER_PROMPT[:4000] if len(TRAINER_PROMPT) > 4000 else TRAINER_PROMPT,
-            max_tokens=16000,
-            temperature=0.3
-        )
-        specifications = _llm_resp["content"]
-        tokens_used = _llm_resp["tokens_used"]
-        model_used = _llm_resp["model"]
-        provider_used = _llm_resp["provider"]
-        print(f"✅ Using {provider_used} / {model_used}", file=_sys.stderr)
-    else:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": TRAINER_PROMPT},
-                {"role": "user", "content": full_prompt}
-            ],
-            max_tokens=16000,
-            temperature=0.3
-        )
-        specifications = response.choices[0].message.content
-        tokens_used = response.usage.total_tokens
-        model_used = "gpt-4o-mini"
-        provider_used = "openai"
-    
-    sections = []
-    current_section = None
-    
-    for line in specifications.split('\n'):
-        if line.startswith('#'):
-            level = len(line) - len(line.lstrip('#'))
-            title = line.lstrip('#').strip()
-            current_section = {
-                "title": title,
-                "level": level,
-                "content": ""
-            }
-            sections.append(current_section)
-        elif current_section:
-            current_section["content"] += line + "\n"
-    
-    execution_time = time.time() - start_time
-    
-    output = {
-        "agent_id": "trainer",
-        "agent_name": "Lucas (Trainer)",
-        "execution_id": str(execution_id) if execution_id else "unknown",
-        "project_id": project_name,
-        "deliverable_type": "trainer_specification",
-        "content": {
-            "raw_markdown": specifications,
-            "sections": sections
-        },
-        "metadata": {
+    try:
+        start_time = time.time()
+        
+        # Read input
+        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_data = json.load(f)
+        
+        # Get RAG context
+        rag_context = ""
+        if args.use_rag and RAG_AVAILABLE:
+            try:
+                query = f"Salesforce training best practices user adoption"
+                rag_context = get_salesforce_context(query, n_results=3, agent_type="trainer")
+                print(f"📚 RAG context loaded ({len(rag_context)} chars)", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ RAG unavailable: {e}", file=sys.stderr)
+        
+        # Select prompt based on mode
+        if args.mode == 'sds_strategy':
+            solution_design = input_data.get('solution_design', input_data.get('context', ''))
+            use_cases = input_data.get('use_cases', '')
+            prompt = get_sds_strategy_prompt(solution_design, use_cases)
+            artifact_type = "trainer_sds_strategy"
+        else:  # delivery
+            solution_design = input_data.get('solution_design', '')
+            training_strategy = input_data.get('training_strategy', '')
+            prompt = get_delivery_prompt(solution_design, training_strategy)
+            artifact_type = "trainer_delivery_materials"
+        
+        if rag_context:
+            prompt += f"\n\n## SALESFORCE TRAINING BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+        
+        print(f"🤖 Generating {args.mode} output...", file=sys.stderr)
+        
+        # Generate
+        if LLM_SERVICE_AVAILABLE:
+            response = generate_llm_response(prompt, max_tokens=8000, temperature=0.3)
+            content = response.get('content', '')
+            tokens_used = response.get('tokens_used', 0)
+        else:
+            content = '{"error": "LLM service not available"}'
+            tokens_used = 0
+        
+        # Parse JSON
+        try:
+            if '```json' in content:
+                content = content.split('```json')[1].split('```')[0]
+            elif '```' in content:
+                content = content.split('```')[1].split('```')[0]
+            parsed = json.loads(content.strip())
+        except json.JSONDecodeError:
+            parsed = {"raw_content": content, "parse_error": True}
+        
+        # Build output
+        execution_time = time.time() - start_time
+        output = {
+            "agent": "trainer",
+            "mode": args.mode,
+            "artifact_type": artifact_type,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+            "timestamp": datetime.now().isoformat(),
             "tokens_used": tokens_used,
-            "model": model_used,
-            "provider": provider_used,
             "execution_time_seconds": round(execution_time, 2),
-            "content_length": len(specifications),
-            "sections_count": len(sections),
-            "generated_at": datetime.now().isoformat()
+            "content": parsed
         }
-    }
-    
-    output_dir = Path(__file__).parent.parent.parent / "outputs"
-    output_dir.mkdir(exist_ok=True)
-    
-    output_file = f"{project_name}_{execution_id}_trainer.json"
-    output_path = output_dir / output_file
-    
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(output, f, indent=2, ensure_ascii=False)
-    
-    print(f"✅ JSON generated: {output_file}")
-    print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s")
-    
-    return output
-
+        
+        # Write output
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Output written to {args.output}", file=sys.stderr)
+        print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s", file=sys.stderr)
+        
+        return output
+        
+    except Exception as e:
+        print(f"❌ Error: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        error_output = {"error": str(e), "agent": "trainer", "mode": args.mode}
+        with open(args.output, 'w') as f:
+            json.dump(error_output, f, indent=2)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', required=True, help='Input requirements file')
-    parser.add_argument('--output', required=True, help='Output JSON file path')
-    parser.add_argument('--execution-id', required=True, help='Execution ID')
-    parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG for Salesforce context')
-    parser.add_argument('--project-id', default='unknown', help='Project ID')
-    args = parser.parse_args()
-    
-    with open(args.input, 'r') as f:
-        requirements = f.read()
-    # Get RAG context for Salesforce expertise
-    rag_context = ""
-    if args.use_rag and RAG_AVAILABLE:
-        try:
-            # Build query from input content
-            query_text = requirements[:500] if isinstance(requirements, str) else str(requirements)[:500]
-            query = f"Salesforce best practices {query_text[:200]}"
-            print(f"🔍 Querying RAG for expert context...", file=sys.stderr)
-            rag_context = get_salesforce_context(query, n_results=5, agent_type="trainer")
-            print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
-        except Exception as e:
-            print(f"⚠️ RAG error: {e}", file=sys.stderr)
-            rag_context = ""
-    
-    # Inject RAG context into requirements
-    if rag_context:
-        requirements = f"{requirements}\n\n{rag_context}"
-
-    
-    # CRITICAL: Truncate input to avoid token overflow
-    MAX_INPUT_CHARS = 30000
-    if len(requirements) > MAX_INPUT_CHARS:
-        print(f"⚠️ Input truncated from {len(requirements)} to {MAX_INPUT_CHARS} chars", file=sys.stderr)
-        requirements = requirements[:MAX_INPUT_CHARS] + "\n\n[... TRUNCATED FOR TOKEN LIMIT ...]"
-    
-    result = main(requirements, args.project_id, args.execution_id)
-    
-    # Write output to args.output (required by PM Orchestrator)
-    from pathlib import Path
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
-    
-    print(f"SUCCESS: {args.output}", file=sys.stderr)
-    print(f"✅ Generated: {result['metadata']['content_length']} chars")
+    main()

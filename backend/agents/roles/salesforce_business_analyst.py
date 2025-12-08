@@ -30,90 +30,107 @@ except ImportError:
 
 # ============================================================================
 # PROMPT: BR → USE CASES (~100 lines)
-# ============================================================================
 def get_uc_generation_prompt(br: dict, rag_context: str = "") -> str:
     br_id = br.get('id', 'BR-XXX')
-    br_title = br.get('title', 'Untitled')
-    br_description = br.get('description', '')
+    br_title = br.get('title', br.get('requirement', '')[:50])
+    br_description = br.get('description', br.get('requirement', ''))
     br_category = br.get('category', 'OTHER')
-    br_stakeholder = br.get('stakeholder', 'Business User')
+    br_stakeholder = br.get('stakeholder', br.get('metadata', {}).get('stakeholder', 'Business User'))
+    
+    # PRPT-01 metadata if available
+    br_metadata = br.get('metadata', br.get('br_metadata', {}))
+    br_fields = br_metadata.get('fields', [])
+    br_rules = br_metadata.get('validation_rules', [])
+    
+    metadata_section = ""
+    if br_fields or br_rules:
+        metadata_section = f"""
+## EXTRACTED DETAILS FROM BR
+- **Fields mentioned**: {', '.join(br_fields) if br_fields else 'None specified'}
+- **Validation rules**: {', '.join(br_rules) if br_rules else 'None specified'}
+"""
     
     rag_section = ""
     if rag_context:
+        # Truncate RAG context to avoid verbosity
         rag_section = f"""
-## SALESFORCE BEST PRACTICES (from RAG)
-Use this expert context to inform your Use Case design:
-
-{rag_context}
-
----
+## SALESFORCE CONTEXT (use for field names and patterns)
+{rag_context[:1500]}
 """
     
-    return f'''# 📋 USE CASE GENERATION FOR BUSINESS REQUIREMENT
+    return f'''# USE CASE GENERATION - COMPACT FORMAT
 
-You are **Olivia**, a Senior Salesforce Business Analyst.
+You are **Olivia**, Senior Salesforce Business Analyst.
 
-## YOUR MISSION
-Generate **detailed Use Cases (UC)** for the given Business Requirement.
-Each UC must be:
-- **Specific**: Describes a concrete user interaction
-- **Testable**: Has clear acceptance criteria
-- **Salesforce-aligned**: Uses Salesforce terminology and patterns
-- **Traceable**: Links back to the parent BR
+## MISSION
+Generate 3-5 **concise** Use Cases for this BR. Each UC must be:
+- **Atomic**: One user goal per UC
+- **Testable**: Clear pass/fail criteria
+- **Compact**: No filler text, only essential info
 
-## INPUT: BUSINESS REQUIREMENT
+## INPUT BR
 
 **{br_id}: {br_title}**
-- Description: {br_description}
 - Category: {br_category}
 - Stakeholder: {br_stakeholder}
-
+- Description: {br_description}
+{metadata_section}
 {rag_section}
 
-## OUTPUT FORMAT (JSON)
-Generate 3-5 Use Cases with this structure:
-- "parent_br": "{br_id}"
-- "use_cases": Array of UC objects, each with:
-  - "id": "UC-{br_id[3:]}-01", "UC-{br_id[3:]}-02", etc.
-  - "title": Clear action-oriented title
-  - "actor": Primary user role
-  - "preconditions": Array of conditions that must be true before
-  - "main_flow": Array of numbered steps (what the user/system does)
-  - "alternative_flows": Array of alternative scenarios
-  - "postconditions": Array of expected outcomes
-  - "acceptance_criteria": Array of testable criteria
-  - "salesforce_components": Object with:
-    - "objects": Array of Salesforce objects involved
-    - "fields": Array of key fields (use __c for custom)
-    - "automation": Array of automation needed (Flow, Trigger, etc.)
-    - "ui_components": Array of UI elements needed
+## OUTPUT FORMAT (JSON - STRICT)
 
-## RULES
-1. Generate 3-5 Use Cases per BR (not more, not less)
-2. Use Salesforce standard objects where possible (Lead, Account, Opportunity, etc.)
-3. Custom objects/fields must follow naming conventions (end with __c)
-4. Be specific about automation type (Record-Triggered Flow, Screen Flow, Apex Trigger)
-5. Include realistic field names and picklist values
-6. Acceptance criteria must be measurable and testable
-7. Consider error handling in alternative flows
+```json
+{{
+  "parent_br": "{br_id}",
+  "use_cases": [
+    {{
+      "id": "UC-{br_id[3:]}-01",
+      "title": "Action-oriented title (max 8 words)",
+      "actor": "Role (e.g., Sales Rep, System Admin)",
+      "trigger": "What starts this UC (e.g., User clicks button)",
+      "main_flow": [
+        "1. User does X",
+        "2. System validates Y", 
+        "3. System saves Z"
+      ],
+      "alt_flows": [
+        "1a. If validation fails: show error"
+      ],
+      "acceptance_criteria": [
+        "GIVEN [context] WHEN [action] THEN [result]"
+      ],
+      "sf_objects": ["Account", "Custom_Object__c"],
+      "sf_fields": ["Account.Name", "Custom_Object__c.Status__c"],
+      "sf_automation": "Record-Triggered Flow / Apex Trigger / None"
+    }}
+  ]
+}}
+```
 
-## EXAMPLE OUTPUT STRUCTURE
-For BR "Lead Qualification":
-- UC-001-01: Sales Rep Qualifies Lead via Score
-- UC-001-02: System Auto-Qualifies High-Score Lead
-- UC-001-03: Manager Reviews Borderline Leads
+## RULES (CRITICAL)
+
+1. **3-5 UCs only** - More is waste, less is incomplete
+2. **Max 6 steps** in main_flow - If more needed, split into separate UC
+3. **Max 3 alt_flows** - Focus on critical paths only
+4. **Max 4 acceptance criteria** - Use GIVEN/WHEN/THEN format
+5. **Specific Salesforce objects** - No generic "data object", use real SF names
+6. **Real field names** - Use API names (MyField__c), not labels
+7. **One automation type** per UC - Flow OR Trigger, not both
+8. **No redundancy** - If UC-01 covers "create record", UC-02 should NOT repeat it
+
+## ANTI-PATTERNS TO AVOID
+
+❌ "User performs action" → ✅ "User clicks Save button"
+❌ "System processes data" → ✅ "System runs validation rule"
+❌ "Record is updated" → ✅ "Account.Status__c = 'Qualified'"
+❌ Long paragraphs → ✅ Short numbered steps
+❌ 10+ acceptance criteria → ✅ 3-4 key testable criteria
 
 ---
 
-**Generate Use Cases for {br_id} now. Output ONLY valid JSON, no markdown fences.**
+**Generate Use Cases for {br_id}. Output ONLY valid JSON, no markdown fences or explanations.**
 '''
 
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
-def main():
-    parser = argparse.ArgumentParser(description='Olivia BA Agent - UC Generation')
-    parser.add_argument('--input', required=True, help='Input JSON file with BR')
     parser.add_argument('--output', required=True, help='Output JSON file path')
     parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
     parser.add_argument('--project-id', type=int, default=0, help='Project ID')

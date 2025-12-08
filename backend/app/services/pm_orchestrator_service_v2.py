@@ -478,11 +478,14 @@ class PMOrchestratorServiceV2:
                 expert_input["focus"] = focus_map.get(agent_id, agent_id)
                 
                 try:
+                    # PRPT-07: Pass mode to trainer (sds_strategy)
+                    agent_mode = "sds_strategy" if agent_id == "trainer" else None
                     expert_result = await self._run_agent(
                         agent_id=agent_id,
                         input_data=expert_input,
                         execution_id=execution_id,
-                        project_id=project_id
+                        project_id=project_id,
+                        mode=agent_mode
                     )
                     return {"agent_id": agent_id, "result": expert_result}
                 except Exception as e:

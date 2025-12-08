@@ -211,77 +211,110 @@ Generate a gap analysis with:
 # PROMPT 4: WBS (GAP → Tasks + Planning)
 # ============================================================================
 def get_wbs_prompt(gap_analysis: str, project_constraints: str = "") -> str:
-    return f'''# 📅 WORK BREAKDOWN STRUCTURE
+    return f'''# 📅 WORK BREAKDOWN STRUCTURE - ENRICHED
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
-## YOUR MISSION
+## MISSION
 Create a detailed Work Breakdown Structure from the Gap Analysis.
+Each task MUST have validation criteria and clear agent assignment.
 
-## GAP ANALYSIS (GAP-001)
+## GAP ANALYSIS
 {gap_analysis}
 
 ## PROJECT CONSTRAINTS
 {project_constraints if project_constraints else "Standard Salesforce implementation timeline"}
 
-## OUTPUT FORMAT (JSON)
-Generate a WBS with:
-- "artifact_id": "WBS-001"
-- "title": "Work Breakdown Structure"
-- "phases": Array of phase objects, each with:
-  - "id": "PHASE-01", "PHASE-02", etc.
-  - "name": Phase name (e.g., "Foundation", "Core Build", "Integration")
-  - "duration_weeks": Estimated duration
-  - "tasks": Array of task objects with:
-    - "id": "TASK-001", "TASK-002", etc.
-    - "name": Task name
-    - "description": What needs to be done
-    - "gap_refs": Array of GAP IDs this addresses
-    - "assigned_agent": Agent responsible
-    - "effort_days": Effort estimate
-    - "dependencies": Array of TASK IDs
-    - "deliverables": Array of expected outputs
-- "milestones": Array of milestone objects with:
-  - "id": "MS-01", "MS-02", etc.
-  - "name": Milestone name
-  - "target_week": Week number
-  - "criteria": Definition of done
-- "resource_allocation": Object with agents and their allocation %
-- "critical_path": Array of TASK IDs on the critical path
-- "risks_and_mitigations": Array of project risks
+## OUTPUT FORMAT (JSON - STRICT)
 
-## AVAILABLE AGENTS (use ONLY these names for assigned_agent)
-- **Diego** (Apex Developer): Custom Apex classes, triggers, batch jobs, integrations code
-- **Zara** (LWC Developer): Lightning Web Components, Aura components, UI development
-- **Raj** (Salesforce Admin): Object/field configuration, flows, validation rules, profiles, permission sets, sharing rules
-- **Elena** (QA Engineer): Test plans, test execution, UAT coordination, bug tracking
-- **Jordan** (DevOps): CI/CD, deployment pipelines, environments, release management
-- **Aisha** (Data Migration): Data mapping, ETL, data validation, migration scripts
-- **Lucas** (Trainer): Training materials, documentation, user guides, training sessions
-- **Marcus** (Architect): Architecture reviews, technical oversight, design decisions
+```json
+{{
+  "artifact_id": "WBS-001",
+  "title": "Work Breakdown Structure",
+  "phases": [
+    {{
+      "id": "PHASE-01",
+      "name": "Phase name",
+      "duration_weeks": 2,
+      "tasks": [
+        {{
+          "id": "TASK-001",
+          "name": "Task name (action verb + object)",
+          "description": "Brief description (1-2 sentences max)",
+          "gap_refs": ["GAP-001-01"],
+          "assigned_agent": "Raj",
+          "effort_days": 2,
+          "dependencies": [],
+          "deliverables": ["Deliverable 1"],
+          "validation_criteria": [
+            "DONE WHEN: [specific measurable outcome]",
+            "VERIFIED BY: [how Elena/reviewer checks it]"
+          ],
+          "test_approach": "Unit test / Manual test / UAT"
+        }}
+      ]
+    }}
+  ],
+  "milestones": [...],
+  "resource_allocation": {{...}},
+  "critical_path": ["TASK-001", "TASK-005", ...],
+  "risks_and_mitigations": [...]
+}}
+```
 
-## TASK ASSIGNMENT RULES
-- Configuration tasks (fields, objects, flows, validation rules) → Raj
-- Apex code development → Diego
-- LWC/UI development → Zara
-- Testing tasks → Elena
-- Deployment/CI-CD → Jordan
-- Data migration → Aisha
-- Training/Documentation → Lucas
-- Architecture/Design reviews → Marcus
+## AVAILABLE AGENTS (ONLY these 8)
+
+| Agent | Role | Handles |
+|-------|------|---------|
+| Diego | Apex Developer | Apex classes, triggers, batch, integration code |
+| Zara | LWC Developer | LWC, Aura, custom UI components |
+| Raj | SF Admin | Objects, fields, flows, validation rules, profiles |
+| Elena | QA Engineer | Test plans, test execution, UAT, bugs |
+| Jordan | DevOps | CI/CD, deployments, environments, releases |
+| Aisha | Data Migration | Data mapping, ETL, migration, data validation |
+| Lucas | Trainer | Training docs, user guides, training sessions |
+| Marcus | Architect | Architecture reviews, design oversight |
+
+## TASK ASSIGNMENT RULES (STRICT)
+
+- **Config (no code)** → Raj: objects, fields, page layouts, flows, validation rules, profiles, permission sets
+- **Apex code** → Diego: classes, triggers, batch, schedulable, REST/SOAP
+- **UI code** → Zara: LWC, Aura, Lightning pages
+- **Testing** → Elena: ALL test tasks (unit, integration, UAT)
+- **Deploy** → Jordan: ALL deployment/pipeline tasks
+- **Data** → Aisha: ALL data migration tasks
+- **Docs** → Lucas: ALL training/documentation tasks
+- **Review** → Marcus: architecture reviews only
+
+## VALIDATION CRITERIA FORMAT (REQUIRED for each task)
+
+Each task MUST have 1-3 validation_criteria using this format:
+- "DONE WHEN: [specific outcome that can be verified]"
+- "VERIFIED BY: [how the reviewer/Elena checks this is complete]"
+
+**Good examples:**
+- "DONE WHEN: Custom object Account_Score__c created with 5 fields"
+- "VERIFIED BY: Run SOQL query, check field count in Setup"
+- "DONE WHEN: All unit tests pass with >80% coverage"
+- "VERIFIED BY: Deploy to scratch org, run apex:test:run"
+
+**Bad examples (avoid):**
+- "DONE WHEN: Task is complete" ❌ (too vague)
+- "VERIFIED BY: Check it works" ❌ (not specific)
 
 ## GENERAL RULES
-1. Group related tasks into logical phases
-2. Respect task dependencies
-3. Balance workload across agents
-4. Include buffer for testing and fixes
-5. Identify critical path
-6. Realistic timelines
-7. NEVER invent agent names - use ONLY the 8 agents listed above
+
+1. **30-60 tasks** total - fewer means too coarse, more means micromanagement
+2. **Max 10 tasks per phase** - split large phases
+3. **Every task has validation_criteria** - NO exceptions
+4. **Respect dependencies** - no circular refs
+5. **Balance workload** - no agent should have >40% of tasks
+6. **Include test tasks** - at least 15% of tasks should be Elena's
+7. **Include deploy tasks** - at least 5% of tasks should be Jordan's
 
 ---
 
-**Generate the WBS now. Output ONLY valid JSON.**
+**Generate the WBS now. Output ONLY valid JSON, no markdown fences.**
 '''
 
 # ============================================================================

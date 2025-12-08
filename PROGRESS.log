@@ -385,3 +385,72 @@ Statut: COMPLETED
 
 Prochaine étape: PRPT-02 (Tuning prompt Olivia)
 ================================================================================
+
+=== Session 2025-12-08 [17:35] - PRPT-02 ===
+Objectif: Tuning prompt Olivia - UCs structurés
+Fichier: backend/agents/roles/salesforce_business_analyst.py
+Améliorations:
+  - Template JSON strict avec structure fixe
+  - Limites explicites:
+    - Max 6 steps dans main_flow
+    - Max 3 alt_flows
+    - Max 4 acceptance criteria
+  - Format GIVEN/WHEN/THEN pour criteria
+  - Anti-patterns documentés (ce qu'il ne faut PAS faire)
+  - Intégration metadata PRPT-01 (fields, validation_rules)
+  - RAG context tronqué à 1500 chars
+Réduction verbosité estimée: ~30%
+Statut: COMPLETED
+Prochaine étape: PRPT-03 (Marcus - WBS enrichi)
+================================================================================
+
+=== Session 2025-12-08 [17:45] - PRPT-03 ===
+Objectif: Tuning prompt Marcus - WBS enrichi
+Fichier: backend/agents/roles/salesforce_solution_architect.py (get_wbs_prompt)
+Améliorations:
+  - validation_criteria OBLIGATOIRES pour chaque tâche
+  - Format: "DONE WHEN: [outcome]" + "VERIFIED BY: [check method]"
+  - Table des 8 agents avec rôles
+  - Règles d'assignation strictes
+  - Exemples bons/mauvais
+  - Limites: 30-60 tasks, max 10/phase
+  - Équilibrage charge (aucun agent >40%)
+  - Tests obligatoires (~15% des tâches)
+Statut: COMPLETED
+================================================================================
+
+=== Session 2025-12-08 [17:55] - PRPT-04 ===
+Objectif: Tester et tuner prompt Diego (Apex)
+Fichier: backend/agents/roles/salesforce_developer_apex.py
+Amélioration: Ajout section "PRE-DELIVERY CHECKLIST"
+Catégories de vérification:
+  - Code Quality: compile, no System.error(), no emojis, bulkification
+  - Security: CRUD, FLS, with sharing, no hardcoded IDs
+  - Testing: @TestSetup, positive/negative/bulk tests, 85%+ coverage
+  - Documentation: @description, @param, @return, @throws
+Format: checkbox □ pour auto-validation
+Statut: COMPLETED
+================================================================================
+
+=== Session 2025-12-08 [18:10] - PRPT-05/06/07 ===
+PRPT-05: Tuning prompt Zara (LWC)
+  - Fichier: backend/agents/roles/salesforce_developer_lwc.py
+  - Ajout PRE-DELIVERY CHECKLIST: Component Quality, SF Integration, 
+    Accessibility (WCAG 2.1), Testing (Jest), Performance
+  - Statut: COMPLETED
+
+PRPT-06: Tuning prompt Raj (Admin)
+  - Fichier: backend/agents/roles/salesforce_admin.py
+  - Ajout PRE-DELIVERY CHECKLIST: Object/Field Config, Automation,
+    Security, UI Config, Testing
+  - Statut: COMPLETED
+
+PRPT-07: Configurer Lucas 2 modes
+  - Fichier: backend/agents/roles/salesforce_trainer.py (réécrit)
+  - Mode 1: sds_strategy - Plan formation stratégique pour SDS
+  - Mode 2: delivery - Supports concrets (guides, scripts vidéo)
+  - Orchestrateur modifié pour passer mode=sds_strategy en Phase 4
+  - Statut: COMPLETED
+
+Stats: 24/77 completed (31%)
+================================================================================

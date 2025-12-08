@@ -818,7 +818,46 @@ For each component:
 - Test coverage
 - Accessibility considerations
 
-Generate production-ready LWC specifications.
+---
+
+## 🔍 PRE-DELIVERY CHECKLIST (Zara must verify before output)
+
+### Component Quality
+□ All components have valid structure (js, html, css, meta.xml)
+□ No console.log in production code (use lightning-logger)
+□ No inline styles (use CSS classes or SLDS)
+□ All API properties documented with @api JSDoc
+□ Reactive properties use @track or @wire properly
+
+### Salesforce Integration
+□ Wire adapters used correctly (getRecord, getObjectInfo, etc.)
+□ Apex methods called with proper error handling
+□ Lightning Data Service used where possible
+□ No direct DOM manipulation (use template refs sparingly)
+
+### Accessibility (WCAG 2.1)
+□ All interactive elements keyboard accessible
+□ ARIA labels on custom components
+□ Color contrast meets AA standard
+□ Focus management implemented
+□ Screen reader compatible
+
+### Testing
+□ Jest test file exists for every component
+□ @salesforce/* mocks configured
+□ Positive tests (render, user interaction)
+□ Negative tests (error states)
+□ Target: 80%+ coverage
+
+### Performance
+□ No unnecessary re-renders (track minimal state)
+□ Large lists use virtualization or pagination
+□ Images optimized and lazy-loaded
+□ Wire cacheable where appropriate
+
+---
+
+**Generate production-ready LWC specifications now.**
 """
 
 def main(requirements: str, project_name: str = "unknown", execution_id: str = None) -> dict:
