@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 72,
+      "not_started": 70,
       "in_progress": 0,
-      "completed": 0,
+      "completed": 2,
       "blocked": 0
     }
   },
@@ -18,7 +18,7 @@
       "title": "SSE Progress avec auth token query param",
       "description": "Modifier l'endpoint SSE pour accepter le token JWT en query param au lieu du header Authorization (incompatible avec EventSource)",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "EventSource se connecte sans 403",
         "Token validé côté backend",
@@ -30,7 +30,7 @@
         "frontend/src/hooks/useExecutionProgress.ts"
       ],
       "estimated_hours": 2,
-      "notes": "Voir NEXT_SESSION_TODO.md pour le fix détaillé"
+      "notes": "Fix déjà en place (commit c28d224 du 25/11/2025). Validé le 08/12/2025 - les deux modes auth (header + query param) fonctionnent."
     },
     {
       "id": "CRIT-02",
@@ -38,7 +38,7 @@
       "title": "Fix troncature outputs agents",
       "description": "Implémenter une stratégie de chunking/streaming pour éviter la troncature des réponses longues (Elena, Jordan, Olivia)",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Elena génère 280+ tests sans troncature",
         "Olivia génère 135 UCs complets",
@@ -50,7 +50,7 @@
         "backend/app/services/agent_executor.py"
       ],
       "estimated_hours": 4,
-      "notes": "Problème identifié : limite tokens par réponse. Solutions possibles : streaming, chunking, ou multi-calls"
+      "notes": "Fix implementé le 08/12/2025: (1) Elena/Jordan/Lucas upgradés vers Sonnet, (2) Continuation auto si max_tokens atteint"
     },
     {
       "id": "CRIT-03",
@@ -105,7 +105,9 @@
         "WBS sans migration → Aisha non exécutée",
         "Log clair des agents sélectionnés/ignorés"
       ],
-      "dependencies": ["PRPT-03"],
+      "dependencies": [
+        "PRPT-03"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
@@ -124,7 +126,9 @@
         "Temps d'exécution réduit vs séquentiel",
         "Gestion des erreurs individuelles sans bloquer les autres"
       ],
-      "dependencies": ["ORCH-01"],
+      "dependencies": [
+        "ORCH-01"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
@@ -143,7 +147,10 @@
         "Elena valide avant de continuer",
         "Possibilité de reprendre à n'importe quelle tâche"
       ],
-      "dependencies": ["INC-01", "INC-02"],
+      "dependencies": [
+        "INC-01",
+        "INC-02"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py",
         "backend/app/services/incremental_executor.py"
@@ -163,7 +170,9 @@
         "Bouton 'Reprendre' dans le frontend",
         "Reprise effective sans re-exécuter les étapes complétées"
       ],
-      "dependencies": ["ORCH-03"],
+      "dependencies": [
+        "ORCH-03"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py",
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
@@ -240,7 +249,9 @@
         "Tests unitaires inclus",
         "Respect des best practices Salesforce"
       ],
-      "dependencies": ["ORCH-01"],
+      "dependencies": [
+        "ORCH-01"
+      ],
       "files": [
         "backend/app/services/prompts/diego_prompt.py"
       ],
@@ -259,7 +270,9 @@
         "HTML/CSS/JS bien structurés",
         "Accessibilité respectée"
       ],
-      "dependencies": ["ORCH-01"],
+      "dependencies": [
+        "ORCH-01"
+      ],
       "files": [
         "backend/app/services/prompts/zara_prompt.py"
       ],
@@ -278,7 +291,9 @@
         "Flows fonctionnels",
         "Validation rules correctes"
       ],
-      "dependencies": ["ORCH-01"],
+      "dependencies": [
+        "ORCH-01"
+      ],
       "files": [
         "backend/app/services/prompts/raj_prompt.py"
       ],
@@ -374,7 +389,9 @@
         "Messages des agents affichés au fil de l'eau",
         "Pas de polling inutile"
       ],
-      "dependencies": ["CRIT-01"],
+      "dependencies": [
+        "CRIT-01"
+      ],
       "files": [
         "frontend/src/hooks/useExecutionProgress.ts",
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
@@ -394,7 +411,9 @@
         "Pré-sélection basée sur le WBS",
         "Possibilité de forcer/exclure un agent"
       ],
-      "dependencies": ["ORCH-01"],
+      "dependencies": [
+        "ORCH-01"
+      ],
       "files": [
         "frontend/src/components/AgentSelector.tsx",
         "frontend/src/pages/ProjectConfigPage.tsx"
@@ -433,7 +452,9 @@
         "Format tableau lisible",
         "Lien avec les UCs correspondants"
       ],
-      "dependencies": ["CRIT-02"],
+      "dependencies": [
+        "CRIT-02"
+      ],
       "files": [
         "backend/app/services/sds_generator.py"
       ],
@@ -452,7 +473,9 @@
         "Checklist pré-déploiement incluse",
         "Rollback plan documenté"
       ],
-      "dependencies": ["CRIT-02"],
+      "dependencies": [
+        "CRIT-02"
+      ],
       "files": [
         "backend/app/services/sds_generator.py"
       ],
@@ -471,7 +494,9 @@
         "Profils utilisateurs identifiés",
         "Calendrier formation proposé"
       ],
-      "dependencies": ["PRPT-07"],
+      "dependencies": [
+        "PRPT-07"
+      ],
       "files": [
         "backend/app/services/sds_generator.py"
       ],
@@ -490,7 +515,9 @@
         "Mise en page propre",
         "Table des matières cliquable"
       ],
-      "dependencies": ["SDS-01"],
+      "dependencies": [
+        "SDS-01"
+      ],
       "files": [
         "backend/app/services/sds_generator.py",
         "frontend/src/pages/SDSPage.tsx"
@@ -530,7 +557,11 @@
         "sfdx-project.json valide",
         "Package déployable sur scratch org"
       ],
-      "dependencies": ["PRPT-04", "PRPT-05", "PRPT-06"],
+      "dependencies": [
+        "PRPT-04",
+        "PRPT-05",
+        "PRPT-06"
+      ],
       "files": [
         "backend/app/services/sfdx_package_generator.py"
       ],
@@ -549,7 +580,9 @@
         "Erreurs de syntaxe détectées",
         "Feedback à Diego pour correction"
       ],
-      "dependencies": ["PRPT-04"],
+      "dependencies": [
+        "PRPT-04"
+      ],
       "files": [
         "backend/app/services/apex_validator.py"
       ],
@@ -568,7 +601,9 @@
         "HTML/JS sans erreurs de syntaxe",
         "Imports corrects"
       ],
-      "dependencies": ["PRPT-05"],
+      "dependencies": [
+        "PRPT-05"
+      ],
       "files": [
         "backend/app/services/lwc_validator.py"
       ],
@@ -587,7 +622,9 @@
         "Schémas Salesforce respectés",
         "Références valides"
       ],
-      "dependencies": ["PRPT-06"],
+      "dependencies": [
+        "PRPT-06"
+      ],
       "files": [
         "backend/app/services/metadata_validator.py"
       ],
@@ -626,7 +663,9 @@
         "Coverage minimum 75% visé",
         "Tests déployables"
       ],
-      "dependencies": ["BLD-02"],
+      "dependencies": [
+        "BLD-02"
+      ],
       "files": [
         "backend/app/services/prompts/elena_prompt.py"
       ],
@@ -645,7 +684,11 @@
         "Nombre d'erreurs/warnings",
         "Couverture de test estimée"
       ],
-      "dependencies": ["BLD-02", "BLD-03", "BLD-04"],
+      "dependencies": [
+        "BLD-02",
+        "BLD-03",
+        "BLD-04"
+      ],
       "files": [
         "frontend/src/pages/QualityDashboardPage.tsx"
       ],
@@ -664,7 +707,11 @@
         "Max 3 tentatives de correction",
         "Log des corrections tentées"
       ],
-      "dependencies": ["BLD-02", "BLD-03", "BLD-04"],
+      "dependencies": [
+        "BLD-02",
+        "BLD-03",
+        "BLD-04"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
@@ -703,7 +750,10 @@
         "Statut déploiement suivi en temps réel",
         "Erreurs de déploiement affichées"
       ],
-      "dependencies": ["DPL-01", "BLD-01"],
+      "dependencies": [
+        "DPL-01",
+        "BLD-01"
+      ],
       "files": [
         "backend/app/services/salesforce_deployer.py"
       ],
@@ -722,7 +772,9 @@
         "Résultats validation affichés",
         "Blocage si validation échoue"
       ],
-      "dependencies": ["DPL-02"],
+      "dependencies": [
+        "DPL-02"
+      ],
       "files": [
         "backend/app/services/salesforce_deployer.py"
       ],
@@ -741,7 +793,9 @@
         "Bouton rollback fonctionnel",
         "Restauration effective"
       ],
-      "dependencies": ["DPL-02"],
+      "dependencies": [
+        "DPL-02"
+      ],
       "files": [
         "backend/app/services/salesforce_deployer.py"
       ],
@@ -760,7 +814,9 @@
         "Changements par rapport à la version précédente",
         "Format Markdown exportable"
       ],
-      "dependencies": ["DPL-02"],
+      "dependencies": [
+        "DPL-02"
+      ],
       "files": [
         "backend/app/services/release_notes_generator.py"
       ],
@@ -779,7 +835,9 @@
         "Workflow de promotion défini",
         "Traçabilité des déploiements par org"
       ],
-      "dependencies": ["DPL-01"],
+      "dependencies": [
+        "DPL-01"
+      ],
       "files": [
         "backend/app/services/environment_manager.py",
         "frontend/src/pages/EnvironmentsPage.tsx"
@@ -799,7 +857,9 @@
         "Résultats affichés dans l'UI",
         "Alerte si coverage < 75%"
       ],
-      "dependencies": ["DPL-02"],
+      "dependencies": [
+        "DPL-02"
+      ],
       "files": [
         "backend/app/services/salesforce_deployer.py"
       ],
@@ -818,7 +878,10 @@
         "Scripts vidéo/démo créés",
         "FAQ générée"
       ],
-      "dependencies": ["PRPT-07", "DPL-02"],
+      "dependencies": [
+        "PRPT-07",
+        "DPL-02"
+      ],
       "files": [
         "backend/app/services/prompts/lucas_prompt.py",
         "backend/app/services/training_generator.py"
@@ -857,7 +920,9 @@
         "Exemples de outputs",
         "Témoignages/cas d'usage"
       ],
-      "dependencies": ["WEB-01"],
+      "dependencies": [
+        "WEB-01"
+      ],
       "files": [
         "/var/www/digital-humans.fr/"
       ],
@@ -876,7 +941,9 @@
         "Comparaison des features",
         "Boutons d'action"
       ],
-      "dependencies": ["WEB-01"],
+      "dependencies": [
+        "WEB-01"
+      ],
       "files": [
         "/var/www/digital-humans.fr/"
       ],
@@ -895,7 +962,9 @@
         "5 articles initiaux publiés",
         "SEO basique configuré"
       ],
-      "dependencies": ["WEB-01"],
+      "dependencies": [
+        "WEB-01"
+      ],
       "files": [
         "/var/www/digital-humans.fr/"
       ],
@@ -914,7 +983,9 @@
         "Notification email configurée",
         "Stockage des leads"
       ],
-      "dependencies": ["WEB-01"],
+      "dependencies": [
+        "WEB-01"
+      ],
       "files": [
         "/var/www/digital-humans.fr/"
       ],
@@ -933,7 +1004,9 @@
         "Events de conversion trackés",
         "Dashboard accessible"
       ],
-      "dependencies": ["WEB-01"],
+      "dependencies": [
+        "WEB-01"
+      ],
       "files": [
         "/var/www/digital-humans.fr/"
       ],
@@ -969,7 +1042,9 @@
         "Personnalisation via LLM",
         "Tracking ouvertures/clics"
       ],
-      "dependencies": ["N8N-01"],
+      "dependencies": [
+        "N8N-01"
+      ],
       "files": [],
       "estimated_hours": 4,
       "notes": ""
@@ -986,7 +1061,9 @@
         "Publication automatique WordPress",
         "SEO basique appliqué"
       ],
-      "dependencies": ["WEB-04"],
+      "dependencies": [
+        "WEB-04"
+      ],
       "files": [],
       "estimated_hours": 4,
       "notes": ""
@@ -1037,7 +1114,9 @@
         "Score calculé automatiquement",
         "Notification pour leads chauds"
       ],
-      "dependencies": ["WEB-05"],
+      "dependencies": [
+        "WEB-05"
+      ],
       "files": [],
       "estimated_hours": 3,
       "notes": ""
@@ -1054,7 +1133,9 @@
         "Timing intelligent",
         "Stop si réponse reçue"
       ],
-      "dependencies": ["N8N-02"],
+      "dependencies": [
+        "N8N-02"
+      ],
       "files": [],
       "estimated_hours": 3,
       "notes": ""
@@ -1071,7 +1152,9 @@
         "Proposition créneaux automatique",
         "Confirmation et rappels"
       ],
-      "dependencies": ["N8N-02"],
+      "dependencies": [
+        "N8N-02"
+      ],
       "files": [],
       "estimated_hours": 3,
       "notes": ""
@@ -1088,7 +1171,11 @@
         "Mise à jour automatique",
         "Export possible"
       ],
-      "dependencies": ["N8N-01", "N8N-02", "N8N-06"],
+      "dependencies": [
+        "N8N-01",
+        "N8N-02",
+        "N8N-06"
+      ],
       "files": [],
       "estimated_hours": 4,
       "notes": ""
@@ -1209,7 +1296,9 @@
         "Chaque tâche a des critères de validation",
         "Agents assignés correctement"
       ],
-      "dependencies": ["INC-01"],
+      "dependencies": [
+        "INC-01"
+      ],
       "files": [
         "backend/app/services/prompts/marcus_prompt.py"
       ],
@@ -1247,7 +1336,10 @@
         "Exécute l'agent approprié",
         "Retourne le résultat + statut"
       ],
-      "dependencies": ["INC-01", "ORCH-01"],
+      "dependencies": [
+        "INC-01",
+        "ORCH-01"
+      ],
       "files": [
         "backend/app/services/task_executor.py"
       ],
@@ -1266,7 +1358,9 @@
         "Retourne PASS/FAIL avec détails",
         "Blocage si FAIL"
       ],
-      "dependencies": ["INC-04"],
+      "dependencies": [
+        "INC-04"
+      ],
       "files": [
         "backend/app/services/prompts/elena_prompt.py",
         "backend/app/services/task_validator.py"
@@ -1286,7 +1380,11 @@
         "Exécution tâche par tâche",
         "Pause entre les tâches si demandé"
       ],
-      "dependencies": ["INC-03", "INC-04", "INC-05"],
+      "dependencies": [
+        "INC-03",
+        "INC-04",
+        "INC-05"
+      ],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
@@ -1305,7 +1403,9 @@
         "Tâche courante mise en évidence",
         "Détails de chaque tâche accessibles"
       ],
-      "dependencies": ["INC-06"],
+      "dependencies": [
+        "INC-06"
+      ],
       "files": [
         "frontend/src/pages/IncrementalProgressPage.tsx"
       ],
@@ -1324,7 +1424,10 @@
         "État sauvegardé à la pause",
         "Reprise effective"
       ],
-      "dependencies": ["INC-06", "INC-07"],
+      "dependencies": [
+        "INC-06",
+        "INC-07"
+      ],
       "files": [
         "frontend/src/pages/IncrementalProgressPage.tsx",
         "backend/app/api/routes/pm_orchestrator.py"
@@ -1344,7 +1447,10 @@
         "Ré-validation Elena",
         "Historique des corrections"
       ],
-      "dependencies": ["INC-05", "INC-07"],
+      "dependencies": [
+        "INC-05",
+        "INC-07"
+      ],
       "files": [
         "frontend/src/components/TaskEditor.tsx"
       ],
@@ -1363,7 +1469,9 @@
         "Inclut toutes les tâches et statuts",
         "Export PDF et DOCX"
       ],
-      "dependencies": ["INC-06"],
+      "dependencies": [
+        "INC-06"
+      ],
       "files": [
         "backend/app/services/progress_report_generator.py"
       ],

@@ -32,3 +32,24 @@ Prochaine étape:
 Rappel: Lire features.json au début de la prochaine session
 
 ================================================================================
+
+=== Session 2025-12-08 [14:30] ===
+Objectif: Traiter CRIT-01 et CRIT-02
+Actions:
+  - CRIT-01: Vérifié que le fix était déjà en place (commit c28d224 du 25/11)
+    - Backend supporte auth via header ET query param
+    - Frontend utilise polling avec header Authorization
+    - Testé avec succès sur execution #49
+  - CRIT-02: Implémenté fix troncature outputs
+    - Upgraded Elena/Jordan/Lucas de WORKER (Haiku) vers ANALYST (Sonnet)
+    - Ajouté continuation automatique si stop_reason="max_tokens"
+    - Max 3 continuations pour éviter boucles infinies
+    - Ajouté stop_reason et continuations dans la réponse LLM
+Fonctionnalités traitées: CRIT-01, CRIT-02
+Problèmes rencontrés: Aucun
+Statut: COMPLETED
+Commits: 0324dda
+Prochaine étape: CRIT-03 (sentence_transformers pour reranker RAG) ou CRIT-04 (persistance DB)
+Rappel: Lire features.json au début de la prochaine session
+
+================================================================================
