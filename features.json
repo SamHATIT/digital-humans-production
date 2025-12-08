@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "completed": 24,
+      "completed": 25,
       "in_progress": 0,
-      "not_started": 53,
+      "not_started": 52,
       "blocked": 0
     }
   },
@@ -493,7 +493,7 @@
       "title": "Intégrer SSE progress dans le frontend",
       "description": "Connecter le hook useExecutionProgress au nouveau endpoint SSE avec token",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Progress bar se met à jour en temps réel",
         "Messages des agents affichés au fil de l'eau",
@@ -507,7 +507,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. Endpoint SSE /progress/stream avec auth token. Hook useExecutionProgress réécrit avec EventSource + fallback polling."
     },
     {
       "id": "FRNT-05",

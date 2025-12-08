@@ -454,3 +454,20 @@ PRPT-07: Configurer Lucas 2 modes
 
 Stats: 24/77 completed (31%)
 ================================================================================
+
+=== Session 2025-12-08 [18:25] - FRNT-04 ===
+Objectif: Intégrer SSE progress dans le frontend
+Backend:
+  - Nouvel endpoint: /execute/{id}/progress/stream (SSE)
+  - Auth via query param token (JWT)
+  - Stream en temps réel avec 1s interval
+  - Auto-close quand COMPLETED/FAILED/CANCELLED
+Frontend:
+  - Hook useExecutionProgress réécrit
+  - EventSource pour SSE natif
+  - Fallback polling si SSE échoue
+Fichiers modifiés:
+  - backend/app/api/routes/pm_orchestrator.py
+  - frontend/src/hooks/useExecutionProgress.ts
+Statut: COMPLETED (25/77 = 32%)
+================================================================================

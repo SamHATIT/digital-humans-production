@@ -1,24 +1,25 @@
 /**
- * Custom hook for real-time execution progress via polling
+ * Custom hook for real-time execution progress via SSE (Server-Sent Events)
+ * FRNT-04: Replaces polling with SSE for real-time updates
  */
-import { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 interface AgentStatus {
-  state: 'waiting' | 'running' | 'completed' | 'error';
+  agent_name: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
   progress: number;
-  message: string;
-  started_at?: string;
-  completed_at?: string;
-  error?: string;
+  current_task?: string;
+  output_summary?: string;
 }
 
 interface ExecutionProgress {
   execution_id: number;
   status: string;
-  agent_statuses?: Record<string, AgentStatus>;
-  progress: number;
-  current_agent?: string;
+  overall_progress: number;
+  current_phase?: string;
+  agent_progress: AgentStatus[];
+  sds_document_path?: string;
+  event?: string;
   message?: string;
 }
 
@@ -26,52 +27,121 @@ export const useExecutionProgress = (executionId: number | null) => {
   const [progress, setProgress] = useState<ExecutionProgress | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const fallbackIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Fallback to polling if SSE fails
+  const startPolling = useCallback(async (execId: number) => {
+    const fetchProgress = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/pm-orchestrator/execute/${execId}/progress`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setProgress(data);
+          setIsConnected(true);
+          
+          // Stop polling if finished
+          if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
+            if (fallbackIntervalRef.current) {
+              clearInterval(fallbackIntervalRef.current);
+              fallbackIntervalRef.current = null;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    };
+    
+    fetchProgress();
+    fallbackIntervalRef.current = setInterval(fetchProgress, 2000);
+  }, []);
 
   useEffect(() => {
     if (!executionId) return;
 
-    let intervalId: NodeJS.Timeout;
-    let isMounted = true;
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('No authentication token');
+      return;
+    }
 
-    const fetchProgress = async () => {
-      try {
-        const response = await api.get(`/api/pm-orchestrator/execute/${executionId}/progress`);
-        
-        if (!isMounted) return;
-        
-        console.log('Progress update received:', response.data);
-        setProgress(response.data);
+    // Try SSE connection first
+    const sseUrl = `/api/pm-orchestrator/execute/${executionId}/progress/stream?token=${encodeURIComponent(token)}`;
+    
+    try {
+      console.log('🔌 Connecting to SSE:', sseUrl);
+      const eventSource = new EventSource(sseUrl);
+      eventSourceRef.current = eventSource;
+
+      eventSource.onopen = () => {
+        console.log('✅ SSE connected');
         setIsConnected(true);
         setError(null);
+      };
 
-        // Stop polling if completed or failed
-        if (response.data.status === 'COMPLETED' || response.data.status === 'FAILED') {
-          console.log('Execution finished, stopping polling');
-          clearInterval(intervalId);
-          setIsConnected(false);
+      eventSource.onmessage = (event) => {
+        try {
+          const data: ExecutionProgress = JSON.parse(event.data);
+          console.log('📨 SSE message:', data);
+          
+          // Handle special events
+          if (data.event === 'close' || data.event === 'timeout') {
+            console.log('🔌 SSE stream ended:', data.event);
+            eventSource.close();
+            setIsConnected(false);
+            return;
+          }
+          
+          if (data.event === 'error') {
+            console.error('SSE error event:', data.message);
+            setError(data.message || 'SSE error');
+            return;
+          }
+          
+          setProgress(data);
+          
+          // Close connection if execution finished
+          if (data.status === 'COMPLETED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
+            console.log('✅ Execution finished, closing SSE');
+            eventSource.close();
+            setIsConnected(false);
+          }
+        } catch (e) {
+          console.error('Error parsing SSE data:', e);
         }
-      } catch (err: any) {
-        console.error('Error fetching progress:', err);
-        if (!isMounted) return;
-        
-        setError(err.response?.data?.detail || 'Failed to fetch progress');
+      };
+
+      eventSource.onerror = (err) => {
+        console.warn('⚠️ SSE error, falling back to polling:', err);
+        eventSource.close();
         setIsConnected(false);
-      }
-    };
+        
+        // Fallback to polling
+        startPolling(executionId);
+      };
 
-    // Initial fetch
-    fetchProgress();
-
-    // Poll every 2 seconds
-    intervalId = setInterval(fetchProgress, 2000);
+    } catch (e) {
+      console.warn('SSE not supported, using polling');
+      startPolling(executionId);
+    }
 
     // Cleanup
     return () => {
-      isMounted = false;
-      clearInterval(intervalId);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
       setIsConnected(false);
     };
-  }, [executionId]);
+  }, [executionId, startPolling]);
 
   return { progress, isConnected, error };
 };

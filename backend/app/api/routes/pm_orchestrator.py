@@ -478,6 +478,132 @@ async def get_execution_progress(
         "sds_document_path": execution.sds_document_path
     }
 
+# FRNT-04: SSE endpoint for real-time progress updates
+@router.get("/execute/{execution_id}/progress/stream")
+async def stream_execution_progress(
+    execution_id: int,
+    token: str = Query(..., description="JWT token for authentication"),
+    db: Session = Depends(get_db)
+):
+    """
+    Stream execution progress updates via Server-Sent Events (SSE).
+    
+    Connect with: const eventSource = new EventSource(`/api/pm-orchestrator/execute/{id}/progress/stream?token={jwt}`)
+    """
+    from fastapi.responses import StreamingResponse
+    import asyncio
+    
+    # Validate token
+    try:
+        from app.services.auth_service import verify_token
+        payload = verify_token(token)
+        user_id = payload.get("sub") or payload.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+    
+    # Verify execution access
+    execution = db.query(Execution).join(Project).filter(
+        Execution.id == execution_id,
+        Project.user_id == int(user_id)
+    ).first()
+    
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    async def event_generator():
+        """Generate SSE events for progress updates"""
+        last_status = None
+        last_progress = -1
+        retry_count = 0
+        max_retries = 300  # 5 minutes max (1 second intervals)
+        
+        while retry_count < max_retries:
+            try:
+                # Refresh execution from DB
+                db.refresh(execution)
+                
+                # Parse agent status
+                agent_status = {}
+                if execution.agent_execution_status:
+                    if isinstance(execution.agent_execution_status, str):
+                        agent_status = json.loads(execution.agent_execution_status)
+                    else:
+                        agent_status = execution.agent_execution_status
+                
+                # Build progress data
+                selected_agents = execution.selected_agents or []
+                if isinstance(selected_agents, str):
+                    selected_agents = json.loads(selected_agents)
+                
+                agent_names = {
+                    "pm": "Sophie (PM)", "ba": "Olivia (BA)", "architect": "Marcus (Architect)",
+                    "apex": "Diego (Apex)", "lwc": "Zara (LWC)", "admin": "Raj (Admin)",
+                    "qa": "Elena (QA)", "devops": "Jordan (DevOps)", "data": "Aisha (Data)",
+                    "trainer": "Lucas (Trainer)"
+                }
+                
+                agent_progress = []
+                for agent_id in selected_agents:
+                    info = agent_status.get(agent_id, {})
+                    state = info.get("state", "waiting")
+                    status_map = {"waiting": "pending", "running": "in_progress", "completed": "completed", "failed": "failed"}
+                    agent_progress.append({
+                        "agent_name": agent_names.get(agent_id, agent_id),
+                        "status": status_map.get(state, state),
+                        "progress": info.get("progress", 0),
+                        "current_task": info.get("message", ""),
+                        "output_summary": info.get("message", "")
+                    })
+                
+                # Calculate overall progress
+                total = len(selected_agents)
+                completed = sum(1 for a in agent_status.values() if a.get("state") == "completed")
+                overall = int((completed / total) * 100) if total > 0 else 0
+                
+                current_status = execution.status.value if hasattr(execution.status, "value") else str(execution.status)
+                
+                # Only send if changed
+                if current_status != last_status or overall != last_progress:
+                    data = {
+                        "execution_id": execution.id,
+                        "status": current_status,
+                        "overall_progress": overall,
+                        "current_phase": f"Running {agent_names.get(execution.current_agent, execution.current_agent)}" if execution.current_agent else "Processing...",
+                        "agent_progress": agent_progress
+                    }
+                    
+                    yield f"data: {json.dumps(data)}\n\n"
+                    last_status = current_status
+                    last_progress = overall
+                
+                # Stop if execution finished
+                if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+                    yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
+                    break
+                
+                await asyncio.sleep(1)  # 1 second interval
+                retry_count += 1
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+                break
+        
+        yield f"data: {json.dumps({'event': 'timeout'})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+
 
 @router.get("/execute/{execution_id}/result", response_model=ExecutionResultResponse)
 async def get_execution_result(
@@ -694,7 +820,6 @@ async def get_detailed_execution_progress(
         "current_task": next((t for t in tasks if t["status"] == "running"), None),
         "sds_document_path": execution.sds_document_path
     }
-
 
 # ==================== CHAT WITH PM ENDPOINT ====================
 
