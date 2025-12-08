@@ -37,6 +37,9 @@ from app.models.artifact import (
 
 # Post-SDS Workflow
 from app.models.sds_version import SDSVersion
+
+# ORCH-03a: Incremental Build
+from app.models.task_execution import TaskExecution, TaskStatus
 from app.models.change_request import ChangeRequest, CRStatus, CRCategory, CRPriority
 from app.models.project_conversation import ProjectConversation
 
@@ -84,4 +87,7 @@ __all__ = [
     "CRCategory",
     "CRPriority",
     "ProjectConversation",
+    # Incremental Build
+    "TaskExecution",
+    "TaskStatus",
 ]

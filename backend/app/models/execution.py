@@ -66,3 +66,6 @@ class Execution(Base):
     sds_versions = relationship("SDSVersion", back_populates="execution")
     change_requests = relationship("ChangeRequest", back_populates="execution")
     conversations = relationship("ProjectConversation", back_populates="execution")
+    
+    # ORCH-03a: Task executions for incremental build
+    task_executions = relationship("TaskExecution", back_populates="execution", cascade="all, delete-orphan")

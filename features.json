@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 71,
+      "not_started": 70,
       "in_progress": 0,
-      "completed": 7,
+      "completed": 8,
       "blocked": 0
     }
   },
@@ -164,7 +164,7 @@
       "description": "Créer incremental_executor.py + table task_executions pour tracker l'état de chaque tâche WBS",
       "priority": 1,
       "estimated_hours": 4,
-      "status": "not_started",
+      "status": "completed",
       "dependencies": [
         "ORCH-02"
       ],
@@ -178,7 +178,7 @@
         "IncrementalExecutor peut charger les tâches depuis WBS",
         "États: pending, running, testing, passed, failed, skipped"
       ],
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. TaskExecution model + IncrementalExecutor service. Table créée, parsing WBS OK, 52 tâches chargées avec mapping agents."
     },
     {
       "id": "ORCH-03b",
