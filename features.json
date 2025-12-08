@@ -834,7 +834,7 @@
       "title": "Connexion Salesforce org",
       "description": "Interface pour connecter une org Salesforce cible (OAuth ou credentials)",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "OAuth flow fonctionnel",
         "Token stock\u00e9 de fa\u00e7on s\u00e9curis\u00e9e",
@@ -846,7 +846,7 @@
         "frontend/src/pages/OrgConnectionPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": ""
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: Connexion via SFDX - sfdx_service.check_connection() + org:display"
     },
     {
       "id": "DPL-02",
@@ -854,7 +854,7 @@
       "title": "D\u00e9ploiement automatique via Metadata API",
       "description": "D\u00e9ployer automatiquement le package g\u00e9n\u00e9r\u00e9 sur l'org connect\u00e9e",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "D\u00e9ploiement via simple_salesforce ou jsforce",
         "Statut d\u00e9ploiement suivi en temps r\u00e9el",
@@ -868,7 +868,7 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 6,
-      "notes": ""
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: deploy_source() et deploy_metadata() dans sfdx_service.py"
     },
     {
       "id": "DPL-03",
@@ -876,7 +876,7 @@
       "title": "Validation pr\u00e9-d\u00e9ploiement",
       "description": "Lancer une validation (checkOnly) avant le d\u00e9ploiement r\u00e9el",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Option checkOnly disponible",
         "R\u00e9sultats validation affich\u00e9s",
@@ -889,7 +889,7 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 2,
-      "notes": ""
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: check_only=True dans deploy_source() = validation pr\u00e9-d\u00e9ploiement"
     },
     {
       "id": "DPL-04",
@@ -961,7 +961,7 @@
       "title": "Tests post-d\u00e9ploiement automatiques",
       "description": "Lancer automatiquement les tests Apex apr\u00e8s d\u00e9ploiement",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Tests lanc\u00e9s automatiquement",
         "R\u00e9sultats affich\u00e9s dans l'UI",
@@ -974,7 +974,7 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: run_tests() dans sfdx_service.py + execute_single_task step 3"
     },
     {
       "id": "DPL-08",
@@ -1400,7 +1400,7 @@
       "title": "Mise \u00e0 jour prompt Marcus pour WBS enrichi",
       "description": "Modifier le prompt Marcus pour qu'il g\u00e9n\u00e8re le WBS au nouveau format",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Marcus g\u00e9n\u00e8re un WBS JSON valide",
         "Chaque t\u00e2che a des crit\u00e8res de validation",
@@ -1413,7 +1413,7 @@
         "backend/app/services/prompts/marcus_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Prompt Marcus g\u00e9n\u00e8re WBS JSON - d\u00e9j\u00e0 fait via PRPT-03"
     },
     {
       "id": "INC-03",
@@ -1421,7 +1421,7 @@
       "title": "Service de progression persistante",
       "description": "Service pour sauvegarder et r\u00e9cup\u00e9rer l'\u00e9tat de progression",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "\u00c9tat sauv\u00e9 apr\u00e8s chaque t\u00e2che",
         "R\u00e9cup\u00e9ration de l'\u00e9tat au red\u00e9marrage",
@@ -1432,7 +1432,7 @@
         "backend/app/services/progression_service.py"
       ],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Progression persistante - table task_executions via ORCH-03a"
     },
     {
       "id": "INC-04",
@@ -1440,7 +1440,7 @@
       "title": "Ex\u00e9cuteur de t\u00e2che unitaire",
       "description": "Service qui ex\u00e9cute une seule t\u00e2che du WBS",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Prend une t\u00e2che en entr\u00e9e",
         "Ex\u00e9cute l'agent appropri\u00e9",
@@ -1454,7 +1454,7 @@
         "backend/app/services/task_executor.py"
       ],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Ex\u00e9cuteur t\u00e2che unitaire - execute_single_task() via ORCH-03d"
     },
     {
       "id": "INC-05",
@@ -1462,7 +1462,7 @@
       "title": "Validation Elena par t\u00e2che",
       "description": "Elena valide chaque t\u00e2che individuellement avant de passer \u00e0 la suivante",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Elena re\u00e7oit le livrable + crit\u00e8res",
         "Retourne PASS/FAIL avec d\u00e9tails",
@@ -1476,7 +1476,7 @@
         "backend/app/services/task_validator.py"
       ],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Validation Elena par t\u00e2che - Elena mode=test via ORCH-03d"
     },
     {
       "id": "INC-06",
@@ -1484,7 +1484,7 @@
       "title": "Orchestrateur mode incr\u00e9mental",
       "description": "Modifier l'orchestrateur pour supporter le mode incr\u00e9mental",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Option mode incr\u00e9mental disponible",
         "Ex\u00e9cution t\u00e2che par t\u00e2che",
@@ -1499,7 +1499,7 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 5,
-      "notes": ""
+      "notes": "Orchestrateur incr\u00e9mental - execute_build_phase() via ORCH-03d"
     },
     {
       "id": "INC-07",
@@ -1507,7 +1507,7 @@
       "title": "UI progression t\u00e2che par t\u00e2che",
       "description": "Interface affichant la progression t\u00e2che par t\u00e2che",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Liste des t\u00e2ches avec statuts",
         "T\u00e2che courante mise en \u00e9vidence",
@@ -1520,7 +1520,7 @@
         "frontend/src/pages/IncrementalProgressPage.tsx"
       ],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "UI progression - BuildMonitoringPage.tsx existe"
     },
     {
       "id": "INC-08",
@@ -1528,7 +1528,7 @@
       "title": "Bouton pause/reprise",
       "description": "Permettre de mettre en pause et reprendre l'ex\u00e9cution",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Bouton pause fonctionnel",
         "\u00c9tat sauvegard\u00e9 \u00e0 la pause",
@@ -1543,7 +1543,7 @@
         "backend/app/api/routes/pm_orchestrator.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Pause/reprise - endpoints et UI ajout\u00e9s ce soir"
     },
     {
       "id": "INC-09",

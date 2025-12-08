@@ -40,13 +40,14 @@ interface BuildTasksResponse {
 }
 
 const AGENT_INFO: Record<string, { name: string; role: string; icon: typeof Code; color: string }> = {
-  apex: { name: 'Diego', role: 'Apex Developer', icon: Code, color: 'from-orange-500 to-amber-500' },
-  lwc: { name: 'Zara', role: 'LWC Developer', icon: Wrench, color: 'from-pink-500 to-rose-500' },
-  admin: { name: 'Raj', role: 'SF Admin', icon: Database, color: 'from-blue-500 to-indigo-500' },
-  data: { name: 'Aisha', role: 'Data Migration', icon: Database, color: 'from-emerald-500 to-teal-500' },
-  qa: { name: 'Elena', role: 'QA Engineer', icon: TestTube, color: 'from-purple-500 to-violet-500' },
-  devops: { name: 'Jordan', role: 'DevOps', icon: Rocket, color: 'from-red-500 to-orange-500' },
-  trainer: { name: 'Lucas', role: 'Trainer', icon: GraduationCap, color: 'from-cyan-500 to-blue-500' },
+  diego: { name: 'Diego', role: 'Apex Developer', icon: Code, color: 'from-orange-500 to-amber-500' },
+  zara: { name: 'Zara', role: 'LWC Developer', icon: Wrench, color: 'from-pink-500 to-rose-500' },
+  raj: { name: 'Raj', role: 'SF Admin', icon: Database, color: 'from-blue-500 to-indigo-500' },
+  aisha: { name: 'Aisha', role: 'Data Migration', icon: Database, color: 'from-emerald-500 to-teal-500' },
+  elena: { name: 'Elena', role: 'QA Engineer', icon: TestTube, color: 'from-purple-500 to-violet-500' },
+  jordan: { name: 'Jordan', role: 'DevOps', icon: Rocket, color: 'from-red-500 to-orange-500' },
+  lucas: { name: 'Lucas', role: 'Trainer', icon: GraduationCap, color: 'from-cyan-500 to-blue-500' },
+  marcus: { name: 'Marcus', role: 'Architect', icon: Code, color: 'from-slate-500 to-gray-500' },
 };
 
 const STATUS_CONFIG: Record<string, { color: string; bgColor: string; icon: typeof CheckCircle; label: string }> = {
@@ -71,6 +72,8 @@ export default function BuildMonitoringPage() {
   const [error, setError] = useState('');
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set(['apex', 'lwc', 'admin']));
   const [selectedTask, setSelectedTask] = useState<TaskInfo | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -90,6 +93,7 @@ export default function BuildMonitoringPage() {
       const response = await api.get(`/api/pm-orchestrator/execute/${executionId}/build-tasks`);
       setData(response);
       setIsLoading(false);
+      setIsPaused(response.execution_status === 'paused' || (response.metadata?.build_paused === true));
       
       // Stop polling if build is complete
       if (response.execution_status === 'COMPLETED' || response.execution_status === 'FAILED') {
@@ -148,6 +152,28 @@ export default function BuildMonitoringPage() {
   const stats = data?.build_phase;
   const tasksByAgent = data?.tasks_by_agent || {};
 
+  const handlePause = async () => {
+    setActionLoading(true);
+    try {
+      await api.post(`/api/pm-orchestrator/execute/${executionId}/pause-build`);
+      setIsPaused(true);
+    } catch (err) {
+      console.error('Pause failed:', err);
+    }
+    setActionLoading(false);
+  };
+
+  const handleResume = async () => {
+    setActionLoading(true);
+    try {
+      await api.post(`/api/pm-orchestrator/execute/${executionId}/resume-build`);
+      setIsPaused(false);
+    } catch (err) {
+      console.error('Resume failed:', err);
+    }
+    setActionLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#0B1120]">
       <Navbar />
@@ -168,13 +194,36 @@ export default function BuildMonitoringPage() {
                 Execution #{executionId} • {data?.execution_status}
               </p>
             </div>
-            <button
-              onClick={fetchBuildTasks}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
+            <div className="flex gap-3">
+              {data?.execution_status === 'running' || data?.execution_status === 'building' ? (
+                isPaused ? (
+                  <button
+                    onClick={handleResume}
+                    disabled={actionLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Play className="w-4 h-4" />
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    onClick={handlePause}
+                    disabled={actionLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-yellow-600 hover:bg-yellow-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <Pause className="w-4 h-4" />
+                    Pause
+                  </button>
+                )
+              ) : null}
+              <button
+                onClick={fetchBuildTasks}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
@@ -238,7 +287,7 @@ export default function BuildMonitoringPage() {
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${agentInfo.color} flex items-center justify-center`}>
-                      <Avatar name={agentInfo.name} size="md" />
+                      <agentInfo.icon className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <h3 className="text-white font-semibold">{agentInfo.name}</h3>

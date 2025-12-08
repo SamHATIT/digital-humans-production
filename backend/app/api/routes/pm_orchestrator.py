@@ -1461,3 +1461,77 @@ async def execute_build_phase(execution_id: int):
     finally:
         db.close()
         logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# PAUSE / RESUME BUILD
+# ════════════════════════════════════════════════════════════════════════════════
+
+@router.post("/execute/{execution_id}/pause-build")
+async def pause_build(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Pause the BUILD phase execution.
+    Current task will complete, but no new tasks will start.
+    """
+    from app.models.task_execution import TaskExecution, TaskStatus
+    
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    if execution.status.value not in ["running", "building"]:
+        raise HTTPException(status_code=400, detail=f"Cannot pause. Status is {execution.status.value}")
+    
+    # Set a pause flag in metadata
+    if not execution.metadata:
+        execution.metadata = {}
+    execution.metadata["build_paused"] = True
+    execution.metadata["paused_at"] = datetime.utcnow().isoformat()
+    flag_modified(execution, "metadata")
+    
+    db.commit()
+    
+    return {
+        "status": "paused",
+        "message": "BUILD paused. Current task will complete, then execution will wait.",
+        "execution_id": execution_id
+    }
+
+
+@router.post("/execute/{execution_id}/resume-build")
+async def resume_build(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Resume a paused BUILD phase execution.
+    """
+    from app.models.task_execution import TaskExecution, TaskStatus
+    
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    if not execution.metadata or not execution.metadata.get("build_paused"):
+        raise HTTPException(status_code=400, detail="BUILD is not paused")
+    
+    # Clear pause flag
+    execution.metadata["build_paused"] = False
+    execution.metadata["resumed_at"] = datetime.utcnow().isoformat()
+    flag_modified(execution, "metadata")
+    
+    db.commit()
+    
+    # Restart the build phase in background
+    asyncio.create_task(execute_build_phase(execution_id))
+    
+    return {
+        "status": "resumed",
+        "message": "BUILD resumed. Execution continuing from next pending task.",
+        "execution_id": execution_id
+    }

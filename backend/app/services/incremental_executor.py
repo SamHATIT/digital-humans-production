@@ -31,15 +31,24 @@ logger = logging.getLogger(__name__)
 # Configuration
 MAX_RETRIES = 3
 AGENT_MAPPING = {
-    # WBS assignee -> agent_id
-    "Diego": "apex",
-    "Zara": "lwc", 
-    "Raj": "admin",
-    "Aisha": "data",
-    "Elena": "qa",
-    "Jordan": "devops",
-    "Lucas": "trainer",
-    "Marcus": "architect",
+    # WBS assignee -> agent_id (must match AGENT_CONFIG keys in agent_executor.py)
+    "Diego": "diego",
+    "Zara": "zara", 
+    "Raj": "raj",
+    "Aisha": "aisha",
+    "Elena": "elena",
+    "Jordan": "jordan",
+    "Lucas": "lucas",
+    "Marcus": "marcus",
+    # Lowercase variants
+    "diego": "diego",
+    "zara": "zara",
+    "raj": "raj",
+    "aisha": "aisha",
+    "elena": "elena",
+    "jordan": "jordan",
+    "lucas": "lucas",
+    "marcus": "marcus",
 }
 
 
@@ -119,11 +128,23 @@ class IncrementalExecutor:
         logger.info(f"[IncrementalExecutor] Created {len(tasks_created)} task executions")
         return tasks_created
     
+    def is_paused(self) -> bool:
+        """Check if build is paused via execution metadata."""
+        self.db.refresh(self.execution)
+        if self.execution and self.execution.metadata:
+            return self.execution.metadata.get("build_paused", False)
+        return False
+    
     def get_next_task(self) -> Optional[TaskExecution]:
         """
         Get the next task that can be executed.
-        Returns None if no tasks are available (all done or blocked).
+        Returns None if no tasks are available (all done, blocked, or paused).
         """
+        # Check if paused
+        if self.is_paused():
+            logger.info("[IncrementalExecutor] BUILD is paused")
+            return None
+        
         # Get all completed task IDs
         completed_tasks = [t.task_id for t in self.db.query(TaskExecution).filter(
             TaskExecution.execution_id == self.execution_id,
