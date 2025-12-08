@@ -40,3 +40,6 @@ json-repair>=0.30.0
 
 # RAG - Vector database for Salesforce expert context
 chromadb==1.3.4
+
+# RAG Reranking - CRIT-03
+sentence-transformers>=2.2.0
