@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 61,
+      "completed": 18,
       "in_progress": 0,
-      "completed": 17,
+      "not_started": 59,
       "blocked": 0
     }
   },
@@ -288,7 +288,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. Endpoints POST /retry et GET /retry-info. Bouton Retry dans ExecutionMonitoringPage. États sauvegardés via TaskExecution."
+      "notes": "Déjà implémenté. Backend: /retry endpoint avec reset tasks. Frontend: bouton Retry dans ExecutionMonitoringPage. API: executions.retry()."
     },
     {
       "id": "PRPT-01",
@@ -296,7 +296,7 @@
       "title": "Tuning prompt Sophie - BRs plus détaillés",
       "description": "Améliorer le prompt de Sophie pour extraire des BRs avec plus de détails (champs, règles métier, dépendances)",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "BRs incluent les champs spécifiques mentionnés",
         "BRs incluent les règles de validation",
@@ -307,7 +307,7 @@
         "backend/app/services/prompts/sophie_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Problème identifié : descriptions BR trop génériques"
+      "notes": "Implémenté 08/12/2025. Prompt Sophie enrichi avec metadata: fields[], validation_rules[], dependencies[], acceptance_criteria[]. Modèle BR mis à jour avec br_metadata JSONB."
     },
     {
       "id": "PRPT-02",

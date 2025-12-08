@@ -43,22 +43,39 @@ Output a JSON object with this structure:
 - "project_summary": Brief 2-3 sentence summary of the project
 - "business_requirements": Array of BR objects, each with:
   - "id": "BR-001", "BR-002", etc.
-  - "title": Short descriptive title
+  - "title": Short descriptive title (max 10 words)
   - "description": Clear description (1-3 sentences)
   - "category": One of DATA_MODEL, AUTOMATION, INTEGRATION, UI_UX, REPORTING, SECURITY, OTHER
   - "priority": One of MUST_HAVE, SHOULD_HAVE, NICE_TO_HAVE
-  - "stakeholder": Who needs this
+  - "stakeholder": Who needs this (e.g., "Sales Manager", "System Admin")
+  - "metadata": Object containing:
+    - "fields": Array of specific field names mentioned (e.g., ["Customer.Phone", "Order.Amount"])
+    - "validation_rules": Array of business rules (e.g., ["Amount must be > 0", "Date cannot be in past"])
+    - "dependencies": Array of related BR IDs (e.g., ["BR-001", "BR-003"])
+    - "acceptance_criteria": Array of testable criteria (e.g., ["User can create record", "System validates input"])
 - "constraints": Array of technical or business constraints
 - "assumptions": Array of assumptions made
 
 ## RULES
 1. Extract 10-30 atomic BRs depending on project complexity
-2. Do NOT add Salesforce-specific details (that's the BA's job)
-3. Do NOT design solutions (that's the Architect's job)
-4. Focus on WHAT is needed, not HOW to implement
-5. Group related requirements under appropriate categories
-6. Preserve the business intent from the original text
-7. If something is unclear, list it as an assumption
+2. **EXTRACT SPECIFIC DETAILS**:
+   - When user mentions a field (e.g., "track the customer's phone number"), add it to metadata.fields
+   - When user mentions a rule (e.g., "discount cannot exceed 30%"), add it to metadata.validation_rules
+   - When a BR depends on another (e.g., "products need an order"), note the dependency
+3. Do NOT add Salesforce-specific details (that's the BA's job)
+4. Do NOT design solutions (that's the Architect's job)
+5. Focus on WHAT is needed, not HOW to implement
+6. Group related requirements under appropriate categories
+7. Preserve the business intent from the original text
+8. If something is unclear, list it as an assumption
+
+## EXAMPLE
+For input: "We need to track customer phone and email. Discounts cannot exceed 30%."
+
+Output should include:
+- metadata.fields: ["Customer.Phone", "Customer.Email", "Order.Discount"]
+- metadata.validation_rules: ["Discount <= 30%"]
+- metadata.acceptance_criteria: ["User can enter phone", "System rejects discount > 30%"]
 
 ---
 
@@ -71,9 +88,6 @@ Output a JSON object with this structure:
 **Extract all Business Requirements now. Output ONLY valid JSON, no markdown fences or extra text.**
 '''
 
-# ============================================================================
-# PROMPT 2: CONSOLIDATE SDS (Enhanced with Mermaid formatting)
-# ============================================================================
 def get_consolidate_sds_prompt(artifacts: str) -> str:
     return f'''# 📄 SOLUTION DESIGN SPECIFICATION - FINAL DOCUMENT
 

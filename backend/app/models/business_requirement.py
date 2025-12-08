@@ -1,7 +1,7 @@
 """
 Business Requirement model for storing extracted and validated requirements.
 """
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -53,6 +53,9 @@ class BusinessRequirement(Base):
     # Source and versioning
     source = Column(Enum(BRSource), default=BRSource.EXTRACTED)
     original_text = Column(Text)  # What Sophie extracted (for history)
+    
+    # PRPT-01: Detailed BR metadata
+    br_metadata = Column(JSON)  # {fields: [], validation_rules: [], dependencies: [], stakeholder: str}
     
     # Validation
     status = Column(Enum(BRStatus), default=BRStatus.PENDING)

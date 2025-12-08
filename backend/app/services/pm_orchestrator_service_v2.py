@@ -1196,6 +1196,19 @@ See WBS-001 artifact for details.
             priority_str = br.get("priority", "should").lower()
             priority = priority_map.get(priority_str, BRPriority.SHOULD)
             
+            # PRPT-01: Extract metadata for detailed BRs
+            br_metadata = br.get("metadata", {})
+            if not br_metadata:
+                # Build metadata from old format for backward compatibility
+                br_metadata = {
+                    "fields": [],
+                    "validation_rules": [],
+                    "dependencies": [],
+                    "acceptance_criteria": [],
+                    "stakeholder": br.get("stakeholder", ""),
+                    "title": br.get("title", ""),
+                }
+            
             br_record = BusinessRequirement(
                 execution_id=execution_id,
                 project_id=project_id,
@@ -1207,6 +1220,7 @@ See WBS-001 artifact for details.
                 original_text=br.get("requirement", br.get("description", "")),
                 status=BRStatus.PENDING,
                 order_index=i,
+                br_metadata=br_metadata,  # PRPT-01: Store detailed metadata
             )
             
             self.db.add(br_record)

@@ -362,3 +362,26 @@ Tests:
   - ✅ Flexible pour variations de Marcus
 Statut: COMPLETED
 ================================================================================
+
+=== Session 2025-12-08 [17:25] - ORCH-04 + PRPT-01 ===
+ORCH-04: Gestion reprises après erreur
+  - Déjà implémenté! Backend /retry endpoint, Frontend bouton Retry
+  - Statut: COMPLETED (existant)
+
+PRPT-01: Tuning prompt Sophie - BRs plus détaillés
+Modifications:
+  - backend/agents/roles/salesforce_pm.py: Nouveau prompt extract_br avec metadata
+  - backend/app/models/business_requirement.py: Ajout champ br_metadata JSONB
+  - backend/app/services/pm_orchestrator_service_v2.py: Sauvegarde metadata
+Structure metadata:
+  - fields[]: Champs spécifiques mentionnés
+  - validation_rules[]: Règles métier
+  - dependencies[]: Liens entre BRs
+  - acceptance_criteria[]: Critères de test
+  - stakeholder: Partie prenante
+  - title: Titre court
+Note: Renommé "metadata" → "br_metadata" (mot réservé SQLAlchemy)
+Statut: COMPLETED
+
+Prochaine étape: PRPT-02 (Tuning prompt Olivia)
+================================================================================
