@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "completed": 25,
+      "completed": 28,
       "in_progress": 0,
-      "not_started": 52,
+      "not_started": 49,
       "blocked": 0
     }
   },
@@ -556,7 +556,7 @@
       "title": "Intégration complète tests Elena dans SDS",
       "description": "Inclure tous les tests générés par Elena dans le SDS sans troncature",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Tous les tests présents (280+)",
         "Format tableau lisible",
@@ -569,7 +569,7 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": "Dépend du fix troncature"
+      "notes": "Implémenté 08/12/2025. Section 9 ajoutée: QA - Test Strategy, Test Cases Summary, Detailed Tests (max 50 + appendix note). Données depuis artifacts Elena."
     },
     {
       "id": "SDS-03",
@@ -577,7 +577,7 @@
       "title": "Section déploiement Jordan dans SDS",
       "description": "Ajouter la section complète de déploiement générée par Jordan",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "10 sections du plan de déploiement présentes",
         "Checklist pré-déploiement incluse",
@@ -590,7 +590,7 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": "Dépend du fix troncature"
+      "notes": "Implémenté 08/12/2025. Section 10 ajoutée: Deployment - Strategy, Environments, CI/CD Pipeline, Pre-deployment Checklist, Rollback Plan. Données depuis artifacts Jordan."
     },
     {
       "id": "SDS-04",
@@ -598,7 +598,7 @@
       "title": "Section formation Lucas dans SDS",
       "description": "Ajouter la section stratégie de formation générée par Lucas (mode SDS)",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Plan de formation inclus",
         "Profils utilisateurs identifiés",
@@ -611,7 +611,7 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. Section 11 ajoutée: Training - Strategy, Audience Analysis, Curriculum, Adoption Metrics, Timeline. Données depuis artifacts Lucas."
     },
     {
       "id": "SDS-05",
