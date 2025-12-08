@@ -181,3 +181,29 @@ Tests:
 Statut: COMPLETED
 Prochaine étape: ORCH-03b (Service SFDX)
 ================================================================================
+
+=== Session 2025-12-08 [16:30] - ORCH-03b ===
+Objectif: Service SFDX - Deploy et Tests
+Fichier créé: backend/app/services/sfdx_service.py
+Fonctionnalités SFDXService:
+  - check_connection(): Vérifie connexion org
+  - deploy_source(): Déploie répertoire source
+  - deploy_metadata(): Déploie un composant unique (ApexClass, Trigger, LWC...)
+  - run_tests(): Exécute tests Apex (classes spécifiques ou RunLocalTests)
+  - run_specific_test_methods(): Tests par méthode
+  - get_test_results(): Résultats test run async
+  - retrieve_source(): Récupère metadata depuis org
+  - list_orgs(): Liste orgs connectées
+  - get_limits(): Limites org
+Architecture:
+  - Async avec asyncio.subprocess
+  - JSON output parsing
+  - Timeout configurable (300-600s)
+  - Error handling robuste
+Tests:
+  - ✅ Connexion org digital-humans-dev OK
+  - ✅ Username: shatit715@agentforce.com
+  - ✅ Instance: orgfarm-8de2d5ba1d-dev-ed.develop.my.salesforce.com
+Statut: COMPLETED
+Prochaine étape: ORCH-03c (Service Git)
+================================================================================

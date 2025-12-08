@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 70,
+      "not_started": 69,
       "in_progress": 0,
-      "completed": 8,
+      "completed": 9,
       "blocked": 0
     }
   },
@@ -186,7 +186,7 @@
       "description": "Service pour déployer le code sur sandbox et exécuter les tests Apex via SFDX CLI",
       "priority": 1,
       "estimated_hours": 3,
-      "status": "not_started",
+      "status": "completed",
       "dependencies": [
         "ORCH-03a"
       ],
@@ -199,7 +199,7 @@
         "Récupération des résultats de test",
         "Gestion des erreurs de déploiement"
       ],
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. SFDXService avec deploy_source, deploy_metadata, run_tests, retrieve_source. Testé: connexion OK, org digital-humans-dev."
     },
     {
       "id": "ORCH-03c",
