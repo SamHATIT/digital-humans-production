@@ -1,0 +1,34 @@
+================================================================================
+                         DIGITAL HUMANS - JOURNAL DE PROGRESSION
+================================================================================
+
+Format des entrées:
+  === Session YYYY-MM-DD [HH:MM] ===
+  Objectif: [description courte]
+  Actions: [liste des actions réalisées]
+  Fonctionnalités traitées: [IDs des features]
+  Problèmes rencontrés: [le cas échéant]
+  Statut: COMPLETED | PARTIAL | BLOCKED
+  Prochaine étape: [action précise pour la prochaine session]
+
+================================================================================
+
+=== Session 2025-12-08 [14:00] ===
+Objectif: Mise en place méthodologie anti-dérive
+Actions:
+  - Analyse article Anthropic "Long-Running Agents"
+  - Audit technique Digital Humans (AUDIT_DIGITAL_HUMANS_08DEC2025.docx)
+  - Création plan détaillé V2 (PLAN_DETAILLE_DIGITAL_HUMANS_V2.docx)
+  - Création addendum mode incrémental (ADDENDUM_SECTION_11_MODE_INCREMENTAL.docx)
+  - Création des 3 fichiers de suivi : CONTEXT.md, features.json, PROGRESS.log
+  - Identification de 72 fonctionnalités à implémenter
+Fonctionnalités traitées: Aucune (session de planification)
+Problèmes rencontrés: Aucun
+Statut: COMPLETED
+Prochaine étape: 
+  - Committer les 3 fichiers sur GitHub
+  - Copier CONTEXT.md dans les instructions du projet Claude
+  - Commencer par CRIT-01 (SSE Progress 403) ou FRNT-02/FRNT-03 (bugs UI critiques)
+Rappel: Lire features.json au début de la prochaine session
+
+================================================================================
