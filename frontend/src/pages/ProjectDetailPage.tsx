@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, FileText, GitBranch, CheckCircle, Download, Plus,
-  Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp
+  Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp, Play
 } from 'lucide-react';
 import api from '../services/api';
 
@@ -79,6 +79,8 @@ export default function ProjectDetailPage() {
   const [showCRModal, setShowCRModal] = useState(false);
   const [approvingSDSLoading, setApprovingSDSLoading] = useState(false);
   const [expandedCR, setExpandedCR] = useState<number | null>(null);
+  const [startingBuild, setStartingBuild] = useState(false);
+  const [latestExecutionId, setLatestExecutionId] = useState<number | null>(null);
   
   const [newCR, setNewCR] = useState({
     category: 'business_rule',
@@ -192,6 +194,19 @@ export default function ProjectDetailPage() {
       alert(error.response?.data?.detail || 'Failed to approve SDS');
     } finally {
       setApprovingSDSLoading(false);
+    }
+  };
+  
+  const startBuild = async () => {
+    setStartingBuild(true);
+    try {
+      const response = await api.post(`/api/pm-orchestrator/projects/${projectId}/start-build`);
+      // Navigate to BUILD monitoring page
+      navigate(`/execution/${response.data.execution_id}/build`);
+    } catch (error: any) {
+      alert(error.response?.data?.detail || 'Failed to start BUILD phase');
+    } finally {
+      setStartingBuild(false);
     }
   };
 
@@ -360,31 +375,64 @@ export default function ProjectDetailPage() {
             )}
           </div>
 
-          {/* Approve SDS Button */}
-          <button
-            onClick={approveSDS}
-            disabled={!canApproveSDS || approvingSDSLoading}
-            className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 ${
-              canApproveSDS 
-                ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' 
-                : 'bg-gray-600 cursor-not-allowed opacity-50'
-            }`}
-          >
-            {approvingSDSLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                Approve SDS & Continue
-              </>
-            )}
-          </button>
+          {/* Approve SDS Button - Show only if not yet approved */}
+          {project.status !== 'sds_approved' && project.status !== 'build_in_progress' && (
+            <>
+              <button
+                onClick={approveSDS}
+                disabled={!canApproveSDS || approvingSDSLoading}
+                className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 ${
+                  canApproveSDS 
+                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' 
+                    : 'bg-gray-600 cursor-not-allowed opacity-50'
+                }`}
+              >
+                {approvingSDSLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <CheckCircle className="w-5 h-5" />
+                    Approve SDS & Continue
+                  </>
+                )}
+              </button>
+              
+              {pendingCRs.length > 0 && (
+                <p className="text-xs text-yellow-400 text-center">
+                  <AlertCircle className="w-3 h-3 inline mr-1" />
+                  {pendingCRs.length} pending CR(s) must be resolved first
+                </p>
+              )}
+            </>
+          )}
           
-          {pendingCRs.length > 0 && (
-            <p className="text-xs text-yellow-400 text-center">
-              <AlertCircle className="w-3 h-3 inline mr-1" />
-              {pendingCRs.length} pending CR(s) must be resolved first
-            </p>
+          {/* Start BUILD Button - Show after SDS approval */}
+          {project.status === 'sds_approved' && (
+            <button
+              onClick={startBuild}
+              disabled={startingBuild}
+              className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
+            >
+              {startingBuild ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Play className="w-5 h-5" />
+                  Start BUILD Phase
+                </>
+              )}
+            </button>
+          )}
+          
+          {/* BUILD in progress - Link to monitoring */}
+          {project.status === 'build_in_progress' && (
+            <button
+              onClick={() => navigate(`/execution/${latestExecutionId}/build`)}
+              className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+            >
+              <Clock className="w-5 h-5" />
+              View BUILD Progress
+            </button>
           )}
         </div>
 

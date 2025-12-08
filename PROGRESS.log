@@ -496,3 +496,31 @@ SDS-04: Section 11 - Training & Adoption (Lucas)
 
 Total: 28/77 features (36%)
 ================================================================================
+
+=== Session 2025-12-08 [19:10] - FRNT-05 BUILD Monitoring ===
+Objectif: UI pour suivi phase BUILD
+
+Backend:
+  - Nouvel endpoint: GET /execute/{id}/build-tasks
+    - Liste tâches par agent avec stats
+    - Status: pending/running/deploying/testing/passed/failed/completed
+  - Nouvel endpoint: POST /projects/{id}/start-build
+    - Crée TaskExecution depuis WBS
+    - Démarre phase BUILD
+  - Nouveaux status projet: BUILD_IN_PROGRESS, BUILD_COMPLETED
+
+Frontend:
+  - Nouvelle page: BuildMonitoringPage.tsx
+    - Progress bar globale
+    - Stats: total/completed/running/failed/pending
+    - Liste tâches groupées par agent (collapsible)
+    - Détail tâche avec erreurs et git commit
+    - Polling auto toutes les 3s
+  - Route: /execution/:executionId/build
+  - ProjectDetailPage modifié:
+    - Bouton "Approve SDS" conditionnel
+    - Bouton "Start BUILD Phase" après approbation
+    - Bouton "View BUILD Progress" si en cours
+
+Statut: COMPLETED (29/77 = 38%)
+================================================================================

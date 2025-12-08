@@ -5,6 +5,7 @@ import Projects from './pages/Projects';
 import NewProject from './pages/NewProject';
 import ExecutionPage from './pages/ExecutionPage';
 import ExecutionMonitoringPage from './pages/ExecutionMonitoringPage';
+import BuildMonitoringPage from './pages/BuildMonitoringPage';
 import AgentTesterPage from './pages/AgentTesterPage';
 import BRValidationPage from './pages/BRValidationPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
@@ -71,6 +72,15 @@ function App() {
           element={
             <ProtectedRoute>
               <ExecutionMonitoringPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* FRNT-05: BUILD Phase Monitoring */}
+        <Route
+          path="/execution/:executionId/build"
+          element={
+            <ProtectedRoute>
+              <BuildMonitoringPage />
             </ProtectedRoute>
           }
         />

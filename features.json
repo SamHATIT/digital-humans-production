@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "completed": 28,
+      "completed": 29,
       "in_progress": 0,
-      "not_started": 49,
+      "not_started": 48,
       "blocked": 0
     }
   },
@@ -515,7 +515,7 @@
       "title": "UI pour sélection agents BUILD",
       "description": "Interface permettant de voir/modifier quels agents BUILD seront exécutés",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Checkboxes pour chaque agent BUILD",
         "Pré-sélection basée sur le WBS",
@@ -529,7 +529,7 @@
         "frontend/src/pages/ProjectConfigPage.tsx"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. Page BuildMonitoringPage avec suivi tâches par agent, progress bar, détail erreurs. Endpoint /build-tasks + /start-build. Integration ProjectDetailPage avec bouton Start BUILD."
     },
     {
       "id": "SDS-01",

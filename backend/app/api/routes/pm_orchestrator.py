@@ -821,6 +821,176 @@ async def get_detailed_execution_progress(
         "sds_document_path": execution.sds_document_path
     }
 
+
+# ==================== BUILD TASKS MONITORING ====================
+
+@router.get("/execute/{execution_id}/build-tasks")
+async def get_build_tasks(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header)
+):
+    """
+    Get all BUILD phase tasks with their execution status.
+    Used by BuildMonitoringPage to display task progress.
+    """
+    from app.models.task_execution import TaskExecution, TaskStatus
+    
+    # Verify execution access
+    execution = db.query(Execution).join(Project).filter(
+        Execution.id == execution_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Get all task executions
+    tasks = db.query(TaskExecution).filter(
+        TaskExecution.execution_id == execution_id
+    ).order_by(TaskExecution.task_id).all()
+    
+    # Group by agent
+    tasks_by_agent = {}
+    for task in tasks:
+        agent = task.assigned_agent or "unassigned"
+        if agent not in tasks_by_agent:
+            tasks_by_agent[agent] = []
+        tasks_by_agent[agent].append({
+            "task_id": task.task_id,
+            "task_name": task.task_name,
+            "phase_name": task.phase_name,
+            "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+            "attempt_count": task.attempt_count,
+            "last_error": task.last_error,
+            "started_at": task.started_at.isoformat() if task.started_at else None,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+            "git_commit_sha": task.git_commit_sha,
+        })
+    
+    # Stats
+    total = len(tasks)
+    completed = len([t for t in tasks if t.status == TaskStatus.COMPLETED or t.status == TaskStatus.PASSED])
+    running = len([t for t in tasks if t.status == TaskStatus.RUNNING])
+    failed = len([t for t in tasks if t.status == TaskStatus.FAILED])
+    pending = len([t for t in tasks if t.status == TaskStatus.PENDING])
+    
+    return {
+        "execution_id": execution_id,
+        "execution_status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
+        "build_phase": {
+            "total_tasks": total,
+            "completed": completed,
+            "running": running,
+            "failed": failed,
+            "pending": pending,
+            "progress_percent": int((completed / total) * 100) if total > 0 else 0
+        },
+        "tasks_by_agent": tasks_by_agent,
+        "all_tasks": [{
+            "task_id": t.task_id,
+            "task_name": t.task_name,
+            "phase_name": t.phase_name,
+            "assigned_agent": t.assigned_agent,
+            "status": t.status.value if hasattr(t.status, "value") else str(t.status),
+            "attempt_count": t.attempt_count,
+            "last_error": t.last_error,
+            "started_at": t.started_at.isoformat() if t.started_at else None,
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+        } for t in tasks]
+    }
+
+
+
+# ==================== START BUILD PHASE ====================
+
+@router.post("/projects/{project_id}/start-build")
+async def start_build_phase(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header)
+):
+    """
+    Start the BUILD phase for a project after SDS approval.
+    Creates TaskExecution entries from WBS and starts execution.
+    """
+    from app.models.project import ProjectStatus
+    from app.models.task_execution import TaskExecution, TaskStatus
+    from app.models.execution_artifact import ExecutionArtifact
+    
+    # Verify project
+    project = db.query(Project).filter(
+        Project.id == project_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    if project.status != ProjectStatus.SDS_APPROVED:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Project must be in SDS_APPROVED status. Current: {project.status}"
+        )
+    
+    # Get the latest execution
+    execution = db.query(Execution).filter(
+        Execution.project_id == project_id
+    ).order_by(Execution.id.desc()).first()
+    
+    if not execution:
+        raise HTTPException(status_code=400, detail="No execution found for this project")
+    
+    # Get WBS from Marcus's artifact
+    wbs_artifact = db.query(ExecutionArtifact).filter(
+        ExecutionArtifact.execution_id == execution.id,
+        ExecutionArtifact.producer_agent == "marcus"
+    ).first()
+    
+    if not wbs_artifact:
+        raise HTTPException(status_code=400, detail="No WBS found. Run the Design phase first.")
+    
+    # Parse WBS content
+    wbs_content = wbs_artifact.content if isinstance(wbs_artifact.content, dict) else json.loads(wbs_artifact.content)
+    tasks = wbs_content.get("tasks", wbs_content.get("wbs", {}).get("tasks", []))
+    
+    if not tasks:
+        raise HTTPException(status_code=400, detail="WBS contains no tasks")
+    
+    # Create TaskExecution entries
+    created_tasks = 0
+    for task in tasks:
+        task_exec = TaskExecution(
+            execution_id=execution.id,
+            task_id=task.get("task_id", f"TASK-{created_tasks+1:03d}"),
+            task_name=task.get("title", task.get("name", "Unnamed task")),
+            phase_name=task.get("phase", "Build"),
+            assigned_agent=task.get("assigned_to", "").lower(),
+            status=TaskStatus.PENDING,
+            depends_on=task.get("dependencies", [])
+        )
+        db.add(task_exec)
+        created_tasks += 1
+    
+    # Update execution status
+    execution.status = ExecutionStatus.RUNNING
+    
+    # Update project status
+    project.status = ProjectStatus.BUILD_IN_PROGRESS
+    
+    db.commit()
+    
+    # TODO: Start background task for BUILD execution
+    # asyncio.create_task(execute_build_phase(db, execution.id))
+    
+    return {
+        "message": f"BUILD phase started with {created_tasks} tasks",
+        "execution_id": execution.id,
+        "project_id": project_id,
+        "tasks_created": created_tasks
+    }
+
+
 # ==================== CHAT WITH PM ENDPOINT ====================
 
 @router.post("/chat/{execution_id}")

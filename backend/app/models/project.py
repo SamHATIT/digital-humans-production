@@ -21,6 +21,8 @@ class ProjectStatus(str, enum.Enum):
     SDS_IN_REVIEW = "sds_in_review"
     SDS_APPROVED = "sds_approved"
     BUILD_READY = "build_ready"
+    BUILD_IN_PROGRESS = "build_in_progress"
+    BUILD_COMPLETED = "build_completed"
 
 
 class Project(Base):
