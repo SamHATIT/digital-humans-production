@@ -109,3 +109,26 @@ Fonctionnalité: ORCH-01
 Statut: COMPLETED
 Prochaine étape: À définir
 ================================================================================
+
+=== Session 2025-12-08 [15:45] - ORCH-02 ===
+Objectif: Orchestration parallèle agents SDS (Phase 4)
+Contexte utilisateur:
+  - Phase 4 SDS: parallélisable maintenant (pas de dépendances)
+  - Phase BUILD: séquentiel pour l'instant (sandbox 2 users max)
+  - Prévoir flexibilité pour futur (accès indépendants clients)
+Actions:
+  - Ajout PARALLEL_MODE config:
+    - sds_experts: True (parallèle)
+    - build_agents: False (séquentiel, modifiable plus tard)
+  - Phase 4 utilise asyncio.gather() si sds_experts=True
+  - Fonction helper run_sds_expert() pour chaque agent
+  - Traitement des résultats après gather()
+Gain estimé: 4 agents × 2min = 8min → ~2min (75% réduction)
+Validation:
+  - ✅ Import OK
+  - ✅ Backend redémarre sans erreur
+  - ✅ PARALLEL_MODE accessible
+Fonctionnalité: ORCH-02
+Statut: COMPLETED
+Prochaine étape: ORCH-03
+================================================================================

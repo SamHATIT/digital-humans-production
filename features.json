@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 67,
+      "not_started": 66,
       "in_progress": 0,
-      "completed": 5,
+      "completed": 6,
       "blocked": 0
     }
   },
@@ -120,7 +120,7 @@
       "title": "Orchestration parallèle agents BUILD",
       "description": "Exécuter Diego, Zara, Raj, Aisha en parallèle (quand applicable) pour réduire le temps total",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Agents BUILD lancés en parallèle via asyncio",
         "Temps d'exécution réduit vs séquentiel",
@@ -133,7 +133,7 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 4,
-      "notes": "Optionnel si la logique conditionnelle réduit déjà le nombre d'agents"
+      "notes": "Implémenté 08/12/2025. PARALLEL_MODE config + asyncio.gather() pour Phase 4. build_agents=False préparé pour futur."
     },
     {
       "id": "ORCH-03",

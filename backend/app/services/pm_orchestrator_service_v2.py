@@ -81,6 +81,13 @@ VALIDATION_GATES = [
     {"gate_number": 3, "name": "Technical Specifications", "required_artifacts": ["APEX", "LWC", "CONFIG"], "agents": ["apex", "lwc", "admin"]},
 ]
 
+# ORCH-02: Parallel execution configuration
+# Set to True to run agents in parallel, False for sequential
+PARALLEL_MODE = {
+    "sds_experts": True,    # Phase 4: Elena, Jordan, Lucas, Aisha (no dependencies)
+    "build_agents": False,  # Phase BUILD: Sequential for now (sandbox 2-user limit)
+}
+
 
 class PMOrchestratorServiceV2:
     """
@@ -454,24 +461,21 @@ class PMOrchestratorServiceV2:
                 "wbs": results["artifacts"].get("WBS", {}).get("content", {})
             }
             
-            for i, agent_id in enumerate(SDS_EXPERTS):
-                progress = expert_progress_start + ((i + 1) / len(SDS_EXPERTS)) * (expert_progress_end - expert_progress_start)
+            # ORCH-02: Parallel execution for SDS experts
+            async def run_sds_expert(agent_id: str) -> dict:
+                """Run a single SDS expert agent"""
                 agent_name = AGENT_CONFIG[agent_id]["display_name"]
-                
-                self._update_progress(execution, agent_id, "running", int(progress), f"{agent_name} creating specifications...")
+                self._update_progress(execution, agent_id, "running", 80, f"{agent_name} creating specifications...")
                 
                 # Build expert-specific input
                 expert_input = dict(common_context)
-                
-                # Add expert-specific context
-                if agent_id == "data":
-                    expert_input["focus"] = "data_migration"
-                elif agent_id == "trainer":
-                    expert_input["focus"] = "training_adoption"
-                elif agent_id == "qa":
-                    expert_input["focus"] = "quality_assurance"
-                elif agent_id == "devops":
-                    expert_input["focus"] = "deployment_cicd"
+                focus_map = {
+                    "data": "data_migration",
+                    "trainer": "training_adoption",
+                    "qa": "quality_assurance",
+                    "devops": "deployment_cicd"
+                }
+                expert_input["focus"] = focus_map.get(agent_id, agent_id)
                 
                 try:
                     expert_result = await self._run_agent(
@@ -480,6 +484,29 @@ class PMOrchestratorServiceV2:
                         execution_id=execution_id,
                         project_id=project_id
                     )
+                    return {"agent_id": agent_id, "result": expert_result}
+                except Exception as e:
+                    return {"agent_id": agent_id, "result": {"success": False, "error": str(e)}}
+            
+            if SDS_EXPERTS:
+                if PARALLEL_MODE.get("sds_experts", False):
+                    # Parallel execution
+                    logger.info(f"[Phase 4] 🚀 Running {len(SDS_EXPERTS)} SDS experts in PARALLEL")
+                    tasks = [run_sds_expert(agent_id) for agent_id in SDS_EXPERTS]
+                    expert_results = await asyncio.gather(*tasks)
+                else:
+                    # Sequential execution (fallback)
+                    logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts sequentially")
+                    expert_results = []
+                    for agent_id in SDS_EXPERTS:
+                        result = await run_sds_expert(agent_id)
+                        expert_results.append(result)
+                
+                # Process results
+                for item in expert_results:
+                    agent_id = item["agent_id"]
+                    expert_result = item["result"]
+                    agent_name = AGENT_CONFIG[agent_id]["display_name"]
                     
                     if expert_result.get("success"):
                         results["agent_outputs"][agent_id] = expert_result["output"]
@@ -487,13 +514,10 @@ class PMOrchestratorServiceV2:
                         self._track_tokens(agent_id, expert_result["output"], results)
                         self._save_deliverable(execution_id, agent_id, f"{agent_id}_specifications", expert_result["output"])
                         logger.info(f"[Phase 4] ✅ {agent_name} completed")
-                        self._update_progress(execution, agent_id, "completed", int(progress), f"{agent_name} done")
+                        self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
                     else:
                         logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {expert_result.get('error')}")
-                        self._update_progress(execution, agent_id, "failed", int(progress), f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
-                except Exception as e:
-                    logger.error(f"[Phase 4] ❌ {agent_name} exception: {str(e)}")
-                    self._update_progress(execution, agent_id, "failed", int(progress), f"Error: {str(e)[:50]}")
+                        self._update_progress(execution, agent_id, "failed", 88, f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
             
             # ========================================
             # PHASE 5: Sophie PM - Consolidate SDS
