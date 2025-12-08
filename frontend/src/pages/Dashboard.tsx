@@ -54,13 +54,14 @@ export default function Dashboard() {
       failed: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: AlertCircle },
       draft: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: Clock },
     };
-    const config = configs[status] || configs.draft;
+    const normalizedStatus = status?.toLowerCase() || 'draft';
+    const config = configs[normalizedStatus] || configs.draft;
     const Icon = config.icon;
 
     return (
       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.color}`}>
         <Icon className="w-3 h-3" />
-        {status}
+        {normalizedStatus.replace('_', ' ')}
       </span>
     );
   };

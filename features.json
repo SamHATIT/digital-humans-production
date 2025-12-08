@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 65,
+      "not_started": 64,
       "in_progress": 0,
-      "completed": 13,
+      "completed": 14,
       "blocked": 0
     }
   },
@@ -474,7 +474,7 @@
       "title": "Fix affichage statut (FAILED vs Completed)",
       "description": "Corriger l'affichage du statut qui montre 'Completed' même quand c'est 'FAILED'",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Statut FAILED affiché en rouge",
         "Statut COMPLETED affiché en vert",
@@ -485,7 +485,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 1,
-      "notes": "Fix détaillé dans NEXT_SESSION_TODO.md"
+      "notes": "08/12/2025: Ajout normalisation toLowerCase() pour status dans Dashboard.tsx et ExecutionMonitoringPage.tsx. Garantit affichage correct FAILED/COMPLETED."
     },
     {
       "id": "FRNT-04",

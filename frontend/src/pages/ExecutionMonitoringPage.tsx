@@ -157,9 +157,10 @@ export default function ExecutionMonitoringPage() {
     );
   }
 
-  const isCompleted = progress?.status === 'completed';
-  const isFailed = progress?.status === 'failed';
-  const isWaitingBRValidation = progress?.status === 'waiting_br_validation';
+  const normalizedMainStatus = progress?.status?.toLowerCase() || '';
+  const isCompleted = normalizedMainStatus === 'completed';
+  const isFailed = normalizedMainStatus === 'failed';
+  const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
 
   return (

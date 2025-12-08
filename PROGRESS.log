@@ -315,3 +315,13 @@ Corrections TS pré-existantes:
 Statut: COMPLETED
 Stats: 13/78 features terminées
 ================================================================================
+
+=== Session 2025-12-08 [17:45] - FRNT-03 ===
+Objectif: Fix affichage statut (FAILED vs Completed)
+Corrections:
+  - Dashboard.tsx: normalizedStatus = status?.toLowerCase()
+  - ExecutionMonitoringPage.tsx: normalizedMainStatus avant comparaisons
+  - Affichage formaté (replace('_', ' '))
+Impact: Garantit mapping correct vers configs rouge/vert/bleu
+Statut: COMPLETED
+================================================================================
