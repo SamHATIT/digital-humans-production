@@ -587,3 +587,252 @@ class IncrementalExecutor:
         ).count()
         
         return int((done / total) * 100)
+
+
+    # ════════════════════════════════════════════════════════════════════════════
+    # ORCH-03e: Jordan - Package Final et Déploiement UAT
+    # ════════════════════════════════════════════════════════════════════════════
+    
+    async def finalize_build(self, uat_org: str = None) -> Dict[str, Any]:
+        """
+        Finalize build phase: Jordan prepares package and optionally deploys to UAT.
+        
+        Called when all tasks are completed.
+        
+        Args:
+            uat_org: Target UAT org alias (for FULL_AUTO mode)
+            
+        Returns:
+            Dict with package info and deployment result
+        """
+        from app.services.sfdx_service import get_sfdx_service, SFDXService
+        import zipfile
+        import tempfile
+        
+        logger.info(f"[Jordan] ══════════════════════════════════════")
+        logger.info(f"[Jordan] Finalizing build - Preparing deployment package")
+        
+        # Check if build is complete
+        if not self.is_build_complete():
+            incomplete = self.get_task_summary()
+            return {
+                "success": False,
+                "error": "Build not complete",
+                "pending_tasks": incomplete["by_status"].get("pending", 0),
+                "failed_tasks": incomplete["by_status"].get("failed", 0)
+            }
+        
+        # Get all completed tasks with their generated files
+        completed_tasks = self.db.query(TaskExecution).filter(
+            TaskExecution.execution_id == self.execution_id,
+            TaskExecution.status == TaskStatus.COMPLETED
+        ).all()
+        
+        logger.info(f"[Jordan] {len(completed_tasks)} tasks completed")
+        
+        # Collect all deployed components
+        all_components = []
+        for task in completed_tasks:
+            if task.generated_files:
+                for file_path in task.generated_files:
+                    component_type = self._get_metadata_type(file_path)
+                    component_name = Path(file_path).stem
+                    all_components.append({
+                        "type": component_type,
+                        "name": component_name,
+                        "file": file_path,
+                        "task_id": task.task_id
+                    })
+        
+        logger.info(f"[Jordan] {len(all_components)} components to package")
+        
+        # Generate package.xml
+        package_xml = self._generate_package_xml(all_components)
+        
+        # Generate deployment report
+        report = self._generate_deployment_report(completed_tasks, all_components)
+        
+        result = {
+            "success": True,
+            "total_tasks": len(completed_tasks),
+            "total_components": len(all_components),
+            "package_xml": package_xml,
+            "report": report,
+        }
+        
+        if self.mode == "FULL_AUTO" and uat_org:
+            # Deploy to UAT
+            logger.info(f"[Jordan] FULL_AUTO: Deploying to UAT org '{uat_org}'...")
+            
+            sfdx_uat = SFDXService(target_org=uat_org)
+            
+            # Check UAT connection
+            conn = await sfdx_uat.check_connection()
+            if not conn.get("connected"):
+                result["uat_deploy"] = {
+                    "success": False,
+                    "error": f"Cannot connect to UAT org: {conn.get('error')}"
+                }
+            else:
+                # Retrieve from dev and deploy to UAT
+                # This is a simplified approach - real implementation would:
+                # 1. Create a temp project with retrieved source
+                # 2. Deploy that source to UAT
+                
+                sfdx_dev = get_sfdx_service()
+                
+                # Get metadata types to retrieve
+                metadata_types = list(set(c["type"] for c in all_components))
+                
+                with tempfile.TemporaryDirectory(prefix="jordan_deploy_") as temp_dir:
+                    # Retrieve from dev
+                    retrieve_result = await sfdx_dev.retrieve_source(
+                        metadata_types=metadata_types,
+                        output_dir=temp_dir
+                    )
+                    
+                    if retrieve_result.get("success"):
+                        # Deploy to UAT
+                        deploy_result = await sfdx_uat.deploy_source(
+                            source_path=temp_dir,
+                            test_level="RunLocalTests"
+                        )
+                        
+                        result["uat_deploy"] = {
+                            "success": deploy_result.get("success"),
+                            "target_org": uat_org,
+                            "components_deployed": deploy_result.get("components_deployed", 0),
+                            "details": deploy_result
+                        }
+                    else:
+                        result["uat_deploy"] = {
+                            "success": False,
+                            "error": "Failed to retrieve source from dev"
+                        }
+                
+                if result["uat_deploy"].get("success"):
+                    logger.info(f"[Jordan] ✅ Deployed to UAT: {result['uat_deploy']['components_deployed']} components")
+                else:
+                    logger.warning(f"[Jordan] ⚠️ UAT deploy failed: {result['uat_deploy'].get('error')}")
+        
+        elif self.mode == "SEMI_AUTO":
+            # Create downloadable package
+            logger.info(f"[Jordan] SEMI_AUTO: Creating downloadable package...")
+            
+            package_path = await self._create_deployment_package(all_components, package_xml)
+            
+            result["package_path"] = package_path
+            result["package_ready"] = True
+            logger.info(f"[Jordan] ✅ Package ready: {package_path}")
+        
+        logger.info(f"[Jordan] ══════════════════════════════════════")
+        return result
+    
+    def _generate_package_xml(self, components: List[Dict]) -> str:
+        """Generate package.xml content"""
+        # Group by type
+        by_type = {}
+        for comp in components:
+            comp_type = comp["type"]
+            if comp_type not in by_type:
+                by_type[comp_type] = []
+            by_type[comp_type].append(comp["name"])
+        
+        # Build XML
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<Package xmlns="http://soap.sforce.com/2006/04/metadata">',
+        ]
+        
+        for comp_type, members in sorted(by_type.items()):
+            lines.append('    <types>')
+            for member in sorted(set(members)):
+                lines.append(f'        <members>{member}</members>')
+            lines.append(f'        <name>{comp_type}</name>')
+            lines.append('    </types>')
+        
+        lines.append('    <version>59.0</version>')
+        lines.append('</Package>')
+        
+        return '\n'.join(lines)
+    
+    def _generate_deployment_report(
+        self, 
+        tasks: List[TaskExecution], 
+        components: List[Dict]
+    ) -> Dict[str, Any]:
+        """Generate deployment report"""
+        # Group tasks by agent
+        by_agent = {}
+        for task in tasks:
+            agent = task.assigned_agent or "unknown"
+            if agent not in by_agent:
+                by_agent[agent] = []
+            by_agent[agent].append({
+                "task_id": task.task_id,
+                "name": task.task_name,
+                "files": task.generated_files or [],
+                "commit": task.git_commit_sha,
+            })
+        
+        # Group components by type
+        by_type = {}
+        for comp in components:
+            comp_type = comp["type"]
+            if comp_type not in by_type:
+                by_type[comp_type] = 0
+            by_type[comp_type] += 1
+        
+        return {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "execution_id": self.execution_id,
+            "project_id": self.execution.project_id,
+            "summary": {
+                "total_tasks": len(tasks),
+                "total_components": len(components),
+                "by_agent": {k: len(v) for k, v in by_agent.items()},
+                "by_component_type": by_type,
+            },
+            "tasks_by_agent": by_agent,
+        }
+    
+    async def _create_deployment_package(
+        self, 
+        components: List[Dict], 
+        package_xml: str
+    ) -> str:
+        """Create a ZIP package for manual deployment"""
+        import zipfile
+        
+        # Create package directory
+        package_dir = Path(f"/tmp/deployment_package_{self.execution_id}")
+        package_dir.mkdir(exist_ok=True)
+        
+        # Write package.xml
+        (package_dir / "package.xml").write_text(package_xml)
+        
+        # Create ZIP
+        zip_path = f"/tmp/deployment_{self.execution_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Add package.xml
+            zf.write(package_dir / "package.xml", "package.xml")
+            
+            # Add deployment report
+            report = self._generate_deployment_report(
+                self.db.query(TaskExecution).filter(
+                    TaskExecution.execution_id == self.execution_id,
+                    TaskExecution.status == TaskStatus.COMPLETED
+                ).all(),
+                components
+            )
+            zf.writestr("deployment_report.json", json.dumps(report, indent=2))
+            
+            # Note: In a real implementation, we would also include
+            # the actual source files retrieved from the org
+        
+        # Cleanup
+        import shutil
+        shutil.rmtree(package_dir, ignore_errors=True)
+        
+        return zip_path

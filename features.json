@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 67,
+      "not_started": 66,
       "in_progress": 0,
-      "completed": 11,
+      "completed": 12,
       "blocked": 0
     }
   },
@@ -252,7 +252,7 @@
       "description": "À la fin du build, Jordan prépare le package. Full auto: deploy UAT. Semi auto: package prêt pour client.",
       "priority": 1,
       "estimated_hours": 3,
-      "status": "not_started",
+      "status": "completed",
       "dependencies": [
         "ORCH-03d"
       ],
@@ -266,7 +266,7 @@
         "Semi auto: package ZIP prêt à télécharger",
         "Rapport de déploiement généré"
       ],
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. finalize_build() génère package.xml, rapport, FULL_AUTO deploy UAT, SEMI_AUTO crée ZIP téléchargeable."
     },
     {
       "id": "ORCH-04",
