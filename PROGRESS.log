@@ -132,3 +132,29 @@ Fonctionnalité: ORCH-02
 Statut: COMPLETED
 Prochaine étape: ORCH-03
 ================================================================================
+
+=== Session 2025-12-08 [16:00] - ORCH-03 découpage ===
+Objectif: Découper ORCH-03 en sous-tâches gérables
+Contexte utilisateur (clarifications importantes):
+  - Intégration SFDX réelle (deploy + tests Apex sur sandbox)
+  - Git: repo client OU repo interne selon choix projet
+  - Mode Full Auto: agents déploient, testent, mergent
+  - Mode Semi Auto: agents génèrent, humain valide/déploie
+  - Jordan: package vers UAT (full auto) ou package prêt (semi auto)
+Workflow Phase BUILD défini:
+  1. Diego/Zara/Raj génère code/config
+  2. SFDX deploy sur sandbox
+  3. Elena exécute tests Apex
+  4. Si KO: retry max 3x avec correction
+  5. Si OK: commit Git + PR
+  6. Full auto: merge / Semi auto: pause notif
+  7. Fin: Jordan package (deploy UAT ou ZIP client)
+Sous-tâches créées:
+  - ORCH-03a: Structure incremental_executor + table (4h)
+  - ORCH-03b: Service SFDX deploy/test (3h)
+  - ORCH-03c: Service Git commit/PR (3h)
+  - ORCH-03d: Boucle complète avec retry (4h)
+  - ORCH-03e: Jordan package final (3h)
+Total: 17h estimées
+Statut: ORCH-03 marqué completed (découpé), 5 nouvelles tâches not_started
+================================================================================

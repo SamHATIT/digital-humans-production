@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 66,
+      "not_started": 71,
       "in_progress": 0,
-      "completed": 6,
+      "completed": 7,
       "blocked": 0
     }
   },
@@ -141,7 +141,7 @@
       "title": "Mode incrémental - Exécution tâche par tâche",
       "description": "Implémenter l'exécution d'une tâche WBS à la fois avec validation Elena entre chaque",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Workflow pause après chaque tâche",
         "Elena valide avant de continuer",
@@ -155,8 +155,118 @@
         "backend/app/services/pm_orchestrator_service_v2.py",
         "backend/app/services/incremental_executor.py"
       ],
-      "estimated_hours": 6,
-      "notes": "Fonctionnalité clé du mode incrémental (article Anthropic)"
+      "estimated_hours": 0,
+      "notes": "Découpé en sous-tâches ORCH-03a à ORCH-03e (08/12/2025)"
+    },
+    {
+      "id": "ORCH-03a",
+      "title": "Incremental Executor - Structure de base",
+      "description": "Créer incremental_executor.py + table task_executions pour tracker l'état de chaque tâche WBS",
+      "priority": 1,
+      "estimated_hours": 4,
+      "status": "not_started",
+      "dependencies": [
+        "ORCH-02"
+      ],
+      "files": [
+        "backend/app/services/incremental_executor.py",
+        "backend/app/models/task_execution.py",
+        "backend/alembic/versions/xxx_add_task_executions.py"
+      ],
+      "validation_criteria": [
+        "Table task_executions créée (task_id, status, attempts, error_log)",
+        "IncrementalExecutor peut charger les tâches depuis WBS",
+        "États: pending, running, testing, passed, failed, skipped"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "ORCH-03b",
+      "title": "Service SFDX - Deploy et Tests",
+      "description": "Service pour déployer le code sur sandbox et exécuter les tests Apex via SFDX CLI",
+      "priority": 1,
+      "estimated_hours": 3,
+      "status": "not_started",
+      "dependencies": [
+        "ORCH-03a"
+      ],
+      "files": [
+        "backend/app/services/sfdx_service.py"
+      ],
+      "validation_criteria": [
+        "sfdx force:source:deploy fonctionne",
+        "sfdx force:apex:test:run fonctionne",
+        "Récupération des résultats de test",
+        "Gestion des erreurs de déploiement"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "ORCH-03c",
+      "title": "Service Git - Commit et PR",
+      "description": "Service pour commit le code généré, créer des PRs et merger (GitHub/GitLab)",
+      "priority": 1,
+      "estimated_hours": 3,
+      "status": "not_started",
+      "dependencies": [
+        "ORCH-03a"
+      ],
+      "files": [
+        "backend/app/services/git_service.py"
+      ],
+      "validation_criteria": [
+        "Clone repo client ou interne selon config projet",
+        "Commit avec message descriptif (ref tâche WBS)",
+        "Création PR automatique",
+        "Merge PR (mode full auto)"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "ORCH-03d",
+      "title": "Boucle Build complète avec retry Elena",
+      "description": "Intégrer le cycle complet: génération → deploy → test Elena → retry si KO → commit si OK",
+      "priority": 1,
+      "estimated_hours": 4,
+      "status": "not_started",
+      "dependencies": [
+        "ORCH-03b",
+        "ORCH-03c"
+      ],
+      "files": [
+        "backend/app/services/incremental_executor.py",
+        "backend/app/services/pm_orchestrator_service_v2.py"
+      ],
+      "validation_criteria": [
+        "Diego/Zara/Raj génère → SFDX deploy → Elena teste",
+        "Si KO: retry max 3 fois avec correction",
+        "Si OK: commit Git + PR",
+        "Mode full auto: merge automatique",
+        "Mode semi auto: pause et notification user"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "ORCH-03e",
+      "title": "Jordan - Package final et déploiement UAT",
+      "description": "À la fin du build, Jordan prépare le package. Full auto: deploy UAT. Semi auto: package prêt pour client.",
+      "priority": 1,
+      "estimated_hours": 3,
+      "status": "not_started",
+      "dependencies": [
+        "ORCH-03d"
+      ],
+      "files": [
+        "backend/app/services/incremental_executor.py",
+        "backend/app/agents/salesforce_devops.py"
+      ],
+      "validation_criteria": [
+        "Jordan génère package.xml complet",
+        "Full auto: sfdx force:source:deploy vers UAT",
+        "Semi auto: package ZIP prêt à télécharger",
+        "Rapport de déploiement généré"
+      ],
+      "notes": ""
     },
     {
       "id": "ORCH-04",
