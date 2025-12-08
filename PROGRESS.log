@@ -207,3 +207,31 @@ Tests:
 Statut: COMPLETED
 Prochaine étape: ORCH-03c (Service Git)
 ================================================================================
+
+=== Session 2025-12-08 [16:45] - ORCH-03c ===
+Objectif: Service Git - Commit et PR
+Prérequis: Installé git dans container backend (apt-get install git)
+Fichier créé: backend/app/services/git_service.py
+Fonctionnalités GitService:
+  - clone(): Clone repo (shallow ou complet)
+  - checkout_branch(): Créer/changer de branche
+  - add_files(): Stage fichiers
+  - commit(): Commit avec message (optionnel: task_id dans message)
+  - push(): Push vers remote
+  - create_pr(): Créer PR via API (GitHub/GitLab)
+  - merge_pr(): Merger PR via API
+  - get_status(), get_current_branch()
+  - cleanup(): Nettoyer workdir
+Fonction helper:
+  - commit_and_pr(): Flow complet (clone → branch → commit → push → PR)
+Support providers:
+  - GitHub (API v3)
+  - GitLab (API v4)
+  - Generic (CLI uniquement)
+Tests:
+  - ✅ Clone repo OK
+  - ✅ Détection provider GitHub
+  - ✅ Status et branch OK
+Statut: COMPLETED
+Prochaine étape: ORCH-03d (Boucle Build complète)
+================================================================================

@@ -5,9 +5,9 @@
     "last_updated": "2025-12-08",
     "total_features": 72,
     "stats": {
-      "not_started": 69,
+      "not_started": 68,
       "in_progress": 0,
-      "completed": 9,
+      "completed": 10,
       "blocked": 0
     }
   },
@@ -207,7 +207,7 @@
       "description": "Service pour commit le code généré, créer des PRs et merger (GitHub/GitLab)",
       "priority": 1,
       "estimated_hours": 3,
-      "status": "not_started",
+      "status": "completed",
       "dependencies": [
         "ORCH-03a"
       ],
@@ -220,7 +220,7 @@
         "Création PR automatique",
         "Merge PR (mode full auto)"
       ],
-      "notes": ""
+      "notes": "Implémenté 08/12/2025. GitService avec clone, commit, push, create_pr, merge_pr. Support GitHub + GitLab API. Testé: clone OK."
     },
     {
       "id": "ORCH-03d",
