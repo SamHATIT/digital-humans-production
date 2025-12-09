@@ -892,3 +892,41 @@ Statut: COMPLETED
 Prochaine étape: Retester le BUILD avec les corrections
 
 ================================================================================
+
+=== Session 2025-12-09 [15:05-15:25] ===
+Objectif: Réparer l'ingestion RAG des exemples GitHub
+
+## PROBLÈME DÉCOUVERT
+
+L'ingestion V3 avait ÉCHOUÉ avec "Broken pipe" pour tous les fichiers GitHub :
+- apex_collection contenait 634 docs de PDFs de documentation, PAS de code
+- lwc_collection contenait 324 docs de PDFs, PAS de composants
+- Les agents n'avaient AUCUN exemple de code de qualité !
+
+## CORRECTION
+
+### Repos GitHub disponibles (déjà clonés)
+- apex-recipes: 139 classes Apex officielles Salesforce
+- fflib-apex-common-samplecode: 53 classes enterprise patterns
+- lwc-recipes: 123 composants LWC officiels
+
+### Scripts d'ingestion créés
+1. ingest_github_robust.py - Pour Apex (apex_code.json, test_class.json, enterprise_pattern.json)
+2. ingest_lwc_fix.py - Pour LWC (structure différente: code_js, code_html, code_css)
+
+### Résultat final
+- apex_collection: 884 docs dont 250 GitHub ✅
+- lwc_collection: 446 docs dont 122 GitHub ✅
+- Docker container voit correctement les nouvelles données ✅
+
+## TEST RAG
+Query "service layer pattern with error handling":
+→ Retourne AccountsService, OpportunitiesService de fflib ✅
+
+Query "wire adapter with apex method":
+→ Retourne apexWireMethodToProperty, apexWireMethodToFunction ✅
+
+Statut: COMPLETED
+Les agents ont maintenant accès à des exemples de code de qualité !
+
+================================================================================
