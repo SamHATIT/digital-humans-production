@@ -930,3 +930,46 @@ Statut: COMPLETED
 Les agents ont maintenant accès à des exemples de code de qualité !
 
 ================================================================================
+
+=== Session 2025-12-09 [15:05-15:30] ===
+Objectif: Réparer l'ingestion RAG des exemples GitHub
+
+## PROBLÈME DÉCOUVERT
+- L'ingestion V3 du 5 décembre a ÉCHOUÉ (Broken pipe pour tous les fichiers)
+- Les 634 docs apex_collection étaient des PDFs de documentation, PAS du code GitHub
+- Les agents n'avaient pas accès aux exemples de code de qualité
+
+## REPOS GITHUB DISPONIBLES
+- apex-recipes (139 classes) - Exemples officiels Trailhead
+- fflib-apex-common-samplecode (53 classes) - Enterprise patterns
+- lwc-recipes (123 composants) - Exemples officiels LWC
+
+## FICHIERS JSON EXTRAITS (prêts à ingérer)
+- apex_code.json (74 classes)
+- test_class.json (65 classes de test)
+- enterprise_pattern.json (43 classes fflib)
+- lwc_code.json (124 composants)
+
+## INGESTION RÉUSSIE
+Scripts créés et exécutés:
+- ingest_lwc_fix.py → 122 composants LWC ajoutés
+- ingest_apex_github.py → 182 documents Apex ajoutés
+
+## RÉSULTAT FINAL
+| Collection | Avant | Après | Docs GitHub |
+|------------|-------|-------|-------------|
+| apex_collection | 634 | 998 | 364 |
+| lwc_collection | 324 | 446 | 122 |
+
+## TEST RAG VALIDÉ
+Query "trigger handler pattern Account" retourne maintenant:
+- AccountTriggerHandler (trailheadapps/apex-recipes)
+- MDTAccountTriggerHandler
+- MDTSecondAccountTriggerHandler
+
+Les agents ont maintenant accès à des exemples de code de qualité !
+
+Statut: COMPLETED
+Prochaine étape: Retester le BUILD avec RAG fonctionnel
+
+================================================================================

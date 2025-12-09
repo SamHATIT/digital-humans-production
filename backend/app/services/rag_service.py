@@ -140,11 +140,22 @@ def get_openai_embedding(text: str) -> List[float]:
     response = client.embeddings.create(model="text-embedding-3-large", input=text)
     return response.data[0].embedding
 
-def get_nomic_embedding(text: str) -> List[float]:
+def get_nomic_embedding(text: str, is_query: bool = True) -> List[float]:
+    """Generate embedding using nomic model with proper prefix.
+    
+    nomic-embed-text-v1.5 requires specific prefixes:
+    - 'search_query: ' for queries (default)
+    - 'search_document: ' for documents (used during ingestion)
+    """
     model = get_nomic_model()
     if model is None:
         raise ValueError("Modèle nomic non disponible")
-    return model.encode(text, convert_to_numpy=True).tolist()
+    
+    # Add prefix for nomic model
+    prefix = "search_query: " if is_query else "search_document: "
+    prefixed_text = f"{prefix}{text}"
+    
+    return model.encode(prefixed_text, convert_to_numpy=True).tolist()
 
 def rerank_results(query: str, documents: List[str], top_k: int = 10) -> List[tuple]:
     reranker = get_reranker()
