@@ -1713,6 +1713,15 @@
       "priority": "high",
       "category": "build",
       "notes": "CORRIG\u00c9 2025-12-09 - deploy_lwc_bundle() cr\u00e9e la structure bundle correcte"
+    },
+    {
+      "id": "BUG-037",
+      "title": "Feedback Elena non pass\u00e9 aux agents lors du retry",
+      "description": "correction_context cr\u00e9\u00e9 avec le feedback d'Elena mais jamais ajout\u00e9 au prompt. Les agents ne voyaient pas les corrections demand\u00e9es.",
+      "status": "done",
+      "priority": "critical",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - Ajout prompt += correction_context dans lwc et admin"
     }
   ]
 }

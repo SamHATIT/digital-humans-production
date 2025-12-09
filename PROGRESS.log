@@ -860,3 +860,35 @@ Statut: COMPLETED (corrections implémentées)
 Prochaine étape: Améliorer les prompts agents pour générer du code complet
 
 ================================================================================
+
+=== Session 2025-12-09 [15:00-15:30] ===
+Objectif: Améliorer les agents pour qu'ils respectent les règles
+
+## BUG CRITIQUE DÉCOUVERT
+
+### BUG-037: Feedback Elena non passé aux agents
+- **Symptôme**: Zara faisait 3 tentatives identiques, ne corrigeait jamais
+- **Cause**: `correction_context` créé mais JAMAIS ajouté au prompt !
+- **Impact**: Les agents ne voyaient pas le feedback d'Elena lors du retry
+- **Correction**: Ajout `prompt += correction_context` dans lwc et admin
+- **Status**: ✅ CORRIGÉ
+
+## AMÉLIORATIONS PROMPTS
+
+### Ajout COMPLETENESS CHECKLIST à tous les agents build
+- LWC (Zara): Vérifier HTML tags, JS methods, CSS rules, imports
+- Admin (Raj): Vérifier structure XML, propriétés autorisées, fichiers séparés
+- Apex (Diego): Vérifier dependencies, implementations complètes, tests
+
+## FICHIERS MODIFIÉS
+- backend/agents/roles/salesforce_developer_lwc.py
+- backend/agents/roles/salesforce_admin.py
+- backend/agents/roles/salesforce_developer_apex.py
+
+## COMMITS
+- d79f09f: FIX: Agent feedback loop + completeness checklist
+
+Statut: COMPLETED
+Prochaine étape: Retester le BUILD avec les corrections
+
+================================================================================
