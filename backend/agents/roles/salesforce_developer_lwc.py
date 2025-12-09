@@ -112,7 +112,17 @@ export default class ComponentName extends LightningElement {{
 5. **Performance**: Avoid unnecessary renders, use if:true
 6. **Security**: No innerHTML, sanitize user input
 
-## GENERATE THE COMPONENT NOW:
+## ⚠️ COMPLETENESS CHECKLIST - VERIFY BEFORE SUBMITTING
+Before generating, ensure:
+□ HTML: All tags properly opened AND closed (no incomplete templates)
+□ HTML: All referenced variables exist in the JS file
+□ JS: All methods referenced in HTML are fully implemented (not just signatures)
+□ JS: All imports are present (LightningElement, api, wire, track, etc.)
+□ JS: Error handling with try-catch for async operations
+□ CSS: All classes referenced in HTML have style rules
+□ META: Correct targets for where the component will be used
+
+## GENERATE COMPLETE, WORKING CODE NOW:
 """
 
 
@@ -171,6 +181,11 @@ FIX THESE ISSUES.
     
     prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name, task_description=task_description,
                                   architecture_context=architecture_context[:10000], validation_criteria=validation_criteria)
+    
+    # CRITICAL: Add Elena's feedback if this is a retry
+    if correction_context:
+        prompt += correction_context
+        
     if rag_context:
         prompt += f"\n\n## LWC BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
     

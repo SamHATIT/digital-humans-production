@@ -149,8 +149,17 @@ public class MyService {{
 - Every method must have full implementation
 - If code is too long, prioritize core functionality but COMPLETE it
 
-## GENERATE THE CODE NOW
-Implement the task with production-quality, SELF-CONTAINED, COMPLETE code:
+## ⚠️ COMPLETENESS CHECKLIST - VERIFY BEFORE SUBMITTING
+Before generating, ensure:
+□ All classes compile independently (no missing dependencies)
+□ All methods have complete implementations (not just signatures)
+□ All referenced classes are either standard SF classes OR included in output
+□ Use AuraHandledException for errors (not custom exception classes)
+□ Test class covers all methods with @isTest annotation
+□ All SOQL queries use WITH SECURITY_ENFORCED
+□ Meta XML files included for each class
+
+## GENERATE COMPLETE, DEPLOYABLE CODE NOW:
 """
 
 

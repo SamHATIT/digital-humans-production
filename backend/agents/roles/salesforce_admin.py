@@ -176,7 +176,16 @@ For each file:
 2. Complete XML content
 3. Blank line before next file
 
-## GENERATE THE METADATA NOW:
+## ⚠️ COMPLETENESS CHECKLIST - VERIFY BEFORE SUBMITTING
+Before generating, ensure:
+□ Each CustomObject has ONLY: deploymentStatus, label, pluralLabel, nameField, sharingModel
+□ Each CustomField is in a SEPARATE file under fields/ folder
+□ NO forbidden properties (enableChangeDataCapture, enableHistory, etc.)
+□ All XML is well-formed with proper closing tags
+□ All required fields for the type are present
+□ File paths follow exact Salesforce structure
+
+## GENERATE COMPLETE, VALID METADATA NOW:
 """
 
 
@@ -229,6 +238,11 @@ FIX THESE ISSUES.
     prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name, 
                                   task_description=task_description,
                                   architecture_context=architecture_context[:10000])
+    
+    # CRITICAL: Add Elena's feedback if this is a retry
+    if correction_context:
+        prompt += correction_context
+        
     if rag_context:
         prompt += f"\n\n## ADMIN BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
     
