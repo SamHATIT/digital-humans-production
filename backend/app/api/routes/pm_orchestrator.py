@@ -914,134 +914,36 @@ async def start_build_phase(
     Start the BUILD phase for a project after SDS approval.
     Creates TaskExecution entries from WBS and starts execution.
     """
-    from app.models.project import ProjectStatus
-    from app.models.task_execution import TaskExecution, TaskStatus
-    from app.models.artifact import ExecutionArtifact
+    from app.services.pm_orchestrator_service_v2 import BuildPhaseService
     
-    # Verify project
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user.id
-    ).first()
+    # Use BuildPhaseService for business logic
+    service = BuildPhaseService(db)
+    result = service.prepare_build_phase(project_id, current_user.id)
     
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    if project.status != ProjectStatus.SDS_APPROVED:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Project must be in SDS_APPROVED status. Current: {project.status}"
-        )
-    
-    # Get the latest execution
-    execution = db.query(Execution).filter(
-        Execution.project_id == project_id
-    ).order_by(Execution.id.desc()).first()
-    
-    if not execution:
-        raise HTTPException(status_code=400, detail="No execution found for this project")
-    
-    # Get WBS from Marcus's deliverable (stored in agent_deliverables)
-    from app.models.agent_deliverable import AgentDeliverable
-    wbs_deliverable = db.query(AgentDeliverable).filter(
-        AgentDeliverable.execution_id == execution.id,
-        AgentDeliverable.deliverable_type == "architect_wbs"
-    ).first()
-    
-    if not wbs_deliverable:
-        raise HTTPException(status_code=400, detail="No WBS found. Run the Design phase first.")
-    
-    # Parse WBS content - handle various nesting levels
-    import re as re_module
-    wbs_content = wbs_deliverable.content if isinstance(wbs_deliverable.content, dict) else json.loads(wbs_deliverable.content)
-    
-    # Navigate to the actual WBS data
-    wbs_data = None
-    
-    # Check if content contains raw JSON string (with markdown backticks)
-    if "content" in wbs_content and isinstance(wbs_content["content"], dict):
-        inner_content = wbs_content["content"]
-        if "raw" in inner_content and isinstance(inner_content["raw"], str):
-            # Extract JSON from markdown code block - handle multiple blocks
-            raw_json = inner_content["raw"]
-            # Remove opening markdown fence
-            if raw_json.startswith("```json"):
-                raw_json = raw_json[7:].lstrip()
-            elif raw_json.startswith("```"):
-                raw_json = raw_json[3:].lstrip()
-            # Find the closing fence and cut there (in case of multiple blocks)
-            if "```" in raw_json:
-                raw_json = raw_json[:raw_json.index("```")]
-            try:
-                wbs_data = json.loads(raw_json)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse WBS JSON: {e}")
-                # Try to find a valid JSON object
-                import re as regex
-                match = regex.search(r'\{.*\}', raw_json, regex.DOTALL)
-                if match:
-                    try:
-                        wbs_data = json.loads(match.group())
-                    except:
-                        raise HTTPException(status_code=400, detail=f"Invalid WBS JSON: {str(e)}")
-                else:
-                    raise HTTPException(status_code=400, detail=f"Invalid WBS JSON: {str(e)}")
-        else:
-            wbs_data = inner_content
-    else:
-        wbs_data = wbs_content
-    
-    # Extract tasks - WBS has phases, each phase has tasks
-    tasks = []
-    if "phases" in wbs_data and isinstance(wbs_data["phases"], list):
-        for phase in wbs_data["phases"]:
-            phase_name = phase.get("name", "Unknown Phase")
-            for task in phase.get("tasks", []):
-                task["phase_name"] = phase_name
-                tasks.append(task)
-    elif "tasks" in wbs_data:
-        tasks = wbs_data["tasks"]
-    
-    if not tasks:
-        raise HTTPException(status_code=400, detail="WBS contains no tasks")
-    
-    # Create TaskExecution entries
-    created_tasks = 0
-    agent_mapping = {"jordan": "devops", "raj": "admin", "diego": "apex", "zara": "lwc", "elena": "qa", "aisha": "data", "lucas": "trainer", "marcus": "architect"}
-    for task in tasks:
-        # Map agent name to agent_id
-        assigned = task.get("assigned_agent", task.get("assigned_to", "")).lower()
-        agent_id = agent_mapping.get(assigned, assigned)
-        
-        task_exec = TaskExecution(
-            execution_id=execution.id,
-            task_id=task.get("id", task.get("task_id", f"TASK-{created_tasks+1:03d}")),
-            task_name=task.get("name", task.get("title", "Unnamed task")),
-            phase_name=task.get("phase_name", task.get("phase", "Build")),
-            assigned_agent=agent_id,
-            status=TaskStatus.PENDING,
-            depends_on=task.get("dependencies", [])
-        )
-        db.add(task_exec)
-        created_tasks += 1
-    
-    # Update execution status
-    execution.status = ExecutionStatus.RUNNING
-    
-    # Update project status
-    project.status = ProjectStatus.BUILD_IN_PROGRESS
-    
-    db.commit()
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     # Start BUILD execution in background
-    asyncio.create_task(execute_build_phase(execution.id))
+    asyncio.create_task(execute_build_phase(result["execution_id"]))
     
     return {
-        "message": f"BUILD phase started with {created_tasks} tasks",
-        "execution_id": execution.id,
+        "message": f"BUILD phase started with {result['tasks_created']} tasks",
+        "execution_id": result["execution_id"],
         "project_id": project_id,
-        "tasks_created": created_tasks
+        "tasks_created": result["tasks_created"]
     }
+
+
+# OLD CODE REMOVED - Logic moved to BuildPhaseService
+# The following was replaced:
+# - Project verification
+# - Execution retrieval
+# - WBS parsing (complex nested structure handling)
+# - TaskExecution creation
+# - Status updates
+# All this logic is now in BuildPhaseService.prepare_build_phase()
+
+_OLD_START_BUILD_REMOVED = True  # Marker for refactoring
 
 
 # ==================== CHAT WITH PM ENDPOINT ====================
@@ -1530,28 +1432,17 @@ async def pause_build(
     Pause the BUILD phase execution.
     Current task will complete, but no new tasks will start.
     """
-    from app.models.task_execution import TaskExecution, TaskStatus
+    from app.services.pm_orchestrator_service_v2 import BuildPhaseService
     
-    execution = db.query(Execution).filter(Execution.id == execution_id).first()
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
+    service = BuildPhaseService(db)
+    result = service.pause_build(execution_id)
     
-    if execution.status.value not in ["running", "building"]:
-        raise HTTPException(status_code=400, detail=f"Cannot pause. Status is {execution.status.value}")
-    
-    # Set a pause flag in metadata
-    if not execution.agent_execution_status:
-        execution.agent_execution_status = {}
-        # agent_execution_status initialized above
-    execution.agent_execution_status["build_paused"] = True
-    execution.agent_execution_status["paused_at"] = datetime.utcnow().isoformat()
-    flag_modified(execution, "agent_execution_status")
-    
-    db.commit()
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     return {
-        "status": "paused",
-        "message": "BUILD paused. Current task will complete, then execution will wait.",
+        "status": result["status"],
+        "message": result["message"],
         "execution_id": execution_id
     }
 
@@ -1565,27 +1456,19 @@ async def resume_build(
     """
     Resume a paused BUILD phase execution.
     """
-    from app.models.task_execution import TaskExecution, TaskStatus
+    from app.services.pm_orchestrator_service_v2 import BuildPhaseService
     
-    execution = db.query(Execution).filter(Execution.id == execution_id).first()
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
+    service = BuildPhaseService(db)
+    result = service.resume_build(execution_id)
     
-    if not execution.agent_execution_status or not execution.agent_execution_status.get("build_paused"):
-        raise HTTPException(status_code=400, detail="BUILD is not paused")
-    
-    # Clear pause flag
-    execution.agent_execution_status["build_paused"] = False
-    execution.agent_execution_status["resumed_at"] = datetime.utcnow().isoformat()
-    flag_modified(execution, "agent_execution_status")
-    
-    db.commit()
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     # Restart the build phase in background
     asyncio.create_task(execute_build_phase(execution_id))
     
     return {
-        "status": "resumed",
+        "status": result["status"],
         "message": "BUILD resumed. Execution continuing from next pending task.",
         "execution_id": execution_id
     }

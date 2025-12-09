@@ -1631,3 +1631,266 @@ async def execute_workflow_background(
         )
     finally:
         db_session.close()
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# BUILD PHASE METHODS - Refactored from pm_orchestrator.py
+# ════════════════════════════════════════════════════════════════════════════════
+
+class BuildPhaseService:
+    """
+    Service pour gérer la phase BUILD.
+    Séparé de PMOrchestratorServiceV2 pour clarté.
+    """
+    
+    def __init__(self, db: Session):
+        self.db = db
+    
+    def prepare_build_phase(self, project_id: int, user_id: int) -> Dict[str, Any]:
+        """
+        Prépare la phase BUILD : vérifie le projet, parse le WBS, crée les TaskExecution.
+        
+        Returns:
+            Dict avec execution_id, tasks_created, ou erreur
+        """
+        from app.models.project import Project, ProjectStatus
+        from app.models.execution import Execution, ExecutionStatus
+        from app.models.task_execution import TaskExecution, TaskStatus
+        from app.models.agent_deliverable import AgentDeliverable
+        
+        # 1. Vérifier le projet
+        project = self.db.query(Project).filter(
+            Project.id == project_id,
+            Project.user_id == user_id
+        ).first()
+        
+        if not project:
+            return {"success": False, "error": "Project not found", "code": 404}
+        
+        if project.status != ProjectStatus.SDS_APPROVED:
+            return {
+                "success": False, 
+                "error": f"Project must be in SDS_APPROVED status. Current: {project.status.value}",
+                "code": 400
+            }
+        
+        # 2. Récupérer la dernière exécution
+        execution = self.db.query(Execution).filter(
+            Execution.project_id == project_id
+        ).order_by(Execution.id.desc()).first()
+        
+        if not execution:
+            return {"success": False, "error": "No execution found for this project", "code": 400}
+        
+        # 3. Récupérer le WBS de Marcus
+        wbs_deliverable = self.db.query(AgentDeliverable).filter(
+            AgentDeliverable.execution_id == execution.id,
+            AgentDeliverable.deliverable_type == "architect_wbs"
+        ).first()
+        
+        if not wbs_deliverable:
+            return {"success": False, "error": "No WBS found. Run the Design phase first.", "code": 400}
+        
+        # 4. Parser le WBS
+        wbs_data = self._parse_wbs_content(wbs_deliverable.content)
+        if not wbs_data:
+            return {"success": False, "error": "Failed to parse WBS content", "code": 400}
+        
+        # 5. Extraire les tâches
+        tasks = self._extract_tasks_from_wbs(wbs_data)
+        if not tasks:
+            return {"success": False, "error": "WBS contains no tasks", "code": 400}
+        
+        # 6. Créer les TaskExecution
+        agent_mapping = {
+            "jordan": "devops", "raj": "admin", "diego": "apex", 
+            "zara": "lwc", "elena": "qa", "aisha": "data", 
+            "lucas": "trainer", "marcus": "architect"
+        }
+        
+        created_tasks = 0
+        for task in tasks:
+            assigned = task.get("assigned_agent", task.get("assigned_to", "")).lower()
+            agent_id = agent_mapping.get(assigned, assigned)
+            
+            task_exec = TaskExecution(
+                execution_id=execution.id,
+                task_id=task.get("id", task.get("task_id", f"TASK-{created_tasks+1:03d}")),
+                task_name=task.get("name", task.get("title", "Unnamed task")),
+                phase_name=task.get("phase_name", task.get("phase", "Build")),
+                assigned_agent=agent_id,
+                status=TaskStatus.PENDING,
+                depends_on=task.get("dependencies", [])
+            )
+            self.db.add(task_exec)
+            created_tasks += 1
+        
+        # 7. Mettre à jour les statuts
+        execution.status = ExecutionStatus.RUNNING
+        project.status = ProjectStatus.BUILD_IN_PROGRESS
+        
+        self.db.commit()
+        
+        return {
+            "success": True,
+            "execution_id": execution.id,
+            "project_id": project_id,
+            "tasks_created": created_tasks
+        }
+    
+    def _parse_wbs_content(self, content: Any) -> Optional[Dict]:
+        """
+        Parse le contenu WBS qui peut être dans plusieurs formats.
+        """
+        import json
+        import re
+        
+        try:
+            # Si c'est déjà un dict
+            if isinstance(content, dict):
+                wbs_content = content
+            else:
+                wbs_content = json.loads(content)
+            
+            # Naviguer dans la structure imbriquée
+            if "content" in wbs_content and isinstance(wbs_content["content"], dict):
+                inner_content = wbs_content["content"]
+                
+                if "raw" in inner_content and isinstance(inner_content["raw"], str):
+                    raw_json = inner_content["raw"]
+                    
+                    # Nettoyer les fences markdown
+                    if raw_json.startswith("```json"):
+                        raw_json = raw_json[7:].lstrip()
+                    elif raw_json.startswith("```"):
+                        raw_json = raw_json[3:].lstrip()
+                    
+                    if "```" in raw_json:
+                        raw_json = raw_json[:raw_json.index("```")]
+                    
+                    try:
+                        return json.loads(raw_json)
+                    except json.JSONDecodeError:
+                        # Essayer de trouver un objet JSON valide
+                        match = re.search(r'\{.*\}', raw_json, re.DOTALL)
+                        if match:
+                            return json.loads(match.group())
+                        return None
+                else:
+                    return inner_content
+            else:
+                return wbs_content
+                
+        except Exception as e:
+            logger.error(f"Failed to parse WBS content: {e}")
+            return None
+    
+    def _extract_tasks_from_wbs(self, wbs_data: Dict) -> List[Dict]:
+        """
+        Extrait les tâches du WBS parsé.
+        """
+        tasks = []
+        
+        if "phases" in wbs_data and isinstance(wbs_data["phases"], list):
+            for phase in wbs_data["phases"]:
+                phase_name = phase.get("name", "Unknown Phase")
+                for task in phase.get("tasks", []):
+                    task["phase_name"] = phase_name
+                    tasks.append(task)
+        elif "tasks" in wbs_data:
+            tasks = wbs_data["tasks"]
+        
+        return tasks
+    
+    def get_build_tasks(self, execution_id: int) -> Dict[str, Any]:
+        """
+        Récupère les tâches BUILD pour une exécution.
+        """
+        from app.models.task_execution import TaskExecution
+        
+        tasks = self.db.query(TaskExecution).filter(
+            TaskExecution.execution_id == execution_id
+        ).order_by(TaskExecution.id).all()
+        
+        result = []
+        for task in tasks:
+            result.append({
+                "id": task.id,
+                "task_id": task.task_id,
+                "task_name": task.task_name,
+                "phase_name": task.phase_name,
+                "assigned_agent": task.assigned_agent,
+                "status": task.status.value if task.status else "pending",
+                "attempt_count": task.attempt_count or 0,
+                "depends_on": task.depends_on or [],
+                "started_at": task.started_at.isoformat() if task.started_at else None,
+                "completed_at": task.completed_at.isoformat() if task.completed_at else None
+            })
+        
+        return {
+            "execution_id": execution_id,
+            "tasks": result,
+            "total": len(result),
+            "completed": sum(1 for t in result if t["status"] == "completed"),
+            "failed": sum(1 for t in result if t["status"] == "failed"),
+            "running": sum(1 for t in result if t["status"] == "running")
+        }
+    
+    def pause_build(self, execution_id: int) -> Dict[str, Any]:
+        """
+        Met en pause la phase BUILD.
+        """
+        from app.models.execution import Execution, ExecutionStatus
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+        if not execution:
+            return {"success": False, "error": "Execution not found", "code": 404}
+        
+        if execution.status.value not in ["running", "building"]:
+            return {"success": False, "error": f"Cannot pause. Status is {execution.status.value}", "code": 400}
+        
+        # Set pause flag
+        if not execution.agent_execution_status:
+            execution.agent_execution_status = {}
+        execution.agent_execution_status["build_paused"] = True
+        execution.agent_execution_status["paused_at"] = datetime.now(timezone.utc).isoformat()
+        flag_modified(execution, "agent_execution_status")
+        
+        self.db.commit()
+        
+        return {
+            "success": True,
+            "status": "paused",
+            "message": "BUILD paused. Current task will complete, then execution will wait.",
+            "execution_id": execution_id
+        }
+    
+    def resume_build(self, execution_id: int) -> Dict[str, Any]:
+        """
+        Reprend la phase BUILD après une pause.
+        """
+        from app.models.execution import Execution
+        from sqlalchemy.orm.attributes import flag_modified
+        
+        execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+        if not execution:
+            return {"success": False, "error": "Execution not found", "code": 404}
+        
+        if not execution.agent_execution_status or not execution.agent_execution_status.get("build_paused"):
+            return {"success": False, "error": "BUILD is not paused", "code": 400}
+        
+        # Clear pause flag
+        execution.agent_execution_status["build_paused"] = False
+        execution.agent_execution_status["resumed_at"] = datetime.now(timezone.utc).isoformat()
+        flag_modified(execution, "agent_execution_status")
+        
+        self.db.commit()
+        
+        return {
+            "success": True,
+            "status": "resumed",
+            "message": "BUILD resumed",
+            "execution_id": execution_id
+        }
+
