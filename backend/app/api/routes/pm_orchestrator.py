@@ -924,7 +924,7 @@ async def start_build_phase(
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     # Start BUILD execution in background
-    asyncio.create_task(execute_build_phase(result["execution_id"]))
+    asyncio.create_task(safe_execute_build_phase(result["execution_id"]))
     
     return {
         "message": f"BUILD phase started with {result['tasks_created']} tasks",
@@ -1299,6 +1299,17 @@ async def get_retry_info(
 
 # ==================== BUILD PHASE EXECUTION ====================
 
+
+async def safe_execute_build_phase(execution_id: int):
+    """Wrapper to catch and log any errors in background BUILD execution"""
+    try:
+        logger.info(f"[BUILD] 🚀 Background task starting for execution {execution_id}")
+        await execute_build_phase(execution_id)
+    except Exception as e:
+        logger.error(f"[BUILD] 💥 Background task crashed: {type(e).__name__}: {str(e)}")
+        import traceback
+        logger.error(f"[BUILD] Traceback: {traceback.format_exc()}")
+
 async def execute_build_phase(execution_id: int):
     """
     Background task to execute all BUILD phase tasks.
@@ -1345,10 +1356,10 @@ async def execute_build_phase(execution_id: int):
                 else:
                     # Check if we have blocked tasks only
                     summary = executor.get_task_summary()
-                    if summary["blocked"] > 0 and summary["pending"] == 0:
-                        logger.warning(f"[BUILD] ⚠️ {summary['blocked']} tasks blocked - cannot continue")
+                    if summary["by_status"].get("BLOCKED", 0) > 0 and summary["by_status"].get("PENDING", 0) == 0:
+                        logger.warning(f"[BUILD] ⚠️ {summary['by_status'].get('BLOCKED', 0)} tasks blocked - cannot continue")
                         break
-                    logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['completed']}, blocked: {summary['blocked']})")
+                    logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['by_status'].get('COMPLETED', 0)}, blocked: {summary['by_status'].get('BLOCKED', 0)})")
                     await asyncio.sleep(2)
                     continue
             
@@ -1465,7 +1476,7 @@ async def resume_build(
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     # Restart the build phase in background
-    asyncio.create_task(execute_build_phase(execution_id))
+    asyncio.create_task(safe_execute_build_phase(execution_id))
     
     return {
         "status": result["status"],

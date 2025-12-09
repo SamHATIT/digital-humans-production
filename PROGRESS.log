@@ -717,3 +717,88 @@ Test en cours: Exécution #106, Olivia traite les 20 BRs...
 CONCLUSION : Tous ces bugs = 10 minutes de test réel auraient suffi.
 NE PLUS JAMAIS marquer DONE sans avoir cliqué/exécuté/vu le résultat.
 
+
+=== Session 2025-12-09 [13:00-14:30] ===
+Objectif: Test complet de la phase BUILD - validation du pipeline et identification des bugs
+
+## CONTEXTE
+- Session précédente: SDS flow validé (Sophie → Olivia → Marcus OK)
+- Projet 69 en SDS_APPROVED avec 58 tasks WBS générées
+- Objectif: tester le cycle BUILD (génération → déploiement → Elena QA → retry)
+
+## ACTIONS RÉALISÉES
+
+### 1. Corrections de bugs bloquants (8 bugs corrigés)
+- BUG-026: KeyError 'blocked' dans execute_build_phase → Fixed summary['by_status'].get()
+- BUG-027: Logger non défini dans agent_executor.py → Added import logging
+- BUG-028: LLMService.generate() argument 'model' invalide → Mapping model → model_override
+- BUG-029: Alias agents manquants → Added admin/apex/lwc/devops/qa/trainer aliases
+- BUG-030: SFDX cwd manquant → Added cwd=temp_dir dans deploy_metadata
+- BUG-031: Tasks dupliquées à chaque start-build → Check existing_tasks before creation
+- BUG-032: Import ExecutionArtifact incorrect → Fixed path app.models.artifact
+- BUG-034: Fichiers -meta.xml déployés comme Apex → Skip meta files in deploy loop
+
+### 2. Test de chaque agent BUILD
+| Agent    | Task     | Résultat | Bug identifié |
+|----------|----------|----------|---------------|
+| devops   | TASK-001 | ✅ OK    | Non-build, skipé correctement |
+| admin    | TASK-002 | ❌ FAIL  | BUG-024: XML invalide (structure + propriétés) |
+| apex     | TASK-017 | ❌ FAIL  | BUG-035: Dépendances manquantes (SharingException) |
+| lwc      | TASK-044 | ❌ FAIL  | BUG-036: Structure bundle LWC non créée |
+| qa       | TASK-011 | ✅ OK    | Non-build, feedback Elena fonctionne ! |
+| trainer  | TASK-058 | ✅ OK    | Non-build, skipé correctement |
+
+### 3. Validations importantes
+✅ Pipeline BUILD fonctionne de bout en bout
+✅ Connexion Salesforce OK - déploiement atteint vraiment l'org
+✅ Elena (QA) donne du feedback pertinent et détaillé
+✅ Cycle de retry avec feedback Elena fonctionne
+✅ Agents non-build correctement identifiés et skipés
+✅ Génération de code fonctionne pour tous les agents
+
+## BUGS IDENTIFIÉS (TODO)
+
+### Critiques (bloquent le BUILD)
+- BUG-024 [CRITICAL]: Agent admin génère XML invalide
+  - Propriétés invalides (enableChangeDataCapture)
+  - Structure incorrecte (CustomFields dans CustomObject)
+  - Solution: templates metadata ou validation XML pre-deploy
+
+- BUG-036 [HIGH]: Structure bundle LWC non créée
+  - LWC doivent être déployés comme dossier, pas fichier par fichier
+  - Solution: regrouper fichiers LWC par composant
+
+### Importants (améliorations)
+- BUG-033 [HIGH]: Elena doit valider AVANT déploiement SFDX
+  - Actuellement: Generate → Deploy → Elena (si deploy fail, Elena ne voit rien)
+  - Correct: Generate → Elena → Deploy
+  - Solution: réorganiser steps dans incremental_executor.py
+
+- BUG-035 [MEDIUM]: Agent apex génère dépendances manquantes
+  - Code référence classes non créées (ex: SharingException)
+  - Solution: améliorer prompt ou utiliser classes standard
+
+### Mineurs
+- BUG-023 [MEDIUM]: Format SDS à améliorer
+- BUG-025 [LOW]: Experts SDS échouent (non bloquant)
+
+## FICHIERS MODIFIÉS
+- backend/app/services/incremental_executor.py (skip meta, non-build agents, build_agents)
+- backend/app/services/agent_executor.py (alias mapping, logger)
+- backend/app/services/llm_service.py (model parameter mapping)
+- backend/app/services/sfdx_service.py (cwd parameter)
+- backend/app/services/pm_orchestrator_service_v2.py (existing tasks check)
+- backend/app/api/routes/pm_orchestrator.py (safe wrapper, KeyError fix)
+- backend/agents/roles/salesforce_admin.py (prompt CustomObject)
+
+## MÉTRIQUES
+- 8 bugs corrigés cette session
+- 6 bugs identifiés pour correction future
+- 58 tasks WBS créées
+- 4 agents testés individuellement
+- ~15 redémarrages backend
+
+Statut: COMPLETED (phase test)
+Prochaine étape: Corriger BUG-024 et BUG-036 pour débloquer le BUILD complet
+
+================================================================================

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import logging
 """
 Agent Executor Service - Execute REAL agents with DB persistence
 
@@ -14,6 +15,7 @@ import asyncio
 import tempfile
 import subprocess
 from datetime import datetime, timezone
+logger = logging.getLogger(__name__)
 from typing import Optional, Dict, Any, AsyncGenerator, List
 from dataclasses import dataclass, field
 from enum import Enum
@@ -80,12 +82,19 @@ AGENT_CONFIG = {
     "diego": {"script": "salesforce_developer_apex.py", "display_name": "Diego (Apex Developer)", "tier": "worker"},
     "zara": {"script": "salesforce_developer_lwc.py", "display_name": "Zara (LWC Developer)", "tier": "worker"},
     "raj": {"script": "salesforce_admin.py", "display_name": "Raj (Salesforce Admin)", "tier": "worker"},
+    "admin": {"script": "salesforce_admin.py", "display_name": "Raj (Salesforce Admin)", "tier": "worker"},
     "elena": {"script": "salesforce_qa_tester.py", "display_name": "Elena (QA Engineer)", "tier": "worker"},
     "jordan": {"script": "salesforce_devops.py", "display_name": "Jordan (DevOps Engineer)", "tier": "worker"},
     "aisha": {"script": "salesforce_data_migration.py", "display_name": "Aisha (Data Migration)", "tier": "worker"},
     "olivia": {"script": "salesforce_business_analyst.py", "display_name": "Olivia (Business Analyst)", "tier": "ba"},
     "sophie": {"script": "salesforce_pm.py", "display_name": "Sophie (PM)", "tier": "pm"},
     "lucas": {"script": "salesforce_trainer.py", "display_name": "Lucas (Trainer)", "tier": "worker"},
+    # Aliases for WBS compatibility
+    "apex": {"script": "salesforce_developer_apex.py", "display_name": "Diego (Apex Developer)", "tier": "worker"},
+    "lwc": {"script": "salesforce_developer_lwc.py", "display_name": "Zara (LWC Developer)", "tier": "worker"},
+    "devops": {"script": "salesforce_devops.py", "display_name": "Jordan (DevOps Engineer)", "tier": "worker"},
+    "qa": {"script": "salesforce_qa_tester.py", "display_name": "Elena (QA Engineer)", "tier": "worker"},
+    "trainer": {"script": "salesforce_trainer.py", "display_name": "Lucas (Trainer)", "tier": "worker"},
 }
 
 

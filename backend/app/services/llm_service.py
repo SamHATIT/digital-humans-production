@@ -474,6 +474,10 @@ def generate_llm_response(
         )
         content = response["content"]
     """
+    # Map 'model' to 'model_override' for backward compatibility with agents
+    if 'model' in kwargs:
+        kwargs['model_override'] = kwargs.pop('model')
+    
     return get_llm_service().generate(
         prompt=prompt,
         agent_type=agent_type,

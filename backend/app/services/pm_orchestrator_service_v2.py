@@ -1701,7 +1701,31 @@ class BuildPhaseService:
         if not tasks:
             return {"success": False, "error": "WBS contains no tasks", "code": 400}
         
-        # 6. Créer les TaskExecution
+        # 5b. Vérifier si des tasks existent déjà pour cette exécution
+        existing_tasks = self.db.query(TaskExecution).filter(
+            TaskExecution.execution_id == execution.id
+        ).count()
+        
+        if existing_tasks > 0:
+            # Tasks already exist - just reuse them
+            # Reset status for retry
+            self.db.query(TaskExecution).filter(
+                TaskExecution.execution_id == execution.id,
+                TaskExecution.status.in_([TaskStatus.FAILED, TaskStatus.RUNNING])
+            ).update({"status": TaskStatus.PENDING, "attempt_count": 0, "last_error": None}, synchronize_session=False)
+            
+            execution.status = ExecutionStatus.RUNNING
+            project.status = ProjectStatus.BUILD_IN_PROGRESS
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "execution_id": execution.id,
+                "project_id": project_id,
+                "tasks_created": existing_tasks
+            }
+        
+        # 6. Créer les TaskExecution (seulement si aucune n'existe)
         agent_mapping = {
             "jordan": "devops", "raj": "admin", "diego": "apex", 
             "zara": "lwc", "elena": "qa", "aisha": "data", 

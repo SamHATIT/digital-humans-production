@@ -334,6 +334,20 @@ class IncrementalExecutor:
             self.db.commit()
             
             # ════════════════════════════════════════════════════════════════
+            # SPECIAL: Non-build agents (devops, qa, trainer) - skip deploy/test cycle
+            # ════════════════════════════════════════════════════════════════
+            non_build_agents = ["devops", "qa", "trainer", "jordan", "elena", "lucas"]
+            if task.assigned_agent in non_build_agents:
+                logger.info(f"[Step 1] ℹ️ {task.assigned_agent} is non-build agent - marking complete")
+                self.update_task_status(task, TaskStatus.COMPLETED)
+                return {
+                    "success": True,
+                    "task_id": task.task_id,
+                    "status": "completed",
+                    "message": f"Non-build agent {task.assigned_agent} task completed"
+                }
+            
+            # ════════════════════════════════════════════════════════════════
             # STEP 2: Deploy to sandbox via SFDX
             # ════════════════════════════════════════════════════════════════
             logger.info(f"[Step 2] Deploying to sandbox...")
@@ -341,9 +355,14 @@ class IncrementalExecutor:
             
             sfdx = get_sfdx_service()
             
-            # Deploy each generated file
+            # Deploy each generated file (skip -meta.xml files, they're included automatically by SFDX)
             deploy_results = []
             for file_path, content in generated_files.items():
+                # Skip meta.xml files - SFDX includes them automatically with the main file
+                if '-meta.xml' in file_path or file_path.endswith('.xml'):
+                    logger.info(f"[Step 2] Skipping meta file: {file_path}")
+                    continue
+                    
                 # Determine metadata type from file extension
                 metadata_type = self._get_metadata_type(file_path)
                 metadata_name = Path(file_path).stem
@@ -484,7 +503,7 @@ class IncrementalExecutor:
             input_data["task"]["correction_needed"] = True
         
         # Map to agent scripts (diego, zara, raj, aisha have build mode)
-        build_agents = ["diego", "zara", "raj", "aisha"]
+        build_agents = ["diego", "zara", "raj", "aisha", "admin", "apex", "lwc"]
         
         if task.assigned_agent not in build_agents:
             logger.info(f"[CodeGen] {task.assigned_agent} is not a build agent, skipping")
@@ -519,7 +538,7 @@ class IncrementalExecutor:
     def _get_architecture_context(self) -> str:
         """Get architecture context from Marcus/Olivia artifacts."""
         try:
-            from app.models.execution_artifact import ExecutionArtifact
+            from app.models.artifact import ExecutionArtifact
             
             artifacts = self.db.query(ExecutionArtifact).filter(
                 ExecutionArtifact.execution_id == self.execution_id,

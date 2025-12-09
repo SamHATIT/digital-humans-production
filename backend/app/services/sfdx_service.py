@@ -142,7 +142,8 @@ class SFDXService:
         self,
         source_path: str,
         test_level: str = "NoTestRun",
-        check_only: bool = False
+        check_only: bool = False,
+        cwd: str = None
     ) -> Dict[str, Any]:
         """
         Deploy source to target org.
@@ -151,6 +152,7 @@ class SFDXService:
             source_path: Path to source directory or file
             test_level: NoTestRun, RunSpecifiedTests, RunLocalTests, RunAllTestsInOrg
             check_only: If True, validate only without deploying
+            cwd: Working directory (must contain sfdx-project.json)
             
         Returns:
             Dict with deployment result
@@ -164,7 +166,7 @@ class SFDXService:
             args.append("--dry-run")
         
         # Longer timeout for deployments
-        success, result = await self._run_command(args, timeout=600)
+        success, result = await self._run_command(args, timeout=600, cwd=cwd)
         
         if success:
             deploy_result = result.get("result", {})
@@ -256,10 +258,11 @@ class SFDXService:
                 # Generic handling
                 (metadata_dir / f"{metadata_name}.xml").write_text(content)
             
-            # Deploy
+            # Deploy from temp directory (contains sfdx-project.json)
             return await self.deploy_source(
                 source_path=str(metadata_dir),
-                test_level="NoTestRun"
+                test_level="NoTestRun",
+                cwd=temp_dir
             )
     
     async def run_tests(

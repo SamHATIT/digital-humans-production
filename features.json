@@ -1587,6 +1587,132 @@
       ],
       "estimated_hours": 3,
       "notes": ""
+    },
+    {
+      "id": "BUG-023",
+      "title": "Format SDS g\u00e9n\u00e9r\u00e9 \u00e0 am\u00e9liorer",
+      "description": "Le document SDS g\u00e9n\u00e9r\u00e9 n\u00e9cessite une am\u00e9lioration du format et du contenu",
+      "status": "todo",
+      "priority": "medium",
+      "category": "sds",
+      "notes": "User request - \u00e0 retravailler"
+    },
+    {
+      "id": "BUG-024",
+      "title": "XML CustomObject mal format\u00e9 par agent admin",
+      "description": "L'agent admin g\u00e9n\u00e8re du XML metadata Salesforce invalide:\n1. Propri\u00e9t\u00e9s invalides (enableChangeDataCapture) \n2. Structure incorrecte (CustomFields dans CustomObject au lieu de fichiers s\u00e9par\u00e9s)\nLe prompt seul ne suffit pas - besoin de validation XML ou templates.",
+      "status": "todo",
+      "priority": "critical",
+      "category": "build",
+      "notes": "Solution: ajouter validation XML avant deploy, ou utiliser templates metadata, ou fournir exemples complets"
+    },
+    {
+      "id": "BUG-025",
+      "title": "Experts SDS \u00e9chouent (Elena, Jordan, Aisha)",
+      "description": "3 experts SDS \u00e9chouent avec 'Unknown error' apr\u00e8s initialisation Anthropic client",
+      "status": "todo",
+      "priority": "low",
+      "category": "sds",
+      "notes": "Non bloquant - le core pipeline fonctionne. \u00c0 investiguer."
+    },
+    {
+      "id": "BUG-026",
+      "title": "KeyError 'blocked' dans execute_build_phase",
+      "description": "summary['blocked'] au lieu de summary['by_status'].get('BLOCKED', 0)",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - pm_orchestrator.py"
+    },
+    {
+      "id": "BUG-027",
+      "title": "Logger non d\u00e9fini dans agent_executor.py",
+      "description": "name 'logger' is not defined",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 import logging et logger"
+    },
+    {
+      "id": "BUG-028",
+      "title": "LLMService.generate() argument 'model' invalide",
+      "description": "Les agents utilisent model= au lieu de model_override=",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - mapping model -> model_override dans generate_llm_response"
+    },
+    {
+      "id": "BUG-029",
+      "title": "Alias agents manquants (admin, apex, lwc...)",
+      "description": "WBS utilise 'admin' mais agent_executor attend 'raj'",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 aliases dans AGENT_CONFIGS"
+    },
+    {
+      "id": "BUG-030",
+      "title": "SFDX cwd manquant - /app not valid project",
+      "description": "deploy_source n'utilisait pas le temp_dir contenant sfdx-project.json",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 cwd=temp_dir dans deploy_metadata"
+    },
+    {
+      "id": "BUG-031",
+      "title": "Tasks dupliqu\u00e9es \u00e0 chaque start-build",
+      "description": "prepare_build_phase recr\u00e9e les tasks m\u00eame si elles existent",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - v\u00e9rification existing_tasks avant cr\u00e9ation"
+    },
+    {
+      "id": "BUG-032",
+      "title": "Import ExecutionArtifact incorrect",
+      "description": "Import 'app.models.execution_artifact' au lieu de 'app.models.artifact'",
+      "status": "done",
+      "priority": "medium",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - incremental_executor.py ligne 536"
+    },
+    {
+      "id": "BUG-033",
+      "title": "Elena doit valider AVANT le d\u00e9ploiement SFDX",
+      "description": "Le flux actuel: Generate \u2192 Deploy \u2192 Elena. Mais si le XML est invalide, le deploy \u00e9choue et Elena ne voit jamais le code. Le flux correct: Generate \u2192 Elena valide \u2192 Deploy",
+      "status": "todo",
+      "priority": "high",
+      "category": "build",
+      "notes": "R\u00e9organiser les steps dans incremental_executor.py : Step 2 = Elena validation, Step 3 = SFDX deploy"
+    },
+    {
+      "id": "BUG-034",
+      "title": "Fichiers -meta.xml d\u00e9ploy\u00e9s comme code Apex",
+      "description": "Les fichiers SharingHandler.cls-meta.xml sont trait\u00e9s comme ApexClass au lieu d'\u00eatre ignor\u00e9s. SFDX g\u00e9n\u00e8re automatiquement les meta.xml.",
+      "status": "done",
+      "priority": "high",
+      "category": "build",
+      "notes": "CORRIG\u00c9 2025-12-09 - Skip les fichiers -meta.xml dans la boucle de d\u00e9ploiement"
+    },
+    {
+      "id": "BUG-035",
+      "title": "Agent apex g\u00e9n\u00e8re du code avec d\u00e9pendances manquantes",
+      "description": "Diego g\u00e9n\u00e8re du code qui r\u00e9f\u00e9rence des classes non cr\u00e9\u00e9es (ex: SharingException). Le code compile localement mais \u00e9choue au d\u00e9ploiement car les d\u00e9pendances n'existent pas.",
+      "status": "todo",
+      "priority": "medium",
+      "category": "build",
+      "notes": "Solution: am\u00e9liorer le prompt pour g\u00e9n\u00e9rer toutes les d\u00e9pendances, ou utiliser des classes standard (AuraHandledException)"
+    },
+    {
+      "id": "BUG-036",
+      "title": "D\u00e9ploiement LWC ne cr\u00e9e pas la structure bundle",
+      "description": "Les LWC doivent \u00eatre d\u00e9ploy\u00e9s comme bundle (dossier avec tous les fichiers), pas fichier par fichier. sfdx_service.deploy_metadata ne g\u00e8re pas ce cas - g\u00e9n\u00e8re 'No local changes to deploy'",
+      "status": "todo",
+      "priority": "high",
+      "category": "build",
+      "notes": "Solution: modifier deploy pour regrouper les fichiers LWC par composant et cr\u00e9er la structure lwc/componentName/files"
     }
   ]
 }
