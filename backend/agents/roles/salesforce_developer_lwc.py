@@ -5,6 +5,20 @@ Dual Mode: spec (for SDS) | build (for real component generation)
 """
 import os
 import sys
+
+# Configure path for imports when running as subprocess
+if '/app' not in sys.path:
+    sys.path.insert(0, '/app')
+
+# LLM Logger for debugging
+try:
+    from app.services.llm_logger import log_llm_interaction
+    DB_AVAILABLE = True
+    print(f"📝 LLM Logger loaded", file=sys.stderr)
+except ImportError as e:
+    DB_AVAILABLE = False
+    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
 import argparse
 import json
 import time
@@ -139,14 +153,14 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC, 
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.3)
+                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.3)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
         model_used = response.get('model', 'claude-sonnet-4-20250514')
     else:
         from openai import OpenAI
         client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
         model_used = "gpt-4o-mini"
@@ -194,20 +208,45 @@ FIX THESE ISSUES.
     
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.2)
+                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
         model_used = response.get('model', 'claude-sonnet-4-20250514')
     else:
         from openai import OpenAI
         client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
         model_used = "gpt-4o-mini"
     
     files = _parse_code_files(content)
-    print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
+    execution_time = round(time.time() - start_time, 2)
+    print(f"✅ Generated {len(files)} file(s) in {execution_time}s", file=sys.stderr)
+    
+    # Log LLM interaction for debugging
+    if DB_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="zara",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=task_id,
+                agent_mode="build",
+                rag_context=rag_context if rag_context else None,
+                previous_feedback=previous_feedback if previous_feedback else None,
+                parsed_files={"files": list(files.keys()), "count": len(files)},
+                tokens_input=None,  # Not available from response
+                tokens_output=tokens_used,
+                model=model_used,
+                provider="anthropic" if "claude" in model_used else "openai",
+                execution_time_seconds=execution_time,
+                success=len(files) > 0,
+                error_message=None if len(files) > 0 else "No files parsed from response"
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
     
     return {
         "agent_id": "zara", "agent_name": "Zara (LWC Developer)", "mode": "build",
@@ -215,7 +254,7 @@ FIX THESE ISSUES.
         "deliverable_type": "lwc_code", "success": len(files) > 0,
         "content": {"raw_response": content, "files": files, "file_count": len(files)},
         "metadata": {"tokens_used": tokens_used, "model": model_used,
-                    "execution_time_seconds": round(time.time() - start_time, 2)}
+                    "execution_time_seconds": execution_time}
     }
 
 

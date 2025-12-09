@@ -105,7 +105,7 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     # Build code content for review
     code_content = "\n\n".join([f"### {fp}\n```\n{content[:3000]}\n```" for fp, content in code_files.items()])
     
-    prompt = CODE_REVIEW_PROMPT.format(code_content=code_content[:12000], task_info=json.dumps(task_info))
+    prompt = CODE_REVIEW_PROMPT.format(code_content=code_content[:50000], task_info=json.dumps(task_info))
     
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,

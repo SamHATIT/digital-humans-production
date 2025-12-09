@@ -973,3 +973,43 @@ Statut: COMPLETED
 Prochaine étape: Retester le BUILD avec RAG fonctionnel
 
 ================================================================================
+
+## Session 09/12/2025 16:00-17:35 - LLM Logging + Bug Elena
+
+### Réalisations
+- **INFRA-001 DONE**: Table `llm_interactions` créée pour tracker tous les appels LLM
+  - Prompt complet, réponse, contexte RAG, feedback précédent
+  - Tokens, timing, modèle utilisé
+  - Zara (LWC) intégré avec logging fonctionnel
+  
+- **BUG-038 DONE**: Elena ne recevait que 12k chars du code (truncated)
+  - Corrigé: code_content[:12000] → code_content[:50000]
+  - Le code généré fait ~34k chars, elle ne voyait que le HTML + début JS
+
+- **BUG-037 DONE**: Feedback Elena passé aux agents (session précédente)
+
+### Découvertes importantes
+- Zara génère du code COMPLET (4 fichiers, ~34k chars)
+- Le parsing fonctionne correctement (vérifié)
+- Malgré correction BUG-038, Elena dit toujours "truncated" → à investiguer
+
+### Fichiers modifiés
+- backend/app/models/llm_interaction.py (nouveau)
+- backend/app/services/llm_logger.py (nouveau)
+- backend/agents/roles/salesforce_developer_lwc.py (ajout logging)
+- backend/agents/roles/salesforce_qa_tester.py (fix 12k→50k)
+
+### Prochaine étape
+- Investiguer pourquoi Elena dit "truncated" alors qu'elle reçoit le code complet
+- Possibilité: Elena trop stricte, ou problème de format du prompt
+- Ajouter logging à Elena aussi pour debug
+
+### Commandes utiles créées
+```sql
+-- Voir les derniers appels LLM
+SELECT id, agent_id, task_id, LENGTH(prompt), LENGTH(response), tokens_output 
+FROM llm_interactions ORDER BY created_at DESC LIMIT 10;
+
+-- Extraire une réponse pour analyse
+SELECT response FROM llm_interactions WHERE id = X;
+```

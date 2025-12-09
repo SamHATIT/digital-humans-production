@@ -1722,6 +1722,40 @@
       "priority": "critical",
       "category": "build",
       "notes": "CORRIG\u00c9 2025-12-09 - Ajout prompt += correction_context dans lwc et admin"
+    },
+    {
+      "id": "BUG-038",
+      "title": "Elena code review truncated to 12k chars",
+      "description": "Elena only received first 12,000 chars of code for review, missing most of JS/CSS. Fixed to 50k.",
+      "status": "done",
+      "priority": "critical",
+      "category": "bug",
+      "files": [
+        "backend/agents/roles/salesforce_qa_tester.py"
+      ],
+      "validation_criteria": [
+        "Elena receives full code content for review"
+      ],
+      "dependencies": [],
+      "notes": "Fixed 09/12/2025 - code_content[:12000] \u2192 code_content[:50000]"
+    },
+    {
+      "id": "INFRA-001",
+      "title": "LLM Interaction Logging",
+      "description": "Database table to track all LLM calls (prompt, response, RAG context, tokens, timing)",
+      "status": "done",
+      "priority": "high",
+      "category": "infrastructure",
+      "files": [
+        "backend/app/models/llm_interaction.py",
+        "backend/app/services/llm_logger.py",
+        "backend/agents/roles/salesforce_developer_lwc.py"
+      ],
+      "validation_criteria": [
+        "All Zara BUILD calls logged to llm_interactions table"
+      ],
+      "dependencies": [],
+      "notes": "Created 09/12/2025 - enables debugging of agent prompts/responses"
     }
   ]
 }
