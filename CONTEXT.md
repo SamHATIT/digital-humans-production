@@ -1,243 +1,79 @@
 # DIGITAL HUMANS - CONTEXTE PROJET
 
-> **Version** : 1.1 | **Dernière MAJ** : 8 décembre 2025
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                            ║
+# ║   ⛔⛔⛔  RÈGLE #1 : JAMAIS DE "DONE" SANS PREUVE DE TEST RÉEL  ⛔⛔⛔    ║
+# ║                                                                            ║
+# ║   AVANT de marquer une feature DONE :                                      ║
+# ║   ┌─────────────────────────────────────────────────────────────────────┐  ║
+# ║   │ 1. EXÉCUTER un test réel (UI, curl, ou via l'app)                   │  ║
+# ║   │ 2. CAPTURER la preuve (log backend, screenshot, response JSON)      │  ║
+# ║   │ 3. COLLER la preuve dans PROGRESS.log                               │  ║
+# ║   │ 4. SEULEMENT ALORS marquer DONE dans features.json                  │  ║
+# ║   └─────────────────────────────────────────────────────────────────────┘  ║
+# ║                                                                            ║
+# ║   ❌ "ça compile" ≠ DONE                                                   ║
+# ║   ❌ "j'ai écrit le code" ≠ DONE                                           ║
+# ║   ❌ "ça devrait marcher" ≠ DONE                                           ║
+# ║   ✅ "testé + preuve ci-dessous" = DONE                                    ║
+# ║                                                                            ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
 
----
+## Stack Technique
+- **Backend**: FastAPI (Python 3.12) - Port 8000
+- **Frontend**: React + TypeScript - Port 3000  
+- **Database**: PostgreSQL (digital_humans_db) - Service système (pas Docker)
+- **Vector DB**: ChromaDB
+- **LLM**: Claude Sonnet 4 (Anthropic) / GPT-4 (OpenAI)
+- **VPS**: 72.61.161.222
 
-## ⚠️ PROTOCOLE DE SESSION OBLIGATOIRE
+## Les 10 Agents
+| Agent | Rôle | Mode SDS | Mode BUILD |
+|-------|------|----------|------------|
+| Sophie | PM | Extrait BRs | - |
+| Olivia | BA | Génère UCs | - |
+| Marcus | Architect | As-Is/Gap/Design/WBS | - |
+| Diego | Apex Dev | spec | build (génère code) |
+| Zara | LWC Dev | spec | build (génère code) |
+| Raj | Admin | spec | build (génère config) |
+| Elena | QA | spec | test (valide code) |
+| Jordan | DevOps | spec | deploy |
+| Aisha | Data | spec | build |
+| Lucas | Trainer | sds_strategy | - |
 
-### Début de session — AVANT TOUTE RÉPONSE
+## Flow Projet
 ```
-1. Lire /root/workspace/digital-humans-production/PROGRESS.log (dernières sessions)
-2. Lire /root/workspace/digital-humans-production/features.json (état des fonctionnalités)
-3. Confirmer à l'utilisateur : "J'ai lu les fichiers. Dernière session : [date]. Prochaine tâche identifiée : [X]"
-```
-
-### Pendant la session
-```
-4. Travailler sur UNE SEULE fonctionnalité à la fois
-5. Tester le résultat avant de déclarer "terminé"
-6. Ne JAMAIS dire "c'est fait" sans preuve (log, test, capture)
-```
-
-### Fin de session — SUR DEMANDE "fin de session"
-```
-7. Mettre à jour features.json (statut de la/les fonctionnalité(s) traitée(s))
-8. Ajouter une entrée dans PROGRESS.log
-9. Commit Git avec message descriptif
-10. Confirmer : "Session clôturée. Fichiers mis à jour. Prochaine étape : [X]"
-```
-
----
-
-## 1. VISION & OBJECTIFS
-
-**Digital Humans** est une plateforme SaaS multi-agents IA qui automatise l'intégralité du cycle de développement Salesforce : de l'analyse des besoins jusqu'au déploiement en production.
-
-**Proposition de valeur** : Réduire de 70% le temps et le coût des projets Salesforce grâce à des agents IA spécialisés qui collaborent comme une équipe de consultants.
-
-**Cible** : Mars 2026 — Lancement sur Salesforce AgentExchange
-
----
-
-## 2. ARCHITECTURE TECHNIQUE
-
-### Stack
-| Composant | Technologie |
-|-----------|-------------|
-| Backend | FastAPI + Python 3.11 |
-| Frontend | React 18 + TypeScript + Tailwind |
-| Base de données | PostgreSQL 15 |
-| RAG | ChromaDB (40K chunks) |
-| LLM | Anthropic Claude (Sonnet/Haiku) + OpenAI GPT-4 |
-| Infra | VPS Hostinger, Ubuntu 24.04, Docker |
-
-### Chemins clés
-```
-VPS : srv1064321.hstgr.cloud
-Repo : /root/workspace/digital-humans-production
-GitHub : https://github.com/SamHATIT/digital-humans-production
-Site web : /var/www/digital-humans.fr
+DRAFT → READY → [SDS Phase] → SDS_GENERATED → SDS_IN_REVIEW → SDS_APPROVED → [BUILD Phase] → BUILD_IN_PROGRESS → BUILD_COMPLETED
 ```
 
-### Structure du repo
+## Fichiers de Suivi (À LIRE EN DÉBUT DE SESSION)
+1. `PROGRESS.log` - Journal des sessions (lire les 50 dernières lignes)
+2. `features.json` - État des 77 features
+3. `CONTEXT.md` - Ce fichier (contexte stable)
+
+## Tables Clés
+- `projects` - Projets avec status
+- `executions` - Exécutions SDS/BUILD
+- `business_requirements` - BRs extraits par Sophie
+- `agent_deliverables` - Livrables bruts des agents (JSON)
+- `deliverable_items` - Items parsés (UCs)
+- `task_executions` - Tâches BUILD avec status
+
+## Chemins Importants
+- VPS: `/root/workspace/digital-humans-production`
+- Backend: `backend/`
+- Frontend: `frontend/`
+- Agents: `backend/agents/roles/`
+- Services: `backend/app/services/`
+
+## Commandes Utiles
+```bash
+# Logs backend
+docker compose logs backend --tail=50
+
+# Status PostgreSQL
+sudo -u postgres psql -d digital_humans_db -c "SELECT ..."
+
+# Restart backend
+docker compose restart backend
 ```
-digital-humans-production/
-├── backend/
-│   └── app/
-│       ├── api/routes/        # Endpoints FastAPI
-│       ├── models/            # SQLAlchemy models
-│       ├── services/          # Logique métier (agents, RAG, LLM)
-│       ├── schemas/           # Pydantic schemas
-│       └── utils/             # Auth, helpers
-├── frontend/
-│   └── src/
-│       ├── components/        # Composants React
-│       ├── pages/             # Pages principales
-│       ├── hooks/             # Custom hooks
-│       └── services/          # API calls
-├── docs/                      # Documentation
-├── outputs/                   # Fichiers générés (SDS, etc.)
-├── features.json              # État des fonctionnalités
-├── PROGRESS.log               # Journal des sessions
-└── CONTEXT.md                 # Ce fichier
-```
-
----
-
-## 3. LES 10 AGENTS
-
-| Agent | Rôle | Phase | Obligatoire |
-|-------|------|-------|-------------|
-| Sophie (PM) | Extraction BRs depuis documents client | ANALYSE | ✅ Oui |
-| Olivia (BA) | Génération Use Cases depuis BRs | ANALYSE | ✅ Oui |
-| Marcus (Architect) | Solution Design + WBS | ANALYSE | ✅ Oui |
-| Diego (Apex) | Code backend Salesforce | BUILD | ❌ Conditionnel |
-| Zara (LWC) | Composants UI Lightning | BUILD | ❌ Conditionnel |
-| Raj (Admin) | Configuration déclarative | BUILD | ❌ Conditionnel |
-| Elena (QA) | Tests et validation | BUILD | ❌ Conditionnel |
-| Aisha (Data) | Migration de données | BUILD | ❌ Conditionnel |
-| Jordan (DevOps) | CI/CD et déploiement | DEPLOY | ❌ Conditionnel |
-| Lucas (Trainer) | Formation (2 modes : SDS + Delivery) | SDS + DEPLOY | ❌ Conditionnel |
-
----
-
-## 4. WORKFLOW ACTUEL
-
-### Phase 1 — ANALYSE (fonctionnel)
-```
-Documents client → Sophie (BRs) → Olivia (UCs) → Marcus (SDS + WBS)
-```
-
-### Phase 2 — BUILD (à implémenter)
-```
-WBS → [Diego, Zara, Raj, Aisha] en parallèle conditionnel → Elena valide chaque livrable
-```
-
-### Phase 3 — DEPLOY (à implémenter)
-```
-Livrables validés → Jordan (package + déploiement) → Lucas (formation)
-```
-
----
-
-## 5. CONVENTIONS DE CODE
-
-### Backend (Python)
-- Type hints obligatoires
-- Docstrings Google style
-- Services dans `/services/`, routes dans `/api/routes/`
-- Logs avec `logger.info()` / `logger.error()`
-
-### Frontend (TypeScript)
-- Composants fonctionnels avec hooks
-- Props typées avec interfaces
-- Tailwind pour le styling (pas de CSS custom)
-- API calls via services dédiés
-
-### Git
-- Messages de commit descriptifs : `[SCOPE] Description`
-- Scopes : `FIX`, `FEAT`, `REFACTOR`, `DOCS`, `TEST`
-- Exemple : `[FIX] SSE progress auth via query param`
-
----
-
-## 6. DÉCISIONS ARCHITECTURALES (ADR)
-
-### ADR-001 : LLM par agent
-- **Décision** : Claude Sonnet pour agents complexes (Sophie, Olivia, Marcus), Haiku pour agents simples
-- **Raison** : Équilibre coût/qualité
-
-### ADR-002 : RAG V2 avec reranking
-- **Décision** : ChromaDB + sentence-transformers pour reranking
-- **Raison** : Améliorer la pertinence des chunks récupérés
-
-### ADR-003 : Logique conditionnelle agents BUILD
-- **Décision** : Le WBS de Marcus détermine quels agents BUILD sont nécessaires
-- **Raison** : Éviter d'exécuter des agents inutiles (ex: pas d'Apex = pas de Diego)
-
-### ADR-004 : Mode incrémental (à implémenter)
-- **Décision** : Exécution tâche par tâche avec validation Elena entre chaque
-- **Raison** : Éviter la dérive sur projets complexes (méthodologie Anthropic)
-
-
----
-
-## 7. SCHÉMA DE STOCKAGE DES LIVRABLES
-
-> **Important** : Les livrables des agents sont stockés dans **4 tables différentes** selon leur nature.
-
-### Tables de stockage
-
-| Table | Contenu | Clé de recherche |
-|-------|---------|------------------|
-| `agent_deliverables` | Outputs bruts complets de chaque agent | `execution_id` + `deliverable_type` |
-| `deliverable_items` | Items parsés individuellement (UCs) | `execution_id` + `item_type` + `agent_id` |
-| `business_requirements` | BRs extraits par Sophie | `execution_id` + `br_id` |
-| `execution_artifacts` | Utilisé par le testeur d'agents (hors workflow PM) | `execution_id` + `artifact_code` |
-
-### Où trouver chaque type de livrable
-
-| Livrable | Table | Exemple de query |
-|----------|-------|------------------|
-| BRs de Sophie | `business_requirements` | `WHERE execution_id = X` |
-| UCs d'Olivia | `deliverable_items` | `WHERE execution_id = X AND item_type = 'use_case'` |
-| Solution Design de Marcus | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'architect_solution_design'` |
-| WBS de Marcus | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'architect_wbs'` |
-| Specs des agents BUILD | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type LIKE '%_specifications'` |
-| Tests d'Elena | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'qa_qa_specifications'` |
-| Plan de Jordan | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'devops_devops_specifications'` |
-| Formation de Lucas | `agent_deliverables` | `WHERE execution_id = X AND deliverable_type = 'trainer_trainer_specifications'` |
-
-### Colonnes importantes
-
-**agent_deliverables** (outputs bruts) :
-- `content` : TEXT - JSON stringifié du output complet
-- `content_metadata` : JSONB - métadonnées (tokens, model, etc.)
-- `deliverable_type` : format `{agent}_{type}` (ex: `architect_solution_design`)
-
-**deliverable_items** (items parsés) :
-- `content_parsed` : JSONB - contenu structuré
-- `content_raw` : TEXT - contenu brut si parsing échoué
-- `parse_success` : BOOLEAN - indique si le parsing a réussi
-- `item_id` : identifiant unique (ex: `UC-001-02`)
-
-**business_requirements** (BRs) :
-- `br_id` : identifiant (ex: `BR-001`)
-- `requirement` : TEXT - description du BR
-- `category` : catégorie (DATA_MODEL, AUTOMATION, INTEGRATION, etc.)
-- `priority` : priorité (MUST, SHOULD, COULD)
-
----
-
-## 8. BUGS CONNUS & LIMITATIONS
-
-| ID | Description | Statut |
-|----|-------------|--------|
-| BUG-001 | SSE Progress 403 (EventSource + auth) | ✅ Résolu (commit c28d224) |
-| BUG-002 | Troncature outputs agents (limite tokens) | ✅ Résolu (continuation auto + Sonnet) |
-| BUG-003 | AgentThoughtModal ne fonctionne pas | 🔴 Non résolu |
-| BUG-004 | Page se vide entre agents | 🔴 Non résolu |
-| BUG-005 | sentence_transformers manquant (reranker) | ✅ Résolu (installé 08/12/2025) |
-
----
-
-## 9. FICHIERS DE SUIVI
-
-| Fichier | Rôle | Fréquence MAJ |
-|---------|------|---------------|
-| `CONTEXT.md` | Contexte stable (ce fichier) | Rarement |
-| `features.json` | État des 72 fonctionnalités | Chaque session |
-| `PROGRESS.log` | Journal chronologique | Chaque session |
-
----
-
-## 10. CONTACTS & RESSOURCES
-
-- **Propriétaire** : Sam HATIT
-- **Repo GitHub** : https://github.com/SamHATIT/digital-humans-production
-- **Article référence** : https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
-
----
-
-*Ce document ne doit être modifié que lors de changements majeurs d'architecture ou de vision.*

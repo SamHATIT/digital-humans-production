@@ -1,3 +1,19 @@
+# ╔════════════════════════════════════════════════════════════════════════════╗
+# ║                                                                            ║
+# ║   ⛔  RÈGLE ABSOLUE : JAMAIS DE "DONE" SANS PREUVE DE TEST RÉEL  ⛔        ║
+# ║                                                                            ║
+# ║   Une feature n'est DONE que si :                                          ║
+# ║   1. Elle a été testée EN CONDITIONS RÉELLES (pas juste compilation)       ║
+# ║   2. Il y a une PREUVE dans ce log (screenshot, curl, log backend)         ║
+# ║   3. Le flux COMPLET a été vérifié (pas juste un bout)                     ║
+# ║                                                                            ║
+# ║   ❌ "Le code compile" = PAS UNE PREUVE                                    ║
+# ║   ❌ "J'ai écrit le code" = PAS UNE PREUVE                                 ║
+# ║   ✅ "Test exécuté, voici le résultat: [log/capture]" = PREUVE             ║
+# ║                                                                            ║
+# ╚════════════════════════════════════════════════════════════════════════════╝
+
+
 ================================================================================
                          DIGITAL HUMANS - JOURNAL DE PROGRESSION
 ================================================================================
@@ -624,3 +640,80 @@ For each WBS task:
 - DPL-05: Release notes
 - DPL-06: Multi-env
 - DPL-08: Lucas delivery mode
+
+================================================================================
+
+=== Session 2025-12-09 [09:00] - Test BUILD Phase ===
+Objectif: Tester le flow BUILD complet
+
+Problèmes identifiés en cours de session (À CORRIGER APRÈS TESTS):
+
+🐛 BUG-010: Script Olivia cassé (salesforce_business_analyst.py)
+   - Cause: `def main():` supprimé lors du refactoring PRPT-05 le 08/12
+   - Fix appliqué: Réintégration de la fonction main() + parser
+   - Status: CORRIGÉ
+
+🐛 BUG-011: Enum PostgreSQL manquants
+   - Cause: BUILD_IN_PROGRESS et BUILD_COMPLETED non ajoutés à l'enum projectstatus
+   - Fix appliqué: ALTER TYPE projectstatus ADD VALUE
+   - Status: CORRIGÉ
+   - Note: Toujours vérifier les enums DB lors d'ajout de nouveaux statuts
+
+🐛 BUG-012: Reprise projet - Sophie recommence les BRs
+   - Description: Quand on relance une exécution sur un projet existant avec SDS, 
+     Sophie recommence l'extraction des BRs au lieu de reprendre à l'étape validée
+   - Impact: Perte de temps, confusion utilisateur
+   - Status: À CORRIGER
+
+🐛 BUG-013: Confusion BRs entre exécutions
+   - Description: Les BRs sont filtrés par project_id mais devraient être par execution_id
+   - Symptôme: Sophie dit "18 BRs" mais Olivia traite "20 BRs" (de l'exécution précédente)
+   - Status: À CORRIGER
+
+🐛 BUG-014: Écran vide entre agents
+   - Description: Lors du passage entre agents, l'écran devient vide
+   - Workaround: F5 pour rafraîchir
+   - Cause probable: Problème de polling/state frontend
+   - Status: À CORRIGER
+
+Test en cours: Exécution #106, Olivia traite les 20 BRs...
+
+
+🐛 BUG-015: Agents SDS experts sans --mode
+   - Cause: Commit 515a873 a rendu --mode obligatoire pour Elena/Jordan/Aisha
+     mais pm_orchestrator_service_v2.py ne passait le mode qu'à Lucas
+   - Fix: Ajout mode_map dans run_sds_expert() pour tous les agents SDS
+   - Status: CORRIGÉ
+
+
+🐛 BUG-016: Menu navigation absent sur page ProjectDetail
+   - Description: Sur la page de validation SDS / Change Requests, le menu du haut disparaît
+   - Impact: Utilisateur bloqué, doit utiliser le bouton "retour" du navigateur
+   - Status: À CORRIGER
+
+
+🐛 BUG-017: Import incorrect ExecutionArtifact
+   - Erreur: from app.models.execution_artifact import ExecutionArtifact
+   - Correction: from app.models.artifact import ExecutionArtifact
+   - Fichier: pm_orchestrator.py ligne 919
+   - Status: CORRIGÉ
+
+🔴🔴🔴 LEÇON DU 09/12/2025 - SESSION DE TESTS RÉELS 🔴🔴🔴
+
+8 BUGS trouvés parce que le code n'avait JAMAIS été testé en conditions réelles :
+
+| Bug | Description | Aurait été détecté par |
+|-----|-------------|------------------------|
+| BUG-010 | Olivia main() manquant | 1 exécution SDS |
+| BUG-011 | Enums PostgreSQL manquants | 1 refresh dashboard |
+| BUG-012 | Sophie recommence les BRs | 1 re-exécution projet |
+| BUG-013 | Confusion BRs entre exécutions | 1 re-exécution projet |
+| BUG-014 | Écran vide entre agents | 1 exécution SDS complète |
+| BUG-015 | --mode manquant SDS experts | 1 exécution SDS Phase 4 |
+| BUG-016 | Menu absent page ProjectDetail | 1 navigation UI |
+| BUG-017 | Import ExecutionArtifact incorrect | 1 clic "Start BUILD" |
+| BUG-018 | WBS parsing incorrect | 1 clic "Start BUILD" |
+
+CONCLUSION : Tous ces bugs = 10 minutes de test réel auraient suffi.
+NE PLUS JAMAIS marquer DONE sans avoir cliqué/exécuté/vu le résultat.
+

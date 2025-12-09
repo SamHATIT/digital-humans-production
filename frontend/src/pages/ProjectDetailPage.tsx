@@ -111,6 +111,10 @@ export default function ProjectDetailPage() {
       ]);
       
       setProject(projectRes);
+      // Get latest execution ID for BUILD progress link
+      if (projectRes.executions && projectRes.executions.length > 0) {
+        setLatestExecutionId(projectRes.executions[0].id);
+      }
       setSdsVersions(versionsRes.versions || []);
       setChangeRequests(crsRes.change_requests || []);
       setChatMessages(chatRes.messages || []);

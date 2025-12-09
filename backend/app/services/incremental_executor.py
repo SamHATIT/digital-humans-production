@@ -131,8 +131,8 @@ class IncrementalExecutor:
     def is_paused(self) -> bool:
         """Check if build is paused via execution metadata."""
         self.db.refresh(self.execution)
-        if self.execution and self.execution.metadata:
-            return self.execution.metadata.get("build_paused", False)
+        if self.execution and self.execution.agent_execution_status:
+            return self.execution.agent_execution_status.get("build_paused", False) if isinstance(self.execution.agent_execution_status, dict) else False
         return False
     
     def get_next_task(self) -> Optional[TaskExecution]:

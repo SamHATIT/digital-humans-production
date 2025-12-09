@@ -479,7 +479,14 @@ class PMOrchestratorServiceV2:
                 
                 try:
                     # PRPT-07: Pass mode to trainer (sds_strategy)
-                    agent_mode = "sds_strategy" if agent_id == "trainer" else None
+                    # PRPT-07: Mode for each SDS expert
+                    mode_map = {
+                        "trainer": "sds_strategy",
+                        "qa": "spec",
+                        "devops": "spec",
+                        "data": "spec"
+                    }
+                    agent_mode = mode_map.get(agent_id, "spec")
                     expert_result = await self._run_agent(
                         agent_id=agent_id,
                         input_data=expert_input,
@@ -579,7 +586,17 @@ class PMOrchestratorServiceV2:
             traceback.print_exc()
             
             execution.status = ExecutionStatus.FAILED
-            execution.error_message = str(e)
+            # error_message not in model, using logs instead
+            if execution.logs:
+                import json as json_module
+                try:
+                    log_list = json_module.loads(execution.logs)
+                except:
+                    log_list = []
+            else:
+                log_list = []
+            log_list.append({"type": "error", "message": str(e), "timestamp": datetime.now(timezone.utc).isoformat()})
+            execution.logs = json_module.dumps(log_list)
             execution.completed_at = datetime.now(timezone.utc)
             self.db.commit()
             

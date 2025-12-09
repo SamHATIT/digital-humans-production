@@ -916,7 +916,7 @@ async def start_build_phase(
     """
     from app.models.project import ProjectStatus
     from app.models.task_execution import TaskExecution, TaskStatus
-    from app.models.execution_artifact import ExecutionArtifact
+    from app.models.artifact import ExecutionArtifact
     
     # Verify project
     project = db.query(Project).filter(
@@ -941,31 +941,84 @@ async def start_build_phase(
     if not execution:
         raise HTTPException(status_code=400, detail="No execution found for this project")
     
-    # Get WBS from Marcus's artifact
-    wbs_artifact = db.query(ExecutionArtifact).filter(
-        ExecutionArtifact.execution_id == execution.id,
-        ExecutionArtifact.producer_agent == "marcus"
+    # Get WBS from Marcus's deliverable (stored in agent_deliverables)
+    from app.models.agent_deliverable import AgentDeliverable
+    wbs_deliverable = db.query(AgentDeliverable).filter(
+        AgentDeliverable.execution_id == execution.id,
+        AgentDeliverable.deliverable_type == "architect_wbs"
     ).first()
     
-    if not wbs_artifact:
+    if not wbs_deliverable:
         raise HTTPException(status_code=400, detail="No WBS found. Run the Design phase first.")
     
-    # Parse WBS content
-    wbs_content = wbs_artifact.content if isinstance(wbs_artifact.content, dict) else json.loads(wbs_artifact.content)
-    tasks = wbs_content.get("tasks", wbs_content.get("wbs", {}).get("tasks", []))
+    # Parse WBS content - handle various nesting levels
+    import re as re_module
+    wbs_content = wbs_deliverable.content if isinstance(wbs_deliverable.content, dict) else json.loads(wbs_deliverable.content)
+    
+    # Navigate to the actual WBS data
+    wbs_data = None
+    
+    # Check if content contains raw JSON string (with markdown backticks)
+    if "content" in wbs_content and isinstance(wbs_content["content"], dict):
+        inner_content = wbs_content["content"]
+        if "raw" in inner_content and isinstance(inner_content["raw"], str):
+            # Extract JSON from markdown code block - handle multiple blocks
+            raw_json = inner_content["raw"]
+            # Remove opening markdown fence
+            if raw_json.startswith("```json"):
+                raw_json = raw_json[7:].lstrip()
+            elif raw_json.startswith("```"):
+                raw_json = raw_json[3:].lstrip()
+            # Find the closing fence and cut there (in case of multiple blocks)
+            if "```" in raw_json:
+                raw_json = raw_json[:raw_json.index("```")]
+            try:
+                wbs_data = json.loads(raw_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse WBS JSON: {e}")
+                # Try to find a valid JSON object
+                import re as regex
+                match = regex.search(r'\{.*\}', raw_json, regex.DOTALL)
+                if match:
+                    try:
+                        wbs_data = json.loads(match.group())
+                    except:
+                        raise HTTPException(status_code=400, detail=f"Invalid WBS JSON: {str(e)}")
+                else:
+                    raise HTTPException(status_code=400, detail=f"Invalid WBS JSON: {str(e)}")
+        else:
+            wbs_data = inner_content
+    else:
+        wbs_data = wbs_content
+    
+    # Extract tasks - WBS has phases, each phase has tasks
+    tasks = []
+    if "phases" in wbs_data and isinstance(wbs_data["phases"], list):
+        for phase in wbs_data["phases"]:
+            phase_name = phase.get("name", "Unknown Phase")
+            for task in phase.get("tasks", []):
+                task["phase_name"] = phase_name
+                tasks.append(task)
+    elif "tasks" in wbs_data:
+        tasks = wbs_data["tasks"]
     
     if not tasks:
         raise HTTPException(status_code=400, detail="WBS contains no tasks")
     
     # Create TaskExecution entries
     created_tasks = 0
+    agent_mapping = {"jordan": "devops", "raj": "admin", "diego": "apex", "zara": "lwc", "elena": "qa", "aisha": "data", "lucas": "trainer", "marcus": "architect"}
     for task in tasks:
+        # Map agent name to agent_id
+        assigned = task.get("assigned_agent", task.get("assigned_to", "")).lower()
+        agent_id = agent_mapping.get(assigned, assigned)
+        
         task_exec = TaskExecution(
             execution_id=execution.id,
-            task_id=task.get("task_id", f"TASK-{created_tasks+1:03d}"),
-            task_name=task.get("title", task.get("name", "Unnamed task")),
-            phase_name=task.get("phase", "Build"),
-            assigned_agent=task.get("assigned_to", "").lower(),
+            task_id=task.get("id", task.get("task_id", f"TASK-{created_tasks+1:03d}")),
+            task_name=task.get("name", task.get("title", "Unnamed task")),
+            phase_name=task.get("phase_name", task.get("phase", "Build")),
+            assigned_agent=agent_id,
             status=TaskStatus.PENDING,
             depends_on=task.get("dependencies", [])
         )
@@ -1487,11 +1540,12 @@ async def pause_build(
         raise HTTPException(status_code=400, detail=f"Cannot pause. Status is {execution.status.value}")
     
     # Set a pause flag in metadata
-    if not execution.metadata:
-        execution.metadata = {}
-    execution.metadata["build_paused"] = True
-    execution.metadata["paused_at"] = datetime.utcnow().isoformat()
-    flag_modified(execution, "metadata")
+    if not execution.agent_execution_status:
+        execution.agent_execution_status = {}
+        # agent_execution_status initialized above
+    execution.agent_execution_status["build_paused"] = True
+    execution.agent_execution_status["paused_at"] = datetime.utcnow().isoformat()
+    flag_modified(execution, "agent_execution_status")
     
     db.commit()
     
@@ -1517,13 +1571,13 @@ async def resume_build(
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
     
-    if not execution.metadata or not execution.metadata.get("build_paused"):
+    if not execution.agent_execution_status or not execution.agent_execution_status.get("build_paused"):
         raise HTTPException(status_code=400, detail="BUILD is not paused")
     
     # Clear pause flag
-    execution.metadata["build_paused"] = False
-    execution.metadata["resumed_at"] = datetime.utcnow().isoformat()
-    flag_modified(execution, "metadata")
+    execution.agent_execution_status["build_paused"] = False
+    execution.agent_execution_status["resumed_at"] = datetime.utcnow().isoformat()
+    flag_modified(execution, "agent_execution_status")
     
     db.commit()
     

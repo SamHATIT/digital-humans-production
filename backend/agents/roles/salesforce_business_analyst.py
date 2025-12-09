@@ -131,6 +131,12 @@ Generate 3-5 **concise** Use Cases for this BR. Each UC must be:
 **Generate Use Cases for {br_id}. Output ONLY valid JSON, no markdown fences or explanations.**
 '''
 
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+def main():
+    parser = argparse.ArgumentParser(description='Olivia BA Agent - UC Generation')
+    parser.add_argument('--input', required=True, help='Input JSON file with BR')
     parser.add_argument('--output', required=True, help='Output JSON file path')
     parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
     parser.add_argument('--project-id', type=int, default=0, help='Project ID')
