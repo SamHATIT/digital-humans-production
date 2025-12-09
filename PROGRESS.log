@@ -802,3 +802,61 @@ Statut: COMPLETED (phase test)
 Prochaine étape: Corriger BUG-024 et BUG-036 pour débloquer le BUILD complet
 
 ================================================================================
+
+=== Session 2025-12-09 [14:20-15:00] ===
+Objectif: Corriger les 4 bugs critiques BUILD et tester
+
+## CORRECTIONS IMPLÉMENTÉES
+
+### BUG-024: XML CustomObject mal formaté
+- Nouveau prompt admin avec templates XML stricts
+- Ajout fonction sanitize_salesforce_xml() pour filtrer propriétés interdites
+- Liste noire: enableChangeDataCapture, enableEnhancedLookup, enableHistory, etc.
+- Fichier: agents/roles/salesforce_admin.py, app/services/incremental_executor.py
+
+### BUG-033: Elena doit valider AVANT déploiement
+- Réorganisation du flux: Step 1 (Generate) → Step 2 (Elena review) → Step 3 (Deploy)
+- Elena appelée en mode "pre_deploy" avant SFDX
+- Si Elena rejette → retry avec feedback (pas de déploiement inutile)
+- Fichier: app/services/incremental_executor.py
+
+### BUG-035: Agent apex génère dépendances manquantes
+- Nouveau prompt Diego avec règles strictes "NO EXTERNAL DEPENDENCIES"
+- Utiliser AuraHandledException au lieu de custom exceptions
+- Tout le code doit être self-contained
+- Fichier: agents/roles/salesforce_developer_apex.py
+
+### BUG-036: Structure bundle LWC
+- Nouvelle méthode deploy_lwc_bundle() dans sfdx_service.py
+- Détection automatique des fichiers LWC dans incremental_executor
+- Regroupement par composant avant déploiement
+- Fichiers: app/services/sfdx_service.py, app/services/incremental_executor.py
+
+## TESTS EFFECTUÉS
+
+### Résultats
+- BUG-033 ✅ VALIDÉ: Elena review avant deploy fonctionne parfaitement
+  - TASK-044 (lwc): Elena a donné 3x du feedback détaillé à Zara
+  - Cycle: Generate → Elena FAIL → Retry avec feedback
+- BUG-024/035/036: Non testés (tasks n'ont pas atteint ces étapes)
+
+### Problème identifié
+- Les agents génèrent du code incomplet
+- Elena détecte les problèmes mais le cycle ne converge pas
+- Zara (LWC) a fait 3 tentatives sans satisfaire Elena
+- → Besoin d'améliorer les prompts agents pour code plus complet
+
+## FICHIERS MODIFIÉS
+- backend/agents/roles/salesforce_admin.py (nouveau BUILD_PROMPT)
+- backend/agents/roles/salesforce_developer_apex.py (nouveau BUILD_PROMPT)
+- backend/app/services/incremental_executor.py (Elena avant deploy, sanitize XML, LWC bundle)
+- backend/app/services/sfdx_service.py (deploy_lwc_bundle)
+
+## ÉTAT FEATURES.JSON
+- 12 bugs DONE
+- 2 bugs TODO (BUG-023 format SDS, BUG-025 experts SDS)
+
+Statut: COMPLETED (corrections implémentées)
+Prochaine étape: Améliorer les prompts agents pour générer du code complet
+
+================================================================================

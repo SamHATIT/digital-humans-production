@@ -30,6 +30,53 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 MAX_RETRIES = 3
+
+def sanitize_salesforce_xml(file_path: str, content: str) -> str:
+    """
+    Sanitize Salesforce metadata XML to fix common LLM generation errors.
+    
+    Args:
+        file_path: Path to help determine file type
+        content: XML content to sanitize
+        
+    Returns:
+        Sanitized XML content
+    """
+    import re
+    
+    # Liste des propriétés interdites dans API 59.0
+    forbidden_properties = [
+        'enableChangeDataCapture',
+        'enableEnhancedLookup',
+        'enableHistory',
+        'enableBulkApi',
+        'enableReports',
+        'enableSearch',
+        'enableFeeds',
+        'enableStreamingApi',
+        'enableSharing',
+        'enableActivities',
+    ]
+    
+    # Supprimer les propriétés interdites
+    for prop in forbidden_properties:
+        # Pattern: <prop>...</prop> ou <prop/>
+        content = re.sub(rf'<{prop}>[^<]*</{prop}>\s*', '', content)
+        content = re.sub(rf'<{prop}\s*/>', '', content)
+    
+    # Si c'est un CustomObject, vérifier qu'il n'y a pas de <fields> dedans
+    if '.object-meta.xml' in file_path:
+        # Supprimer les blocs <fields>...</fields> qui ne devraient pas être là
+        content = re.sub(r'<fields>.*?</fields>\s*', '', content, flags=re.DOTALL)
+        # Supprimer les blocs <CustomField> qui ne devraient pas être là
+        content = re.sub(r'<CustomField[^>]*>.*?</CustomField>\s*', '', content, flags=re.DOTALL)
+    
+    # Nettoyer les lignes vides multiples
+    content = re.sub(r'\n\s*\n\s*\n', '\n\n', content)
+    
+    return content.strip()
+
+
 AGENT_MAPPING = {
     # WBS assignee -> agent_id (must match AGENT_CONFIG keys in agent_executor.py)
     "Diego": "diego",
@@ -294,11 +341,11 @@ class IncrementalExecutor:
         
         Cycle:
         1. Agent generates code (Diego/Zara/Raj based on task)
-        2. SFDX deploys to sandbox
-        3. Elena tests
-        4. If KO: retry up to MAX_RETRIES
-        5. If OK: Git commit + PR
-        6. Full auto: merge / Semi auto: pause
+        2. Elena reviews code (syntax, structure validation)
+        3. If Elena KO: retry code generation with feedback
+        4. If Elena OK: SFDX deploys to sandbox
+        5. If deploy fails: retry with error feedback
+        6. If OK: Git commit + PR
         
         Returns:
             Dict with success status and details
@@ -348,55 +395,19 @@ class IncrementalExecutor:
                 }
             
             # ════════════════════════════════════════════════════════════════
-            # STEP 2: Deploy to sandbox via SFDX
+            # STEP 2: Code Review by Elena (BEFORE deployment)
             # ════════════════════════════════════════════════════════════════
-            logger.info(f"[Step 2] Deploying to sandbox...")
-            self.update_task_status(task, TaskStatus.DEPLOYING)
-            
-            sfdx = get_sfdx_service()
-            
-            # Deploy each generated file (skip -meta.xml files, they're included automatically by SFDX)
-            deploy_results = []
-            for file_path, content in generated_files.items():
-                # Skip meta.xml files - SFDX includes them automatically with the main file
-                if '-meta.xml' in file_path or file_path.endswith('.xml'):
-                    logger.info(f"[Step 2] Skipping meta file: {file_path}")
-                    continue
-                    
-                # Determine metadata type from file extension
-                metadata_type = self._get_metadata_type(file_path)
-                metadata_name = Path(file_path).stem
-                
-                deploy_result = await sfdx.deploy_metadata(
-                    metadata_type=metadata_type,
-                    metadata_name=metadata_name,
-                    content=content
-                )
-                deploy_results.append(deploy_result)
-                
-                if not deploy_result.get("success"):
-                    error = deploy_result.get("error", "Deployment failed")
-                    logger.error(f"[Step 2] ❌ Deploy failed for {file_path}: {error}")
-                    task.deploy_result = deploy_result
-                    return await self._handle_task_failure(task, error, "deployment")
-            
-            task.deploy_result = {"files_deployed": len(deploy_results), "results": deploy_results}
-            self.db.commit()
-            logger.info(f"[Step 2] ✅ Deployed {len(deploy_results)} file(s)")
-            
-            # ════════════════════════════════════════════════════════════════
-            # STEP 3: Validate code with Elena (QA)
-            # ════════════════════════════════════════════════════════════════
-            logger.info(f"[Step 3] Validating code with Elena...")
+            logger.info(f"[Step 2] Code review by Elena...")
             self.update_task_status(task, TaskStatus.TESTING)
             
-            # Call Elena in test mode
+            # Call Elena in test/review mode
             elena_input = {
                 "task": {
                     "task_id": task.task_id,
                     "name": task.task_name
                 },
-                "code_files": generated_files
+                "code_files": generated_files,
+                "review_type": "pre_deploy"  # Indicates this is pre-deployment review
             }
             
             elena_result = await run_agent_task(
@@ -407,15 +418,97 @@ class IncrementalExecutor:
                 timeout=180
             )
             
+            # Check Elena's verdict
+            if not elena_result.get("success") or elena_result.get("verdict") == "FAIL":
+                feedback = elena_result.get("feedback", "Code review failed")
+                logger.warning(f"[Step 2] ❌ Elena REJECTED code: {feedback[:100]}...")
+                task.test_result = elena_result.get("content", {})
+                return await self._handle_task_failure(task, feedback, "code_review")
+            
+            logger.info(f"[Step 2] ✅ Elena APPROVED code for deployment")
             task.test_result = elena_result.get("content", {})
             self.db.commit()
             
-            if not elena_result.get("success") or elena_result.get("verdict") == "FAIL":
-                feedback = elena_result.get("feedback", "Code validation failed")
-                logger.warning(f"[Step 3] ❌ Elena FAIL: {feedback[:100]}")
-                return await self._handle_task_failure(task, feedback, "testing")
+            # ════════════════════════════════════════════════════════════════
+            # STEP 3: Deploy to sandbox via SFDX
+            # ════════════════════════════════════════════════════════════════
+            logger.info(f"[Step 3] Deploying to sandbox...")
+            self.update_task_status(task, TaskStatus.DEPLOYING)
             
-            logger.info(f"[Step 3] ✅ Elena PASS - code validated")
+            sfdx = get_sfdx_service()
+            
+            # Deploy each generated file
+            deploy_results = []
+            
+            # First, check if we have LWC files - they need special handling
+            lwc_files = {}
+            regular_files = {}
+            
+            for file_path, file_content in generated_files.items():
+                # Skip meta.xml files for non-LWC - SFDX includes them automatically
+                if '-meta.xml' in file_path and '/lwc/' not in file_path:
+                    logger.info(f"[Step 3] Skipping meta file: {file_path}")
+                    continue
+                
+                # Sanitize XML content
+                if file_path.endswith('.xml'):
+                    file_content = sanitize_salesforce_xml(file_path, file_content)
+                
+                # Check if LWC
+                if '/lwc/' in file_path or file_path.endswith(('.js', '.html', '.css')):
+                    # Extract component name from path like force-app/main/default/lwc/componentName/file.js
+                    parts = file_path.split('/')
+                    if 'lwc' in parts:
+                        lwc_idx = parts.index('lwc')
+                        if len(parts) > lwc_idx + 1:
+                            component_name = parts[lwc_idx + 1]
+                            if component_name not in lwc_files:
+                                lwc_files[component_name] = {}
+                            lwc_files[component_name][file_path] = file_content
+                            continue
+                
+                regular_files[file_path] = file_content
+            
+            # Deploy LWC bundles first
+            for component_name, files in lwc_files.items():
+                logger.info(f"[Step 3] Deploying LWC bundle: {component_name} ({len(files)} files)")
+                deploy_result = await sfdx.deploy_lwc_bundle(
+                    component_name=component_name,
+                    files=files
+                )
+                deploy_results.append(deploy_result)
+                
+                if not deploy_result.get("success"):
+                    error = deploy_result.get("error", "LWC Deployment failed")
+                    logger.error(f"[Step 3] ❌ LWC deploy failed for {component_name}: {error}")
+                    task.deploy_result = deploy_result
+                    return await self._handle_task_failure(task, error, "deployment")
+                logger.info(f"[Step 3] ✅ LWC bundle {component_name} deployed")
+            
+            # Deploy regular files
+            for file_path, file_content in regular_files.items():
+                # Determine metadata type from file extension
+                metadata_type = self._get_metadata_type(file_path)
+                metadata_name = Path(file_path).stem
+                
+                deploy_result = await sfdx.deploy_metadata(
+                    metadata_type=metadata_type,
+                    metadata_name=metadata_name,
+                    content=file_content
+                )
+                deploy_results.append(deploy_result)
+                
+                if not deploy_result.get("success"):
+                    error = deploy_result.get("error", "Deployment failed")
+                    logger.error(f"[Step 3] ❌ Deploy failed for {file_path}: {error}")
+                    task.deploy_result = deploy_result
+                    return await self._handle_task_failure(task, error, "deployment")
+            
+            task.deploy_result = {"files_deployed": len(deploy_results), "results": deploy_results}
+            self.db.commit()
+            logger.info(f"[Step 3] ✅ Deployed {len(deploy_results)} file(s)")
+            
+            # Deployment successful
             self.update_task_status(task, TaskStatus.PASSED)
             
             # ════════════════════════════════════════════════════════════════

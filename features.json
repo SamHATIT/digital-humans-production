@@ -1601,10 +1601,10 @@
       "id": "BUG-024",
       "title": "XML CustomObject mal format\u00e9 par agent admin",
       "description": "L'agent admin g\u00e9n\u00e8re du XML metadata Salesforce invalide:\n1. Propri\u00e9t\u00e9s invalides (enableChangeDataCapture) \n2. Structure incorrecte (CustomFields dans CustomObject au lieu de fichiers s\u00e9par\u00e9s)\nLe prompt seul ne suffit pas - besoin de validation XML ou templates.",
-      "status": "todo",
+      "status": "done",
       "priority": "critical",
       "category": "build",
-      "notes": "Solution: ajouter validation XML avant deploy, ou utiliser templates metadata, ou fournir exemples complets"
+      "notes": "CORRIG\u00c9 2025-12-09 - Prompt admin am\u00e9lior\u00e9 avec templates XML + sanitize_salesforce_xml()"
     },
     {
       "id": "BUG-025",
@@ -1682,10 +1682,10 @@
       "id": "BUG-033",
       "title": "Elena doit valider AVANT le d\u00e9ploiement SFDX",
       "description": "Le flux actuel: Generate \u2192 Deploy \u2192 Elena. Mais si le XML est invalide, le deploy \u00e9choue et Elena ne voit jamais le code. Le flux correct: Generate \u2192 Elena valide \u2192 Deploy",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "category": "build",
-      "notes": "R\u00e9organiser les steps dans incremental_executor.py : Step 2 = Elena validation, Step 3 = SFDX deploy"
+      "notes": "CORRIG\u00c9 2025-12-09 - Elena review en Step 2 AVANT d\u00e9ploiement SFDX"
     },
     {
       "id": "BUG-034",
@@ -1700,19 +1700,19 @@
       "id": "BUG-035",
       "title": "Agent apex g\u00e9n\u00e8re du code avec d\u00e9pendances manquantes",
       "description": "Diego g\u00e9n\u00e8re du code qui r\u00e9f\u00e9rence des classes non cr\u00e9\u00e9es (ex: SharingException). Le code compile localement mais \u00e9choue au d\u00e9ploiement car les d\u00e9pendances n'existent pas.",
-      "status": "todo",
+      "status": "done",
       "priority": "medium",
       "category": "build",
-      "notes": "Solution: am\u00e9liorer le prompt pour g\u00e9n\u00e9rer toutes les d\u00e9pendances, ou utiliser des classes standard (AuraHandledException)"
+      "notes": "CORRIG\u00c9 2025-12-09 - Prompt Diego am\u00e9lior\u00e9: no external dependencies, use AuraHandledException"
     },
     {
       "id": "BUG-036",
       "title": "D\u00e9ploiement LWC ne cr\u00e9e pas la structure bundle",
       "description": "Les LWC doivent \u00eatre d\u00e9ploy\u00e9s comme bundle (dossier avec tous les fichiers), pas fichier par fichier. sfdx_service.deploy_metadata ne g\u00e8re pas ce cas - g\u00e9n\u00e8re 'No local changes to deploy'",
-      "status": "todo",
+      "status": "done",
       "priority": "high",
       "category": "build",
-      "notes": "Solution: modifier deploy pour regrouper les fichiers LWC par composant et cr\u00e9er la structure lwc/componentName/files"
+      "notes": "CORRIG\u00c9 2025-12-09 - deploy_lwc_bundle() cr\u00e9e la structure bundle correcte"
     }
   ]
 }

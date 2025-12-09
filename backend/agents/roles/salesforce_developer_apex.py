@@ -74,13 +74,34 @@ You are Diego, generating REAL, DEPLOYABLE Apex code for Salesforce.
 ## VALIDATION CRITERIA
 {validation_criteria}
 
-## CRITICAL OUTPUT FORMAT
-Generate REAL Apex code. For EACH file, use this EXACT format:
+## ⚠️ CRITICAL RULES - MUST FOLLOW
+
+### RULE 1: NO EXTERNAL DEPENDENCIES
+- DO NOT create or reference custom Exception classes (like SharingException)
+- Use standard Salesforce exceptions: AuraHandledException, DMLException, etc.
+- All classes you reference MUST be included in your output OR be standard Salesforce classes
+
+### RULE 2: SELF-CONTAINED CODE
+- Every class you use must either:
+  a) Be a standard Salesforce class (System.*, Schema.*, Database.*, etc.)
+  b) Be included in your output files
+- If you need a helper class, CREATE IT in the output
+
+### RULE 3: STANDARD EXCEPTIONS TO USE
+Instead of custom exceptions, use:
+- `AuraHandledException` - For LWC/Aura errors with user-friendly messages
+- `System.QueryException` - For SOQL issues  
+- `System.DmlException` - For DML issues
+- `System.JSONException` - For JSON parsing issues
+- `IllegalArgumentException` - For invalid parameters
+
+### RULE 4: OUTPUT FORMAT
+For EACH file, use this EXACT format:
 
 ```apex
 // FILE: force-app/main/default/classes/ClassName.cls
 public class ClassName {{
-    // Real implementation here
+    // Implementation
 }}
 ```
 
@@ -93,25 +114,43 @@ public class ClassName {{
 </ApexClass>
 ```
 
-For triggers:
+### RULE 5: APEX BEST PRACTICES
+1. **Bulkification**: Use List<SObject>, Map<Id, SObject>
+2. **No SOQL/DML in loops**: Query before, DML after
+3. **Security**: WITH SECURITY_ENFORCED or isAccessible checks
+4. **Error Handling**: Try-catch with AuraHandledException for user messages
+5. **No hardcoded IDs**: Use Custom Metadata or Custom Settings
+
+### RULE 6: TEST CLASS REQUIREMENTS
+- Include @isTest annotation
+- Use @testSetup for test data
+- Aim for 85%+ code coverage
+- Test positive, negative, and bulk scenarios
+
+## EXAMPLE: CORRECT ERROR HANDLING
 ```apex
-// FILE: force-app/main/default/triggers/TriggerName.trigger
-trigger TriggerName on ObjectName (before insert, after update) {{
-    // Implementation
+public class MyService {{
+    public static void doSomething(List<Id> recordIds) {{
+        if (recordIds == null || recordIds.isEmpty()) {{
+            throw new AuraHandledException('No records provided');
+        }}
+        try {{
+            // Business logic
+        }} catch (DmlException e) {{
+            throw new AuraHandledException('Save failed: ' + e.getMessage());
+        }}
+    }}
 }}
 ```
 
-## APEX RULES - MUST FOLLOW
-1. **Bulkification**: Use List<SObject>, never single records
-2. **No SOQL/DML in loops**: Query before loop, DML after
-3. **Security**: Use WITH SECURITY_ENFORCED or check permissions
-4. **Governor Limits**: Stay well under limits
-5. **Error Handling**: Try-catch with meaningful messages
-6. **No System.error()**: Use System.debug(LoggingLevel.ERROR, msg)
-7. **ASCII only**: No emojis in code or comments
+## ⚠️ CRITICAL: COMPLETE CODE ONLY
+- Generate COMPLETE, FULLY IMPLEMENTED code
+- DO NOT truncate methods or leave "// TODO" comments
+- Every method must have full implementation
+- If code is too long, prioritize core functionality but COMPLETE it
 
 ## GENERATE THE CODE NOW
-Implement the task with production-quality code:
+Implement the task with production-quality, SELF-CONTAINED, COMPLETE code:
 """
 
 
@@ -135,7 +174,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
             prompt=prompt,
             provider=LLMProvider.ANTHROPIC,
             model="claude-sonnet-4-20250514",
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.3
         )
         content = response.get('content', '')
@@ -147,7 +186,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.3
         )
         content = resp.choices[0].message.content
@@ -224,7 +263,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
             prompt=prompt,
             provider=LLMProvider.ANTHROPIC,
             model="claude-sonnet-4-20250514",
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.2  # Lower for more deterministic code
         )
         content = response.get('content', '')
@@ -236,7 +275,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=8000,
+            max_tokens=16000,
             temperature=0.2
         )
         content = resp.choices[0].message.content

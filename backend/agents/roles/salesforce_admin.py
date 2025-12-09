@@ -45,7 +45,7 @@ Use clear markdown with detailed specifications for each component.
 
 BUILD_PROMPT = """# ⚙️ SALESFORCE METADATA GENERATION - BUILD MODE
 
-You are Raj, generating REAL, DEPLOYABLE Salesforce metadata XML.
+You are Raj, generating REAL, DEPLOYABLE Salesforce metadata XML for API version 59.0.
 
 ## TASK TO IMPLEMENT
 **Task ID:** {task_id}
@@ -55,75 +55,126 @@ You are Raj, generating REAL, DEPLOYABLE Salesforce metadata XML.
 ## ARCHITECTURE CONTEXT
 {architecture_context}
 
-## CRITICAL OUTPUT FORMAT
-Generate complete Salesforce metadata XML. For EACH file, use this EXACT format:
+## ⚠️ CRITICAL RULES - READ CAREFULLY
 
-For Custom Objects (IMPORTANT: use ONLY these properties, NO enableChangeDataCapture or enableEnhancedLookup):
+### RULE 1: SEPARATE FILES FOR OBJECTS AND FIELDS
+- CustomObject file contains ONLY object-level properties (label, pluralLabel, nameField, sharingModel)
+- CustomField files are SEPARATE - one file per field in the fields/ subfolder
+- NEVER put <fields> or <CustomField> elements inside a CustomObject file
+
+### RULE 2: FORBIDDEN PROPERTIES (API 59.0)
+These properties will cause deployment failure - NEVER use them:
+- enableChangeDataCapture
+- enableEnhancedLookup  
+- enableHistory
+- enableBulkApi
+- enableReports
+- enableSearch
+- enableFeeds
+- enableStreamingApi
+
+### RULE 3: FILE STRUCTURE
+```
+force-app/main/default/objects/ObjectName__c/
+├── ObjectName__c.object-meta.xml          (object definition ONLY)
+└── fields/
+    ├── Field1__c.field-meta.xml           (one file per field)
+    └── Field2__c.field-meta.xml
+```
+
+## EXACT TEMPLATES TO USE
+
+### Custom Object (ONLY these properties allowed)
 ```xml
-<!-- FILE: force-app/main/default/objects/ObjectName__c/ObjectName__c.object-meta.xml -->
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/{{ObjectName}}__c.object-meta.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <deploymentStatus>Deployed</deploymentStatus>
-    <label>Object Label</label>
-    <pluralLabel>Object Labels</pluralLabel>
+    <label>{{Object Label}}</label>
+    <pluralLabel>{{Object Labels}}</pluralLabel>
     <nameField>
-        <label>Name</label>
+        <label>{{Object}} Name</label>
         <type>Text</type>
     </nameField>
     <sharingModel>ReadWrite</sharingModel>
 </CustomObject>
 ```
 
-For Custom Fields:
+### Text Field
 ```xml
-<!-- FILE: force-app/main/default/objects/ObjectName__c/fields/FieldName__c.field-meta.xml -->
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/fields/{{FieldName}}__c.field-meta.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>FieldName__c</fullName>
-    <label>Field Label</label>
+    <fullName>{{FieldName}}__c</fullName>
+    <label>{{Field Label}}</label>
     <type>Text</type>
     <length>255</length>
+    <required>false</required>
 </CustomField>
 ```
 
-For Permission Sets:
+### Lookup Field
 ```xml
-<!-- FILE: force-app/main/default/permissionsets/PermSetName.permissionset-meta.xml -->
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/fields/{{RelatedObject}}__c.field-meta.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
-<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <label>Permission Set Name</label>
-    <!-- permissions -->
-</PermissionSet>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>{{RelatedObject}}__c</fullName>
+    <label>{{Related Object}}</label>
+    <type>Lookup</type>
+    <referenceTo>{{RelatedObject}}__c</referenceTo>
+    <relationshipLabel>{{Labels}}</relationshipLabel>
+    <relationshipName>{{Name}}</relationshipName>
+</CustomField>
 ```
 
-For Flows:
+### Picklist Field
 ```xml
-<!-- FILE: force-app/main/default/flows/FlowName.flow-meta.xml -->
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/fields/{{FieldName}}__c.field-meta.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
-<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
-    <!-- flow definition -->
-</Flow>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>{{FieldName}}__c</fullName>
+    <label>{{Field Label}}</label>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Value1</fullName><default>true</default><label>Value 1</label></value>
+            <value><fullName>Value2</fullName><default>false</default><label>Value 2</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>
 ```
 
-For Validation Rules:
+### URL Field
 ```xml
-<!-- FILE: force-app/main/default/objects/ObjectName__c/validationRules/RuleName.validationRule-meta.xml -->
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/fields/{{FieldName}}__c.field-meta.xml -->
 <?xml version="1.0" encoding="UTF-8"?>
-<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
-    <fullName>RuleName</fullName>
-    <active>true</active>
-    <errorConditionFormula>/* formula */</errorConditionFormula>
-    <errorMessage>Error message</errorMessage>
-</ValidationRule>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>{{FieldName}}__c</fullName>
+    <label>{{Field Label}}</label>
+    <type>Url</type>
+</CustomField>
 ```
 
-## ADMIN BEST PRACTICES
-1. Use API names with __c suffix for custom
-2. Include all required metadata elements
-3. ⚠️ FORBIDDEN PROPERTIES: DO NOT use enableChangeDataCapture, enableEnhancedLookup, enableHistory (API 59.0 incompatible)
-3. Use proper data types and lengths
-4. Follow naming conventions (PascalCase)
-5. Add descriptions for documentation
+### LongTextArea Field
+```xml
+<!-- FILE: force-app/main/default/objects/{{ObjectName}}__c/fields/{{FieldName}}__c.field-meta.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>{{FieldName}}__c</fullName>
+    <label>{{Field Label}}</label>
+    <type>LongTextArea</type>
+    <length>32768</length>
+    <visibleLines>5</visibleLines>
+</CustomField>
+```
+
+## OUTPUT FORMAT
+For each file:
+1. <!-- FILE: path/to/file.xml --> comment
+2. Complete XML content
+3. Blank line before next file
 
 ## GENERATE THE METADATA NOW:
 """
@@ -142,13 +193,13 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.3)
+                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.3)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
     else:
         from openai import OpenAI
         client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
     
@@ -186,13 +237,13 @@ FIX THESE ISSUES.
     
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.2)
+                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
     else:
         from openai import OpenAI
         client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
+        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
     

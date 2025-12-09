@@ -265,6 +265,56 @@ class SFDXService:
                 cwd=temp_dir
             )
     
+
+    async def deploy_lwc_bundle(
+        self,
+        component_name: str,
+        files: Dict[str, str]
+    ) -> Dict[str, Any]:
+        """
+        Deploy a LWC bundle (multiple files as one component).
+        
+        Args:
+            component_name: Name of the LWC component
+            files: Dict of filename -> content (e.g., {'component.js': '...', 'component.html': '...'})
+            
+        Returns:
+            Dict with deployment result
+        """
+        import tempfile
+        
+        with tempfile.TemporaryDirectory(prefix="sfdx_lwc_") as temp_dir:
+            # Create sfdx-project.json
+            project_json = {
+                "packageDirectories": [{"path": "force-app", "default": True}],
+                "namespace": "",
+                "sfdcLoginUrl": "https://login.salesforce.com",
+                "sourceApiVersion": "59.0"
+            }
+            
+            project_file = Path(temp_dir) / "sfdx-project.json"
+            project_file.write_text(json.dumps(project_json, indent=2))
+            
+            # Create LWC bundle structure: lwc/componentName/files
+            bundle_dir = Path(temp_dir) / "force-app" / "main" / "default" / "lwc" / component_name
+            bundle_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Write all component files
+            for filename, content in files.items():
+                # Extract just the filename from the path
+                if '/' in filename:
+                    filename = filename.split('/')[-1]
+                (bundle_dir / filename).write_text(content)
+                logger.info(f"[SFDX] Created LWC file: {bundle_dir / filename}")
+            
+            # Deploy the entire bundle
+            return await self.deploy_source(
+                source_path=str(bundle_dir),
+                test_level="NoTestRun",
+                cwd=temp_dir
+            )
+
+
     async def run_tests(
         self,
         test_classes: List[str] = None,
