@@ -549,7 +549,7 @@ class IncrementalExecutor:
                 "success": True,
                 "task_id": task.task_id,
                 "files_generated": len(generated_files),
-                "tests_passed": test_result.get("passing", 0),
+                "tests_passed": task.test_result.get("passing", 0) if task.test_result else 0,
                 "commit_sha": task.git_commit_sha,
                 "pr_url": task.git_pr_url
             }
