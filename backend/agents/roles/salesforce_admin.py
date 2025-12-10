@@ -333,14 +333,32 @@ FIX THESE ISSUES.
 
 
 def _parse_xml_files(content: str) -> dict:
+    """Parse XML files from LLM output - handles both formats:
+    1. With backticks: ```xml <!-- FILE: path --> code ```
+    2. Without backticks: <!-- FILE: path --> code
+    """
     import re
     files = {}
-    pattern = r'```(?:xml)\s*\n<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)```'
-    matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+    
+    # Pattern 1: With ```xml blocks
+    pattern1 = r'```(?:xml)?\s*\n<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)```'
+    matches = re.findall(pattern1, content, re.DOTALL | re.IGNORECASE)
     for filepath, code in matches:
         if filepath.strip() and code.strip():
             files[filepath.strip()] = code.strip()
+    
+    # Pattern 2: Without backticks - match <!-- FILE: path --> followed by content until next FILE or end
+    if not files:
+        pattern2 = r'<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)(?=<!--\s*FILE:|$)'
+        matches = re.findall(pattern2, content, re.DOTALL | re.IGNORECASE)
+        for filepath, code in matches:
+            if filepath.strip() and code.strip():
+                # Remove trailing backticks or whitespace
+                cleaned = re.sub(r'\s*```\s*$', '', code.strip())
+                files[filepath.strip()] = cleaned
+    
     return files
+
 
 
 def main():
