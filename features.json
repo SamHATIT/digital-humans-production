@@ -3,10 +3,10 @@
     "version": "1.0",
     "created": "2025-12-08",
     "last_updated": "2025-12-10",
-    "total_features": 95,
+    "total_features": 101,
     "stats": {
-      "completed": 61,
-      "not_started": 34,
+      "completed": 64,
+      "not_started": 37,
       "in_progress": 0,
       "blocked": 0
     }
@@ -460,7 +460,7 @@
       "title": "Fix page qui se vide entre agents",
       "description": "Corriger le bug où la page se vide quand on passe d'un agent à l'autre",
       "priority": 1,
-      "status": "completed",
+      "status": "not_started",
       "validation_criteria": [
         "Contenu des agents précédents reste visible",
         "Scroll fluide vers le nouvel agent",
@@ -471,7 +471,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "08/12/2025: Protège les données existantes lors du polling - ne remplace que si nouvelles données valides."
+      "notes": "NON RÉSOLU - écran saute toujours entre chaque agent (constaté 10/12/2025)"
     },
     {
       "id": "FRNT-03",
@@ -1615,10 +1615,10 @@
       "id": "BUG-025",
       "title": "Experts SDS échouent (Elena, Jordan, Aisha)",
       "description": "3 experts SDS échouent avec 'Unknown error' après initialisation Anthropic client",
-      "status": "not_started",
+      "status": "completed",
       "priority": 4,
       "category": "WORKFLOW_SDS",
-      "notes": "Non bloquant - le core pipeline fonctionne. À investiguer."
+      "notes": "Résolu - experts SDS fonctionnent (constaté 10/12/2025 exec #111)"
     },
     {
       "id": "BUG-026",
@@ -1795,6 +1795,116 @@
       ],
       "estimated_hours": 3,
       "notes": "Pattern existant dans Zara et Elena. Copy/paste avec adaptations."
+    },
+    {
+      "id": "FRONT-006",
+      "category": "FRONTEND",
+      "title": "AgentThoughtModal - Enrichir avec données LLM réelles",
+      "description": "Améliorer le modal au clic sur un agent pour afficher les vraies données: prompt (tronqué), tokens utilisés, temps d'exécution, résumé réel de l'output. Utiliser la table llm_interactions.",
+      "priority": 3,
+      "status": "not_started",
+      "validation_criteria": [
+        "Modal affiche le prompt envoyé (premiers 500 chars)",
+        "Modal affiche tokens input/output",
+        "Modal affiche temps d'exécution",
+        "Modal affiche un vrai résumé de l'output (pas juste 'message')",
+        "Données viennent de llm_interactions en temps réel"
+      ],
+      "dependencies": [
+        "INFRA-001"
+      ],
+      "files": [
+        "frontend/src/components/AgentThoughtModal.tsx",
+        "backend/app/api/routes/pm_orchestrator.py"
+      ],
+      "estimated_hours": 3,
+      "notes": "Dépend du LLM logging (INFRA-001). Endpoint à créer: GET /agent/{id}/thought"
+    },
+    {
+      "id": "BUG-039",
+      "category": "BUGS",
+      "title": "Aisha generate_spec référence correction_context non définie",
+      "description": "La fonction generate_spec d'Aisha référençait correction_context qui n'existe que dans generate_build. Causait NameError et message d'erreur trompeur ('LLM Logger loaded').",
+      "priority": 1,
+      "status": "completed",
+      "validation_criteria": [
+        "Aisha SDS spec fonctionne sans erreur"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/agents/roles/salesforce_data_migration.py"
+      ],
+      "estimated_hours": 0.5,
+      "notes": "Corrigé 10/12/2025 - supprimé lignes 129-130"
+    },
+    {
+      "id": "BUG-040",
+      "category": "BUGS",
+      "title": "Raj parser ne gère pas XML sans backticks",
+      "description": "Le LLM générait des fichiers XML avec <!-- FILE: path --> mais sans les blocs ```xml. Le parser regex ne matchait pas. Corrigé pour accepter les deux formats.",
+      "priority": 1,
+      "status": "completed",
+      "validation_criteria": [
+        "Raj génère des fichiers XML correctement parsés"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/agents/roles/salesforce_admin.py"
+      ],
+      "estimated_hours": 0.5,
+      "notes": "Corrigé 10/12/2025 - parser accepte maintenant 2 formats"
+    },
+    {
+      "id": "BUG-041",
+      "category": "BUGS",
+      "title": "test_result non défini dans executor",
+      "description": "Variable test_result utilisée sans être définie dans _execute_single_task(). Corrigé en task.test_result",
+      "priority": 1,
+      "status": "completed",
+      "validation_criteria": [
+        "Tâches BUILD peuvent se terminer sans NameError"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/app/services/incremental_executor.py"
+      ],
+      "estimated_hours": 0.25,
+      "notes": "Corrigé 10/12/2025"
+    },
+    {
+      "id": "BUG-042",
+      "category": "BUGS",
+      "title": "Raj génère credentials hardcodées",
+      "description": "Raj met des passwords, tokens OAuth et consumer keys dans les fichiers XML. Faille de sécurité majeure.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Raj ne génère jamais de credentials dans le code"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/agents/roles/salesforce_admin.py"
+      ],
+      "estimated_hours": 1,
+      "notes": "Ajouter règles strictes dans prompt"
+    },
+    {
+      "id": "BUG-043",
+      "category": "BUGS",
+      "title": "Asymétrie connaissances Raj vs Elena",
+      "description": "Elena connaît les règles Salesforce (Master-Detail pour Rollup) mais Raj non. Investiguer pourquoi.",
+      "priority": 2,
+      "status": "not_started",
+      "validation_criteria": [
+        "Raj et Elena ont le même niveau de connaissance SF"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/agents/roles/salesforce_admin.py",
+        "backend/agents/roles/salesforce_qa_tester.py"
+      ],
+      "estimated_hours": 2,
+      "notes": "Comparer prompts et RAG entre les deux agents"
     }
   ]
 }
