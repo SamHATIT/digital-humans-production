@@ -286,13 +286,16 @@ FIX THESE ISSUES.
                                          model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
+        model_used = "claude-sonnet-4-20250514"
     else:
         from openai import OpenAI
         client = OpenAI()
         resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
+        model_used = "gpt-4o-mini"
     
+    execution_time = round(time.time() - start_time, 2)
     files = _parse_xml_files(content)
     print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
     
