@@ -3,10 +3,10 @@
     "version": "1.0",
     "created": "2025-12-08",
     "last_updated": "2025-12-10",
-    "total_features": 101,
+    "total_features": 106,
     "stats": {
       "completed": 64,
-      "not_started": 37,
+      "not_started": 42,
       "in_progress": 0,
       "blocked": 0
     }
@@ -1905,6 +1905,104 @@
       ],
       "estimated_hours": 2,
       "notes": "Comparer prompts et RAG entre les deux agents"
+    },
+    {
+      "id": "BUG-044",
+      "category": "BUGS",
+      "title": "WBS détails non transmis aux agents BUILD",
+      "description": "Le WBS de Marcus contient description, validation_criteria, deliverables, gap_refs mais ces infos ne sont pas stockées dans task_executions ni transmises aux agents. Raj reçoit seulement task_name comme description.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "task_executions contient colonnes: description, validation_criteria, deliverables, gap_refs",
+        "load_tasks_from_wbs() extrait tous ces champs",
+        "_generate_code_for_task() transmet ces infos à l'agent"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/app/models/execution.py",
+        "backend/app/services/incremental_executor.py"
+      ],
+      "estimated_hours": 3,
+      "notes": "Problème structurel majeur - les agents BUILD improvisent sans contexte"
+    },
+    {
+      "id": "BUG-045",
+      "category": "BUGS",
+      "title": "Gap Analysis non transmise aux agents BUILD",
+      "description": "Les gap_refs du WBS référencent des GAPs détaillés (current_state, target_state, gap_description) mais ces infos ne sont jamais chargées ni transmises aux agents BUILD.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "L'executor charge les GAPs référencés par gap_refs",
+        "Le contexte GAP est inclus dans le prompt de l'agent"
+      ],
+      "dependencies": [
+        "BUG-044"
+      ],
+      "files": [
+        "backend/app/services/incremental_executor.py"
+      ],
+      "estimated_hours": 2,
+      "notes": "Sans le GAP, l'agent ne sait pas ce qu'il doit combler"
+    },
+    {
+      "id": "BUG-046",
+      "category": "BUGS",
+      "title": "Solution Design non transmis aux agents BUILD",
+      "description": "Le Solution Design de Marcus (data_model, security_model, etc.) n'est pas transmis aux agents BUILD. Raj crée des objets inventés au lieu de suivre le design de Marcus.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Le data_model du Solution Design est transmis à Raj pour les tâches data model",
+        "L'agent génère du code conforme au design"
+      ],
+      "dependencies": [
+        "BUG-044"
+      ],
+      "files": [
+        "backend/app/services/incremental_executor.py"
+      ],
+      "estimated_hours": 2,
+      "notes": "Raj a créé Project__c, Task__c alors que Marcus recommandait d'utiliser Case standard"
+    },
+    {
+      "id": "BUG-047",
+      "category": "BUGS",
+      "title": "Marcus ne connaît pas les champs standard Salesforce",
+      "description": "Marcus crée des champs custom redondants (Contact_Request_Name__c, Contact_Request_Email__c) alors que Case a déjà ContactId lookup et SuppliedName/Email/Phone. Le RAG ne lui fournit pas la structure des objets standard.",
+      "priority": 2,
+      "status": "not_started",
+      "validation_criteria": [
+        "RAG contient la structure des objets standard SF (Case, Account, Contact, etc.)",
+        "Marcus vérifie les champs existants avant de proposer des custom fields"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/agents/roles/solution_architect.py",
+        "data/rag_documents/"
+      ],
+      "estimated_hours": 4,
+      "notes": "Ajouter documentation objets standard SF au RAG ou injecter metadata org"
+    },
+    {
+      "id": "BUG-048",
+      "category": "BUGS",
+      "title": "LLM interactions non loggées pour phase SDS",
+      "description": "Les interactions LLM de Sophie, Olivia, Marcus ne sont pas loggées dans llm_interactions. Impossible de débugger ce qu'ils reçoivent comme contexte.",
+      "priority": 3,
+      "status": "not_started",
+      "validation_criteria": [
+        "Toutes les interactions LLM (SDS + BUILD) sont loggées",
+        "On peut voir le prompt et RAG context de chaque agent"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/app/services/pm_orchestrator_service_v2.py",
+        "backend/agents/roles/solution_architect.py"
+      ],
+      "estimated_hours": 2,
+      "notes": "Important pour le debugging"
     }
   ]
 }

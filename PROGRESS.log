@@ -1198,3 +1198,23 @@ Lancer et valider le pipeline BUILD après complétion du SDS.
 2. Enrichir RAG de Raj avec règles Salesforce critiques
 3. Ajouter règles sécurité (no hardcoded credentials) dans prompt Raj
 4. Reprendre BUILD après corrections
+
+### Analyse transmission contexte aux agents BUILD
+
+**Problème identifié:** Les agents BUILD (Raj, Diego, Zara) travaillent presque à l'aveugle.
+
+**Chaîne de transmission CASSÉE:**
+
+| Source | Contenu riche | Transmis ? |
+|--------|---------------|------------|
+| Solution Design (Marcus) | data_model, security_model, relationships | ❌ NON |
+| Gap Analysis (Marcus) | current_state, target_state, gap_description | ❌ NON |
+| WBS (Marcus) | description, validation_criteria, deliverables, gap_refs | ❌ NON |
+| task_executions | Seulement task_id, task_name, phase_name | ⚠️ Minimal |
+| Agent BUILD | Reçoit task_name comme "description" | 🤷 Improvise |
+
+**Conséquence:** Raj a créé Project__c, Task__c, Team_Member__c alors que Marcus avait recommandé d'utiliser l'objet Case standard avec customizations.
+
+**Autre problème:** Marcus lui-même propose des champs redondants (Contact_Request_Name__c) alors que Case a déjà ContactId lookup et SuppliedName/Email/Phone. Son RAG ne contient pas la structure des objets standard SF.
+
+**Bugs créés:** BUG-044 à BUG-048
