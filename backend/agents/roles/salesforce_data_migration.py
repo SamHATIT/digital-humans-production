@@ -126,8 +126,6 @@ insert records;
 
 def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
     prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
-    if correction_context:
-        prompt += correction_context
     
     if rag_context:
         prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
