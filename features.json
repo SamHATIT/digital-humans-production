@@ -1742,7 +1742,7 @@
         "Elena receives full code content for review"
       ],
       "dependencies": [],
-      "notes": "Fixed 09/12/2025 - code_content[:12000] → code_content[:50000]"
+      "notes": "TESTÉ 10/12/2025: Elena reçoit 35k chars (6 fichiers complets). Review RÉELLE avec issues légitimes. Root cause: content[:3000] par fichier."
     },
     {
       "id": "INFRA-001",
