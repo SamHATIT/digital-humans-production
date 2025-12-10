@@ -21,6 +21,16 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# LLM Logging for debugging
+try:
+    from app.services.llm_logger import log_llm_interaction
+    LLM_LOGGER_AVAILABLE = True
+    print(f"📝 [Raj] LLM Logger loaded", file=sys.stderr)
+except ImportError as e:
+    LLM_LOGGER_AVAILABLE = False
+    print(f"⚠️ [Raj] LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
+
 
 SPEC_PROMPT = """# ⚙️ SALESFORCE ADMIN - SPECIFICATION MODE
 
@@ -212,6 +222,28 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
     
+
+    # Log LLM interaction
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="raj",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode="spec",
+                rag_context=rag_context if rag_context else None,
+                tokens_output=tokens_used,
+                model=model_used if 'model_used' in dir() else "unknown",
+                provider="anthropic" if LLM_SERVICE_AVAILABLE else "openai",
+                execution_time_seconds=round(time.time() - start_time, 2),
+                success=True
+            )
+            print(f"📝 [Raj SPEC] LLM interaction logged", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ [Raj SPEC] Failed to log: {e}", file=sys.stderr)
+
     return {
         "agent_id": "raj", "agent_name": "Raj (Salesforce Admin)", "mode": "spec",
         "execution_id": str(execution_id), "deliverable_type": "admin_specification",
@@ -264,6 +296,30 @@ FIX THESE ISSUES.
     files = _parse_xml_files(content)
     print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
     
+    # Log LLM interaction
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="raj",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=task_id,
+                agent_mode="build",
+                rag_context=rag_context if rag_context else None,
+                previous_feedback=previous_feedback if previous_feedback else None,
+                parsed_files={"files": list(files.keys()), "count": len(files)},
+                tokens_output=tokens_used,
+                model=model_used,
+                provider="anthropic" if "claude" in model_used else "openai",
+                execution_time_seconds=execution_time,
+                success=len(files) > 0,
+                error_message=None if len(files) > 0 else "No files parsed"
+            )
+            print(f"📝 [Raj BUILD] LLM interaction logged", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ [Raj BUILD] Failed to log: {e}", file=sys.stderr)
+
     return {
         "agent_id": "raj", "agent_name": "Raj (Salesforce Admin)", "mode": "build",
         "task_id": task_id, "execution_id": str(execution_id),

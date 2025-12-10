@@ -21,6 +21,16 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# LLM Logging for debugging
+try:
+    from app.services.llm_logger import log_llm_interaction
+    LLM_LOGGER_AVAILABLE = True
+    print(f"📝 [Aisha] LLM Logger loaded", file=sys.stderr)
+except ImportError as e:
+    LLM_LOGGER_AVAILABLE = False
+    print(f"⚠️ [Aisha] LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
+
 
 SPEC_PROMPT = """# 📊 DATA MIGRATION - SPECIFICATION MODE
 
@@ -137,6 +147,28 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
     
+
+    # Log LLM interaction
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="aisha",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode="spec",
+                rag_context=rag_context if rag_context else None,
+                tokens_output=tokens_used,
+                model="claude-sonnet-4-20250514" if LLM_SERVICE_AVAILABLE else "gpt-4o-mini",
+                provider="anthropic" if LLM_SERVICE_AVAILABLE else "openai",
+                execution_time_seconds=round(time.time() - start_time, 2),
+                success=True
+            )
+            print(f"📝 [Aisha SPEC] LLM interaction logged", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ [Aisha SPEC] Failed to log: {e}", file=sys.stderr)
+
     return {
         "agent_id": "aisha", "agent_name": "Aisha (Data Migration)", "mode": "spec",
         "execution_id": str(execution_id), "deliverable_type": "migration_specification",
@@ -184,6 +216,30 @@ FIX THESE ISSUES.
     files = _parse_files(content)
     print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
     
+    # Log LLM interaction
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="aisha",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=task_id,
+                agent_mode="build",
+                rag_context=rag_context if rag_context else None,
+                previous_feedback=previous_feedback if previous_feedback else None,
+                parsed_files={"files": list(files.keys()), "count": len(files)},
+                tokens_output=tokens_used,
+                model=model_used,
+                provider="anthropic" if "claude" in model_used else "openai",
+                execution_time_seconds=execution_time,
+                success=len(files) > 0,
+                error_message=None if len(files) > 0 else "No files parsed"
+            )
+            print(f"📝 [Aisha BUILD] LLM interaction logged", file=sys.stderr)
+        except Exception as e:
+            print(f"⚠️ [Aisha BUILD] Failed to log: {e}", file=sys.stderr)
+
     return {
         "agent_id": "aisha", "agent_name": "Aisha (Data Migration)", "mode": "build",
         "task_id": task_id, "execution_id": str(execution_id),
