@@ -3,15 +3,41 @@
     "version": "1.0",
     "created": "2025-12-08",
     "last_updated": "2025-12-10",
-    "total_features": 106,
+    "total_features": 107,
     "stats": {
       "completed": 64,
-      "not_started": 42,
+      "not_started": 43,
       "in_progress": 0,
       "blocked": 0
     }
   },
   "features": [
+    {
+      "id": "CORE-001",
+      "category": "CORE",
+      "title": "Système de logging exhaustif - Audit Trail complet",
+      "description": "Implémenter un logging complet de TOUT ce qui se passe dans l'application : utilisateurs, agents SDS, agents BUILD, modifications de données (avant/après), erreurs, appels LLM, appels API, etc.",
+      "priority": 0,
+      "status": "not_started",
+      "validation_criteria": [
+        "Table audit_logs avec: timestamp, actor_type, actor_id, action, entity_type, entity_id, old_value, new_value, metadata",
+        "Logging automatique de toutes les modifications en base (triggers ou middleware)",
+        "Logging de tous les appels LLM (prompt, response, tokens, durée) - SDS ET BUILD",
+        "Logging de toutes les actions utilisateur (login, création projet, validation BR, etc.)",
+        "Logging de toutes les actions agents (démarrage, fin, succès, échec, retry)",
+        "API endpoint pour consulter les logs avec filtres",
+        "Rétention et rotation des logs configurables"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/app/models/audit.py",
+        "backend/app/middleware/audit_middleware.py",
+        "backend/app/services/audit_service.py",
+        "backend/app/api/audit.py"
+      ],
+      "estimated_hours": 8,
+      "notes": "PRIORITÉ ABSOLUE - Sans logging, impossible de débugger, auditer, ou faire de l'incrémental fiable"
+    },
     {
       "id": "CRIT-01",
       "category": "BACKEND_CRITICAL",
@@ -2002,7 +2028,7 @@
         "backend/agents/roles/solution_architect.py"
       ],
       "estimated_hours": 2,
-      "notes": "Important pour le debugging"
+      "notes": "Englobé par CORE-001"
     }
   ]
 }

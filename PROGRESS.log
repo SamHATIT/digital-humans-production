@@ -1218,3 +1218,38 @@ Lancer et valider le pipeline BUILD après complétion du SDS.
 **Autre problème:** Marcus lui-même propose des champs redondants (Contact_Request_Name__c) alors que Case a déjà ContactId lookup et SuppliedName/Email/Phone. Son RAG ne contient pas la structure des objets standard SF.
 
 **Bugs créés:** BUG-044 à BUG-048
+
+### PRIORITÉ ABSOLUE: CORE-001 - Système de logging exhaustif
+
+**Constat actuel:**
+- `llm_interactions` existe mais utilisé UNIQUEMENT par agents BUILD
+- Agents SDS (Sophie, Olivia, Marcus) = AUCUN logging
+- Actions utilisateur = AUCUN logging
+- Opérations système (SFDX, Git) = AUCUN logging
+
+**Plan d'implémentation:**
+
+1. **Table `audit_logs`:**
+   - timestamp, actor_type (user/agent/system), actor_id
+   - action, entity_type, entity_id
+   - old_value (JSONB), new_value (JSONB)
+   - metadata (JSONB), execution_id, project_id
+
+2. **AuditService centralisé:**
+   - Fonction unique `audit_log(actor, action, entity, old, new, meta)`
+   - Utilisable partout dans l'application
+
+3. **Intégrations:**
+   - Middleware HTTP pour toutes les requêtes API
+   - pm_orchestrator_service_v2.py pour SDS
+   - incremental_executor.py pour BUILD
+   - sfdx_service.py pour deploys
+   - git_service.py pour commits
+
+**Fichiers à créer:**
+- backend/app/models/audit.py
+- backend/app/services/audit_service.py
+- backend/app/middleware/audit_middleware.py
+- backend/app/api/audit.py (consultation logs)
+
+**Migration Alembic nécessaire pour créer la table.**
