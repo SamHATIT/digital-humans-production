@@ -79,3 +79,6 @@ agents/backups/
 # Exception pour les fichiers de suivi du projet
 !PROGRESS.log
 !features.json
+-e 
+# RAG resources (too large for git)
+data/rag/

@@ -157,7 +157,15 @@ class IncrementalExecutor:
                     tasks_created.append(existing)
                     continue
                 
-                # Create new task execution
+                # Extract rich context from WBS (BUG-044 fix)
+                description = task.get("description", "")
+                validation_criteria = task.get("validation_criteria", [])
+                deliverables = task.get("deliverables", [])
+                gap_refs = task.get("gap_refs", [])
+                effort_days = task.get("effort_days")
+                test_approach = task.get("test_approach", "")
+                
+                # Create new task execution with full context
                 task_exec = TaskExecution(
                     execution_id=self.execution_id,
                     task_id=task_id,
@@ -166,6 +174,13 @@ class IncrementalExecutor:
                     assigned_agent=agent_id,
                     status=TaskStatus.PENDING,
                     depends_on=dependencies if dependencies else None,
+                    # Rich context (BUG-044)
+                    description=description,
+                    validation_criteria=validation_criteria if validation_criteria else None,
+                    deliverables=deliverables if deliverables else None,
+                    gap_refs=gap_refs if gap_refs else None,
+                    effort_days=effort_days,
+                    test_approach=test_approach if test_approach else None,
                 )
                 
                 self.db.add(task_exec)
@@ -619,17 +634,30 @@ class IncrementalExecutor:
         # Get architecture context from previous agents
         architecture_context = self._get_architecture_context()
         
-        # Build input data for the agent
+        # Get GAP context for referenced gaps (BUG-045 fix)
+        gap_refs = task.gap_refs or []
+        gap_context = self._get_gap_context(gap_refs)
+        
+        # Get Solution Design context (BUG-046 fix)
+        solution_design = self._get_solution_design_context()
+        
+        # Build input data for the agent with FULL context (BUG-044/045/046 fix)
         input_data = {
             "task": {
                 "task_id": task.task_id,
                 "name": task.task_name,
                 "title": task.task_name,
-                "description": task.task_name,
+                "description": task.description or task.task_name,  # Rich description from WBS
                 "phase": task.phase_name,
-                "validation_criteria": []
+                "validation_criteria": task.validation_criteria or [],  # Real validation criteria
+                "deliverables": task.deliverables or [],  # Expected deliverables
+                "gap_refs": task.gap_refs or [],  # GAP references for context
+                "effort_days": task.effort_days,  # Estimated effort
+                "test_approach": task.test_approach  # How to test
             },
             "architecture_context": architecture_context,
+            "gap_context": gap_context,  # BUG-045: GAP details
+            "solution_design": solution_design,  # BUG-046: Solution Design from Marcus
             "execution_id": self.execution_id
         }
         
@@ -693,6 +721,109 @@ class IncrementalExecutor:
         except Exception as e:
             logger.warning(f"[CodeGen] Could not get context: {e}")
             return ""
+    
+    def _get_gap_context(self, gap_refs: List[str]) -> Dict[str, Any]:
+        """
+        Load GAP details for referenced gaps (BUG-045 fix).
+        
+        Args:
+            gap_refs: List of GAP IDs like ["GAP-001-01", "GAP-001-02"]
+            
+        Returns:
+            Dict with gap details keyed by gap_id
+        """
+        if not gap_refs:
+            return {}
+        
+        try:
+            from app.models.agent_deliverable import AgentDeliverable
+            
+            # Get the Gap Analysis from Marcus
+            gap_deliverable = self.db.query(AgentDeliverable).filter(
+                AgentDeliverable.execution_id == self.execution_id,
+                AgentDeliverable.deliverable_type == "architect_gap_analysis"
+            ).first()
+            
+            if not gap_deliverable:
+                logger.warning("[CodeGen] No Gap Analysis found for this execution")
+                return {}
+            
+            # Parse content
+            content = gap_deliverable.content
+            if isinstance(content, str):
+                content = json.loads(content)
+            
+            # Extract nested content if needed
+            if "content" in content:
+                content = content["content"]
+            
+            gaps_list = content.get("gaps", [])
+            
+            # Filter to only referenced gaps
+            gap_context = {}
+            for gap in gaps_list:
+                gap_id = gap.get("id")
+                if gap_id in gap_refs:
+                    gap_context[gap_id] = {
+                        "id": gap_id,
+                        "category": gap.get("category"),
+                        "current_state": gap.get("current_state"),
+                        "target_state": gap.get("target_state"),
+                        "gap_description": gap.get("gap_description"),
+                        "complexity": gap.get("complexity"),
+                        "effort_days": gap.get("effort_days")
+                    }
+            
+            logger.info(f"[CodeGen] Loaded {len(gap_context)} GAPs: {list(gap_context.keys())}")
+            return gap_context
+            
+        except Exception as e:
+            logger.warning(f"[CodeGen] Could not load GAP context: {e}")
+            return {}
+    
+    def _get_solution_design_context(self) -> Dict[str, Any]:
+        """
+        Load Solution Design from Marcus (BUG-046 fix).
+        
+        Returns:
+            Dict with data_model, security_model, etc.
+        """
+        try:
+            from app.models.agent_deliverable import AgentDeliverable
+            
+            # Get the Solution Design from Marcus
+            design_deliverable = self.db.query(AgentDeliverable).filter(
+                AgentDeliverable.execution_id == self.execution_id,
+                AgentDeliverable.deliverable_type == "architect_solution_design"
+            ).first()
+            
+            if not design_deliverable:
+                logger.warning("[CodeGen] No Solution Design found for this execution")
+                return {}
+            
+            # Parse content
+            content = design_deliverable.content
+            if isinstance(content, str):
+                content = json.loads(content)
+            
+            # Extract nested content if needed
+            if "content" in content:
+                content = content["content"]
+            
+            solution_design = {
+                "data_model": content.get("data_model", {}),
+                "security_model": content.get("security_model", {}),
+                "integration_design": content.get("integration_design", {}),
+                "ui_design": content.get("ui_design", {}),
+                "automation_design": content.get("automation_design", {})
+            }
+            
+            logger.info(f"[CodeGen] Loaded Solution Design with keys: {list(solution_design.keys())}")
+            return solution_design
+            
+        except Exception as e:
+            logger.warning(f"[CodeGen] Could not load Solution Design: {e}")
+            return {}
 
     async def _handle_task_failure(
         self, 

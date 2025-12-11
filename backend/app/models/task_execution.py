@@ -38,6 +38,14 @@ class TaskExecution(Base):
     task_name = Column(String(255), nullable=False)
     phase_name = Column(String(100))  # WBS phase name
     
+    # Rich task context from WBS (BUG-044 fix)
+    description = Column(Text)                    # Detailed task description
+    validation_criteria = Column(JSON)            # ["DONE WHEN: ...", "VERIFIED BY: ..."]
+    deliverables = Column(JSON)                   # ["Component A", "Document B", ...]
+    gap_refs = Column(JSON)                       # ["GAP-001-01", "GAP-001-02", ...]
+    effort_days = Column(Integer)                 # Estimated effort in days
+    test_approach = Column(String(100))           # "Unit test", "Manual test", etc.
+    
     # Assignment
     assigned_agent = Column(String(50))  # diego, zara, raj, etc.
     
