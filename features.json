@@ -486,7 +486,7 @@
       "title": "Fix page qui se vide entre agents",
       "description": "Corriger le bug où la page se vide quand on passe d'un agent à l'autre",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Contenu des agents précédents reste visible",
         "Scroll fluide vers le nouvel agent",
@@ -497,7 +497,7 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "NON RÉSOLU - écran saute toujours entre chaque agent (constaté 10/12/2025)"
+      "notes": "Corrigé le 11/12/2025: Ajout hasProgressChanged() pour éviter re-renders inutiles. setProgress utilise maintenant prevProgress pour ne mettre à jour que si les données changent."
     },
     {
       "id": "FRNT-03",
@@ -692,7 +692,7 @@
       "title": "Génération package SFDX",
       "description": "Générer automatiquement la structure de package SFDX avec les livrables des agents BUILD",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Structure force-app/ correcte",
         "sfdx-project.json valide",
@@ -707,7 +707,7 @@
         "backend/app/services/sfdx_package_generator.py"
       ],
       "estimated_hours": 6,
-      "notes": ""
+      "notes": "Complété le 11/12/2025: generate_sfdx_package() dans sfdx_service.py + endpoint POST /api/deployment/package/generate. Génère structure force-app/, sfdx-project.json, package.xml."
     },
     {
       "id": "BLD-02",
@@ -819,7 +819,7 @@
       "title": "Dashboard qualité code",
       "description": "Dashboard affichant les métriques de qualité du code généré",
       "priority": 4,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Score qualité Apex affiché",
         "Nombre d'erreurs/warnings",
@@ -834,7 +834,7 @@
         "frontend/src/pages/QualityDashboardPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": ""
+      "notes": "Complété le 11/12/2025: quality_dashboard.py avec analyse Apex/LWC/metadata. Endpoints: GET /api/quality/execution/{id}, /api/quality/rules, /api/quality/trends/{project_id}. Score A-F, détection credentials hardcodées."
     },
     {
       "id": "BLD-08",
@@ -928,7 +928,7 @@
       "title": "Rollback automatique",
       "description": "Possibilité de rollback un déploiement échoué ou problématique",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Snapshot pré-déploiement sauvegardé",
         "Bouton rollback fonctionnel",
@@ -941,7 +941,7 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Complété le 11/12/2025: create_deployment_snapshot() et rollback_deployment() dans sfdx_service.py + endpoints POST /api/deployment/snapshot/create, POST /api/deployment/rollback, GET /api/deployment/snapshots."
     },
     {
       "id": "DPL-05",
@@ -949,7 +949,7 @@
       "title": "Génération release notes",
       "description": "Générer automatiquement des release notes du déploiement",
       "priority": 4,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Liste des composants déployés",
         "Changements par rapport à la version précédente",
@@ -962,7 +962,7 @@
         "backend/app/services/release_notes_generator.py"
       ],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Complété le 11/12/2025: generate_release_notes() dans sfdx_service.py + endpoints POST /api/deployment/release-notes/generate, GET /api/deployment/release-notes/{execution_id}. Format Markdown."
     },
     {
       "id": "DPL-06",
@@ -970,7 +970,7 @@
       "title": "Support multi-environnements",
       "description": "Gérer plusieurs orgs (Dev, UAT, Prod) avec promotion entre elles",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Liste des orgs configurables",
         "Workflow de promotion défini",
@@ -984,7 +984,7 @@
         "frontend/src/pages/EnvironmentsPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": ""
+      "notes": "Complété le 11/12/2025: get_environments() et promote_to_environment() dans sfdx_service.py + endpoints GET /api/deployment/environments, POST /api/deployment/promote, POST /api/deployment/validate."
     },
     {
       "id": "DPL-07",
@@ -1794,7 +1794,7 @@
       "title": "LLM Logging pour tous les agents",
       "description": "Ajouter le logging LLM (llm_logger) à tous les agents BUILD: Diego, Raj, Aisha, et agents SDS: Sophie, Olivia, Marcus, Jordan, Lucas",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Diego (Apex) logge ses appels LLM",
         "Raj (Admin) logge ses appels LLM",
@@ -1820,7 +1820,7 @@
         "backend/agents/roles/salesforce_trainer.py"
       ],
       "estimated_hours": 3,
-      "notes": "Pattern existant dans Zara et Elena. Copy/paste avec adaptations."
+      "notes": "Implémenté le 11/12/2025: LLM logging ajouté à tous les 10 agents (5 BUILD + 5 SDS). Pattern uniforme avec log_llm_interaction() appelé après chaque appel LLM."
     },
     {
       "id": "FRONT-006",
@@ -1903,7 +1903,7 @@
       "title": "Raj génère credentials hardcodées",
       "description": "Raj met des passwords, tokens OAuth et consumer keys dans les fichiers XML. Faille de sécurité majeure.",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Raj ne génère jamais de credentials dans le code"
       ],
@@ -1912,7 +1912,7 @@
         "backend/agents/roles/salesforce_admin.py"
       ],
       "estimated_hours": 1,
-      "notes": "Ajouter règles strictes dans prompt"
+      "notes": "Corrigé le 11/12/2025: Ajout RULE 4 (SECURITY) dans BUILD_PROMPT et SPEC_PROMPT de Raj - interdit credentials, API keys, tokens. Recommande Named Credentials et placeholders."
     },
     {
       "id": "BUG-043",
@@ -1920,7 +1920,7 @@
       "title": "Asymétrie connaissances Raj vs Elena",
       "description": "Elena connaît les règles Salesforce (Master-Detail pour Rollup) mais Raj non. Investiguer pourquoi.",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Raj et Elena ont le même niveau de connaissance SF"
       ],
@@ -1930,7 +1930,7 @@
         "backend/agents/roles/salesforce_qa_tester.py"
       ],
       "estimated_hours": 2,
-      "notes": "Comparer prompts et RAG entre les deux agents"
+      "notes": "Corrigé le 11/12/2025: (1) Ajout qa_tester dans AGENT_COLLECTIONS, (2) Query RAG de Raj améliorée avec termes Master-Detail/Lookup/Rollup/standard objects, (3) n_results augmenté à 5."
     },
     {
       "id": "BUG-044",
@@ -1950,7 +1950,7 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 3,
-      "notes": "Problème structurel majeur - les agents BUILD improvisent sans contexte"
+      "notes": "Phase 1 (11/12 AM): incremental_executor transmet task details. Phase 2 (11/12 PM): Raj, Diego, Zara, Aisha utilisent maintenant description, validation_criteria dans leurs prompts BUILD."
     },
     {
       "id": "BUG-045",
@@ -1970,7 +1970,7 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 2,
-      "notes": "Sans le GAP, l'agent ne sait pas ce qu'il doit combler"
+      "notes": "Phase 1 (11/12 AM): _get_gap_context() charge les GAPs. Phase 2 (11/12 PM): Tous agents BUILD (Raj, Diego, Zara, Aisha) intègrent gap_context dans leurs prompts."
     },
     {
       "id": "BUG-046",
@@ -1990,7 +1990,7 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 2,
-      "notes": "Raj a créé Project__c, Task__c alors que Marcus recommandait d'utiliser Case standard"
+      "notes": "Phase 1 (11/12 AM): _get_solution_design_context() charge le design. Phase 2 (11/12 PM): Tous agents BUILD intègrent solution_design (data_model, process_flows, apex_classes, lwc_components) dans leurs prompts."
     },
     {
       "id": "BUG-047",
@@ -2017,7 +2017,7 @@
       "title": "LLM interactions non loggées pour phase SDS",
       "description": "Les interactions LLM de Sophie, Olivia, Marcus ne sont pas loggées dans llm_interactions. Impossible de débugger ce qu'ils reçoivent comme contexte.",
       "priority": 3,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Toutes les interactions LLM (SDS + BUILD) sont loggées",
         "On peut voir le prompt et RAG context de chaque agent"
@@ -2028,7 +2028,7 @@
         "backend/agents/roles/solution_architect.py"
       ],
       "estimated_hours": 2,
-      "notes": "Englobé par CORE-001"
+      "notes": "Implémenté le 11/12/2025 (INFRA-002): LLM logging ajouté à Sophie, Olivia, Marcus, Jordan, Lucas. Tous les agents SDS et BUILD loggent maintenant leurs appels LLM dans llm_interactions."
     }
   ]
 }

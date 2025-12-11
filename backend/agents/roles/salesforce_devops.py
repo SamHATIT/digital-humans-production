@@ -21,6 +21,16 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# LLM Logger for debugging (INFRA-002)
+try:
+    from app.services.llm_logger import log_llm_interaction
+    LLM_LOGGER_AVAILABLE = True
+    print(f"📝 LLM Logger loaded for Jordan", file=sys.stderr)
+except ImportError as e:
+    LLM_LOGGER_AVAILABLE = False
+    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
+
 
 SPEC_PROMPT = """# 🚀 DEVOPS - SPECIFICATION MODE
 
@@ -131,6 +141,20 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
     
+    
+    # Log LLM interaction (INFRA-002)
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="jordan", prompt=prompt, response=content,
+                execution_id=execution_id, task_id=None, agent_mode="spec",
+                rag_context=rag_context, previous_feedback=None, parsed_files=None,
+                tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
+                provider="anthropic", execution_time_seconds=round(time.time() - start_time, 2),
+                success=True, error_message=None
+            )
+        except Exception as e:
+            print(f"⚠️ LLM log failed: {e}", file=sys.stderr)
     return {
         "agent_id": "jordan", "agent_name": "Jordan (DevOps)", "mode": "spec",
         "execution_id": str(execution_id), "deliverable_type": "devops_specification",
@@ -168,6 +192,20 @@ def generate_deploy(task: dict, components: list, target_env: str, execution_id:
     files = _parse_files(content)
     print(f"✅ Generated {len(files)} deployment file(s)", file=sys.stderr)
     
+    
+    # Log LLM interaction (INFRA-002)
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="jordan", prompt=prompt, response=content,
+                execution_id=execution_id, task_id=task_id, agent_mode="deploy",
+                rag_context=None, previous_feedback=None, parsed_files={"files": list(files.keys())},
+                tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
+                provider="anthropic", execution_time_seconds=round(time.time() - start_time, 2),
+                success=len(files) > 0, error_message=None
+            )
+        except Exception as e:
+            print(f"⚠️ LLM log failed: {e}", file=sys.stderr)
     return {
         "agent_id": "jordan", "agent_name": "Jordan (DevOps)", "mode": "deploy",
         "task_id": task_id, "execution_id": str(execution_id),

@@ -258,7 +258,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
 # ============================================================================
 # BUILD MODE FUNCTION
 # ============================================================================
-def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "") -> dict:
+def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "") -> dict:
     """Generate real, deployable Apex code for a WBS task"""
     
     task_id = task.get('task_id', 'UNKNOWN')
@@ -293,6 +293,22 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
     
     if rag_context:
         prompt += f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+    
+    # BUG-044/046: Include Solution Design from Marcus
+    if solution_design:
+        sd_text = ""
+        if solution_design.get("data_model"):
+            sd_text += f"### Data Model\n{solution_design['data_model']}\n\n"
+        if solution_design.get("apex_classes"):
+            sd_text += f"### Apex Classes\n{solution_design['apex_classes']}\n\n"
+        if solution_design.get("triggers"):
+            sd_text += f"### Triggers\n{solution_design['triggers']}\n\n"
+        if sd_text:
+            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+    
+    # BUG-045: Include GAP context
+    if gap_context:
+        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
     
     print(f"🔧 Diego BUILD mode - generating code for {task_id}...", file=sys.stderr)
     
@@ -471,7 +487,9 @@ def main():
                 architecture_context=architecture,
                 execution_id=args.execution_id,
                 rag_context=rag_context,
-                previous_feedback=previous_feedback
+                previous_feedback=previous_feedback,
+                solution_design=input_data.get('solution_design'),
+                gap_context=input_data.get('gap_context', '')
             )
         
         # Write output

@@ -48,6 +48,11 @@ Generate comprehensive admin configuration SPECIFICATIONS for the SDS document.
 5. **Page Layouts** - Record page configurations
 6. **Reports & Dashboards** - Analytics requirements
 
+## SECURITY RULES
+- NEVER include actual credentials, API keys, or secrets in specifications
+- Use placeholders like {{API_KEY}}, {{TO_BE_CONFIGURED}} for sensitive values
+- Recommend Named Credentials for external integrations
+
 ## FORMAT
 Use clear markdown with detailed specifications for each component.
 """
@@ -180,6 +185,22 @@ force-app/main/default/objects/ObjectName__c/
 </CustomField>
 ```
 
+### RULE 4: NEVER INCLUDE CREDENTIALS OR SECRETS (SECURITY)
+NEVER generate any of the following in metadata files:
+- Passwords, API keys, tokens, secrets
+- OAuth consumer keys/secrets
+- Session IDs or access tokens
+- Hardcoded usernames with passwords
+- Connection strings with credentials
+- Named Credential passwords (use placeholders like {{CREDENTIAL}})
+- Remote Site certificates or private keys
+
+If integration requires credentials, use:
+- Named Credentials (without actual secrets)
+- Custom Settings marked as Protected
+- Custom Metadata with isProtected=true
+- Placeholder values: "{{API_KEY}}", "{{TO_BE_CONFIGURED}}"
+
 ## OUTPUT FORMAT
 For each file:
 1. <!-- FILE: path/to/file.xml --> comment
@@ -252,7 +273,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     }
 
 
-def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "") -> dict:
+def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "") -> dict:
     task_id = task.get('task_id', 'UNKNOWN')
     task_name = task.get('name', task.get('title', 'Unnamed Task'))
     task_description = task.get('description', '')
@@ -277,6 +298,22 @@ FIX THESE ISSUES.
         
     if rag_context:
         prompt += f"\n\n## ADMIN BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+    
+    # BUG-044/046: Include Solution Design from Marcus
+    if solution_design:
+        sd_text = ""
+        if solution_design.get("data_model"):
+            sd_text += f"### Data Model\n{solution_design['data_model']}\n\n"
+        if solution_design.get("process_flows"):
+            sd_text += f"### Process Flows\n{solution_design['process_flows']}\n\n"
+        if solution_design.get("integrations"):
+            sd_text += f"### Integrations\n{solution_design['integrations']}\n\n"
+        if sd_text:
+            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+    
+    # BUG-045: Include GAP context
+    if gap_context:
+        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
     
     print(f"⚙️ Raj BUILD mode - generating metadata for {task_id}...", file=sys.stderr)
     start_time = time.time()
@@ -378,7 +415,7 @@ def main():
         rag_context = ""
         if args.use_rag and RAG_AVAILABLE:
             try:
-                rag_context = get_salesforce_context("Salesforce admin metadata flows validation rules", n_results=3, agent_type="admin")
+                rag_context = get_salesforce_context("Salesforce admin object relationships Master-Detail Lookup Rollup Summary field validation rules standard objects Case Account Contact", n_results=5, agent_type="admin")
             except: pass
         
         if args.mode == 'spec':
@@ -388,9 +425,15 @@ def main():
                 input_data = json.loads(input_content)
             except:
                 input_data = {"task": {"name": "Task", "description": input_content}}
-            result = generate_build(input_data.get('task', input_data), 
-                                   input_data.get('architecture_context', ''), 
-                                   args.execution_id, rag_context)
+            result = generate_build(
+                input_data.get('task', input_data), 
+                input_data.get('architecture_context', ''), 
+                args.execution_id, 
+                rag_context,
+                input_data.get('previous_feedback', ''),
+                input_data.get('solution_design'),
+                input_data.get('gap_context', '')
+            )
         
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)

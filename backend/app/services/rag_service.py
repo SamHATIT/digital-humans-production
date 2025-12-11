@@ -63,6 +63,7 @@ AGENT_COLLECTIONS = {
     "devops": ["technical", "operations"],
     "data_migration": ["technical", "operations"],
     "trainer": ["business", "operations"],
+    "qa_tester": ["technical", "operations", "apex"],
     "pm_orchestrator": ["business", "operations", "technical"],
     "default": ["technical", "operations", "business"],
 }

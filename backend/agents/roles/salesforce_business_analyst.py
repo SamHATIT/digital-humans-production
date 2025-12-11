@@ -21,6 +21,16 @@ try:
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
 
+# LLM Logger for debugging (INFRA-002)
+try:
+    from app.services.llm_logger import log_llm_interaction
+    LLM_LOGGER_AVAILABLE = True
+    print(f"📝 LLM Logger loaded for Olivia", file=sys.stderr)
+except ImportError as e:
+    LLM_LOGGER_AVAILABLE = False
+    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
+
 # RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
@@ -221,6 +231,31 @@ def main():
         execution_time = time.time() - start_time
         print(f"✅ Generated {len(content)} characters in {execution_time:.1f}s", file=sys.stderr)
         print(f"📊 Tokens used: {tokens_used}", file=sys.stderr)
+        
+        # Log LLM interaction for debugging (INFRA-002)
+        if LLM_LOGGER_AVAILABLE:
+            try:
+                log_llm_interaction(
+                    agent_id="olivia",
+                    prompt=prompt,
+                    response=content,
+                    execution_id=args.execution_id,
+                    task_id=None,
+                    agent_mode=args.mode,
+                    rag_context=None,
+                    previous_feedback=None,
+                    parsed_files=None,
+                    tokens_input=None,
+                    tokens_output=tokens_used,
+                    model=model_used,
+                    provider=provider_used,
+                    execution_time_seconds=execution_time,
+                    success=True,
+                    error_message=None
+                )
+                print(f"📝 LLM interaction logged", file=sys.stderr)
+            except Exception as e:
+                print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
         
         # Parse JSON output
         try:

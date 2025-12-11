@@ -24,6 +24,16 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# LLM Logger for debugging (INFRA-002)
+try:
+    from app.services.llm_logger import log_llm_interaction
+    LLM_LOGGER_AVAILABLE = True
+    print(f"📝 LLM Logger loaded for Lucas", file=sys.stderr)
+except ImportError as e:
+    LLM_LOGGER_AVAILABLE = False
+    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
+    def log_llm_interaction(*args, **kwargs): pass
+
 
 # ============================================================================
 # MODE 1: SDS STRATEGY - Training & Adoption Strategy for SDS
@@ -348,6 +358,20 @@ def main():
         
         print(f"✅ Output written to {args.output}", file=sys.stderr)
         print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s", file=sys.stderr)
+        
+        # Log LLM interaction (INFRA-002)
+        if LLM_LOGGER_AVAILABLE:
+            try:
+                log_llm_interaction(
+                    agent_id="lucas", prompt=prompt, response=content,
+                    execution_id=args.execution_id, task_id=None, agent_mode=args.mode,
+                    rag_context=None, previous_feedback=None, parsed_files=None,
+                    tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4",
+                    provider="anthropic", execution_time_seconds=round(execution_time, 2),
+                    success=True, error_message=None
+                )
+            except Exception as e:
+                print(f"⚠️ LLM log failed: {e}", file=sys.stderr)
         
         return output
         

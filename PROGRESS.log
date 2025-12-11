@@ -1343,3 +1343,47 @@ Test E2E complet pour valider l'audit logging en conditions réelles
 ### Next Steps
 - Test E2E BUILD phase with new context transmission
 - Verify agents generate code aligned with Solution Design
+
+## Session 2025-12-11 (après-midi) - Part 2
+
+### Tâches complétées
+- **BUG-042**: Raj credentials hardcodées → RULE 4 Security ajoutée aux prompts
+- **BUG-043**: Asymétrie Raj/Elena → qa_tester dans AGENT_COLLECTIONS + query RAG améliorée
+- **BUG-044/045/046**: Context transmission → Agents BUILD utilisent solution_design + gap_context
+- **FRNT-02**: Page se vide entre agents → hasProgressChanged() pour éviter re-renders
+- **BLD-01**: Package SFDX → generate_sfdx_package() + POST /api/deployment/package/generate
+- **BLD-07**: Dashboard qualité → quality_dashboard.py avec analyse Apex/LWC/metadata
+- **DPL-04**: Rollback → create_deployment_snapshot() + rollback_deployment()
+- **DPL-05**: Release notes → generate_release_notes() format Markdown
+- **DPL-06**: Multi-env → get_environments() + promote_to_environment()
+
+### Fichiers modifiés
+- backend/app/services/sfdx_service.py (+300 lignes: package, snapshot, rollback, release notes, multi-env)
+- backend/app/api/routes/deployment.py (nouveau - 300 lignes)
+- backend/app/api/routes/quality_dashboard.py (nouveau - 400 lignes)
+- backend/app/main.py (ajout routers deployment + quality_dashboard)
+- backend/agents/roles/salesforce_admin.py (context transmission + RULE 4)
+- backend/agents/roles/salesforce_developer_apex.py (context transmission)
+- backend/agents/roles/salesforce_developer_lwc.py (context transmission)
+- backend/agents/roles/salesforce_data_migration.py (context transmission)
+- frontend/src/pages/ExecutionMonitoringPage.tsx (hasProgressChanged)
+
+### Nouveaux endpoints API
+- POST /api/deployment/package/generate
+- GET /api/deployment/package/{execution_id}/files
+- POST /api/deployment/snapshot/create
+- POST /api/deployment/rollback
+- GET /api/deployment/snapshots
+- POST /api/deployment/release-notes/generate
+- GET /api/deployment/release-notes/{execution_id}
+- GET /api/deployment/environments
+- POST /api/deployment/promote
+- POST /api/deployment/validate
+- GET /api/quality/execution/{execution_id}
+- GET /api/quality/file
+- GET /api/quality/trends/{project_id}
+- GET /api/quality/rules
+
+### État
+- Features complétées: 78/107 (72.9%)
+- Prochaine étape: Test complet E2E pour valider BUG-047 (Marcus champs standard SF)

@@ -175,7 +175,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     }
 
 
-def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "") -> dict:
+def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "") -> dict:
     task_id = task.get('task_id', 'UNKNOWN')
     task_name = task.get('name', task.get('title', 'Unnamed Task'))
     task_description = task.get('description', '')
@@ -202,6 +202,22 @@ FIX THESE ISSUES.
         
     if rag_context:
         prompt += f"\n\n## LWC BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+    
+    # BUG-044/046: Include Solution Design from Marcus
+    if solution_design:
+        sd_text = ""
+        if solution_design.get("data_model"):
+            sd_text += f"### Data Model\n{solution_design['data_model']}\n\n"
+        if solution_design.get("lwc_components"):
+            sd_text += f"### LWC Components\n{solution_design['lwc_components']}\n\n"
+        if solution_design.get("ui_mockups"):
+            sd_text += f"### UI Mockups\n{solution_design['ui_mockups']}\n\n"
+        if sd_text:
+            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+    
+    # BUG-045: Include GAP context
+    if gap_context:
+        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
     
     print(f"🔧 Zara BUILD mode - generating LWC for {task_id}...", file=sys.stderr)
     start_time = time.time()
@@ -302,7 +318,15 @@ def main():
                 input_data = json.loads(input_content)
             except:
                 input_data = {"task": {"name": "Task", "description": input_content}}
-            result = generate_build(input_data.get('task', input_data), input_data.get('architecture_context', ''), args.execution_id, rag_context, input_data.get('previous_feedback', ''))
+            result = generate_build(
+                input_data.get('task', input_data), 
+                input_data.get('architecture_context', ''), 
+                args.execution_id, 
+                rag_context, 
+                input_data.get('previous_feedback', ''),
+                input_data.get('solution_design'),
+                input_data.get('gap_context', '')
+            )
         
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)

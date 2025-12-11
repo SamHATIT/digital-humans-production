@@ -486,6 +486,272 @@ class SFDXService:
         return {"error": result.get("error", "Failed to get limits")}
 
 
+
+    # ========== BLD-01: Package Generation ==========
+    
+    async def generate_sfdx_package(
+        self,
+        files: Dict[str, str],
+        package_name: str = "digital-humans-package",
+        api_version: str = "59.0"
+    ) -> Dict[str, Any]:
+        """
+        Generate a complete SFDX package structure from agent-generated files.
+        
+        Args:
+            files: Dict mapping file paths to content
+            package_name: Name of the package
+            api_version: Salesforce API version
+            
+        Returns:
+            Dict with package path and manifest
+        """
+        import tempfile
+        
+        package_dir = Path(tempfile.mkdtemp(prefix=f"sfdx_{package_name}_"))
+        
+        try:
+            # Create sfdx-project.json
+            project_config = {
+                "packageDirectories": [{"path": "force-app", "default": True}],
+                "namespace": "",
+                "sfdcLoginUrl": "https://login.salesforce.com",
+                "sourceApiVersion": api_version,
+                "name": package_name
+            }
+            
+            project_file = package_dir / "sfdx-project.json"
+            with open(project_file, 'w') as f:
+                json.dump(project_config, f, indent=2)
+            
+            # Create force-app structure
+            force_app = package_dir / "force-app" / "main" / "default"
+            force_app.mkdir(parents=True, exist_ok=True)
+            
+            # Categorize components
+            components_created = {
+                "classes": [], "triggers": [], "lwc": [], "objects": [],
+                "flows": [], "permissionsets": [], "profiles": [], "other": []
+            }
+            
+            for file_path, file_content in files.items():
+                if not file_path.startswith("force-app"):
+                    file_path = f"force-app/main/default/{file_path}"
+                
+                full_path = package_dir / file_path
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                with open(full_path, 'w', encoding='utf-8') as f:
+                    f.write(file_content)
+                
+                # Categorize
+                if "/classes/" in file_path:
+                    components_created["classes"].append(file_path)
+                elif "/triggers/" in file_path:
+                    components_created["triggers"].append(file_path)
+                elif "/lwc/" in file_path:
+                    components_created["lwc"].append(file_path)
+                elif "/objects/" in file_path:
+                    components_created["objects"].append(file_path)
+                elif "/flows/" in file_path:
+                    components_created["flows"].append(file_path)
+                elif "/permissionsets/" in file_path:
+                    components_created["permissionsets"].append(file_path)
+                elif "/profiles/" in file_path:
+                    components_created["profiles"].append(file_path)
+                else:
+                    components_created["other"].append(file_path)
+            
+            # Generate package.xml
+            manifest = self._generate_package_xml(components_created, api_version)
+            manifest_dir = package_dir / "manifest"
+            manifest_dir.mkdir(exist_ok=True)
+            with open(manifest_dir / "package.xml", 'w') as f:
+                f.write(manifest)
+            
+            self._log_operation("generate_package", "Package", package_name,
+                              extra={"files_count": len(files), "path": str(package_dir)})
+            
+            return {
+                "success": True,
+                "package_path": str(package_dir),
+                "package_name": package_name,
+                "api_version": api_version,
+                "components": components_created,
+                "manifest_path": str(manifest_dir / "package.xml"),
+                "project_file": str(project_file)
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to generate SFDX package: {e}")
+            return {"success": False, "error": str(e)}
+    
+    def _generate_package_xml(self, components: Dict[str, List[str]], api_version: str) -> str:
+        """Generate package.xml manifest"""
+        type_mapping = {
+            "classes": "ApexClass", "triggers": "ApexTrigger",
+            "lwc": "LightningComponentBundle", "objects": "CustomObject",
+            "flows": "Flow", "permissionsets": "PermissionSet", "profiles": "Profile"
+        }
+        
+        xml = ['<?xml version="1.0" encoding="UTF-8"?>',
+               '<Package xmlns="http://soap.sforce.com/2006/04/metadata">']
+        
+        for comp_type, files in components.items():
+            if files and comp_type in type_mapping:
+                xml.append("    <types>")
+                seen = set()
+                for fp in files:
+                    name = Path(fp).stem.replace('.cls-meta', '').replace('.trigger-meta', '')
+                    if comp_type == "lwc":
+                        name = Path(fp).parent.name
+                    if name not in seen:
+                        xml.append(f"        <members>{name}</members>")
+                        seen.add(name)
+                xml.append(f"        <name>{type_mapping[comp_type]}</name>")
+                xml.append("    </types>")
+        
+        xml.append(f"    <version>{api_version}</version>")
+        xml.append("</Package>")
+        return "\n".join(xml)
+
+    # ========== DPL-04: Rollback Support ==========
+    
+    async def create_deployment_snapshot(self, deployment_id: str, components: List[str] = None) -> Dict[str, Any]:
+        """Create a snapshot of current org state before deployment."""
+        import tempfile
+        
+        if components is None:
+            components = ["ApexClass", "ApexTrigger", "LightningComponentBundle", "CustomObject", "Flow"]
+        
+        snapshot_dir = Path(tempfile.mkdtemp(prefix=f"snapshot_{deployment_id}_"))
+        
+        try:
+            for comp_type in components:
+                await self.retrieve_source(metadata_type=comp_type, output_dir=str(snapshot_dir / comp_type))
+            
+            snapshot_meta = {
+                "deployment_id": deployment_id,
+                "created_at": datetime.now().isoformat(),
+                "components": components,
+                "org": self.target_org,
+                "path": str(snapshot_dir)
+            }
+            
+            with open(snapshot_dir / "snapshot_meta.json", 'w') as f:
+                json.dump(snapshot_meta, f, indent=2)
+            
+            self._log_operation("create_snapshot", "Deployment", deployment_id, extra={"components": components})
+            
+            return {"success": True, "snapshot_id": deployment_id, "snapshot_path": str(snapshot_dir)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def rollback_deployment(self, snapshot_path: str, deployment_id: str = None) -> Dict[str, Any]:
+        """Rollback to a previous snapshot state."""
+        snapshot_dir = Path(snapshot_path)
+        
+        if not snapshot_dir.exists():
+            return {"success": False, "error": f"Snapshot not found: {snapshot_path}"}
+        
+        rollback_results = []
+        
+        for comp_dir in snapshot_dir.iterdir():
+            if comp_dir.is_dir():
+                result = await self.deploy_source(source_path=str(comp_dir), test_level="NoTestRun")
+                rollback_results.append({"component": comp_dir.name, "success": result.get("success", False)})
+        
+        success = all(r["success"] for r in rollback_results)
+        self._log_operation("rollback", "Deployment", deployment_id or "unknown", success=success)
+        
+        return {"success": success, "rollback_results": rollback_results}
+
+    # ========== DPL-05: Release Notes Generation ==========
+    
+    def generate_release_notes(self, deployment_id: str, components: Dict[str, List[str]], project_name: str = "Digital Humans") -> Dict[str, Any]:
+        """Generate release notes for a deployment."""
+        notes = [f"# Release Notes - {project_name}",
+                 f"\n**Deployment ID:** {deployment_id}",
+                 f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                 f"**Target Org:** {self.target_org or 'Default'}",
+                 "\n---\n",
+                 f"## Summary\nTotal components: **{sum(len(v) for v in components.values())}**\n",
+                 "## Components\n"]
+        
+        labels = {"classes": "Apex Classes", "triggers": "Apex Triggers", "lwc": "LWC",
+                  "objects": "Custom Objects", "flows": "Flows", "permissionsets": "Permission Sets"}
+        
+        for comp_type, items in components.items():
+            if items:
+                notes.append(f"### {labels.get(comp_type, comp_type.title())} ({len(items)})")
+                for item in items:
+                    notes.append(f"- {Path(item).stem}")
+                notes.append("")
+        
+        notes.extend(["## Technical Details", "- API Version: 59.0", "- Generated by: Digital Humans AI Platform"])
+        
+        return {"success": True, "release_notes": "\n".join(notes), "format": "markdown"}
+
+    # ========== DPL-06: Multi-Environment Support ==========
+    
+    async def get_environments(self) -> List[Dict[str, Any]]:
+        """Get all configured Salesforce environments/orgs"""
+        orgs = await self.list_orgs()
+        
+        environments = []
+        for org in orgs:
+            env_type = "production"
+            instance = org.get("instanceUrl", "").lower()
+            alias = org.get("alias", "").lower()
+            if "sandbox" in instance or "sandbox" in alias or "uat" in alias:
+                env_type = "sandbox"
+            elif "scratch" in alias:
+                env_type = "scratch"
+            elif "dev" in alias:
+                env_type = "development"
+            
+            environments.append({
+                "alias": org.get("alias", ""),
+                "username": org.get("username", ""),
+                "org_id": org.get("orgId", ""),
+                "instance_url": org.get("instanceUrl", ""),
+                "is_default": org.get("isDefaultUsername", False),
+                "status": "connected" if org.get("connectedStatus") == "Connected" else "disconnected",
+                "env_type": env_type
+            })
+        
+        return environments
+    
+    async def promote_to_environment(self, source_path: str, target_env: str, test_level: str = "RunLocalTests", dry_run: bool = False) -> Dict[str, Any]:
+        """Promote code from one environment to another."""
+        target_service = SFDXService(target_org=target_env)
+        
+        conn_check = await target_service.check_connection()
+        if not conn_check.get("connected"):
+            return {"success": False, "error": f"Cannot connect to: {target_env}"}
+        
+        snapshot = None
+        if not dry_run:
+            snapshot = await target_service.create_deployment_snapshot(
+                deployment_id=f"pre_promote_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            )
+        
+        deploy_result = await target_service.deploy_source(source_path=source_path, test_level=test_level, dry_run=dry_run)
+        
+        self._log_operation("promote" if not dry_run else "validate_promotion", "Environment", target_env,
+                          success=deploy_result.get("success", False))
+        
+        return {
+            "success": deploy_result.get("success", False),
+            "target_env": target_env,
+            "dry_run": dry_run,
+            "deployment_result": deploy_result,
+            "snapshot_path": snapshot.get("snapshot_path") if snapshot else None,
+            "rollback_available": snapshot is not None and not dry_run
+        }
+
+
+
 # Singleton instance for default org
 _default_service: Optional[SFDXService] = None
 

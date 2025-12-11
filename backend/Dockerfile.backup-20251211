@@ -17,11 +17,7 @@ RUN apt-get update && apt-get install -y \
 # Install Salesforce CLI
 RUN npm install -g @salesforce/cli
 
-# === OPTIMIZATION: Install PyTorch CPU-only FIRST ===
-# This prevents sentence-transformers from pulling the GPU version (6GB -> 200MB)
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-
-# Python dependencies (includes chromadb, anthropic, openai, sentence-transformers, etc.)
+# Python dependencies (includes chromadb, anthropic, openai, etc.)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

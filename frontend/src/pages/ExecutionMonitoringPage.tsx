@@ -42,6 +42,7 @@ export default function ExecutionMonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Thought modal state
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -53,19 +54,38 @@ export default function ExecutionMonitoringPage() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
+  // FRNT-02: Compare progress to avoid unnecessary re-renders that cause scroll jumps
+  const hasProgressChanged = (oldData: ExecutionProgress | null, newData: ExecutionProgress | null): boolean => {
+    if (!oldData || !newData) return true;
+    if (oldData.status !== newData.status) return true;
+    if (oldData.overall_progress !== newData.overall_progress) return true;
+    if (oldData.agent_progress?.length !== newData.agent_progress?.length) return true;
+    // Check if any agent status or progress changed
+    for (let i = 0; i < (oldData.agent_progress?.length || 0); i++) {
+      const oldAgent = oldData.agent_progress[i];
+      const newAgent = newData.agent_progress?.find(a => a.agent_name === oldAgent.agent_name);
+      if (!newAgent) return true;
+      if (oldAgent.status !== newAgent.status || oldAgent.progress !== newAgent.progress) return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     const fetchProgress = async () => {
       try {
         const data = await executions.getProgress(Number(executionId));
         
-        // FRNT-02: Only update if we have valid data (don't clear existing data)
+        // FRNT-02: Only update if data actually changed (prevents scroll jumps)
         if (data && data.agent_progress && data.agent_progress.length > 0) {
-          setProgress(data);
-        } else if (data && !progress) {
-          // Initial load - accept even empty data
-          setProgress(data);
+          setProgress(prevProgress => {
+            if (hasProgressChanged(prevProgress, data)) {
+              return data;
+            }
+            return prevProgress;
+          });
+        } else if (data) {
+          setProgress(prevProgress => prevProgress || data);
         }
-        // If data is invalid but we have existing progress, keep it
 
         // Stop polling if completed or failed
         if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'waiting_br_validation') {
