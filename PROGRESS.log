@@ -1313,3 +1313,33 @@ COMPLETED - Testé avec preuve ci-dessus
 Test E2E complet pour valider l'audit logging en conditions réelles
 (ou BUG-044/045/046 pour corriger la transmission de contexte aux agents BUILD)
 
+
+## 2025-12-11 - Session: BUG-044/045/046 Context Transmission Fix
+
+### Completed
+- **BUG-044**: WBS details now transmitted to BUILD agents
+  - Added 6 columns to task_executions: description, validation_criteria, deliverables, gap_refs, effort_days, test_approach
+  - Modified load_tasks_from_wbs() to extract rich fields from WBS
+  - Modified _generate_code_for_task() to pass full task context
+  
+- **BUG-045**: Gap Analysis context now transmitted
+  - Created _get_gap_context() method
+  - Loads GAPs referenced by task.gap_refs
+  - Includes current_state, target_state, gap_description
+  
+- **BUG-046**: Solution Design context now transmitted  
+  - Created _get_solution_design_context() method
+  - Loads Marcus's Solution Design (data_model, security_model, etc.)
+  - Agents now know to use Case standard instead of creating custom objects
+
+### Also Done
+- CORE-001 audit logging completed (sfdx_service, git_service integration)
+- Added RAG resources: object_reference.pdf (Salesforce data model), lwc-official, lwc-handbook repos
+
+### Commits
+- ac5584d: fix(BUG-044/045/046): Transmit rich WBS context to BUILD agents
+- 87a30e9: feat(CORE-001): Add audit logging to sfdx_service and git_service
+
+### Next Steps
+- Test E2E BUILD phase with new context transmission
+- Verify agents generate code aligned with Solution Design
