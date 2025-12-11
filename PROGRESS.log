@@ -1253,3 +1253,63 @@ Lancer et valider le pipeline BUILD après complétion du SDS.
 - backend/app/api/audit.py (consultation logs)
 
 **Migration Alembic nécessaire pour créer la table.**
+
+================================================================================
+
+=== Session 2025-12-11 [10:00-11:00] - CORE-001 Audit Logging ===
+
+### Objectif
+Implémenter le système de logging exhaustif (CORE-001) - Priorité 0
+
+### Fichiers créés
+- `backend/app/models/audit.py`: Modèle AuditLog + enums ActorType, ActionCategory
+- `backend/app/services/audit_service.py`: Service centralisé avec méthodes utilitaires
+- `backend/app/middleware/audit_middleware.py`: Capture auto des requêtes HTTP
+- `backend/app/api/audit.py`: Endpoints pour consultation des logs
+- `backend/alembic/versions/003_add_audit_logs.py`: Migration (non utilisée, table créée manuellement)
+
+### Fichiers modifiés
+- `backend/app/models/__init__.py`: Import du nouveau modèle
+- `backend/app/main.py`: Ajout middleware + router
+- `backend/app/services/pm_orchestrator_service_v2.py`: Logging SDS (start, complete, fail)
+- `backend/app/services/incremental_executor.py`: Logging BUILD (task start, complete, fail)
+
+### Table audit_logs
+```sql
+22 colonnes: id, timestamp, actor_type, actor_id, actor_name, action, action_detail,
+             entity_type, entity_id, entity_name, old_value, new_value, project_id,
+             execution_id, task_id, extra_data, request_id, ip_address, user_agent,
+             success, error_message, duration_ms
+14 indexes: Individuels + composites pour requêtes fréquentes
+```
+
+### API Endpoints
+- `GET /api/audit/logs` - Query avec filtres
+- `GET /api/audit/executions/{id}/timeline` - Timeline exécution
+- `GET /api/audit/tasks/{id}/history` - Historique tâche
+- `GET /api/audit/actions` - Liste des types d'actions
+- `GET /api/audit/actor-types` - Liste des types d'acteurs
+
+### Tests effectués
+```bash
+# API fonctionnelle
+curl http://localhost:8002/api/audit/logs?limit=5
+# → {"logs": [...], "total": 5, "limit": 5, "offset": 0}
+
+# Middleware capture les requêtes automatiquement
+# → 5 logs générés pour les requêtes de test
+```
+
+### Commits
+- `ab6e2b4` - feat(CORE-001): Implement comprehensive audit logging system
+
+### Fonctionnalités traitées
+CORE-001: ✅ COMPLETED
+
+### Statut
+COMPLETED - Testé avec preuve ci-dessus
+
+### Prochaine étape
+Test E2E complet pour valider l'audit logging en conditions réelles
+(ou BUG-044/045/046 pour corriger la transmission de contexte aux agents BUILD)
+
