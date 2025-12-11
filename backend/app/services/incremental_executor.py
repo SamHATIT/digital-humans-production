@@ -305,7 +305,7 @@ class IncrementalExecutor:
                 entity_type="task",
                 entity_id=task.task_id,
                 entity_name=task.task_name,
-                project_id=self.project_id,
+                project_id=self.project.id,
                 execution_id=self.execution_id,
                 task_id=task.task_id
             )
@@ -317,7 +317,7 @@ class IncrementalExecutor:
                 entity_type="task",
                 entity_id=task.task_id,
                 entity_name=task.task_name,
-                project_id=self.project_id,
+                project_id=self.project.id,
                 execution_id=self.execution_id,
                 task_id=task.task_id,
                 success="false",
@@ -414,7 +414,7 @@ class IncrementalExecutor:
             entity_type="task",
             entity_id=task.task_id,
             entity_name=task.task_name,
-            project_id=self.project_id,
+            project_id=self.project.id,
             execution_id=self.execution_id,
             task_id=task.task_id,
             extra_data={"attempt": task.attempt_count + 1, "agent": task.assigned_agent}
@@ -442,7 +442,7 @@ class IncrementalExecutor:
             # ════════════════════════════════════════════════════════════════
             # SPECIAL: Non-build agents (devops, qa, trainer) - skip deploy/test cycle
             # ════════════════════════════════════════════════════════════════
-            non_build_agents = ["devops", "qa", "trainer", "jordan", "elena", "lucas"]
+            non_build_agents = ["devops", "qa", "trainer", "jordan", "elena", "lucas", "architect", "marcus"]
             if task.assigned_agent in non_build_agents:
                 logger.info(f"[Step 1] ℹ️ {task.assigned_agent} is non-build agent - marking complete")
                 self.update_task_status(task, TaskStatus.COMPLETED)

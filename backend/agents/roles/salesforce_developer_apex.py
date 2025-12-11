@@ -131,6 +131,27 @@ public class ClassName {{
 4. **Error Handling**: Try-catch with AuraHandledException for user messages
 5. **No hardcoded IDs**: Use Custom Metadata or Custom Settings
 
+### RULE 5b: SOQL CLAUSE ORDER (CRITICAL!)
+⚠️ SOQL clauses MUST be in THIS EXACT ORDER:
+1. SELECT
+2. FROM  
+3. WHERE (optional)
+4. WITH SECURITY_ENFORCED (MUST be BEFORE GROUP BY!)
+5. GROUP BY (optional)
+6. HAVING (optional)
+7. ORDER BY (optional)
+8. LIMIT (optional)
+
+❌ WRONG (will cause "Unexpected token WITH" error):
+```
+[SELECT AccountId, COUNT(Id) cnt FROM Case WHERE Status = 'Open' GROUP BY AccountId WITH SECURITY_ENFORCED]
+```
+
+✅ CORRECT:
+```
+[SELECT AccountId, COUNT(Id) cnt FROM Case WHERE Status = 'Open' WITH SECURITY_ENFORCED GROUP BY AccountId]
+```
+
 ### RULE 6: TEST CLASS REQUIREMENTS
 - Include @isTest annotation
 - Use @testSetup for test data

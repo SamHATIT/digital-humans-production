@@ -1387,3 +1387,32 @@ Test E2E complet pour valider l'audit logging en conditions réelles
 ### État
 - Features complétées: 78/107 (72.9%)
 - Prochaine étape: Test complet E2E pour valider BUG-047 (Marcus champs standard SF)
+
+## 2025-12-11 - Session 2 : Investigation BUG-051 (Erreur syntaxe SOQL Diego)
+
+### Problème investigué
+- TASK-017 (Apex triggers) échouait avec erreur "Unexpected token 'WITH'" ligne 181
+- Pipeline BUILD fonctionnel mais code Apex invalide généré par Diego
+
+### Cause racine identifiée
+Diego générait du SOQL avec `WITH SECURITY_ENFORCED` APRÈS `GROUP BY` :
+```
+SELECT Case__c, COUNT(Id) FROM Case_Solution_Article__c WHERE ... GROUP BY Case__c WITH SECURITY_ENFORCED
+```
+L'ordre correct est : SELECT → FROM → WHERE → WITH SECURITY_ENFORCED → GROUP BY
+
+### Correction appliquée (BUG-051 COMPLETED)
+- Ajouté RULE 5b dans `backend/agents/roles/salesforce_developer_apex.py` (ligne 134)
+- Règle explicite sur l'ordre des clauses SOQL avec exemples ❌/✅
+- Fix validé : nouvelle génération (id=140) n'a plus l'erreur syntaxe
+
+### État fin de session
+- TASK-017 : PENDING (attempt 1, feedback Elena reçu - problèmes logique métier)
+- Exécution 112 : Pausée
+- 13 tâches Admin : COMPLETED
+- BUG-051 : COMPLETED
+
+### Prochaine session
+- Reprendre retry TASK-017 avec le fix Diego
+- Valider déploiement SFDX complet
+- Continuer les autres tâches BUILD (LWC, Data, etc.)
