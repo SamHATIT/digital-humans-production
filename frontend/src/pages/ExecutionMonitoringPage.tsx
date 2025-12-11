@@ -104,12 +104,16 @@ export default function ExecutionMonitoringPage() {
   };
 
   const handleAgentClick = (agentProgress: AgentProgress) => {
-    const agent = AGENTS.find((a) => a.name.toLowerCase() === agentProgress.agent_name.toLowerCase());
+    // Extract just the name part before " (" - e.g. "Sophie (PM)" -> "Sophie"
+    const agentNameOnly = agentProgress.agent_name.split(' (')[0].toLowerCase();
+    const agent = AGENTS.find((a) => a.name.toLowerCase() === agentNameOnly);
     if (agent) {
       setSelectedAgent(agent as Agent);
       setSelectedAgentTask(agentProgress.current_task || '');
       setSelectedAgentOutput(agentProgress.output_summary || '');
       setSelectedAgentStatus(agentProgress.status || '');
+    } else {
+      console.warn('Agent not found for:', agentProgress.agent_name, '-> extracted:', agentNameOnly);
     }
   };
 

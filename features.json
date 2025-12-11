@@ -478,7 +478,7 @@
         "frontend/src/components/AgentThoughtModal.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "08/12/2025: Réécrit AgentThoughtModal avec vraies données (currentTask, outputSummary, status). Affiche expertise et tools par agent."
+      "notes": "11/12/2025: Bug trouvé - agent_name mismatch (Sophie vs Sophie (PM)). Fix déployé, à tester."
     },
     {
       "id": "FRNT-02",
