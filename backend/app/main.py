@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests
+from app.api import audit  # CORE-001: Audit logging API
+from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -33,6 +35,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# CORE-001: Audit logging middleware (logs all HTTP requests)
+app.add_middleware(AuditMiddleware)
+
 # Include routers - V1
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pm_orchestrator.router, prefix=f"{settings.API_V1_PREFIX}/pm-orchestrator")
@@ -53,6 +58,9 @@ app.include_router(project_chat.router)
 app.include_router(sds_versions.router)
 app.include_router(change_requests.router)
 
+# CORE-001: Audit logging API
+app.include_router(audit.router, prefix=settings.API_V1_PREFIX)
+
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
@@ -69,7 +77,7 @@ async def root():
         "message": "Digital Humans API",
         "version": "2.0.0",
         "status": "healthy",
-        "features": ["V1 PM Orchestrator", "V2 Artifacts System", "V2 Orchestrator"]
+        "features": ["V1 PM Orchestrator", "V2 Artifacts System", "V2 Orchestrator", "Audit Logging"]
     }
 
 @app.get("/health")

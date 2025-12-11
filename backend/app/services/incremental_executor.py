@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from app.models.execution import Execution
 from app.models.task_execution import TaskExecution, TaskStatus
 from app.models.project import Project
+from app.services.audit_service import audit_service, ActorType, ActionCategory
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +280,35 @@ class IncrementalExecutor:
         self.db.commit()
         logger.info(f"[IncrementalExecutor] Task {task.task_id} -> {status.value}")
     
+        
+        # CORE-001: Audit log status changes
+        if status == TaskStatus.COMPLETED:
+            audit_service.log(
+                actor_type=ActorType.AGENT,
+                actor_id=task.assigned_agent,
+                action=ActionCategory.TASK_COMPLETE,
+                entity_type="task",
+                entity_id=task.task_id,
+                entity_name=task.task_name,
+                project_id=self.project_id,
+                execution_id=self.execution_id,
+                task_id=task.task_id
+            )
+        elif status == TaskStatus.FAILED:
+            audit_service.log(
+                actor_type=ActorType.AGENT,
+                actor_id=task.assigned_agent,
+                action=ActionCategory.TASK_FAIL,
+                entity_type="task",
+                entity_id=task.task_id,
+                entity_name=task.task_name,
+                project_id=self.project_id,
+                execution_id=self.execution_id,
+                task_id=task.task_id,
+                success="false",
+                error_message=error
+            )
+    
     def mark_task_failed(self, task: TaskExecution, error: str):
         """Mark task as failed after exhausting retries"""
         self.update_task_status(task, TaskStatus.FAILED, error=error)
@@ -360,6 +390,20 @@ class IncrementalExecutor:
         
         self.update_task_status(task, TaskStatus.RUNNING)
         
+        
+        # CORE-001: Audit log - task started
+        audit_service.log(
+            actor_type=ActorType.AGENT,
+            actor_id=task.assigned_agent,
+            action=ActionCategory.TASK_START,
+            entity_type="task",
+            entity_id=task.task_id,
+            entity_name=task.task_name,
+            project_id=self.project_id,
+            execution_id=self.execution_id,
+            task_id=task.task_id,
+            extra_data={"attempt": task.attempt_count + 1, "agent": task.assigned_agent}
+        )
         try:
             # ════════════════════════════════════════════════════════════════
             # STEP 1: Generate code with assigned agent

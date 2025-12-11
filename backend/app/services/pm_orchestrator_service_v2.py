@@ -40,6 +40,7 @@ from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from app.database import SessionLocal
+from app.services.audit_service import audit_service, ActorType, ActionCategory
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
 from app.models.agent_deliverable import AgentDeliverable
@@ -135,6 +136,18 @@ class PMOrchestratorServiceV2:
             execution.agent_execution_status = self._init_agent_status(selected_agents or [])
             self.db.commit()
             
+            
+            # CORE-001: Audit log - execution started
+            audit_service.log(
+                actor_type=ActorType.SYSTEM,
+                actor_id="orchestrator",
+                action=ActionCategory.EXECUTION_START,
+                entity_type="execution",
+                entity_id=str(execution_id),
+                project_id=project_id,
+                execution_id=execution_id,
+                extra_data={"selected_agents": selected_agents or [], "resume_from": resume_from}
+            )
             # Initialize validation gates
             # self._initialize_validation_gates(execution_id)  # Disabled - model not available
             
@@ -571,6 +584,18 @@ class PMOrchestratorServiceV2:
             logger.info(f"[Metrics] Total tokens: {results['metrics']['total_tokens']}")
             logger.info(f"[Metrics] By agent: {results['metrics']['tokens_by_agent']}")
             
+            
+            # CORE-001: Audit log - execution completed
+            audit_service.log(
+                actor_type=ActorType.SYSTEM,
+                actor_id="orchestrator",
+                action=ActionCategory.EXECUTION_COMPLETE,
+                entity_type="execution",
+                entity_id=str(execution_id),
+                project_id=project_id,
+                execution_id=execution_id,
+                extra_data={"total_tokens": results["metrics"]["total_tokens"], "artifacts_count": len(results["artifacts"])}
+            )
             return {
                 "success": True,
                 "execution_id": execution_id,
@@ -584,6 +609,19 @@ class PMOrchestratorServiceV2:
             logger.error(f"Execution {execution_id} failed: {str(e)}")
             import traceback
             traceback.print_exc()
+            
+            # CORE-001: Audit log - execution failed
+            audit_service.log(
+                actor_type=ActorType.SYSTEM,
+                actor_id="orchestrator",
+                action=ActionCategory.EXECUTION_FAIL,
+                entity_type="execution",
+                entity_id=str(execution_id),
+                project_id=project_id,
+                execution_id=execution_id,
+                success="false",
+                error_message=str(e)
+            )
             
             execution.status = ExecutionStatus.FAILED
             # error_message not in model, using logs instead

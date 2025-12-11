@@ -91,4 +91,11 @@ __all__ = [
     # Incremental Build
     "TaskExecution",
     "TaskStatus",
+    # Audit Logging
+    "AuditLog",
+    "ActorType",
+    "ActionCategory",
 ]
+
+# CORE-001: Audit Logging
+from app.models.audit import AuditLog, ActorType, ActionCategory
