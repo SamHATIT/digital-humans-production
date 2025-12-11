@@ -20,6 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
 from urllib.parse import urlparse
+from app.services.audit_service import audit_service, ActorType, ActionCategory
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,10 @@ class GitService:
         repo_url: str,
         branch: str = "main",
         token: str = None,
-        work_dir: str = None
+        work_dir: str = None,
+        project_id: int = None,
+        execution_id: int = None,
+        task_id: str = None
     ):
         """
         Initialize Git service.
@@ -58,6 +62,9 @@ class GitService:
         self.token = token
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="git_work_")
         self.repo_path = None
+        self.project_id = project_id
+        self.execution_id = execution_id
+        self.task_id = task_id
         
         # Detect provider
         self.provider = self._detect_provider()
@@ -95,6 +102,23 @@ class GitService:
                 "full_name": f"{path_parts[0]}/{path_parts[1]}"
             }
         return {"owner": "", "repo": "", "full_name": ""}
+    
+    
+    def _log_operation(self, operation: str, commit_sha: str = None, branch: str = None, pr_url: str = None, success: bool = True, error_message: str = None, duration_ms: int = None):
+        """Log Git operation to audit trail"""
+        if self.execution_id:  # Only log if context is set
+            audit_service.log_git_operation(
+                operation=operation,
+                execution_id=self.execution_id,
+                project_id=self.project_id,
+                task_id=self.task_id,
+                commit_sha=commit_sha,
+                branch=branch,
+                pr_url=pr_url,
+                success=success,
+                error_message=error_message,
+                duration_ms=duration_ms
+            )
     
     def _get_auth_url(self) -> str:
         """Get URL with embedded auth token"""
@@ -257,6 +281,7 @@ class GitService:
         if success:
             # Get commit SHA
             _, sha, _ = await self._run_git(["rev-parse", "HEAD"])
+            self._log_operation("commit", commit_sha=sha.strip(), branch=self.branch)
             return {
                 "success": True,
                 "sha": sha.strip(),
@@ -270,6 +295,7 @@ class GitService:
                     "sha": None,
                     "message": "Nothing to commit"
                 }
+            self._log_operation("commit", success=False, error_message=stderr)
             return {
                 "success": False,
                 "error": stderr
@@ -293,6 +319,10 @@ class GitService:
             args.append("--force")
         
         success, _, stderr = await self._run_git(args)
+        if success:
+            self._log_operation("push", branch=branch or self.branch)
+        else:
+            self._log_operation("push", success=False, error_message=stderr)
         return {"success": success, "error": stderr if not success else None}
     
     async def create_pr(
@@ -354,6 +384,7 @@ class GitService:
                 
                 if response.status_code == 201:
                     result = response.json()
+                    self._log_operation("pr_create", pr_url=result["html_url"], branch=head)
                     return {
                         "success": True,
                         "pr_number": result["number"],
@@ -361,12 +392,14 @@ class GitService:
                         "state": result["state"]
                     }
                 else:
+                    self._log_operation("pr_create", success=False, error_message=response.text)
                     return {
                         "success": False,
                         "error": response.text,
                         "status_code": response.status_code
                     }
             except Exception as e:
+                self._log_operation("pr_create", success=False, error_message=str(e))
                 return {"success": False, "error": str(e)}
     
     async def _create_gitlab_mr(

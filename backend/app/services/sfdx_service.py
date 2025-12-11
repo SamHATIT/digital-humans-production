@@ -20,6 +20,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
+from app.services.audit_service import audit_service, ActorType, ActionCategory
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ class SFDXService:
     All operations are async and return structured results.
     """
     
-    def __init__(self, target_org: str = None):
+    def __init__(self, target_org: str = None, project_id: int = None, execution_id: int = None, task_id: str = None):
         """
         Initialize SFDX service.
         
@@ -45,6 +46,9 @@ class SFDXService:
         """
         self.target_org = target_org
         self.sfdx_path = self._find_sfdx()
+        self.project_id = project_id
+        self.execution_id = execution_id
+        self.task_id = task_id
         
     def _find_sfdx(self) -> str:
         """Find SFDX CLI path"""
@@ -52,6 +56,22 @@ class SFDXService:
             if os.path.exists(path) or path == "sfdx":
                 return path
         raise SFDXError("SFDX CLI not found")
+    
+    def _log_operation(self, operation: str, component_type: str = None, component_name: str = None, success: bool = True, error_message: str = None, duration_ms: int = None, extra: dict = None):
+        """Log SFDX operation to audit trail"""
+        if self.execution_id:  # Only log if context is set
+            audit_service.log_sfdx_operation(
+                operation=operation,
+                execution_id=self.execution_id,
+                project_id=self.project_id,
+                task_id=self.task_id,
+                component_type=component_type,
+                component_name=component_name,
+                success=success,
+                error_message=error_message,
+                duration_ms=duration_ms,
+                extra_data=extra
+            )
     
     async def _run_command(
         self, 
@@ -170,6 +190,7 @@ class SFDXService:
         
         if success:
             deploy_result = result.get("result", {})
+            self._log_operation("deploy", extra={"components_deployed": deploy_result.get("numberComponentsDeployed", 0)})
             return {
                 "success": True,
                 "deployed": True,
@@ -180,6 +201,7 @@ class SFDXService:
                 "details": deploy_result
             }
         else:
+            self._log_operation("deploy", success=False, error_message=result.get("message", "Deployment failed"))
             return {
                 "success": False,
                 "deployed": False,
@@ -352,6 +374,7 @@ class SFDXService:
         if success:
             test_result = result.get("result", {})
             summary = test_result.get("summary", {})
+            self._log_operation("test", success=True, extra={"tests_run": summary.get("testsRan", 0), "passing": summary.get("passing", 0), "failing": summary.get("failing", 0)})
             
             return {
                 "success": True,
@@ -368,6 +391,7 @@ class SFDXService:
                 "details": test_result
             }
         else:
+            self._log_operation("test", success=False, error_message=result.get("message", "Test run failed"))
             return {
                 "success": False,
                 "outcome": "Failed",
