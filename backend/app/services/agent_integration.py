@@ -100,6 +100,15 @@ AGENT_ROLES = {
         "avatar": "/avatars/aisha-data.png",
         "estimated_time": 4
     },
+    "research_analyst": {
+        "name": "Emma (Research Analyst)",
+        "file": "salesforce_research_analyst.py",
+        "required": False,
+        "description": "Analyzes Use Cases, validates coverage, writes SDS documents",
+        "order": 10,
+        "avatar": "/avatars/emma-research.png",
+        "estimated_time": 5
+    },
     "trainer": {
         "name": "Lucas (Trainer)",
         "file": "salesforce_trainer.py",

@@ -85,6 +85,14 @@ export const AGENTS: Agent[] = [
     required: false
   },
   {
+    id: 'research_analyst',
+    name: 'Emma (Research Analyst)',
+    avatar: '/avatars/emma-research.png',
+    description: 'Analyzes Use Cases, validates coverage, writes SDS documents',
+    estimatedTime: 5,
+    required: false
+  },
+  {
     id: 'trainer',
     name: 'Lucas (Trainer)',
     avatar: '/avatars/lucas-trainer.png',

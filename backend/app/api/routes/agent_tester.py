@@ -28,7 +28,8 @@ AGENTS = {
     "elena": {"name": "Elena", "role": "QA Engineer", "description": "Crée et exécute les tests Apex", "capabilities": ["test_classes"], "color": "#DC2626"},
     "jordan": {"name": "Jordan", "role": "DevOps Engineer", "description": "Gère déploiements et CI/CD", "capabilities": ["deployment"], "color": "#F59E0B"},
     "aisha": {"name": "Aisha", "role": "Data Migration Specialist", "description": "Migre et transforme les données", "capabilities": ["data_migration"], "color": "#10B981"},
-    "lucas": {"name": "Lucas", "role": "Trainer", "description": "Crée documentation utilisateur et guides de formation", "capabilities": ["training", "documentation"], "color": "#14B8A6"}
+    "lucas": {"name": "Lucas", "role": "Trainer", "description": "Crée documentation utilisateur et guides de formation", "capabilities": ["training", "documentation"], "color": "#14B8A6"},
+    "emma": {"name": "Emma", "role": "Research Analyst", "description": "Analyse les UCs, valide la couverture, rédige le SDS", "capabilities": ["analyze", "validate", "write_sds"], "color": "#F472B6"}
 }
 
 class AgentTestRequest(BaseModel):
