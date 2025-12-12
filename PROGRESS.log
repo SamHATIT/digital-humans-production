@@ -1702,3 +1702,27 @@ Restant Phase 2:
 - P2-007: Tests d'intégration
 
 Prochaine étape: Intégrer Emma dans pm_orchestrator_service_v2.py
+
+6. Emma intégrée dans système de tracking ✅
+   - agent_tester.py: AGENTS["emma"] (UI test)
+   - agent_integration.py: AGENT_ROLES["research_analyst"]
+   - incremental_executor.py: non_build_agents += emma
+   - frontend/constants.ts: AGENTS array avec Emma
+   - Avatars: emma-research.png (3 tailles, basé sur Olivia)
+   
+Commit: f96ed7e
+
+7. P2-005: Emma intégrée dans pm_orchestrator_service_v2.py ✅
+   Modifications:
+   - AGENT_CONFIG: ajout "research_analyst" 
+   - Phase 2.5 insérée entre Olivia (Phase 2) et Marcus (Phase 3)
+   - Workflow: Sophie → Olivia → Emma(analyze) → Marcus
+   - Marcus reçoit maintenant uc_digest au lieu de use_cases[:15]
+   - Fallback: si Emma échoue, Marcus reçoit les UCs bruts
+   - _init_agent_status: "research_analyst" ajouté aux agents core
+   - Docstring mis à jour avec nouveau workflow
+
+   Fichier modifié: backend/app/services/pm_orchestrator_service_v2.py
+   Syntaxe: ✅ OK
+   Import: ✅ OK
+   Backend: Rechargé automatiquement (--reload)

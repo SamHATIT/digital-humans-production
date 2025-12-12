@@ -4,7 +4,9 @@ PM Orchestrator Service V2 - Complete SDS Workflow
 Workflow:
 1. Sophie PM → extract_br (atomic BRs from raw requirements)
 2. Olivia BA → called N times (1 per BR) → generates UCs
+2.5. Emma Research Analyst → analyze mode → generates UC Digest for Marcus
 3. Marcus Architect → 4 sequential calls (as_is, gap, design, wbs)
+   - Now receives UC Digest instead of raw UCs (context optimization)
 4. SDS Experts (systematic):
    - Aisha (Data) → Data Migration Strategy
    - Lucas (Trainer) → Training & Change Management Plan
@@ -22,6 +24,7 @@ Features:
 - Professional DOCX generation
 - Error recovery with fallback
 - Artifact persistence in PostgreSQL
+- UC Digest via Emma (context compression for large projects)
 """
 
 import os
@@ -73,6 +76,7 @@ AGENT_CONFIG = {
     "devops": {"script": "salesforce_devops.py", "tier": "worker", "display_name": "Jordan (DevOps)"},
     "data": {"script": "salesforce_data_migration.py", "tier": "worker", "display_name": "Aisha (Data)"},
     "trainer": {"script": "salesforce_trainer.py", "tier": "worker", "display_name": "Lucas (Trainer)"},
+    "research_analyst": {"script": "salesforce_research_analyst.py", "tier": "research", "display_name": "Emma (Research Analyst)"},
 }
 
 # Validation gates configuration
@@ -304,7 +308,51 @@ class PMOrchestratorServiceV2:
             self._save_deliverable(execution_id, "ba", "use_cases", results["artifacts"]["USE_CASES"])
             
             logger.info(f"[Phase 2] Saved {uc_stats["parsed"]} UCs + {uc_stats["raw_saved"]} raw to database")
-            self._update_progress(execution, "ba", "completed", 45, f"Generated {uc_stats["parsed"]} UCs")
+            self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats["parsed"]} UCs")
+            
+            # ========================================
+            # PHASE 2.5: Emma Research Analyst - UC Digest Generation
+            # ========================================
+            # Emma analyzes ALL UCs and creates a structured digest for Marcus
+            # This replaces the old approach of passing raw UCs (limited to 15)
+            logger.info(f"[Phase 2.5] Emma Research Analyst - Generating UC Digest")
+            self._update_progress(execution, "research_analyst", "running", 43, "Analyzing Use Cases...")
+            
+            # Get ALL use cases (no limit) and business requirements
+            all_use_cases = self._get_use_cases(execution_id, limit=None)
+            
+            emma_result = await self._run_agent(
+                agent_id="research_analyst",
+                mode="analyze",
+                input_data={
+                    "use_cases": all_use_cases,
+                    "business_requirements": business_requirements
+                },
+                execution_id=execution_id,
+                project_id=project_id
+            )
+            
+            uc_digest = {}
+            emma_tokens = 0
+            
+            if emma_result.get("success"):
+                uc_digest = emma_result["output"].get("content", {}).get("digest", {})
+                emma_tokens = emma_result["output"].get("metadata", {}).get("tokens_used", 0)
+                
+                # Save Emma's deliverable
+                self._save_deliverable(execution_id, "research_analyst", "uc_digest", emma_result["output"])
+                results["artifacts"]["UC_DIGEST"] = emma_result["output"]
+                results["agent_outputs"]["research_analyst"] = emma_result["output"]
+                results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
+                results["metrics"]["total_tokens"] += emma_tokens
+                
+                logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
+                self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
+            else:
+                logger.warning(f"[Phase 2.5] ⚠️ Emma failed: {emma_result.get('error', 'Unknown error')} - Marcus will use raw UCs")
+                self._update_progress(execution, "research_analyst", "failed", 45, "Analysis failed - using fallback")
+                # Fallback: Marcus will receive raw UCs (old behavior)
+            
             # PHASE 3: Marcus Architect - 4 Sequential Calls
             # ========================================
             logger.info(f"[Phase 3] Marcus Architect - Solution Design")
@@ -356,7 +404,9 @@ class PMOrchestratorServiceV2:
                 mode="gap",
                 input_data={
                     "requirements": br_result["output"]["content"].get("business_requirements", []),
-                    "use_cases": self._get_use_cases(execution_id, 15),
+                    # EMMA: Use UC Digest if available, otherwise fallback to raw UCs
+                    "uc_digest": uc_digest if uc_digest else None,
+                    "use_cases": self._get_use_cases(execution_id, 15) if not uc_digest else [],
                     "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
                 },
                 execution_id=execution_id,
@@ -380,7 +430,9 @@ class PMOrchestratorServiceV2:
                 mode="design",
                 input_data={
                     "project_summary": br_result["output"]["content"].get("project_summary", ""),
-                    "use_cases": self._get_use_cases(execution_id, 15),
+                    # EMMA: Use UC Digest if available, otherwise fallback to raw UCs
+                    "uc_digest": uc_digest if uc_digest else None,
+                    "use_cases": self._get_use_cases(execution_id, 15) if not uc_digest else [],
                     "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
                     "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
                 },
@@ -855,7 +907,7 @@ class PMOrchestratorServiceV2:
     def _init_agent_status(self, selected_agents: List[str]) -> Dict:
         """Initialize agent execution status - ORCH-01: respects selected_agents"""
         # Core agents always included (mandatory for SDS)
-        agents = ["pm", "ba", "architect"]
+        agents = ["pm", "ba", "research_analyst", "architect"]
         
         # SDS Expert agents - only include if selected (or if no selection for backward compat)
         ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
