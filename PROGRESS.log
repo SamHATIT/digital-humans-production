@@ -2017,3 +2017,58 @@ Phase 3 COMPLÈTE - Prêt pour Phase 4 (write_sds)
 
 ---
 
+
+## Phase 6 COMPLÈTE: Types de Tâches WBS
+
+### P6-001: Enums et Configuration
+- WBSTaskType: 25 types (setup, dev, config, test, deploy, doc)
+- WBSTaskExecutor: 8 exécuteurs (manual + 7 agents)
+- TASK_TYPE_CONFIG: mapping complet avec validation/prerequisites/deliverables
+
+### P6-002: Modifier prompt Marcus WBS
+- Ajout champ task_type dans la structure JSON des tâches
+- Ajout table TASK TYPES avec les 25 types valides
+- Règle: "Every task has task_type"
+
+### P6-003: Modifier incremental_executor
+- Extraction task_type du WBS
+- Inférence automatique si task_type manquant
+- Filtrage is_automatable dans get_next_task()
+- Nouvelles méthodes: get_manual_tasks(), get_automatable_tasks()
+
+### P6-004: Colonnes DB + Migration
+- TaskExecution: task_type VARCHAR(50), is_automatable BOOLEAN
+- Migration SQL appliquée avec index
+
+### P6-005: Tests
+- 8/8 tests passent
+- Validation enums, config, inference, filtering, model, prompt, DB
+
+### Commits
+- dc01ef5: Phase 5 Backend (P5-001 to P5-003)
+- 8cbc367: Phase 5 Frontend (P5-004)
+- 35084d4: Phase 6 WBS Task Types
+
+---
+
+## Récapitulatif Session
+
+### Phases complétées ce jour
+- Phase 4: Emma Write_SDS + DOCX Export ✅
+- Phase 5: Wizard Configuration (Backend + Frontend) ✅
+- Phase 6: Types de Tâches WBS ✅
+
+### Prochaine étape
+- Phase 7: Tests Complets & Documentation
+  - Tests E2E workflow complet
+  - Tests de charge (200 UCs)
+  - Documentation technique
+  - Guide utilisateur
+  - Corrections bugs identifiés
+
+### Stats
+- Tests Phase 4: 6/6 ✅
+- Tests Phase 5: 7/7 ✅
+- Tests Phase 6: 8/8 ✅
+- Total tests ajoutés: 21
+
