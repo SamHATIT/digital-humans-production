@@ -3,6 +3,7 @@ import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import NewProject from './pages/NewProject';
+import ProjectWizard from './pages/ProjectWizard';
 import ExecutionPage from './pages/ExecutionPage';
 import ExecutionMonitoringPage from './pages/ExecutionMonitoringPage';
 import BuildMonitoringPage from './pages/BuildMonitoringPage';
@@ -35,11 +36,29 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Legacy new project route */}
         <Route
           path="/projects/new"
           element={
             <ProtectedRoute>
               <NewProject />
+            </ProtectedRoute>
+          }
+        />
+        {/* Phase 5: Project Configuration Wizard */}
+        <Route
+          path="/wizard"
+          element={
+            <ProtectedRoute>
+              <ProjectWizard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wizard/:projectId"
+          element={
+            <ProtectedRoute>
+              <ProjectWizard />
             </ProtectedRoute>
           }
         />

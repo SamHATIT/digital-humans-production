@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, Clock, Zap, Trash2, ArrowRight, FolderOpen } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Clock, Zap, Trash2, ArrowRight, FolderOpen, Plus, Wand2 } from 'lucide-react';
 import { projects } from '../services/api';
 import Navbar from '../components/Navbar';
 
@@ -73,10 +73,28 @@ export default function Projects() {
       </div>
 
       <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-3xl font-extrabold text-white">All Projects</h1>
-          <p className="text-slate-400 mt-1">Manage and monitor your Salesforce implementations</p>
+        {/* Header with Create Buttons */}
+        <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-extrabold text-white">All Projects</h1>
+            <p className="text-slate-400 mt-1">Manage and monitor your Salesforce implementations</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/wizard')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl hover:opacity-90 transition-all"
+            >
+              <Wand2 className="w-5 h-5" />
+              Nouveau Projet
+            </button>
+            <button
+              onClick={() => navigate('/wizard')}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition-all"
+            >
+              <Plus className="w-5 h-5" />
+              Quick Create
+            </button>
+          </div>
         </div>
 
         {error && (
