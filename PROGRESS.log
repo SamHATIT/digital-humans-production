@@ -1927,3 +1927,42 @@ Stats finales: 95 completed, 30 not_started
       4. Emma validate mode exists ✅
 
 Phase 3 COMPLÈTE - Prêt pour Phase 4 (write_sds)
+
+## 2025-12-12 - Session 4 (Suite) - EMMA Phase 4 COMPLETE
+
+### Réalisé
+- **P4-001**: SDS Template System (déjà fait session précédente)
+- **P4-002**: Write_SDS Prompt amélioré
+  - WRITE_SDS_SYSTEM avec expertise technique
+  - WRITE_FULL_SDS_PROMPT pour génération complète
+  - WRITE_SECTION_PROMPT pour génération section par section
+  - SECTION_GUIDANCE pour 10 sections
+- **P4-003**: Write_SDS Logic améliorée
+  - Support single-call (<50KB) ou section-by-section
+  - Intégration SDS Template Service
+  - Consolidation de toutes les sources (BRs, UCs, Solution, Coverage, WBS)
+- **P4-004**: Intégration Orchestrator
+  - Phase 5 renommée: Emma Write_SDS
+  - Phase 6 ajoutée: Export DOCX/PDF
+  - Passage sds_markdown à _generate_sds_document
+- **P4-005**: Export DOCX avec diagrammes Mermaid
+  - markdown_to_docx.py amélioré
+  - Conversion Mermaid → PNG via mmdc + Puppeteer
+  - Tableaux professionnels avec couleurs
+  - Page de titre stylisée
+  - Fallback: tableaux structurés si conversion échoue
+- **P4-006**: Tests intégration (6/6 passed)
+- **Dockerfile**: Ajout dépendances Chrome/Puppeteer + mermaid-cli
+
+### Fichiers modifiés
+- backend/agents/roles/salesforce_research_analyst.py (prompts + logic write_sds)
+- backend/app/services/pm_orchestrator_service_v2.py (Phase 5/6)
+- backend/app/services/markdown_to_docx.py (nouveau, conversion MD→DOCX)
+- backend/tests/test_emma_write_sds.py (nouveau)
+- backend/Dockerfile (dépendances Chrome)
+
+### Prochaines étapes (Phase 5)
+- P5-001: Test E2E complet avec génération SDS
+- P5-002: Amélioration qualité document (pagination, styles Word)
+- P5-003: Export PDF optionnel
+

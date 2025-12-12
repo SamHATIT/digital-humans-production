@@ -282,32 +282,123 @@ Output ONLY valid JSON, no markdown fences.
 # PROMPTS - MODE WRITE_SDS
 # ============================================================================
 
-WRITE_SDS_SYSTEM = """You are Emma, a Technical Writer creating professional Salesforce SDS documents.
-Your goal is to produce clear, comprehensive, client-ready documentation."""
+WRITE_SDS_SYSTEM = """You are Emma, a Technical Writer specialized in Salesforce Solution Design Specifications.
 
-WRITE_SECTION_PROMPT = """# SDS SECTION WRITING
+## YOUR EXPERTISE
+- Professional technical documentation in French
+- Salesforce terminology and best practices
+- Clear, structured, client-ready documents
+- Transforming technical data into readable prose
 
-## SECTION TO WRITE
-Section: {section_name}
-Template guidance: {section_template}
+## WRITING STYLE
+- Professional but accessible language
+- Active voice preferred
+- Avoid jargon without explanation
+- Use concrete examples where helpful
+- Each section flows naturally to the next
 
-## AVAILABLE DATA
-{section_data}
-
-## YOUR TASK
-Write this section of the SDS document in professional, clear French.
-Use formal tone, avoid jargon, be specific with Salesforce terminology.
-
-## OUTPUT FORMAT
-Return the section content in Markdown format.
-Include:
-- Clear headers (##, ###)
-- Tables where appropriate
-- Bullet points for lists
-- Technical details with explanations
-
-Write the section content directly, no JSON wrapper.
+## IMPORTANT RULES
+- DO NOT copy-paste JSON - transform data into readable text
+- DO NOT use placeholder text like "[TBD]" - write actual content
+- DO include specific numbers, names, and details from the source data
+- DO reference related sections where appropriate
 """
+
+WRITE_FULL_SDS_PROMPT = """# GÉNÉRATION DU DOCUMENT SDS
+
+## INFORMATIONS PROJET
+{project_info_json}
+
+## STRUCTURE DU TEMPLATE
+{template_json}
+
+## DONNÉES SOURCE
+
+### Business Requirements (Sophie):
+{business_requirements_json}
+
+### UC Digest (Emma analyze):
+{uc_digest_json}
+
+### Solution Design (Marcus):
+{solution_design_json}
+
+### Coverage Report (Emma validate):
+{coverage_report_json}
+
+### Work Breakdown Structure (Marcus):
+{wbs_json}
+
+## VOTRE TÂCHE
+Générez un document SDS complet et professionnel en français selon la structure du template.
+
+Pour chaque section:
+1. Extrayez les données pertinentes des sources
+2. Transformez en prose fluide et professionnelle
+3. Incluez tableaux et descriptions de diagrammes où approprié
+4. Assurez la traçabilité entre BRs → UCs → Composants Solution
+
+## FORMAT DE SORTIE
+Générez le document SDS complet en **Markdown** avec:
+- Page de titre (nom projet, client, date, version)
+- Table des matières
+- Toutes les sections du template
+- Séparateurs entre sections majeures (---)
+- Hiérarchie de titres (# ## ### ####)
+- Tableaux pour données structurées
+- Diagrammes Mermaid si disponibles (ERD, workflows)
+
+## CHECKLIST QUALITÉ
+☐ Tous les BRs documentés avec descriptions complètes
+☐ Tous les UCs traçables vers BRs
+☐ Composants solution adressent les gaps identifiés
+☐ Tâches WBS liées aux composants solution
+☐ Aucun texte placeholder
+☐ Document fluide de section en section
+
+Générez le document SDS maintenant:
+"""
+
+WRITE_SECTION_PROMPT = """# ÉCRITURE DE SECTION SDS
+
+## SECTION À RÉDIGER
+**Numéro:** {section_id}
+**Titre:** {section_title}
+**Description:** {section_description}
+
+## DONNÉES SOURCE
+{section_data_json}
+
+## FORMAT ATTENDU: {format_type}
+
+## SOUS-SECTIONS À INCLURE
+{subsections_list}
+
+## INSTRUCTIONS
+Rédigez cette section du document SDS en français professionnel:
+- Ton formel mais accessible
+- Terminologie Salesforce précise
+- Transformez les données JSON en prose fluide
+- Incluez des tableaux si pertinent
+- Longueur appropriée au contenu
+
+Rédigez le contenu directement en Markdown:
+"""
+
+# Section-specific guidance for better output
+SECTION_GUIDANCE = {
+    "1": "Résumé exécutif: contexte, périmètre, recommandations clés, estimation effort",
+    "2": "Contexte métier: présentation client, enjeux, parties prenantes, contraintes",
+    "3": "Exigences métier: tableau récapitulatif puis détail par BR avec priorités MoSCoW",
+    "4": "Spécifications fonctionnelles: UCs par BR, acteurs, matrice traçabilité",
+    "5": "Architecture technique: modèle données (ERD), objets, sécurité, automatisations, intégrations",
+    "6": "Plan implémentation: phases, estimation efforts, dépendances, risques",
+    "7": "Stratégie test: approche QA, critères acceptation, plan UAT",
+    "8": "Déploiement: stratégie, environnements, rollback",
+    "9": "Formation: plan formation, documentation, support post-déploiement",
+    "A": "Annexes: UCs détaillés, WBS complet, dictionnaire données, glossaire"
+}
+
 
 
 # ============================================================================
@@ -598,65 +689,191 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
 async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
     """
     Mode WRITE_SDS: Generate professional SDS document
-    Writes section by section following template
+    
+    Uses the SDS Template Service to structure the document.
+    Generates section by section following the template.
+    Combines all agent deliverables into a cohesive document.
     """
     start_time = time.time()
     
-    template = input_data.get("template", {})
+    # Get template from service or input
+    try:
+        from app.services.sds_template_service import get_sds_template_service
+        template_service = get_sds_template_service()
+        template = template_service.get_default_template()
+        print(f"📋 Using template: {template.get('template_name', 'Unknown')}", file=sys.stderr)
+    except ImportError:
+        print(f"⚠️ Template service not available, using input template", file=sys.stderr)
+        template = input_data.get("template", {})
+    
+    # Gather all source data
     project_info = input_data.get("project_info", {})
     business_requirements = input_data.get("business_requirements", [])
     use_cases = input_data.get("use_cases", [])
+    uc_digest = input_data.get("uc_digest", {})
     solution_design = input_data.get("solution_design", {})
+    coverage_report = input_data.get("coverage_report", {})
+    wbs = input_data.get("wbs", {})
+    qa_specs = input_data.get("qa_specs", {})
+    devops_specs = input_data.get("devops_specs", {})
+    training_specs = input_data.get("training_specs", {})
     
-    print(f"📄 Writing SDS document for project: {project_info.get('name', 'Unknown')}", file=sys.stderr)
+    project_name = project_info.get("name", "Projet Salesforce")
+    print(f"📄 Writing SDS document for: {project_name}", file=sys.stderr)
+    print(f"   Sources: {len(business_requirements)} BRs, {len(use_cases)} UCs", file=sys.stderr)
     
-    # Define SDS sections to write
-    sections = [
-        ("executive_summary", "Executive Summary", {"project_info": project_info, "br_count": len(business_requirements)}),
-        ("business_requirements", "Business Requirements", {"brs": business_requirements}),
-        ("functional_specifications", "Functional Specifications", {"use_cases": use_cases[:20]}),
-        ("technical_architecture", "Technical Architecture", {"solution": solution_design}),
-        ("data_model", "Data Model", {"solution": solution_design}),
-        ("security_model", "Security Model", {"solution": solution_design}),
-        ("implementation_plan", "Implementation Plan", {"solution": solution_design}),
-    ]
+    # Prepare consolidated sources for template
+    sources = {
+        "project_info": project_info,
+        "business_requirements": business_requirements,
+        "use_cases": use_cases,
+        "uc_digest": uc_digest,
+        "solution_design": solution_design,
+        "coverage_report": coverage_report,
+        "wbs": wbs,
+        "qa_specs": qa_specs,
+        "devops_specs": devops_specs,
+        "training_specs": training_specs
+    }
     
-    sds_content = {}
+    # Check data size to decide approach
+    total_data_size = len(json.dumps(sources, default=str))
+    use_single_call = total_data_size < 50000  # ~50KB threshold
+    
+    sds_sections = {}
     total_tokens = 0
     model_used = ""
     provider_used = ""
     
-    for section_id, section_name, section_data in sections:
-        print(f"📝 Writing section: {section_name}...", file=sys.stderr)
+    if use_single_call:
+        # Single call for entire document
+        print(f"📝 Generating full document (single call, {total_data_size} bytes)...", file=sys.stderr)
         
-        section_prompt = WRITE_SECTION_PROMPT.format(
-            section_name=section_name,
-            section_template=template.get(section_id, "Standard section format"),
-            section_data=json.dumps(section_data, indent=2)[:8000]
+        full_prompt = WRITE_FULL_SDS_PROMPT.format(
+            project_info_json=json.dumps(project_info, indent=2, ensure_ascii=False, default=str)[:3000],
+            template_json=json.dumps(template.get("sections", []), indent=2)[:2000],
+            business_requirements_json=json.dumps(business_requirements[:15], indent=2, ensure_ascii=False, default=str)[:5000],
+            uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:8000],
+            solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:10000],
+            coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:3000],
+            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:5000]
         )
         
         if LLM_SERVICE_AVAILABLE:
             response = generate_llm_response(
-                prompt=section_prompt,
+                prompt=full_prompt,
                 agent_type="research",
                 system_prompt=WRITE_SDS_SYSTEM,
-                max_tokens=4000,
+                max_tokens=16000,
                 temperature=0.4
             )
-            sds_content[section_id] = response["content"]
-            total_tokens += response["tokens_used"]
+            sds_sections["full_document"] = response["content"]
+            total_tokens = response["tokens_used"]
             model_used = response["model"]
             provider_used = response["provider"]
+        
+        print(f"✅ Full document generated ({len(sds_sections.get('full_document', ''))} chars)", file=sys.stderr)
+        
+    else:
+        # Section by section for larger projects
+        template_sections = template.get("sections", [])
+        print(f"📝 Generating section by section ({len(template_sections)} sections)...", file=sys.stderr)
+        
+        for section in template_sections:
+            section_id = section.get("id", "")
+            section_title = section.get("title", "")
+            section_desc = section.get("description", "")
+            subsections = section.get("subsections", [])
+            
+            print(f"   📄 Section {section_id}: {section_title}...", file=sys.stderr)
+            
+            # Gather data for this section
+            section_data = {}
+            for subsec in subsections:
+                source_path = subsec.get("source", "")
+                if source_path and source_path != "auto_generated":
+                    # Extract data from sources
+                    parts = source_path.split(".")
+                    data = sources
+                    for part in parts:
+                        if isinstance(data, dict):
+                            data = data.get(part, {})
+                        else:
+                            data = {}
+                            break
+                    section_data[subsec.get("id", "")] = data
+            
+            # Build subsections list
+            subsections_list = "\n".join([
+                f"- {s.get('id')}: {s.get('title')} (source: {s.get('source')}, format: {s.get('format', 'prose')})"
+                for s in subsections
+            ])
+            
+            # Get section guidance
+            guidance = SECTION_GUIDANCE.get(section_id, section_desc)
+            
+            section_prompt = WRITE_SECTION_PROMPT.format(
+                section_id=section_id,
+                section_title=section_title,
+                section_description=guidance,
+                section_data_json=json.dumps(section_data, indent=2, ensure_ascii=False, default=str)[:12000],
+                format_type=subsections[0].get("format", "prose") if subsections else "prose",
+                subsections_list=subsections_list
+            )
+            
+            if LLM_SERVICE_AVAILABLE:
+                response = generate_llm_response(
+                    prompt=section_prompt,
+                    agent_type="research",
+                    system_prompt=WRITE_SDS_SYSTEM,
+                    max_tokens=6000,
+                    temperature=0.4
+                )
+                sds_sections[section_id] = {
+                    "title": section_title,
+                    "content": response["content"]
+                }
+                total_tokens += response["tokens_used"]
+                model_used = response["model"]
+                provider_used = response["provider"]
+            
+            print(f"   ✅ Section {section_id} done", file=sys.stderr)
     
     execution_time = time.time() - start_time
-    print(f"✅ SDS document generated with {len(sds_content)} sections", file=sys.stderr)
+    
+    # Assemble final document
+    if "full_document" in sds_sections:
+        final_document = sds_sections["full_document"]
+    else:
+        # Combine sections into full document
+        doc_parts = []
+        doc_parts.append(f"# Solution Design Specification\n## {project_name}\n")
+        doc_parts.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d')}\n")
+        doc_parts.append(f"**Version:** 1.0\n")
+        doc_parts.append("\n---\n\n## Table des Matières\n")
+        
+        for section_id, section_data in sds_sections.items():
+            if isinstance(section_data, dict):
+                doc_parts.append(f"- [{section_data.get('title', section_id)}](#{section_id.lower().replace(' ', '-')})\n")
+        
+        doc_parts.append("\n---\n")
+        
+        for section_id, section_data in sds_sections.items():
+            if isinstance(section_data, dict):
+                doc_parts.append(f"\n# {section_data.get('title', section_id)}\n")
+                doc_parts.append(section_data.get("content", ""))
+                doc_parts.append("\n---\n")
+        
+        final_document = "".join(doc_parts)
+    
+    print(f"✅ SDS document complete: {len(final_document)} chars, {total_tokens} tokens, {execution_time:.1f}s", file=sys.stderr)
     
     # Log LLM interaction
     if LLM_LOGGER_AVAILABLE:
         log_llm_interaction(
             agent_id="emma",
-            prompt=f"[WRITE_SDS] Document for {project_info.get('name', 'Unknown')}",
-            response=f"Generated {len(sds_content)} sections",
+            prompt=f"[WRITE_SDS] Document for {project_name}",
+            response=f"Generated {len(sds_sections)} sections, {len(final_document)} chars",
             execution_id=execution_id,
             agent_mode="write_sds",
             tokens_output=total_tokens,
@@ -672,17 +889,22 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
         "execution_id": execution_id,
         "mode": "write_sds",
         "deliverable_type": "sds_document",
+        "artifact_id": "SDS-001",
         "content": {
-            "sections": sds_content,
-            "project_name": project_info.get("name", "Unknown"),
-            "generated_at": datetime.now().isoformat()
+            "document": final_document,
+            "sections": sds_sections,
+            "project_name": project_name,
+            "generated_at": datetime.now().isoformat(),
+            "template_used": template.get("template_id", "default"),
+            "sources_used": list(sources.keys())
         },
         "metadata": {
             "tokens_used": total_tokens,
             "model": model_used,
             "provider": provider_used,
             "execution_time_seconds": round(execution_time, 2),
-            "sections_count": len(sds_content),
+            "document_length": len(final_document),
+            "sections_count": len(sds_sections),
             "generated_at": datetime.now().isoformat()
         }
     }

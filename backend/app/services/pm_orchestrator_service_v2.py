@@ -676,30 +676,102 @@ class PMOrchestratorServiceV2:
                         self._update_progress(execution, agent_id, "failed", 88, f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
             
             # ========================================
-            # PHASE 5: Sophie PM - Consolidate SDS
+            # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
             # ========================================
-            logger.info(f"[Phase 5] Sophie PM - Consolidating SDS Document")
-            self._update_progress(execution, "pm", "running", 92, "Generating SDS Document...")
+            logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
+            self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
             
-            # Generate SDS using document generator
+            # Prepare all sources for Emma write_sds
+            emma_write_input = {
+                "project_info": {
+                    "name": project.name,
+                    "description": project.description or "",
+                    "client_name": getattr(project, 'client_name', '') or "",
+                    "objectives": project.architecture_notes or ""
+                },
+                "business_requirements": [
+                    {"id": br.br_id, "title": br.title, "description": br.description, "priority": br.priority.value if br.priority else "SHOULD"}
+                    for br in self.db.query(BusinessRequirement).filter(BusinessRequirement.execution_id == execution_id).all()
+                ],
+                "use_cases": self._get_use_cases(execution_id, limit=None),
+                "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
+                "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+                "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
+                "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
+                "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
+                "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
+                "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {}
+            }
+            
+            emma_write_result = await self._run_agent(
+                agent_id="research_analyst",
+                mode="write_sds",
+                input_data=emma_write_input,
+                execution_id=execution_id,
+                project_id=project_id
+            )
+            
+            emma_write_tokens = 0
+            sds_markdown = ""
+            
+            if emma_write_result.get("success"):
+                emma_output = emma_write_result["output"]
+                emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
+                sds_markdown = emma_output.get("content", {}).get("document", "")
+                
+                self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
+                results["artifacts"]["SDS"] = emma_output
+                results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
+                results["metrics"]["total_tokens"] += emma_write_tokens
+                
+                logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
+            else:
+                logger.warning(f"[Phase 5] ⚠️ Emma write_sds failed: {emma_write_result.get('error')}")
+            
+            self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
+            
+            # ========================================
+            # PHASE 6: Export SDS to DOCX/PDF
+            # ========================================
+            logger.info(f"[Phase 6] Exporting SDS Document")
+            self._update_progress(execution, "pm", "running", 94, "Exporting SDS Document...")
+            
+            # Generate SDS file (DOCX/PDF) from Emma's markdown
             try:
-                sds_path = await self._generate_sds_document(
-                    project=project,
-                    agent_outputs=results["agent_outputs"],
-                    artifacts=results["artifacts"],
-                    execution_id=execution_id
-                )
+                if sds_markdown:
+                    # Save markdown first
+                    md_path = f"/tmp/sds_{execution_id}.md"
+                    with open(md_path, 'w', encoding='utf-8') as f:
+                        f.write(sds_markdown)
+                    results["sds_markdown_path"] = md_path
+                    
+                    # Try to convert to DOCX using document generator
+                    sds_path = await self._generate_sds_document(
+                        project=project,
+                        agent_outputs=results["agent_outputs"],
+                        artifacts=results["artifacts"],
+                        execution_id=execution_id,
+                        sds_markdown=sds_markdown  # Pass Emma's output
+                    )
+                else:
+                    # Fallback to old method
+                    sds_path = await self._generate_sds_document(
+                        project=project,
+                        agent_outputs=results["agent_outputs"],
+                        artifacts=results["artifacts"],
+                        execution_id=execution_id
+                    )
                 results["sds_path"] = sds_path
                 execution.sds_document_path = sds_path
-                logger.info(f"[Phase 5] ✅ SDS Document: {sds_path}")
+                logger.info(f"[Phase 6] ✅ SDS Document: {sds_path}")
             except Exception as e:
-                logger.error(f"[Phase 5] SDS generation failed: {e}")
+                logger.error(f"[Phase 6] SDS export failed: {e}")
                 # Fallback to markdown
                 sds_path = self._generate_markdown_sds(project, results["artifacts"], execution_id)
                 results["sds_path"] = sds_path
                 execution.sds_document_path = sds_path
             
-            self._update_progress(execution, "pm", "completed", 98, "SDS Document generated")
+            self._update_progress(execution, "pm", "completed", 98, "SDS Document exported")
             
             # ========================================
             # FINALIZE
@@ -1291,13 +1363,39 @@ class PMOrchestratorServiceV2:
         project: Project,
         agent_outputs: Dict,
         artifacts: Dict,
-        execution_id: int
+        execution_id: int,
+        sds_markdown: str = None
     ) -> str:
-        """Generate professional DOCX SDS document"""
+        """Generate professional DOCX SDS document
+        
+        If sds_markdown is provided (from Emma write_sds), uses it as the source.
+        Otherwise falls back to the professional generator.
+        """
         output_dir = "/app/outputs"
         os.makedirs(output_dir, exist_ok=True)
         
-        # Use professional generator
+        # If Emma provided markdown, convert to DOCX
+        if sds_markdown:
+            try:
+                from app.services.markdown_to_docx import convert_markdown_to_docx
+                output_path = f"{output_dir}/SDS_Exec{execution_id}.docx"
+                convert_markdown_to_docx(sds_markdown, output_path, project.name)
+                logger.info(f"✅ SDS DOCX generated from Emma markdown: {output_path}")
+                return output_path
+            except ImportError:
+                logger.warning("markdown_to_docx not available, saving as markdown")
+                output_path = f"{output_dir}/SDS_Exec{execution_id}.md"
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(sds_markdown)
+                return output_path
+            except Exception as e:
+                logger.error(f"DOCX conversion failed: {e}, saving as markdown")
+                output_path = f"{output_dir}/SDS_Exec{execution_id}.md"
+                with open(output_path, 'w', encoding='utf-8') as f:
+                    f.write(sds_markdown)
+                return output_path
+        
+        # Fallback: Use professional generator
         output_path = generate_professional_sds(
             project=project,
             agent_outputs=agent_outputs,
