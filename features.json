@@ -2253,6 +2253,97 @@
       "status": "completed",
       "description": "Tests pour fix_gaps, WBS position, coverage threshold",
       "notes": "4/4 tests passent"
+    },
+    {
+      "id": "SPEC-S9-001",
+      "name": "Subscription Model - SubscriptionTier enum",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-002",
+      "name": "Subscription Model - TIER_FEATURES config",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-003",
+      "name": "Feature Access Control - Decorators",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-004",
+      "name": "User Model - subscription_tier field",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-005",
+      "name": "Subscription API Routes",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-006",
+      "name": "Frontend - SubscriptionBadge component",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S9-007",
+      "name": "Frontend - Pricing page",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-002",
+      "name": "Project Environments - Model",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-003",
+      "name": "Project Environments - API",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-004",
+      "name": "Git Config - Model",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-005",
+      "name": "Git Config - API",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-006",
+      "name": "SDS Templates - Model",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
+    },
+    {
+      "id": "SPEC-S6-007",
+      "name": "SDS Templates - API",
+      "status": "completed",
+      "priority": "medium",
+      "phase": "6-9"
     }
   ],
   "stats": {
@@ -2261,5 +2352,11 @@
     "not_started": 29,
     "total": 128
   },
-  "last_updated": "2025-12-12T17:30:00Z"
+  "last_updated": "2025-12-12T17:30:00Z",
+  "summary": {
+    "total": 141,
+    "completed": 112,
+    "in_progress": 0,
+    "pending": 0
+  }
 }
