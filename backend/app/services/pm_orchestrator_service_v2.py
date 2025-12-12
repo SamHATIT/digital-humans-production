@@ -518,35 +518,38 @@ class PMOrchestratorServiceV2:
                     
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_validate_tokens
                     results["metrics"]["total_tokens"] += emma_validate_tokens
+
+                    # 3.5: WBS (Break down implementation tasks)
+                    self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
+                    
+                    wbs_result = await self._run_agent(
+                        agent_id="architect",
+                        mode="wbs",
+                        input_data={
+                            "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
+                            "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+                            "constraints": project.compliance_requirements or project.architecture_notes or ""
+                        },
+                        execution_id=execution_id,
+                        project_id=project_id
+                    )
+                    
+                    if wbs_result.get("success"):
+                        results["artifacts"]["WBS"] = wbs_result["output"]
+                        architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
+                        self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
+                        logger.info(f"[Phase 3.5] ✅ WBS (WBS-001)")
+
                 else:
                     logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
                 
                 self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
-                
+
+
             else:
                 results["artifacts"]["ARCHITECTURE"] = {"artifact_id": "ARCH-001", "content": {}}
                 logger.warning(f"[Phase 3.3] ⚠️ Solution Design failed: {design_result.get('error', 'Unknown error')}")
             
-            # 3.5: WBS (Break down implementation tasks)
-            self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
-            
-            wbs_result = await self._run_agent(
-                agent_id="architect",
-                mode="wbs",
-                input_data={
-                    "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
-                    "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                    "constraints": project.compliance_requirements or project.architecture_notes or ""
-                },
-                execution_id=execution_id,
-                project_id=project_id
-            )
-            
-            if wbs_result.get("success"):
-                results["artifacts"]["WBS"] = wbs_result["output"]
-                architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
-                logger.info(f"[Phase 3.4] ✅ WBS (WBS-001)")
             
             results["agent_outputs"]["architect"] = {
                 "design": results["artifacts"].get("ARCHITECTURE"),

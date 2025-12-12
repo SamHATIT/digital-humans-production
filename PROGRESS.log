@@ -1901,3 +1901,29 @@ Stats finales: 95 completed, 30 not_started
     Temps: 41.5s, Tokens: 7,848
     
     ✅ La boucle de couverture Emma → Marcus fonctionne !
+
+## Session 2025-12-12 (suite) - Phase 3 Corrections
+
+16. P3-005: Mode fix_gaps séparé pour Marcus ✅
+    - Nouveau mode: --mode fix_gaps
+    - Prompt dédié: get_fix_gaps_prompt()
+    - Input: current_solution, coverage_gaps, iteration
+    - Output: solution_design_v{n}
+    - Fichier: salesforce_solution_architect.py
+
+17. P3-006: WBS après validation Emma ✅
+    - WBS déplacé DANS le bloc if validate_result.get("success")
+    - WBS ne sera généré que si Emma validate réussit
+    - Workflow corrigé:
+      Design → Validate → (Revision si <95%) → WBS
+    - Fichier: pm_orchestrator_service_v2.py
+
+18. P3-007: Tests intégration Phase 3 ✅
+    - Fichier: tests/test_emma_phase3.py
+    - 4 tests de validation:
+      1. fix_gaps mode exists ✅
+      2. WBS inside validate success block ✅
+      3. Coverage threshold is 95% ✅
+      4. Emma validate mode exists ✅
+
+Phase 3 COMPLÈTE - Prêt pour Phase 4 (write_sds)

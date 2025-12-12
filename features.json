@@ -2239,13 +2239,27 @@
       "status": "completed",
       "description": "Test complet: Emma 73.2% coverage → Marcus révise avec 15 gaps → +7 fields, +1 integration",
       "notes": "Original: 15 fields, 0 integrations. Revised: 22 fields, Einstein API, Case object"
+    },
+    {
+      "id": "EMMA-P3-006",
+      "name": "P3-006: WBS après validation Emma",
+      "status": "completed",
+      "description": "WBS déplacé dans le bloc de succès de Emma validate",
+      "notes": "Workflow: Design → Validate → (Revision) → WBS"
+    },
+    {
+      "id": "EMMA-P3-007",
+      "name": "P3-007: Tests intégration Phase 3",
+      "status": "completed",
+      "description": "Tests pour fix_gaps, WBS position, coverage threshold",
+      "notes": "4/4 tests passent"
     }
   ],
   "stats": {
-    "completed": 97,
+    "completed": 99,
     "in_progress": 0,
     "not_started": 29,
-    "total": 126
+    "total": 128
   },
-  "last_updated": "2025-12-12T17:05:00Z"
+  "last_updated": "2025-12-12T17:30:00Z"
 }

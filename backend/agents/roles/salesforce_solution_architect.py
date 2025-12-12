@@ -457,8 +457,8 @@ Each task MUST have 1-3 validation_criteria using this format:
 def main():
     parser = argparse.ArgumentParser(description='Marcus Architect Agent')
     parser.add_argument('--mode', required=False, default='design', 
-                        choices=['design', 'as_is', 'gap', 'wbs'],
-                        help='Operation mode')
+                        choices=['design', 'as_is', 'gap', 'wbs', 'fix_gaps'],
+                        help='Operation mode: design, as_is, gap, wbs, or fix_gaps')
     parser.add_argument('--input', required=True, help='Input JSON file')
     parser.add_argument('--output', required=True, help='Output JSON file')
     parser.add_argument('--execution-id', type=int, default=0)
@@ -551,12 +551,21 @@ def main():
             deliverable_type = "gap_analysis"
             artifact_prefix = "GAP"
             
-        else:  # wbs
+        elif args.mode == 'wbs':
             gap_analysis = json.dumps(input_data.get('gaps', input_data), indent=2)
             constraints = input_data.get('constraints', '')
             prompt = get_wbs_prompt(gap_analysis, constraints)
             deliverable_type = "work_breakdown_structure"
             artifact_prefix = "WBS"
+        
+        elif args.mode == 'fix_gaps':
+            current_solution = input_data.get('current_solution', input_data.get('solution_design', {}))
+            coverage_gaps = input_data.get('coverage_gaps', [])
+            uncovered_use_cases = input_data.get('uncovered_use_cases', [])
+            iteration = input_data.get('iteration', 1)
+            prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration)
+            deliverable_type = f"solution_design_v{iteration + 1}"
+            artifact_prefix = "ARCH"
         
         system_prompt = f"You are Marcus, a Salesforce CTA. Generate {deliverable_type}. Output ONLY valid JSON."
         
@@ -682,3 +691,103 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ============================================================================
+# MODE FIX_GAPS - Révision de solution pour corriger les gaps de couverture
+# ============================================================================
+
+def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_use_cases: list = None, iteration: int = 1) -> str:
+    """
+    Generate prompt for fix_gaps mode.
+    
+    This mode receives the current solution and coverage gaps from Emma validate,
+    and produces an improved solution that addresses the gaps.
+    """
+    
+    # Format current solution
+    solution_json = json.dumps(current_solution, indent=2, ensure_ascii=False)
+    
+    # Format gaps
+    gaps_text = ""
+    for i, gap in enumerate(coverage_gaps[:20], 1):
+        if isinstance(gap, dict):
+            element_type = gap.get('element_type', 'unknown')
+            element_value = gap.get('element_value', str(gap))
+            severity = gap.get('severity', 'medium')
+            gaps_text += f"{i}. [{severity.upper()}] {element_type}: {element_value}\n"
+        else:
+            gaps_text += f"{i}. {gap}\n"
+    
+    if len(coverage_gaps) > 20:
+        gaps_text += f"\n... and {len(coverage_gaps) - 20} more gaps\n"
+    
+    # Format uncovered UCs
+    uncovered_text = ""
+    if uncovered_use_cases:
+        for uc in uncovered_use_cases[:10]:
+            if isinstance(uc, dict):
+                uncovered_text += f"- {uc.get('id', 'UC')}: {uc.get('title', str(uc))}\n"
+            else:
+                uncovered_text += f"- {uc}\n"
+        if len(uncovered_use_cases) > 10:
+            uncovered_text += f"... and {len(uncovered_use_cases) - 10} more\n"
+    
+    return f'''# 🔄 SOLUTION DESIGN REVISION (Iteration {iteration})
+
+## CONTEXT
+Emma (Research Analyst) has analyzed your solution design and found coverage gaps.
+Your task is to revise the solution to address ALL identified gaps.
+
+## CURRENT SOLUTION
+```json
+{solution_json[:15000]}
+```
+
+## COVERAGE GAPS TO ADDRESS ({len(coverage_gaps)} gaps)
+{gaps_text}
+
+## UNCOVERED USE CASES
+{uncovered_text if uncovered_text else "None specified"}
+
+## REVISION INSTRUCTIONS
+
+1. **Preserve existing elements** - Do not remove elements that are working
+2. **Add missing elements** - For each gap, add the necessary Salesforce component
+3. **Update related elements** - If adding a field, update relevant automations
+4. **Maintain consistency** - Ensure naming conventions and relationships are consistent
+
+## OUTPUT FORMAT
+
+Return the COMPLETE revised solution design in the same JSON structure:
+{{
+    "artifact_id": "ARCH-001-v{iteration + 1}",
+    "title": "Revised Solution Design v{iteration + 1}",
+    "revision_notes": {{
+        "iteration": {iteration + 1},
+        "gaps_addressed": [/* list of addressed gaps */],
+        "changes_made": [/* list of changes */]
+    }},
+    "data_model": {{
+        "standard_objects": [...],
+        "custom_objects": [...],
+        "relationships": [...],
+        "erd_mermaid": "..."
+    }},
+    "security_model": {{...}},
+    "automation_design": {{
+        "flows": [...],
+        "triggers": [...],
+        "scheduled_jobs": [...]
+    }},
+    "integration_points": [...],
+    "ui_components": {{...}},
+    "technical_considerations": [...],
+    "risks": [...]
+}}
+
+**IMPORTANT**: 
+- Address ALL gaps listed above
+- Output ONLY valid JSON, no markdown fences
+- Include revision_notes explaining what was changed
+'''
+
