@@ -101,10 +101,21 @@ def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = 
             uc_text += "\n### Cross-Cutting Concerns\n"
             shared = cross_cutting.get('shared_objects', [])
             if shared:
-                uc_text += f"- **Shared Objects**: {', '.join(shared)}\n"
+                # Handle both string list and dict list formats
+                if isinstance(shared[0], dict):
+                    shared_names = [s.get('object', str(s)) for s in shared]
+                    uc_text += f"- **Shared Objects**: {', '.join(shared_names)}\n"
+                    for s in shared[:3]:
+                        uc_text += f"  - {s.get('object', 'Unknown')}: {s.get('usage', '')[:100]}\n"
+                else:
+                    uc_text += f"- **Shared Objects**: {', '.join(shared)}\n"
             integrations = cross_cutting.get('integration_points', [])
             if integrations:
-                uc_text += f"- **Integration Points**: {', '.join(integrations)}\n"
+                if isinstance(integrations[0], dict):
+                    int_names = [i.get('name', str(i)) for i in integrations]
+                    uc_text += f"- **Integration Points**: {', '.join(int_names)}\n"
+                else:
+                    uc_text += f"- **Integration Points**: {', '.join(integrations)}\n"
         
         # Recommendations from Emma
         recommendations = uc_digest.get('recommendations', [])

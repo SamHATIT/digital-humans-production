@@ -2193,16 +2193,17 @@
     {
       "id": "EMMA-P2-007",
       "name": "Integration tests Emma with orchestrator",
-      "status": "not_started",
+      "status": "completed",
       "category": "emma-workflow",
-      "priority": "medium"
+      "priority": "medium",
+      "notes": "Test intégration 78 UCs: Emma analyse, Marcus design. Résultat: +1 objet, +2 flows détectés"
     }
   ],
   "stats": {
-    "completed": 90,
+    "completed": 91,
     "in_progress": 0,
-    "not_started": 30,
+    "not_started": 29,
     "total": 120
   },
-  "last_updated": "2025-12-12T16:10:00Z"
+  "last_updated": "2025-12-12T16:15:00Z"
 }

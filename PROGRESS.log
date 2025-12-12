@@ -1749,3 +1749,36 @@ Commit: f96ed7e
    - get_gap_prompt avec uc_context: ✅ section UC Context présente
    
    Syntaxe: ✅ OK
+
+9. P2-007: Test d'intégration Emma → Marcus (78 UCs) ✅
+   
+   Données de test:
+   - Execution #116: 78 UCs, 20 BRs
+   - Fichiers: /tmp/emma_integration_test/
+   
+   Résultats Emma (mode analyze):
+   - 14 clusters créés
+   - 35,036 tokens utilisés
+   - 3 objets cross-cutting identifiés
+   - Digest structuré par BR
+   
+   Comparaison Marcus:
+   ┌─────────────────┬───────────┬───────────┬────────────┐
+   │ Élément         │ SANS Emma │ AVEC Emma │ Diff       │
+   ├─────────────────┼───────────┼───────────┼────────────┤
+   │ Custom Objects  │ 1         │ 2         │ +1 ✅      │
+   │ Flows           │ 2         │ 4         │ +2 ✅      │
+   │ Tokens Marcus   │ 7,505     │ 6,050     │ -1,455     │
+   │ Couverture UCs  │ 15 (19%)  │ 78 (100%) │ +63 UCs    │
+   └─────────────────┴───────────┴───────────┴────────────┘
+   
+   Améliorations détectées avec Emma:
+   - Customer_Rating_History__c (audit trail ratings)
+   - Flow: Customer_Feedback_Rating_Validation
+   - Flow: Comment_Metadata_Calculator
+   
+   Fix appliqué: get_design_prompt() shared_objects format (dict list)
+   
+   Fichiers comparaison:
+   - /mnt/user-data/outputs/emma_marcus_comparison.json
+   - /mnt/user-data/outputs/emma_marcus_comparison.md
