@@ -2232,13 +2232,20 @@
       "status": "completed",
       "description": "Le mapping de >50 UCs cause une erreur JSON parse lors de la continuation. Solution: batching par 20 UCs.",
       "notes": "Fix batching par 5 UCs. Test: 73/78 mappés, 73.2% coverage, 42 gaps identifiés."
+    },
+    {
+      "id": "EMMA-P3-005",
+      "name": "Test Marcus revision with Emma gaps",
+      "status": "completed",
+      "description": "Test complet: Emma 73.2% coverage → Marcus révise avec 15 gaps → +7 fields, +1 integration",
+      "notes": "Original: 15 fields, 0 integrations. Revised: 22 fields, Einstein API, Case object"
     }
   ],
   "stats": {
-    "completed": 96,
+    "completed": 97,
     "in_progress": 0,
     "not_started": 29,
-    "total": 125
+    "total": 126
   },
-  "last_updated": "2025-12-12T17:00:00Z"
+  "last_updated": "2025-12-12T17:05:00Z"
 }
