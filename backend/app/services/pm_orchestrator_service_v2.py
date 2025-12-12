@@ -445,11 +445,89 @@ class PMOrchestratorServiceV2:
                 architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
                 logger.info(f"[Phase 3.3] ✅ Solution Design (ARCH-001)")
+                
+                # ========================================
+                # PHASE 3.4: Emma Validate (Coverage Check)
+                # ========================================
+                # Emma validates that the solution design covers all UCs
+                # If coverage < 95%, Marcus will revise with gaps
+                
+                self._update_progress(execution, "research_analyst", "running", 68, "Validating UC coverage...")
+                
+                # Prepare validation input
+                all_use_cases = self._get_use_cases(execution_id, limit=None)
+                solution_design = results["artifacts"]["ARCHITECTURE"].get("content", {})
+                
+                validate_result = await self._run_agent(
+                    agent_id="research_analyst",
+                    mode="validate",
+                    input_data={
+                        "solution_design": solution_design,
+                        "use_cases": all_use_cases,
+                        "uc_digest": uc_digest
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                
+                emma_validate_tokens = 0
+                if validate_result.get("success"):
+                    coverage_report = validate_result["output"].get("content", {})
+                    coverage_pct = coverage_report.get("coverage_percentage", 0)
+                    emma_validate_tokens = validate_result["output"].get("metadata", {}).get("tokens_used", 0)
+                    
+                    self._save_deliverable(execution_id, "research_analyst", "coverage_report", validate_result["output"])
+                    results["artifacts"]["COVERAGE"] = validate_result["output"]
+                    
+                    logger.info(f"[Phase 3.4] ✅ Emma Validate - Coverage: {coverage_pct}%")
+                    
+                    # Coverage loop: if < 95%, ask Marcus to revise
+                    if coverage_pct < 95:
+                        gaps = coverage_report.get("gaps", [])
+                        uncovered_ucs = coverage_report.get("uncovered_use_cases", [])
+                        
+                        logger.info(f"[Phase 3.4] ⚠️ Coverage insufficient ({coverage_pct}%), requesting revision...")
+                        self._update_progress(execution, "architect", "running", 70, f"Revising design (coverage: {coverage_pct}%)...")
+                        
+                        # Marcus revision with gaps
+                        revision_result = await self._run_agent(
+                            agent_id="architect",
+                            mode="design",
+                            input_data={
+                                "project_summary": br_result["output"]["content"].get("project_summary", ""),
+                                "uc_digest": uc_digest,
+                                "use_cases": [],
+                                "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
+                                "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                                # Add coverage gaps for revision
+                                "coverage_gaps": gaps,
+                                "uncovered_use_cases": uncovered_ucs,
+                                "revision_request": f"Please revise the solution design to address {len(gaps)} coverage gaps affecting {len(uncovered_ucs)} use cases."
+                            },
+                            execution_id=execution_id,
+                            project_id=project_id
+                        )
+                        
+                        if revision_result.get("success"):
+                            results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
+                            architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
+                            self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
+                            logger.info(f"[Phase 3.4] ✅ Solution Design Revised")
+                        else:
+                            logger.warning(f"[Phase 3.4] ⚠️ Revision failed, keeping original design")
+                    
+                    results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_validate_tokens
+                    results["metrics"]["total_tokens"] += emma_validate_tokens
+                else:
+                    logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
+                
+                self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
+                
             else:
                 results["artifacts"]["ARCHITECTURE"] = {"artifact_id": "ARCH-001", "content": {}}
                 logger.warning(f"[Phase 3.3] ⚠️ Solution Design failed: {design_result.get('error', 'Unknown error')}")
             
-            # 3.4: WBS (Break down implementation tasks)
+            # 3.5: WBS (Break down implementation tasks)
             self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
             
             wbs_result = await self._run_agent(

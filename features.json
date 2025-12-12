@@ -2197,13 +2197,41 @@
       "category": "emma-workflow",
       "priority": "medium",
       "notes": "Test intégration 78 UCs: Emma analyse, Marcus design. Résultat: +1 objet, +2 flows détectés"
+    },
+    {
+      "id": "EMMA-P3-001",
+      "name": "Add Emma validate call after Marcus solution_design",
+      "status": "completed",
+      "description": "Dans l'orchestrateur, appeler Emma mode validate après que Marcus génère le solution_design",
+      "notes": "Emma validate appelé après solution_design avec mode=validate"
+    },
+    {
+      "id": "EMMA-P3-002",
+      "name": "Implement coverage loop logic",
+      "status": "completed",
+      "description": "Si couverture < 95%, Marcus reçoit gaps et revise. Max 2 iterations.",
+      "notes": "Boucle de couverture: si <95%, Marcus revise avec coverage_gaps"
+    },
+    {
+      "id": "EMMA-P3-003",
+      "name": "Save coverage report to agent_deliverables",
+      "status": "completed",
+      "description": "Persister le rapport de couverture Emma dans agent_deliverables",
+      "notes": "Coverage report sauvegardé via _save_deliverable"
+    },
+    {
+      "id": "EMMA-P3-004",
+      "name": "End-to-end test with coverage loop",
+      "status": "not_started",
+      "description": "Test complet: Emma analyze → Marcus design → Emma validate → (loop si gaps)",
+      "notes": ""
     }
   ],
   "stats": {
-    "completed": 91,
+    "completed": 94,
     "in_progress": 0,
-    "not_started": 29,
-    "total": 120
+    "not_started": 30,
+    "total": 124
   },
-  "last_updated": "2025-12-12T16:15:00Z"
+  "last_updated": "2025-12-12T16:30:00Z"
 }

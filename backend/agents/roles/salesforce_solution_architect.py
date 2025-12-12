@@ -49,11 +49,43 @@ except ImportError as e:
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC → Architecture)
 # ============================================================================
-def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None) -> str:
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None) -> str:
     """
     Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
     UC Digest provides pre-analyzed, structured information about ALL use cases.
+    
+    Revision mode: If coverage_gaps provided, this is a revision request to address gaps.
     """
+    
+    # REVISION MODE: Add coverage gaps context if this is a revision request
+    revision_context = ""
+    if revision_request and coverage_gaps:
+        revision_context = f"""
+## ⚠️ REVISION REQUEST
+
+{revision_request}
+
+### Coverage Gaps to Address
+The following gaps were identified by Emma (Research Analyst) and MUST be addressed in this revision:
+
+"""
+        for i, gap in enumerate(coverage_gaps[:10], 1):
+            if isinstance(gap, dict):
+                revision_context += f"{i}. **{gap.get('category', 'Gap')}**: {gap.get('description', str(gap))}\n"
+            else:
+                revision_context += f"{i}. {gap}\n"
+        
+        if uncovered_use_cases:
+            revision_context += f"\n### Uncovered Use Cases ({len(uncovered_use_cases)})\n"
+            for uc in uncovered_use_cases[:5]:
+                if isinstance(uc, dict):
+                    revision_context += f"- {uc.get('id', 'UC')}: {uc.get('title', str(uc))}\n"
+                else:
+                    revision_context += f"- {uc}\n"
+            if len(uncovered_use_cases) > 5:
+                revision_context += f"- ... and {len(uncovered_use_cases) - 5} more\n"
+        
+        revision_context += "\n**Instructions**: Update your solution design to ensure ALL above gaps are addressed.\n\n"
     
     # EMMA INTEGRATION: Use UC Digest if available (preferred)
     if uc_digest and uc_digest.get('by_requirement'):
@@ -136,7 +168,7 @@ def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = 
     
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
     
-    return f'''# 🏗️ SOLUTION DESIGN SPECIFICATION
+    return f'''{revision_context}# 🏗️ SOLUTION DESIGN SPECIFICATION
 
 You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
 
@@ -461,11 +493,25 @@ def main():
             project_summary = input_data.get('project_summary', '')
             # EMMA: Use UC Digest if available (from Emma's analyze mode)
             uc_digest = input_data.get('uc_digest', None)
-            if uc_digest:
+            
+            # REVISION MODE: Check for coverage gaps from Emma validate
+            coverage_gaps = input_data.get('coverage_gaps', None)
+            uncovered_use_cases = input_data.get('uncovered_use_cases', None)
+            revision_request = input_data.get('revision_request', None)
+            
+            if revision_request:
+                print(f"🔄 REVISION MODE: Addressing {len(coverage_gaps or [])} coverage gaps", file=sys.stderr)
+            elif uc_digest:
                 print(f"✅ Using UC Digest from Emma (structured analysis)", file=sys.stderr)
             else:
                 print(f"⚠️ No UC Digest, using raw UCs ({len(use_cases)} UCs)", file=sys.stderr)
-            prompt = get_design_prompt(use_cases, project_summary, rag_context, uc_digest)
+            
+            prompt = get_design_prompt(
+                use_cases, project_summary, rag_context, uc_digest,
+                coverage_gaps=coverage_gaps,
+                uncovered_use_cases=uncovered_use_cases,
+                revision_request=revision_request
+            )
             deliverable_type = "solution_design"
             artifact_prefix = "ARCH"
             

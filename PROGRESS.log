@@ -1782,3 +1782,44 @@ Commit: f96ed7e
    Fichiers comparaison:
    - /mnt/user-data/outputs/emma_marcus_comparison.json
    - /mnt/user-data/outputs/emma_marcus_comparison.md
+
+---
+
+### Session 2025-12-12 (Suite) - EMMA Phase 3: Coverage Loop
+
+10. P3-001: Emma validate dans l'orchestrateur ✅
+    - Phase 3.4 ajoutée après solution_design de Marcus
+    - Appel: research_analyst mode=validate
+    - Input: solution_design, all_use_cases, uc_digest
+    - Output: coverage_report avec coverage_percentage et gaps
+
+11. P3-002: Boucle de couverture implémentée ✅
+    - Seuil: 95% de couverture
+    - Si < 95%: Marcus reçoit les gaps et révise
+    - Nouveaux paramètres Marcus:
+      - coverage_gaps: liste des lacunes
+      - uncovered_use_cases: UCs non couverts
+      - revision_request: instruction de révision
+    - Max 1 itération de révision
+
+12. P3-003: Sauvegarde coverage report ✅
+    - Deliverable type: "coverage_report"
+    - Agent: "research_analyst"
+    - Inclut: coverage_percentage, gaps, covered_ucs
+
+Modifications fichiers:
+- pm_orchestrator_service_v2.py: +60 lignes Phase 3.4
+- salesforce_solution_architect.py: +30 lignes revision mode
+
+Workflow final SDS:
+1. Sophie PM → BRs
+2. Olivia BA → UCs  
+2.5. Emma analyze → UC Digest
+3a. Marcus as_is
+3b. Marcus gap_analysis  
+3c. Marcus solution_design
+3d. Emma validate → coverage check
+3e. IF coverage < 95%: Marcus revision
+3f. Marcus wbs
+4. SDS Experts
+5. Sophie PM → SDS Final
