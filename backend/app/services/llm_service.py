@@ -111,6 +111,9 @@ AGENT_TIER_MAP = {
     "architect": AgentTier.ANALYST,
     "solution_architect": AgentTier.ANALYST,
     "marcus": AgentTier.ANALYST,
+    "research": AgentTier.ANALYST,
+    "research_analyst": AgentTier.ANALYST,
+    "emma": AgentTier.ANALYST,
     
     # Worker tier
     "apex": AgentTier.WORKER,

@@ -1612,3 +1612,43 @@ Sophie → Olivia → Emma(analyze) → Marcus(as-is,gap,design)
 
 === Session 2025-12-12 [Après-midi] - Phase 1 Emma Workflow V2 ===
 Objectif: Implémenter Phase 1 des corrections critiques (spec EMMA_SDS_WORKFLOW_V2)
+=== Session 2025-12-12 [Après-midi] - Phase 1 Emma Workflow V2 ===
+Objectif: Implémenter Phase 1 des corrections critiques (spec EMMA_SDS_WORKFLOW_V2)
+
+Actions réalisées:
+
+1. EMMA-P1-001: Fix mapping priorités BRs ✅
+   - Fichier: backend/app/services/pm_orchestrator_service_v2.py
+   - priority_map étendu avec 16 variantes (must_have, should_have, nice_to_have, etc.)
+   - Normalisation: .lower().replace("-", "_").replace(" ", "_")
+   - TEST RÉEL: Données execution #116 (MUST_HAVE → must) ✅
+
+2. EMMA-P1-002: Fix SDS titre vs description ✅
+   - Analysé: document_generator.py ligne 491 utilise DÉJÀ br.get('description')
+   - BUG-003 de la spec N'EXISTE PAS dans le code actuel
+   - Marqué NON APPLICABLE
+
+3. EMMA-P1-003: Migration DB - Champs Project ✅
+   - Migration: 004_add_project_config_fields.py
+   - 13 colonnes ajoutées: client_name, client_contact_*, project_type, project_goal, sf_*, language, sds_template_id, wizard_*
+   - 3 index créés: idx_projects_client_name, idx_projects_project_type, idx_projects_project_goal
+   - Defaults testés: greenfield, sds_only, fr, default, 1 ✅
+
+4. EMMA-P1-004: Migration DB - Tables Env & Git ✅
+   - Migration: 005_add_environments_git_tables.py
+   - project_environments: 21 colonnes, FK projects, unique(project_id, alias)
+   - project_git_config: 17 colonnes, FK projects, unique(project_id)
+   - Insertions testées avec succès ✅
+
+5. EMMA-P1-005: Tests unitaires ✅
+   - Priority map: 12 cas testés
+   - DB tables: vérification colonnes, types, defaults
+   - Insertions réelles avec rollback
+
+Fonctionnalités traitées: EMMA-P1-001, EMMA-P1-002, EMMA-P1-003, EMMA-P1-004, EMMA-P1-005
+Commit: 82188be
+Statut: COMPLETED - Testé avec preuves détaillées ci-dessus
+
+📊 Stats features.json: 84 completed, 29 not_started
+
+Prochaine étape: Phase 2 - Agent Emma mode Analyze (P2-001 à P2-007)

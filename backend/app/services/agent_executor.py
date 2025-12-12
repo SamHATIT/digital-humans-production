@@ -89,6 +89,8 @@ AGENT_CONFIG = {
     "olivia": {"script": "salesforce_business_analyst.py", "display_name": "Olivia (Business Analyst)", "tier": "ba"},
     "sophie": {"script": "salesforce_pm.py", "display_name": "Sophie (PM)", "tier": "pm"},
     "lucas": {"script": "salesforce_trainer.py", "display_name": "Lucas (Trainer)", "tier": "worker"},
+    "emma": {"script": "salesforce_research_analyst.py", "display_name": "Emma (Research Analyst)", "tier": "research"},
+    "research_analyst": {"script": "salesforce_research_analyst.py", "display_name": "Emma (Research Analyst)", "tier": "research"},
     # Aliases for WBS compatibility
     "apex": {"script": "salesforce_developer_apex.py", "display_name": "Diego (Apex Developer)", "tier": "worker"},
     "lwc": {"script": "salesforce_developer_lwc.py", "display_name": "Zara (LWC Developer)", "tier": "worker"},
