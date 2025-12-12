@@ -113,7 +113,7 @@ export default function Projects() {
             <FolderOpen className="w-16 h-16 text-slate-600 mx-auto mb-4" />
             <p className="text-slate-400 mb-4">No projects found</p>
             <button
-              onClick={() => navigate('/projects/new')}
+              onClick={() => navigate('/wizard')}
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl"
             >
               Create Your First Project

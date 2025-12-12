@@ -129,7 +129,7 @@ export default function Dashboard() {
         {/* Quick Actions */}
         <div className="mb-10">
           <Link
-            to="/projects/new"
+            to="/wizard"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40"
           >
             <FolderPlus className="w-5 h-5" />
