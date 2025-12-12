@@ -10,6 +10,7 @@ import BuildMonitoringPage from './pages/BuildMonitoringPage';
 import AgentTesterPage from './pages/AgentTesterPage';
 import BRValidationPage from './pages/BRValidationPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
+import Pricing from './pages/Pricing';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/pricing" element={<Pricing />} />
 
         {/* Protected Routes */}
         <Route

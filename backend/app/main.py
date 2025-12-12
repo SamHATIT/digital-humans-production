@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, environments
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
 from app.database import Base, engine
@@ -69,6 +69,12 @@ app.include_router(quality_dashboard.router, prefix=settings.API_V1_PREFIX)
 
 # Phase 5: Project Configuration Wizard
 app.include_router(wizard.router, prefix=settings.API_V1_PREFIX)
+
+# Subscription routes (Section 9)
+app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscription", tags=["subscription"])
+
+# Environment routes (Section 6.2, 6.3, 6.4)
+app.include_router(environments.router, prefix=f"{settings.API_V1_PREFIX}", tags=["environments"])
 
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)

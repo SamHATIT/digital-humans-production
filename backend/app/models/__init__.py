@@ -128,3 +128,62 @@ __all__.extend([
     "get_manual_task_types",
     "infer_task_type",
 ])
+
+# Section 9: Subscription/Freemium Model
+from app.models.subscription import (
+    SubscriptionTier,
+    TIER_FEATURES,
+    get_tier_config,
+    get_tier_features,
+    has_feature,
+    get_limit,
+    get_required_tier,
+)
+
+# Section 6.2: Project Environments (SFDX)
+from app.models.project_environment import (
+    ProjectEnvironment,
+    EnvironmentType,
+    AuthMethod,
+    ConnectionStatus,
+)
+
+# Section 6.3: Project Git Config
+from app.models.project_git_config import (
+    ProjectGitConfig,
+    GitProvider,
+    BranchStrategy,
+    GitConnectionStatus,
+)
+
+# Section 6.4: SDS Templates
+from app.models.sds_template import (
+    SDSTemplate,
+    DEFAULT_SDS_TEMPLATE,
+    SYSTEM_TEMPLATES,
+)
+
+__all__.extend([
+    # Subscription
+    "SubscriptionTier",
+    "TIER_FEATURES",
+    "get_tier_config",
+    "get_tier_features",
+    "has_feature",
+    "get_limit",
+    "get_required_tier",
+    # Project Environments
+    "ProjectEnvironment",
+    "EnvironmentType",
+    "AuthMethod",
+    "ConnectionStatus",
+    # Project Git Config
+    "ProjectGitConfig",
+    "GitProvider",
+    "BranchStrategy",
+    "GitConnectionStatus",
+    # SDS Templates
+    "SDSTemplate",
+    "DEFAULT_SDS_TEMPLATE",
+    "SYSTEM_TEMPLATES",
+])

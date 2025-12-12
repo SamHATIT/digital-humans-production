@@ -151,3 +151,9 @@ class Project(Base):
     conversations = relationship("ProjectConversation", back_populates="project", cascade="all, delete-orphan")
     # Credentials relationship
     credentials = relationship("ProjectCredential", back_populates="project", cascade="all, delete-orphan")
+    
+    # Section 6.2: Multi-environment support
+    environments = relationship("ProjectEnvironment", back_populates="project", cascade="all, delete-orphan")
+    
+    # Section 6.3: Git configuration (one per project)
+    git_config = relationship("ProjectGitConfig", back_populates="project", uselist=False, cascade="all, delete-orphan")
