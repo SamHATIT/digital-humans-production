@@ -1416,3 +1416,199 @@ L'ordre correct est : SELECT → FROM → WHERE → WITH SECURITY_ENFORCED → G
 - Reprendre retry TASK-017 avec le fix Diego
 - Valider déploiement SFDX complet
 - Continuer les autres tâches BUILD (LWC, Data, etc.)
+
+=== Session 2025-12-12 [14:00] ===
+Objectif: Test exécution SDS #116 + Analyse des livrables
+Actions:
+  - Lancé exécution #116 (projet test "digital-humans")
+  - SDS généré avec succès : 20 BRs (Sophie), 78 UCs (Olivia), WBS complet (Marcus)
+  - Tous les agents SDS ont terminé : Elena, Jordan, Aisha, Lucas
+  - Créé Excel récapitulatif : /tmp/Execution_116_All_Agents.xlsx (10 onglets)
+  - Identifié 2 bugs dans le mapping des données BR
+
+🐛 BUGS IDENTIFIÉS (à corriger):
+  
+  BUG-PRIORITY-001: Mapping priorités incorrect dans _save_extracted_brs
+  - Fichier: backend/app/services/pm_orchestrator_service_v2.py
+  - Problème: Le dictionnaire priority_map cherche "must", "should" mais Sophie génère "must_have", "should_have", "nice_to_have"
+  - Impact: Toutes les priorités tombent en défaut SHOULD dans la base
+  - Fix: Ajouter les variantes au dictionnaire:
+    priority_map = {
+        "must": BRPriority.MUST,
+        "must_have": BRPriority.MUST,
+        "should": BRPriority.SHOULD,
+        "should_have": BRPriority.SHOULD,
+        "could": BRPriority.COULD,
+        "nice_to_have": BRPriority.COULD,
+        "wont": BRPriority.WONT,
+    }
+
+  BUG-SDS-002: SDS utilise "title" au lieu de "description" pour les BRs
+  - Fichier: backend/app/services/document_generator.py (ou template SDS)
+  - Problème: Le document Word SDS affiche le titre court au lieu de la description complète
+  - Impact: Perte d'information dans le SDS généré
+  - Fix: Utiliser br.get("description") ou br.get("requirement") dans le template
+
+Fonctionnalités traitées: Aucune (session de test + analyse)
+Problèmes rencontrés: Bugs ci-dessus
+Statut: PARTIAL - Test réussi mais bugs identifiés
+Prochaine étape: 
+  - Corriger BUG-PRIORITY-001 et BUG-SDS-002
+  - OU lancer phase BUILD pour tester le pipeline complet
+
+================================================================================
+
+🔴 BUG CRITIQUE IDENTIFIÉ - LIMITE 15 UCS POUR MARCUS
+
+  BUG-UC-LIMIT-003: Marcus ne reçoit que 15 UCs sur le total
+  - Fichier: backend/app/services/pm_orchestrator_service_v2.py
+  - Lignes: self._get_use_cases(execution_id, 15) dans gap, design, wbs
+  - Impact CRITIQUE:
+    * Execution #116: 15/78 UCs = 19% de couverture
+    * Projet concession auto: 15/200 UCs = 7.5% de couverture
+    * Architecture sous-dimensionnée de 3-5x
+    * WBS incomplet, effort sous-estimé
+    * Solution Design ne couvre pas tous les besoins
+
+  CONTRAINTES À CONSIDÉRER:
+    - Contexte LLM: 200K tokens max (Claude Sonnet)
+    - 1 UC complet = 500-1000 tokens
+    - 200 UCs × 1000 tokens = 200K tokens (sature le contexte)
+    - Coût API proportionnel aux tokens
+    - Qualité réponse diminue si trop d'info
+
+  SOLUTION PROPOSÉE - DIGEST COMPACT + HIÉRARCHIE:
+  
+    1. Créer _get_use_cases_digest() qui retourne TOUS les UCs en format compact:
+       {
+         "total_ucs": 200,
+         "by_requirement": {
+           "BR-001": {
+             "title": "...",
+             "uc_count": 4,
+             "sf_objects": ["Account", "Customer_Feedback__c"],
+             "sf_fields": ["Rating__c", "Comments__c", ...],
+             "automations": ["Trigger", "Flow"],
+             "actors": ["Sales Rep", "Manager"],
+             "uc_summaries": [
+               {"id": "UC-001-01", "title": "Create feedback", "actor": "Sales Rep"},
+               ...
+             ]
+           },
+           "BR-002": {...}
+         },
+         "global_summary": {
+           "all_objects": [...],
+           "all_automations": [...],
+           "complexity_score": "HIGH"
+         }
+       }
+    
+    2. Réduction tokens: 200 UCs × 50 tokens = 10K tokens (vs 200K)
+    
+    3. Marcus reçoit:
+       - Gap Analysis: BRs + UC Digest + As-Is
+       - Solution Design: UC Digest + Gaps
+       - WBS: Gaps + Architecture (hérite du digest)
+    
+    4. Avantages:
+       - 100% des UCs pris en compte
+       - Tokens réduits de 95%
+       - Structure claire par BR (traçabilité)
+       - Infos clés préservées (objects, fields, automations)
+
+  PRIORITÉ: CRITIQUE - À corriger AVANT tout déploiement client
+  EFFORT ESTIMÉ: 2-3 heures
+  
+================================================================================
+
+## Session 2025-12-12 (après-midi) - Spécification Emma & Workflow V2
+
+### Contexte
+Suite à l'analyse de l'exécution #116 qui a révélé que Marcus ne recevait que 15/78 UCs (19% de couverture), conception d'une solution complète pour garantir une architecture dimensionnée correctement.
+
+### Réalisations
+
+#### 1. Analyse approfondie des bugs
+- BUG-001: Limite 15 UCs pour Marcus (CRITIQUE)
+- BUG-002: Mapping priorités incorrect (must_have → SHOULD)
+- BUG-003: SDS utilise titre au lieu de description
+- BUG-004: WBS généré avant validation couverture
+- BUG-005: Pas de distinction types de tâches WBS
+- BUG-006: Champs configuration projet manquants
+
+#### 2. Conception Agent Emma (Research Analyst)
+Nouvel agent avec 3 modes distincts :
+- **analyze** : Synthétise TOUS les UCs en UC Digest compact
+- **validate** : Vérifie couverture 100% UC vs Solution Design
+- **write_sds** : Rédige document SDS professionnel depuis template
+
+#### 3. Workflow SDS V2 corrigé
+```
+Sophie → Olivia → Emma(analyze) → Marcus(as-is,gap,design)
+                                         ↓
+                                  Emma(validate)
+                                         ↓
+                             Coverage < 100% ? → Marcus corrige
+                                         ↓
+                                  Coverage = 100%
+                                         ↓
+                                  Marcus(wbs)
+                                         ↓
+                                  Emma(write_sds)
+                                         ↓
+                            Elena, Jordan, Aisha, Lucas
+```
+
+#### 4. Wizard Configuration Projet
+6 étapes avec validation :
+1. Infos de base (nom, client, description)
+2. Type projet (greenfield / existing)
+3. Objectif (sds_only / sds_and_build)
+4. Connexion Salesforce (si requis)
+5. Repository Git (si BUILD)
+6. Récapitulatif + Business Requirements
+
+#### 5. Modèle Freemium
+- **Gratuit** : SDS uniquement (Sophie → Olivia → Emma → Marcus → SDS)
+- **Premium** : SDS + BUILD automatique
+
+#### 6. Document de spécification créé
+- Fichier : `/docs/SPEC_EMMA_SDS_WORKFLOW_V2.md`
+- Taille : 144 KB, 3224 lignes
+- Contenu : Spécification exhaustive incluant :
+  - Prompts complets pour Emma (3 modes)
+  - Structures JSON UC Digest et Coverage Report
+  - Algorithmes de validation
+  - Migrations SQL pour nouveaux champs
+  - Modèles Python complets
+  - Service encryption pour credentials
+  - Plan d'implémentation 7 phases / 7 semaines
+
+### Décisions Prises
+1. Credentials : Table cryptée en DB (Fernet) - budget MVP
+2. Wizard : Multi-étapes avec validation progressive
+3. Connexion SF : Optionnelle si SDS only / greenfield
+4. Couverture : 100% obligatoire, pas de seuil acceptable
+5. Boucle validation : Jusqu'à 100%, pas d'escalade manuelle
+
+### Fichiers Créés/Modifiés
+- CRÉÉ : /docs/SPEC_EMMA_SDS_WORKFLOW_V2.md (spec complète)
+- CRÉÉ : /docs/project_prerequisites_inventory.md (inventaire éléments manquants)
+
+### Prochaine Session
+- Relecture spec par Sam pour questions éventuelles
+- Nouvelle conversation avec contexte frais
+- Début implémentation Phase 1 : Corrections critiques (BUG-002, BUG-003)
+
+### Notes Importantes pour Prochaine Session
+1. LIRE EN PREMIER : /docs/SPEC_EMMA_SDS_WORKFLOW_V2.md
+2. La spec contient TOUT le contexte nécessaire
+3. Commencer par Phase 1 (corrections simples) pour valider l'approche
+4. Ne PAS toucher au workflow tant que corrections de base non validées
+
+
+================================================================================
+
+=== Session 2025-12-12 [Après-midi] - Phase 1 Emma Workflow V2 ===
+Objectif: Implémenter Phase 1 des corrections critiques (spec EMMA_SDS_WORKFLOW_V2)

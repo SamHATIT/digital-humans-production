@@ -1244,14 +1244,29 @@ See WBS-001 artifact for details.
             if existing:
                 continue  # Skip if already exists
             
-            # Map priority
+            # Map priority - EMMA-P1-001: Support all priority formats from Sophie
             priority_map = {
+                # Format court (MoSCoW standard)
                 "must": BRPriority.MUST,
                 "should": BRPriority.SHOULD,
                 "could": BRPriority.COULD,
                 "wont": BRPriority.WONT,
+                # Format long (généré par Sophie)
+                "must_have": BRPriority.MUST,
+                "should_have": BRPriority.SHOULD,
+                "could_have": BRPriority.COULD,
+                "nice_to_have": BRPriority.COULD,
+                "wont_have": BRPriority.WONT,
+                "won't_have": BRPriority.WONT,
+                # Autres variantes possibles
+                "critical": BRPriority.MUST,
+                "high": BRPriority.MUST,
+                "medium": BRPriority.SHOULD,
+                "low": BRPriority.COULD,
+                "optional": BRPriority.COULD,
             }
-            priority_str = br.get("priority", "should").lower()
+            # Normalize priority string (handle spaces, hyphens, underscores)
+            priority_str = br.get("priority", "should").lower().replace("-", "_").replace(" ", "_")
             priority = priority_map.get(priority_str, BRPriority.SHOULD)
             
             # PRPT-01: Extract metadata for detailed BRs
