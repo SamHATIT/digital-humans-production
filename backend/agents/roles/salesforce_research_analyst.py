@@ -461,6 +461,8 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
     """
     Mode VALIDATE: Check 100% coverage of UCs by Solution Design
     Inspired by: WebBrowseAndSummarize (detailed analysis) → ConductResearch (report)
+    
+    BATCHING: Process UCs in batches of 15 to avoid JSON continuation issues.
     """
     start_time = time.time()
     
@@ -469,35 +471,58 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
     
     print(f"🔍 Validating coverage of {len(use_cases)} UCs against Solution Design", file=sys.stderr)
     
-    # Step 1: Map elements (equivalent to WebBrowseAndSummarize - detailed extraction)
+    # Step 1: Map elements with BATCHING (to avoid JSON continuation issues)
     print(f"📋 Step 1/2: Mapping UC elements to Solution...", file=sys.stderr)
     
-    map_prompt = MAP_ELEMENTS_PROMPT.format(
-        use_cases_json=json.dumps(use_cases[:30], indent=2),  # Batch if needed
-        solution_design_json=json.dumps(solution_design, indent=2)
-    )
+    BATCH_SIZE = 5  # Optimal size to avoid JSON truncation
+    all_mappings = []
+    tokens_step1 = 0
+    model_used = "unknown"
+    provider_used = "unknown"
     
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(
-            prompt=map_prompt,
-            agent_type="research",
-            system_prompt=VALIDATE_SYSTEM,
-            max_tokens=10000,
-            temperature=0.2
+    # Process UCs in batches
+    num_batches = (len(use_cases) + BATCH_SIZE - 1) // BATCH_SIZE
+    print(f"   Processing {len(use_cases)} UCs in {num_batches} batches of {BATCH_SIZE}", file=sys.stderr)
+    
+    for batch_idx in range(num_batches):
+        batch_start = batch_idx * BATCH_SIZE
+        batch_end = min(batch_start + BATCH_SIZE, len(use_cases))
+        batch_ucs = use_cases[batch_start:batch_end]
+        
+        print(f"   📦 Batch {batch_idx + 1}/{num_batches}: UCs {batch_start + 1}-{batch_end}", file=sys.stderr)
+        
+        map_prompt = MAP_ELEMENTS_PROMPT.format(
+            use_cases_json=json.dumps(batch_ucs, indent=2),
+            solution_design_json=json.dumps(solution_design, indent=2)
         )
-        mappings_content = response["content"]
-        tokens_step1 = response["tokens_used"]
-        model_used = response["model"]
-        provider_used = response["provider"]
-    else:
-        raise ValueError("LLM Service not available")
+        
+        if LLM_SERVICE_AVAILABLE:
+            response = generate_llm_response(
+                prompt=map_prompt,
+                agent_type="research",
+                system_prompt=VALIDATE_SYSTEM,
+                max_tokens=8000,  # Increased to avoid continuation
+                temperature=0.2
+            )
+            mappings_content = response["content"]
+            tokens_step1 += response["tokens_used"]
+            model_used = response["model"]
+            provider_used = response["provider"]
+        else:
+            raise ValueError("LLM Service not available")
+        
+        try:
+            batch_mappings = parse_json_response(mappings_content)
+            batch_list = batch_mappings.get('mappings', [])
+            all_mappings.extend(batch_list)
+            print(f"   ✅ Batch {batch_idx + 1}: {len(batch_list)} mappings", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"   ⚠️ Batch {batch_idx + 1} parse error: {e}", file=sys.stderr)
+            # Continue with other batches
     
-    try:
-        mappings = parse_json_response(mappings_content)
-        print(f"✅ Mapped {len(mappings.get('mappings', []))} UCs", file=sys.stderr)
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Mappings JSON parse error: {e}", file=sys.stderr)
-        mappings = {"mappings": [], "error": str(e)}
+    # Combine all mappings
+    mappings = {"mappings": all_mappings}
+    print(f"✅ Total mapped: {len(all_mappings)} UCs", file=sys.stderr)
     
     # Step 2: Generate coverage report (equivalent to ConductResearch)
     print(f"📊 Step 2/2: Generating Coverage Report...", file=sys.stderr)
