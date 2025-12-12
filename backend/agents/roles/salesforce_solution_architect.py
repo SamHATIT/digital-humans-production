@@ -2,10 +2,15 @@
 """
 Salesforce Solution Architect (Marcus) Agent - Refactored Version
 4 distinct modes:
-1. design: UC → Architecture globale (ARCH-001)
+1. design: UC/UC Digest → Architecture globale (ARCH-001)
 2. as_is: SFDX metadata → Résumé structuré (ASIS-001)  
-3. gap: ARCH + ASIS → Deltas (GAP-001)
+3. gap: ARCH + ASIS + UC context → Deltas (GAP-001)
 4. wbs: GAP → Tâches + Planning (WBS-001)
+
+EMMA INTEGRATION (v2.5):
+- design mode: Accepts uc_digest from Emma for richer context
+- gap mode: Uses UC context from digest or raw UCs
+- Fallback: If no uc_digest, uses raw UCs (old behavior)
 """
 
 import os
@@ -44,15 +49,79 @@ except ImportError as e:
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC → Architecture)
 # ============================================================================
-def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "") -> str:
-    uc_text = ""
-    for uc in use_cases[:15]:  # Limit to avoid token overflow
-        uc_text += f"\n**{uc.get('id', 'UC-XXX')}: {uc.get('title', 'Untitled')}**\n"
-        uc_text += f"- Actor: {uc.get('actor', 'User')}\n"
-        sf = uc.get('salesforce_components', {})
-        if sf:
-            uc_text += f"- Objects: {', '.join(sf.get('objects', []))}\n"
-            uc_text += f"- Automation: {', '.join(sf.get('automation', []))}\n"
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None) -> str:
+    """
+    Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
+    UC Digest provides pre-analyzed, structured information about ALL use cases.
+    """
+    
+    # EMMA INTEGRATION: Use UC Digest if available (preferred)
+    if uc_digest and uc_digest.get('by_requirement'):
+        uc_text = "\n## ANALYZED USE CASE DIGEST (from Emma)\n"
+        uc_text += "This digest contains pre-analyzed information from ALL Use Cases, grouped by Business Requirement.\n"
+        
+        for br_id, br_data in uc_digest.get('by_requirement', {}).items():
+            uc_text += f"\n### {br_id}: {br_data.get('title', 'Untitled')}\n"
+            uc_text += f"- **UC Count**: {br_data.get('uc_count', 0)}\n"
+            
+            # SF Objects
+            sf_objects = br_data.get('sf_objects', [])
+            if sf_objects:
+                uc_text += f"- **Salesforce Objects**: {', '.join(sf_objects)}\n"
+            
+            # SF Fields by Object
+            sf_fields = br_data.get('sf_fields', {})
+            if sf_fields:
+                uc_text += "- **Fields by Object**:\n"
+                for obj, fields in sf_fields.items():
+                    uc_text += f"  - {obj}: {', '.join(fields[:10])}{'...' if len(fields) > 10 else ''}\n"
+            
+            # Automations
+            automations = br_data.get('automations', [])
+            if automations:
+                uc_text += "- **Automations**:\n"
+                for auto in automations[:5]:
+                    uc_text += f"  - {auto.get('type', 'Unknown')}: {auto.get('purpose', '')}\n"
+            
+            # UI Components
+            ui_components = br_data.get('ui_components', [])
+            if ui_components:
+                uc_text += f"- **UI Components**: {', '.join(ui_components[:5])}\n"
+            
+            # Key Acceptance Criteria
+            criteria = br_data.get('key_acceptance_criteria', [])
+            if criteria:
+                uc_text += "- **Key Acceptance Criteria**:\n"
+                for c in criteria[:3]:
+                    uc_text += f"  - {c}\n"
+        
+        # Cross-cutting concerns
+        cross_cutting = uc_digest.get('cross_cutting_concerns', {})
+        if cross_cutting:
+            uc_text += "\n### Cross-Cutting Concerns\n"
+            shared = cross_cutting.get('shared_objects', [])
+            if shared:
+                uc_text += f"- **Shared Objects**: {', '.join(shared)}\n"
+            integrations = cross_cutting.get('integration_points', [])
+            if integrations:
+                uc_text += f"- **Integration Points**: {', '.join(integrations)}\n"
+        
+        # Recommendations from Emma
+        recommendations = uc_digest.get('recommendations', [])
+        if recommendations:
+            uc_text += "\n### Emma's Recommendations for Architecture\n"
+            for rec in recommendations[:5]:
+                uc_text += f"- {rec}\n"
+    else:
+        # FALLBACK: Use raw Use Cases (old behavior, limited to 15)
+        uc_text = ""
+        for uc in use_cases[:15]:  # Limit to avoid token overflow
+            uc_text += f"\n**{uc.get('id', 'UC-XXX')}: {uc.get('title', 'Untitled')}**\n"
+            uc_text += f"- Actor: {uc.get('actor', 'User')}\n"
+            sf = uc.get('salesforce_components', {})
+            if sf:
+                uc_text += f"- Objects: {', '.join(sf.get('objects', []))}\n"
+                uc_text += f"- Automation: {', '.join(sf.get('automation', []))}\n"
     
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
     
@@ -169,14 +238,26 @@ Generate an As-Is analysis with:
 # ============================================================================
 # PROMPT 3: GAP ANALYSIS (ARCH + ASIS → Deltas)
 # ============================================================================
-def get_gap_prompt(arch_summary: str, asis_summary: str) -> str:
+def get_gap_prompt(arch_summary: str, asis_summary: str, uc_context: str = "") -> str:
+    """
+    Generate gap analysis prompt with optional UC context from Emma's digest.
+    """
+    uc_section = ""
+    if uc_context:
+        uc_section = f"""
+## USE CASE CONTEXT (from Emma's Analysis)
+{uc_context}
+
+"""
+    
     return f'''# 🔍 GAP ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
 ## YOUR MISSION
 Compare the Target Architecture with the Current State to identify gaps.
-
+Ensure ALL Use Case requirements are addressed in the gap analysis.
+{uc_section}
 ## TARGET ARCHITECTURE (ARCH-001)
 {arch_summary}
 
@@ -367,7 +448,13 @@ def main():
         if args.mode == 'design':
             use_cases = input_data.get('use_cases', [])
             project_summary = input_data.get('project_summary', '')
-            prompt = get_design_prompt(use_cases, project_summary, rag_context)
+            # EMMA: Use UC Digest if available (from Emma's analyze mode)
+            uc_digest = input_data.get('uc_digest', None)
+            if uc_digest:
+                print(f"✅ Using UC Digest from Emma (structured analysis)", file=sys.stderr)
+            else:
+                print(f"⚠️ No UC Digest, using raw UCs ({len(use_cases)} UCs)", file=sys.stderr)
+            prompt = get_design_prompt(use_cases, project_summary, rag_context, uc_digest)
             deliverable_type = "solution_design"
             artifact_prefix = "ARCH"
             
@@ -380,7 +467,30 @@ def main():
         elif args.mode == 'gap':
             arch_summary = json.dumps(input_data.get('architecture', {}), indent=2)
             asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
-            prompt = get_gap_prompt(arch_summary, asis_summary)
+            # EMMA: Build UC context from digest or raw UCs
+            uc_context = ""
+            uc_digest = input_data.get('uc_digest', None)
+            if uc_digest and uc_digest.get('by_requirement'):
+                print(f"✅ Using UC Digest for gap context", file=sys.stderr)
+                # Build concise UC context from digest
+                uc_lines = []
+                for br_id, br_data in uc_digest.get('by_requirement', {}).items():
+                    objects = br_data.get('sf_objects', [])
+                    automations = [a.get('type', '') for a in br_data.get('automations', [])]
+                    uc_lines.append(f"- {br_id}: Objects={', '.join(objects[:5])}, Automations={', '.join(automations[:3])}")
+                uc_context = "\n".join(uc_lines)
+            else:
+                # Fallback: Use raw UCs
+                use_cases = input_data.get('use_cases', [])
+                if use_cases:
+                    print(f"⚠️ Using raw UCs for gap context ({len(use_cases)} UCs)", file=sys.stderr)
+                    uc_lines = []
+                    for uc in use_cases[:10]:
+                        sf = uc.get('salesforce_components', {})
+                        objects = sf.get('objects', [])
+                        uc_lines.append(f"- {uc.get('id', 'UC')}: {uc.get('title', '')[:50]} (Objects: {', '.join(objects[:3])})")
+                    uc_context = "\n".join(uc_lines)
+            prompt = get_gap_prompt(arch_summary, asis_summary, uc_context)
             deliverable_type = "gap_analysis"
             artifact_prefix = "GAP"
             

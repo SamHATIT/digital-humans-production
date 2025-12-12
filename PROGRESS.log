@@ -1726,3 +1726,26 @@ Commit: f96ed7e
    Syntaxe: ✅ OK
    Import: ✅ OK
    Backend: Rechargé automatiquement (--reload)
+
+8. P2-006: Marcus modifié pour consommer UC Digest ✅
+   Fichier: backend/agents/roles/salesforce_solution_architect.py
+   
+   Modifications:
+   - get_design_prompt(): nouveau param uc_digest (dict)
+     * Si uc_digest disponible → utilise by_requirement, sf_objects, sf_fields, automations, recommendations
+     * Sinon fallback → use_cases[:15] (ancien comportement)
+   
+   - get_gap_prompt(): nouveau param uc_context (str)
+     * Section "USE CASE CONTEXT" ajoutée au prompt
+     * Contexte construit depuis uc_digest ou raw UCs
+   
+   - main():
+     * Mode 'design': lit uc_digest depuis input_data, passe à get_design_prompt
+     * Mode 'gap': construit uc_context depuis digest, passe à get_gap_prompt
+   
+   Tests:
+   - get_design_prompt avec uc_digest: ✅ affiche structure complète
+   - get_design_prompt sans uc_digest: ✅ fallback raw UCs
+   - get_gap_prompt avec uc_context: ✅ section UC Context présente
+   
+   Syntaxe: ✅ OK

@@ -2185,9 +2185,10 @@
     {
       "id": "EMMA-P2-006",
       "name": "Modify Marcus to receive UC Digest",
-      "status": "not_started",
+      "status": "completed",
       "category": "emma-workflow",
-      "priority": "high"
+      "priority": "high",
+      "notes": "Marcus modifié pour consommer uc_digest: design et gap modes mis à jour"
     },
     {
       "id": "EMMA-P2-007",
@@ -2198,10 +2199,10 @@
     }
   ],
   "stats": {
-    "completed": 89,
+    "completed": 90,
     "in_progress": 0,
-    "not_started": 31,
+    "not_started": 30,
     "total": 120
   },
-  "last_updated": "2025-12-12T15:55:00Z"
+  "last_updated": "2025-12-12T16:10:00Z"
 }
