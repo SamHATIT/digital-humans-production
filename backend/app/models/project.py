@@ -66,14 +66,14 @@ class Project(Base):
     # ========================================
     # STEP 2: Project Type
     # ========================================
-    project_type = Column(Enum(ProjectType), default=ProjectType.GREENFIELD)
+    project_type = Column(String(20), default="greenfield")
     salesforce_product = Column(String(100))  # Service Cloud, Sales Cloud, etc.
     organization_type = Column(String(100))   # Legacy - kept for compatibility
 
     # ========================================
     # STEP 3: Target Objective
     # ========================================
-    target_objective = Column(Enum(TargetObjective), default=TargetObjective.SDS_ONLY)
+    target_objective = Column(String(20), default="sds_only")
     is_premium = Column(Boolean, default=False)  # Premium account for BUILD
 
     # ========================================
