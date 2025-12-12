@@ -375,6 +375,7 @@ Each task MUST have validation criteria and clear agent assignment.
           "id": "TASK-001",
           "name": "Task name (action verb + object)",
           "description": "Brief description (1-2 sentences max)",
+          "task_type": "dev_data_model",
           "gap_refs": ["GAP-001-01"],
           "assigned_agent": "Raj",
           "effort_days": 2,
@@ -409,6 +410,34 @@ Each task MUST have validation criteria and clear agent assignment.
 | Lucas | Trainer | Training docs, user guides, training sessions |
 | Marcus | Architect | Architecture reviews, design oversight |
 
+## TASK TYPES (REQUIRED - use exact values)
+
+| Type | Agent | Description |
+|------|-------|-------------|
+| setup_environment | MANUAL | Sandbox/SFDX setup |
+| setup_repository | MANUAL | Git repo setup |
+| setup_permissions | Raj | Initial profiles/permissions |
+| dev_data_model | Raj | Objects, fields, relationships |
+| dev_apex | Diego | Apex classes, triggers |
+| dev_lwc | Zara | Lightning Web Components |
+| dev_flow | Raj | Flows, automation |
+| dev_validation | Raj | Validation rules |
+| dev_formula | Raj | Formula fields |
+| config_profiles | Raj | Profile configuration |
+| config_sharing | Raj | Sharing rules, OWD |
+| config_layouts | Raj | Page layouts |
+| config_apps | Raj | Lightning apps |
+| config_reports | Raj | Reports/dashboards |
+| test_unit | Elena | Apex unit tests |
+| test_integration | Elena | Integration tests |
+| test_uat | MANUAL | User acceptance tests |
+| deploy_prepare | Jordan | Package preparation |
+| deploy_execute | Jordan | Deployment |
+| deploy_validate | Jordan | Post-deploy validation |
+| doc_technical | Lucas | Technical docs |
+| doc_user | Lucas | User documentation |
+| doc_training | Lucas | Training materials |
+
 ## TASK ASSIGNMENT RULES (STRICT)
 
 - **Config (no code)** → Raj: objects, fields, page layouts, flows, validation rules, profiles, permission sets
@@ -438,7 +467,8 @@ Each task MUST have 1-3 validation_criteria using this format:
 
 ## GENERAL RULES
 
-1. **30-60 tasks** total - fewer means too coarse, more means micromanagement
+1. **Every task has task_type** - MUST be one from the TASK TYPES table above
+2. **30-60 tasks** total - fewer means too coarse, more means micromanagement
 2. **Max 10 tasks per phase** - split large phases
 3. **Every task has validation_criteria** - NO exceptions
 4. **Respect dependencies** - no circular refs

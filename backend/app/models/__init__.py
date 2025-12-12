@@ -103,3 +103,28 @@ __all__ = [
     "ActorType",
     "ActionCategory",
 ]
+
+# Phase 6: WBS Task Types
+from app.models.wbs_task_type import (
+    WBSTaskType,
+    WBSTaskExecutor,
+    TASK_TYPE_CONFIG,
+    get_task_config,
+    is_automatable,
+    get_executor,
+    get_automatable_task_types,
+    get_manual_task_types,
+    infer_task_type,
+)
+
+__all__.extend([
+    "WBSTaskType",
+    "WBSTaskExecutor",
+    "TASK_TYPE_CONFIG",
+    "get_task_config",
+    "is_automatable",
+    "get_executor",
+    "get_automatable_task_types",
+    "get_manual_task_types",
+    "infer_task_type",
+])

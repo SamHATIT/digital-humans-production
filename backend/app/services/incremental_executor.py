@@ -165,6 +165,21 @@ class IncrementalExecutor:
                 effort_days = task.get("effort_days")
                 test_approach = task.get("test_approach", "")
                 
+                # Phase 6: Extract or infer task_type
+                task_type_str = task.get("task_type")
+                if task_type_str:
+                    try:
+                        task_type = WBSTaskType(task_type_str)
+                    except ValueError:
+                        task_type = infer_task_type(task_name, description)
+                        logger.warning(f"Invalid task_type '{task_type_str}' for {task_id}, inferred: {task_type.value}")
+                else:
+                    task_type = infer_task_type(task_name, description)
+                    logger.debug(f"Inferred task_type for {task_id}: {task_type.value}")
+                
+                # Determine if task is automatable
+                can_automate = is_automatable(task_type)
+                
                 # Create new task execution with full context
                 task_exec = TaskExecution(
                     execution_id=self.execution_id,
@@ -181,6 +196,9 @@ class IncrementalExecutor:
                     gap_refs=gap_refs if gap_refs else None,
                     effort_days=effort_days,
                     test_approach=test_approach if test_approach else None,
+                    # Phase 6: Task type classification
+                    task_type=task_type.value,
+                    is_automatable=can_automate,
                 )
                 
                 self.db.add(task_exec)
@@ -198,10 +216,14 @@ class IncrementalExecutor:
             return self.execution.agent_execution_status.get("build_paused", False) if isinstance(self.execution.agent_execution_status, dict) else False
         return False
     
-    def get_next_task(self) -> Optional[TaskExecution]:
+    def get_next_task(self, include_manual: bool = False) -> Optional[TaskExecution]:
         """
         Get the next task that can be executed.
         Returns None if no tasks are available (all done, blocked, or paused).
+        
+        Args:
+            include_manual: If False (default), only return automatable tasks.
+                           If True, return any task regardless of is_automatable.
         """
         # Check if paused
         if self.is_paused():
@@ -215,10 +237,16 @@ class IncrementalExecutor:
         ).all()]
         
         # Find first pending task with satisfied dependencies
-        pending_tasks = self.db.query(TaskExecution).filter(
+        query = self.db.query(TaskExecution).filter(
             TaskExecution.execution_id == self.execution_id,
             TaskExecution.status == TaskStatus.PENDING
-        ).order_by(TaskExecution.id).all()
+        )
+        
+        # Phase 6: Filter by is_automatable unless include_manual=True
+        if not include_manual:
+            query = query.filter(TaskExecution.is_automatable == True)
+        
+        pending_tasks = query.order_by(TaskExecution.id).all()
         
         for task in pending_tasks:
             if task.can_start(completed_tasks):
@@ -234,6 +262,31 @@ class IncrementalExecutor:
             logger.warning(f"[IncrementalExecutor] {blocked_count} tasks blocked by dependencies")
         
         return None
+    
+    def get_manual_tasks(self) -> List[TaskExecution]:
+        """
+        Get all tasks that require manual execution.
+        These tasks have is_automatable=False.
+        
+        Returns:
+            List of TaskExecution records that are manual
+        """
+        return self.db.query(TaskExecution).filter(
+            TaskExecution.execution_id == self.execution_id,
+            TaskExecution.is_automatable == False
+        ).order_by(TaskExecution.id).all()
+    
+    def get_automatable_tasks(self) -> List[TaskExecution]:
+        """
+        Get all tasks that can be automated.
+        
+        Returns:
+            List of TaskExecution records that are automatable
+        """
+        return self.db.query(TaskExecution).filter(
+            TaskExecution.execution_id == self.execution_id,
+            TaskExecution.is_automatable == True
+        ).order_by(TaskExecution.id).all()
     
     def get_task_summary(self) -> Dict[str, Any]:
         """Get summary of all tasks and their statuses"""

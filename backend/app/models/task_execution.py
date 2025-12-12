@@ -2,7 +2,7 @@
 TaskExecution Model - ORCH-03a
 Tracks the execution state of each WBS task during incremental build phase
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
@@ -45,6 +45,10 @@ class TaskExecution(Base):
     gap_refs = Column(JSON)                       # ["GAP-001-01", "GAP-001-02", ...]
     effort_days = Column(Integer)                 # Estimated effort in days
     test_approach = Column(String(100))           # "Unit test", "Manual test", etc.
+    
+    # Phase 6: Task type classification
+    task_type = Column(String(50))                # WBS task type (dev_apex, config_profiles, etc.)
+    is_automatable = Column(Boolean, default=True)  # Whether task can be automated
     
     # Assignment
     assigned_agent = Column(String(50))  # diego, zara, raj, etc.
