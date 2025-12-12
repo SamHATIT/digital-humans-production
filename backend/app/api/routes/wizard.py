@@ -13,7 +13,7 @@ from app.models.project import Project, ProjectStatus, ProjectType, TargetObject
 from app.models.project_credential import ProjectCredential, CredentialType
 from app.models.user import User
 from app.api.routes.auth import get_current_user
-from app.utils.encryption import encrypt_value
+# EnvironmentService handles encryption internally
 
 router = APIRouter(prefix="/wizard", tags=["Wizard"])
 
@@ -437,32 +437,14 @@ def _store_credential(
     value: str,
     label: str = None
 ):
-    """Store an encrypted credential."""
-    # Delete existing credential of same type
-    db.query(ProjectCredential).filter(
-        ProjectCredential.project_id == project_id,
-        ProjectCredential.credential_type == cred_type
-    ).delete()
-    
-    # Create new credential
-    credential = ProjectCredential(
-        project_id=project_id,
-        credential_type=cred_type,
-        encrypted_value=encrypt_value(value),
-        label=label
-    )
-    db.add(credential)
+    """Store an encrypted credential using EnvironmentService."""
+    from app.services.environment_service import get_environment_service
+    env_service = get_environment_service(db)
+    env_service.store_credential(project_id, cred_type, value, label)
 
 
 def _get_credential(db: Session, project_id: int, cred_type: CredentialType) -> Optional[str]:
-    """Get and decrypt a credential."""
-    from app.utils.encryption import decrypt_value
-    
-    credential = db.query(ProjectCredential).filter(
-        ProjectCredential.project_id == project_id,
-        ProjectCredential.credential_type == cred_type
-    ).first()
-    
-    if credential:
-        return decrypt_value(credential.encrypted_value)
-    return None
+    """Get and decrypt a credential using EnvironmentService."""
+    from app.services.environment_service import get_environment_service
+    env_service = get_environment_service(db)
+    return env_service.get_credential(project_id, cred_type)

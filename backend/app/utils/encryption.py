@@ -1,101 +1,155 @@
 """
-Encryption utility for storing sensitive credentials.
-Uses Fernet symmetric encryption with key derived from SECRET_KEY.
+Credential Encryption Service
+Uses Fernet (AES-128-CBC) for symmetric encryption.
+Based on SPEC Section 7.1
 """
+from cryptography.fernet import Fernet, InvalidToken
+from functools import lru_cache
 import os
 import base64
 import hashlib
 from typing import Optional
-from cryptography.fernet import Fernet, InvalidToken
 
 
-class EncryptionService:
-    """Service for encrypting and decrypting sensitive data."""
+class CredentialEncryption:
+    """
+    Gestionnaire de chiffrement pour les credentials sensibles.
+    Utilise Fernet (AES-128-CBC) pour le chiffrement symétrique.
+    """
     
-    _instance = None
-    _fernet: Optional[Fernet] = None
+    def __init__(self):
+        self._fernet = None
     
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
-    
-    def _initialize(self):
-        """Initialize Fernet with key derived from SECRET_KEY."""
-        secret_key = os.getenv("SECRET_KEY", "default-dev-key-change-in-production")
+    @property
+    def fernet(self) -> Fernet:
+        if self._fernet is None:
+            # Try CREDENTIALS_ENCRYPTION_KEY first (recommended)
+            key = os.getenv("CREDENTIALS_ENCRYPTION_KEY")
+            
+            if key:
+                # Use provided Fernet key directly
+                try:
+                    self._fernet = Fernet(key.encode())
+                except Exception:
+                    # If not a valid Fernet key, derive one
+                    key_bytes = hashlib.sha256(key.encode()).digest()
+                    fernet_key = base64.urlsafe_b64encode(key_bytes)
+                    self._fernet = Fernet(fernet_key)
+            else:
+                # Fallback to SECRET_KEY (for backwards compatibility)
+                secret_key = os.getenv("SECRET_KEY")
+                if not secret_key:
+                    raise ValueError(
+                        "CREDENTIALS_ENCRYPTION_KEY or SECRET_KEY environment variable not set. "
+                        "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
+                    )
+                # Derive a 32-byte key from SECRET_KEY using SHA256
+                key_bytes = hashlib.sha256(secret_key.encode()).digest()
+                fernet_key = base64.urlsafe_b64encode(key_bytes)
+                self._fernet = Fernet(fernet_key)
         
-        # Derive a 32-byte key from SECRET_KEY using SHA256
-        key_bytes = hashlib.sha256(secret_key.encode()).digest()
-        fernet_key = base64.urlsafe_b64encode(key_bytes)
-        
-        self._fernet = Fernet(fernet_key)
+        return self._fernet
     
-    def encrypt(self, plaintext: str) -> str:
+    def encrypt(self, plaintext: str) -> Optional[str]:
         """
-        Encrypt a plaintext string.
+        Encrypt a string and return base64-encoded ciphertext.
         
         Args:
             plaintext: The string to encrypt
             
         Returns:
-            Base64-encoded encrypted string
+            Base64-encoded encrypted string, or None if plaintext is empty
         """
         if not plaintext:
-            return ""
+            return None
         
-        encrypted_bytes = self._fernet.encrypt(plaintext.encode('utf-8'))
-        return encrypted_bytes.decode('utf-8')
+        encrypted = self.fernet.encrypt(plaintext.encode())
+        return base64.urlsafe_b64encode(encrypted).decode()
     
     def decrypt(self, ciphertext: str) -> Optional[str]:
         """
-        Decrypt a ciphertext string.
+        Decrypt a base64-encoded ciphertext.
         
         Args:
             ciphertext: The encrypted string to decrypt
             
         Returns:
-            Decrypted plaintext, or None if decryption fails
+            Decrypted plaintext, or None if ciphertext is empty
+            
+        Raises:
+            ValueError: If decryption fails
         """
         if not ciphertext:
             return None
         
         try:
-            decrypted_bytes = self._fernet.decrypt(ciphertext.encode('utf-8'))
-            return decrypted_bytes.decode('utf-8')
+            decoded = base64.urlsafe_b64decode(ciphertext.encode())
+            decrypted = self.fernet.decrypt(decoded)
+            return decrypted.decode()
         except InvalidToken:
-            return None
+            raise ValueError("Failed to decrypt credential: Invalid token or key")
         except Exception as e:
-            print(f"Decryption error: {e}")
-            return None
+            raise ValueError(f"Failed to decrypt credential: {e}")
 
 
 # Singleton instance
-def get_encryption_service() -> EncryptionService:
+_encryption = None
+
+
+def get_encryption() -> CredentialEncryption:
     """Get the encryption service singleton."""
-    return EncryptionService()
+    global _encryption
+    if _encryption is None:
+        _encryption = CredentialEncryption()
+    return _encryption
 
 
-# Convenience functions
+# Convenience functions (spec-compliant naming)
+def encrypt_credential(plaintext: str) -> Optional[str]:
+    """Encrypt a credential value."""
+    return get_encryption().encrypt(plaintext)
+
+
+def decrypt_credential(ciphertext: str) -> Optional[str]:
+    """Decrypt a credential value."""
+    return get_encryption().decrypt(ciphertext)
+
+
+# Alias for backwards compatibility
 def encrypt_value(plaintext: str) -> str:
-    """Encrypt a value."""
-    return get_encryption_service().encrypt(plaintext)
+    """Encrypt a value (alias for encrypt_credential)."""
+    return encrypt_credential(plaintext) or ""
 
 
 def decrypt_value(ciphertext: str) -> Optional[str]:
-    """Decrypt a value."""
-    return get_encryption_service().decrypt(ciphertext)
+    """Decrypt a value (alias for decrypt_credential)."""
+    return decrypt_credential(ciphertext)
+
+
+# Generate new encryption key utility
+def generate_encryption_key() -> str:
+    """Generate a new Fernet encryption key."""
+    return Fernet.generate_key().decode()
 
 
 # Test
 if __name__ == "__main__":
-    service = get_encryption_service()
+    print("Testing CredentialEncryption...")
     
-    test_value = "my-secret-token-12345"
-    encrypted = service.encrypt(test_value)
-    decrypted = service.decrypt(encrypted)
+    encryption = get_encryption()
+    
+    test_value = "my-secret-access-token-12345"
+    encrypted = encryption.encrypt(test_value)
+    decrypted = encryption.decrypt(encrypted)
     
     print(f"Original:  {test_value}")
     print(f"Encrypted: {encrypted[:50]}...")
     print(f"Decrypted: {decrypted}")
     print(f"Match: {test_value == decrypted}")
+    
+    # Test convenience functions
+    encrypted2 = encrypt_credential("another-secret")
+    decrypted2 = decrypt_credential(encrypted2)
+    print(f"\nConvenience functions work: {decrypted2 == 'another-secret'}")
+    
+    print("\n✅ Encryption service working correctly")

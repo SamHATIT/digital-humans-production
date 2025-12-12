@@ -194,3 +194,48 @@ export const api = {
 
 // Export default AFTER api is defined
 export default { auth, projects, executions, get: api.get, post: api.post, put: api.put, delete: api.delete };
+// ==================== WIZARD ====================
+
+export const wizard = {
+  create: async (data: {
+    name: string;
+    description?: string;
+    project_code?: string;
+    client_name?: string;
+    client_contact_name?: string;
+    client_contact_email?: string;
+    client_contact_phone?: string;
+    start_date?: string;
+    end_date?: string;
+  }) => {
+    return apiCall('/api/wizard/create', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  updateStep: async (projectId: number, step: number, data: any) => {
+    return apiCall(`/api/wizard/${projectId}/step/${step}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  getProgress: async (projectId: number) => {
+    return apiCall(`/api/wizard/${projectId}/progress`, {
+      method: 'GET',
+    });
+  },
+
+  testSalesforce: async (projectId: number) => {
+    return apiCall(`/api/wizard/${projectId}/test/salesforce`, {
+      method: 'POST',
+    });
+  },
+
+  testGit: async (projectId: number) => {
+    return apiCall(`/api/wizard/${projectId}/test/git`, {
+      method: 'POST',
+    });
+  },
+};

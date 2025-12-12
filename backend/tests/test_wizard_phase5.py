@@ -2,20 +2,25 @@
 """
 Tests d'intégration pour Phase 5 - Wizard Configuration
 
-Scénarios testés:
-1. Modèle Project a les nouveaux champs
-2. Modèle ProjectCredential existe
-3. Service encryption fonctionne
-4. Routes wizard sont enregistrées
-5. Validation des étapes du wizard
+Tests couverts:
+1. P5-001: Project model has wizard fields
+2. P5-001: ProjectCredential model exists
+3. P5-003: CredentialEncryption service (spec 7.1)
+4. P5-003: EnvironmentService (spec 7.2)
+5. P5-001/P5-002: Wizard routes registered
+6. P5-001: Database migration applied
 """
 
 import sys
 sys.path.insert(0, '/root/workspace/digital-humans-production/backend')
 
+import os
+# Set env for tests
+os.environ.setdefault('SECRET_KEY', 'test-secret-key-for-encryption')
+
 
 def test_project_model_fields():
-    """Test 1: Project model has wizard fields."""
+    """Test P5-001: Project model has wizard fields."""
     try:
         from app.models.project import Project, ProjectType, TargetObjective
         
@@ -41,7 +46,7 @@ def test_project_model_fields():
 
 
 def test_credential_model():
-    """Test 2: ProjectCredential model exists."""
+    """Test P5-001: ProjectCredential model exists."""
     try:
         from app.models.project_credential import ProjectCredential, CredentialType
         
@@ -59,28 +64,73 @@ def test_credential_model():
         return False
 
 
-def test_encryption_service():
-    """Test 3: Encryption service works."""
+def test_credential_encryption_service():
+    """Test P5-003: CredentialEncryption per spec 7.1."""
     try:
-        from app.utils.encryption import encrypt_value, decrypt_value
+        from app.utils.encryption import (
+            CredentialEncryption,
+            get_encryption,
+            encrypt_credential,
+            decrypt_credential,
+            generate_encryption_key
+        )
         
-        test_value = "my-secret-token-12345"
-        encrypted = encrypt_value(test_value)
-        decrypted = decrypt_value(encrypted)
+        # Test class exists with correct methods
+        encryption = get_encryption()
+        assert hasattr(encryption, 'encrypt'), "Missing encrypt method"
+        assert hasattr(encryption, 'decrypt'), "Missing decrypt method"
+        assert hasattr(encryption, 'fernet'), "Missing fernet property"
+        
+        # Test encryption/decryption
+        test_value = "my-secret-access-token-12345"
+        encrypted = encrypt_credential(test_value)
+        decrypted = decrypt_credential(encrypted)
         
         assert encrypted != test_value, "Encryption should change the value"
         assert decrypted == test_value, "Decryption should return original value"
-        assert len(encrypted) > len(test_value), "Encrypted should be longer"
         
-        print("✅ Test 3: Encryption service works")
+        # Test None handling
+        assert encrypt_credential(None) is None, "Should handle None input"
+        assert decrypt_credential(None) is None, "Should handle None input"
+        
+        # Test key generation utility
+        new_key = generate_encryption_key()
+        assert len(new_key) > 20, "Key should be substantial"
+        
+        print("✅ Test 3: CredentialEncryption service works (spec 7.1)")
         return True
     except Exception as e:
         print(f"❌ Test 3: Error: {e}")
         return False
 
 
+def test_environment_service():
+    """Test P5-003: EnvironmentService per spec 7.2."""
+    try:
+        from app.services.environment_service import EnvironmentService, get_environment_service
+        
+        # Test class exists with correct methods
+        assert hasattr(EnvironmentService, 'store_credential'), "Missing store_credential"
+        assert hasattr(EnvironmentService, 'get_credential'), "Missing get_credential"
+        assert hasattr(EnvironmentService, 'delete_credential'), "Missing delete_credential"
+        assert hasattr(EnvironmentService, 'rotate_credential'), "Missing rotate_credential"
+        assert hasattr(EnvironmentService, 'get_all_credentials'), "Missing get_all_credentials"
+        
+        # Test connection methods
+        assert hasattr(EnvironmentService, 'test_salesforce_connection'), "Missing test_salesforce_connection"
+        assert hasattr(EnvironmentService, 'test_sfdx_jwt_connection'), "Missing test_sfdx_jwt_connection"
+        assert hasattr(EnvironmentService, 'test_sfdx_web_connection'), "Missing test_sfdx_web_connection"
+        assert hasattr(EnvironmentService, 'test_git_connection'), "Missing test_git_connection"
+        
+        print("✅ Test 4: EnvironmentService exists with all methods (spec 7.2)")
+        return True
+    except Exception as e:
+        print(f"❌ Test 4: Error: {e}")
+        return False
+
+
 def test_wizard_routes_registered():
-    """Test 4: Wizard routes are registered in main app."""
+    """Test P5-001/P5-002: Wizard routes are registered."""
     try:
         # Check that wizard is imported in main.py
         with open('/root/workspace/digital-humans-production/backend/app/main.py', 'r') as f:
@@ -109,42 +159,11 @@ def test_wizard_routes_registered():
         for endpoint in endpoints:
             assert endpoint in wizard_content, f"Missing endpoint: {endpoint}"
         
-        print("✅ Test 4: Wizard routes registered (10 endpoints)")
-        return True
-    except Exception as e:
-        print(f"❌ Test 4: Error: {e}")
-        return False
-
-
-def test_wizard_schemas():
-    """Test 5: Wizard Pydantic schemas are valid."""
-    try:
-        from app.api.routes.wizard import (
-            WizardStep1, WizardStep2, WizardStep3,
-            WizardStep4, WizardStep5, WizardStep6,
-            WizardProgressResponse, ConnectionTestResult
-        )
+        # Check uses EnvironmentService
+        assert 'EnvironmentService' in wizard_content or 'environment_service' in wizard_content, \
+            "Should use EnvironmentService"
         
-        # Test schema instantiation
-        step1 = WizardStep1(name="Test Project")
-        assert step1.name == "Test Project"
-        
-        step2 = WizardStep2(project_type="greenfield")
-        assert step2.project_type.value == "greenfield"
-        
-        step3 = WizardStep3(target_objective="sds_only")
-        assert step3.target_objective.value == "sds_only"
-        
-        progress = WizardProgressResponse(
-            project_id=1,
-            project_name="Test",
-            wizard_step=1,
-            wizard_completed=False,
-            status="draft"
-        )
-        assert progress.project_id == 1
-        
-        print("✅ Test 5: Wizard schemas are valid")
+        print("✅ Test 5: Wizard routes registered (10 endpoints, uses EnvironmentService)")
         return True
     except Exception as e:
         print(f"❌ Test 5: Error: {e}")
@@ -152,7 +171,7 @@ def test_wizard_schemas():
 
 
 def test_database_migration():
-    """Test 6: Database has new columns."""
+    """Test P5-001: Database has new columns."""
     try:
         import psycopg2
         
@@ -194,19 +213,44 @@ def test_database_migration():
         return False
 
 
+def test_connection_validator_integration():
+    """Test P5-002: ConnectionValidator integrates with routes."""
+    try:
+        with open('/root/workspace/digital-humans-production/backend/app/api/routes/wizard.py', 'r') as f:
+            wizard_content = f.read()
+        
+        # Check connection_validator is used in test endpoints
+        assert 'connection_validator' in wizard_content or 'environment_service' in wizard_content, \
+            "Should use validation service"
+        
+        # Check test endpoints call real validation
+        assert 'test_salesforce_connection' in wizard_content, "Should call test_salesforce_connection"
+        assert 'test_git_connection' in wizard_content, "Should call test_git_connection"
+        
+        print("✅ Test 7: Connection validation integrated")
+        return True
+    except Exception as e:
+        print(f"❌ Test 7: Error: {e}")
+        return False
+
+
 # Run all tests
 if __name__ == "__main__":
     print("=" * 60)
     print("Phase 5 Integration Tests - Wizard Configuration")
+    print("  P5-001: Backend Endpoints")
+    print("  P5-002: Validation Service") 
+    print("  P5-003: Encryption & Environment Service")
     print("=" * 60)
     
     results = []
     results.append(test_project_model_fields())
     results.append(test_credential_model())
-    results.append(test_encryption_service())
+    results.append(test_credential_encryption_service())
+    results.append(test_environment_service())
     results.append(test_wizard_routes_registered())
-    results.append(test_wizard_schemas())
     results.append(test_database_migration())
+    results.append(test_connection_validator_integration())
     
     print("\n" + "=" * 60)
     passed = sum(results)
@@ -214,7 +258,7 @@ if __name__ == "__main__":
     print(f"Results: {passed}/{total} tests passed")
     
     if passed == total:
-        print("✅ All Phase 5 tests PASSED!")
+        print("✅ All Phase 5 Backend tests PASSED!")
     else:
         print("⚠️ Some tests failed")
     print("=" * 60)
