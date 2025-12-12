@@ -312,6 +312,8 @@ async def test_salesforce_connection(
     current_user: User = Depends(get_current_user)
 ):
     """Test Salesforce connection for a project."""
+    from app.services.connection_validator import get_connection_validator
+    
     project = _get_user_project(db, project_id, current_user.id)
     
     if not project.sf_instance_url:
@@ -328,12 +330,26 @@ async def test_salesforce_connection(
             message="No Salesforce token stored"
         )
     
-    # TODO: Actually test connection using SFDX or REST API
-    # For now, return success if token exists
+    # Real connection test
+    validator = get_connection_validator()
+    result = validator.test_salesforce_connection(
+        instance_url=project.sf_instance_url,
+        access_token=token,
+        username=project.sf_username
+    )
+    
+    # Update project connection status
+    if result.success:
+        project.sf_connected = True
+        project.sf_connection_date = datetime.utcnow()
+        if result.details and result.details.get("org_id"):
+            project.sf_org_id = result.details["org_id"]
+        db.commit()
+    
     return ConnectionTestResult(
-        success=True,
-        message="Salesforce connection configured",
-        details={"instance_url": project.sf_instance_url}
+        success=result.success,
+        message=result.message,
+        details=result.details
     )
 
 
@@ -344,6 +360,8 @@ async def test_git_connection(
     current_user: User = Depends(get_current_user)
 ):
     """Test Git connection for a project."""
+    from app.services.connection_validator import get_connection_validator
+    
     project = _get_user_project(db, project_id, current_user.id)
     
     if not project.git_repo_url:
@@ -360,12 +378,24 @@ async def test_git_connection(
             message="No Git token stored"
         )
     
-    # TODO: Actually test connection using git ls-remote
-    # For now, return success if token exists
+    # Real connection test
+    validator = get_connection_validator()
+    result = validator.test_git_connection(
+        repo_url=project.git_repo_url,
+        token=token,
+        branch=project.git_branch or "main"
+    )
+    
+    # Update project connection status
+    if result.success:
+        project.git_connected = True
+        project.git_connection_date = datetime.utcnow()
+        db.commit()
+    
     return ConnectionTestResult(
-        success=True,
-        message="Git connection configured",
-        details={"repo_url": project.git_repo_url, "branch": project.git_branch}
+        success=result.success,
+        message=result.message,
+        details=result.details
     )
 
 
