@@ -2222,16 +2222,23 @@
     {
       "id": "EMMA-P3-004",
       "name": "End-to-end test with coverage loop",
-      "status": "not_started",
+      "status": "completed",
       "description": "Test complet: Emma analyze → Marcus design → Emma validate → (loop si gaps)",
+      "notes": "E2E test OK. Bug connu: JSON parse fail pour >50 UCs (continuation). Workflow fonctionne."
+    },
+    {
+      "id": "EMMA-BUG-001",
+      "name": "Fix JSON continuation parsing for large UC sets",
+      "status": "not_started",
+      "description": "Le mapping de >50 UCs cause une erreur JSON parse lors de la continuation. Solution: batching par 20 UCs.",
       "notes": ""
     }
   ],
   "stats": {
-    "completed": 94,
+    "completed": 95,
     "in_progress": 0,
     "not_started": 30,
-    "total": 124
+    "total": 125
   },
-  "last_updated": "2025-12-12T16:30:00Z"
+  "last_updated": "2025-12-12T16:35:00Z"
 }
