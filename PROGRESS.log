@@ -1966,3 +1966,38 @@ Phase 3 COMPLÈTE - Prêt pour Phase 4 (write_sds)
 - P5-002: Amélioration qualité document (pagination, styles Word)
 - P5-003: Export PDF optionnel
 
+
+## 2025-12-12 - Session 4 (Suite) - Phase 5: Wizard Configuration Backend
+
+### Réalisé
+- **P5-001**: Endpoints Wizard Backend
+  - Modèle Project étendu (20+ nouveaux champs)
+  - Modèle ProjectCredential pour credentials chiffrés
+  - Service encryption (Fernet symmetric)
+  - 10 endpoints API wizard:
+    - POST /wizard/create
+    - PUT /wizard/{id}/step/1-6
+    - GET /wizard/{id}/progress
+    - POST /wizard/{id}/test/salesforce
+    - POST /wizard/{id}/test/git
+  - Migration SQL appliquée
+  - Tests 6/6 passed
+
+### Fichiers créés/modifiés
+- backend/app/models/project.py (étendu)
+- backend/app/models/project_credential.py (nouveau)
+- backend/app/utils/encryption.py (nouveau)
+- backend/app/api/routes/wizard.py (nouveau)
+- backend/app/main.py (wizard router ajouté)
+- backend/migrations/wizard_phase5.sql (nouveau)
+- backend/tests/test_wizard_phase5.py (nouveau)
+
+### Prochaines étapes Phase 5
+- P5-002: Validation service (SFDX/Git connection tests réels)
+- P5-003: Frontend composants wizard (React)
+- P5-004: Tests E2E
+
+### Phases restantes
+- Phase 6: Types de Tâches WBS
+- Phase 7: Tests Complets & Documentation
+

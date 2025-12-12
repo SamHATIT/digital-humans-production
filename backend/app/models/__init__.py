@@ -3,7 +3,8 @@ Database models package.
 Import all models to ensure they are registered with SQLAlchemy.
 """
 from app.models.user import User
-from app.models.project import Project, ProjectStatus
+from app.models.project import Project, ProjectStatus, ProjectType, TargetObjective
+from app.models.project_credential import ProjectCredential, CredentialType
 from app.models.agent import Agent
 from app.models.execution import Execution, ExecutionStatus
 from app.models.execution_agent import ExecutionAgent, AgentExecutionStatus
@@ -31,8 +32,7 @@ from app.models.artifact import (
     AgentQuestion,
     ArtifactType,
     ArtifactStatus,
-    GateStatus as ArtifactGateStatus,  # Alias to avoid conflict with quality_gate.GateStatus
-    QuestionStatus,
+    GateStatus as ArtifactGateStatus,
 )
 
 # Post-SDS Workflow
@@ -44,11 +44,18 @@ from app.models.llm_interaction import LLMInteraction
 from app.models.change_request import ChangeRequest, CRStatus, CRCategory, CRPriority
 from app.models.project_conversation import ProjectConversation
 
+# CORE-001: Audit Logging
+from app.models.audit import AuditLog, ActorType, ActionCategory
+
 __all__ = [
     # Core models
     "User",
     "Project",
     "ProjectStatus",
+    "ProjectType",
+    "TargetObjective",
+    "ProjectCredential",
+    "CredentialType",
     "Agent",
     "Execution",
     "ExecutionStatus",
@@ -80,7 +87,6 @@ __all__ = [
     "ArtifactType",
     "ArtifactStatus",
     "ArtifactGateStatus",
-    "QuestionStatus",
     # Post-SDS Workflow
     "SDSVersion",
     "ChangeRequest",
@@ -91,11 +97,9 @@ __all__ = [
     # Incremental Build
     "TaskExecution",
     "TaskStatus",
+    "LLMInteraction",
     # Audit Logging
     "AuditLog",
     "ActorType",
     "ActionCategory",
 ]
-
-# CORE-001: Audit Logging
-from app.models.audit import AuditLog, ActorType, ActionCategory
