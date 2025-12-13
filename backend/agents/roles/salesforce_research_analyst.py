@@ -922,6 +922,7 @@ def main():
                         help='Execution mode')
     parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
     parser.add_argument('--project-id', type=int, default=0, help='Project ID')
+    parser.add_argument('--use-rag', action='store_true', help='Enable RAG (optional)')
     
     args = parser.parse_args()
     
