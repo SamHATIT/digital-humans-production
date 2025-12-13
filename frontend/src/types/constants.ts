@@ -13,6 +13,14 @@ export interface Agent {
 
 export const AGENTS: Agent[] = [
   {
+    id: 'pm',
+    name: 'Sophie (Product Manager)',
+    avatar: '/avatars/sophie-pm.png',
+    description: 'Orchestrates project definition and coordinates all agents',
+    estimatedTime: 2,
+    required: true
+  },
+  {
     id: 'ba',
     name: 'Olivia (Business Analyst)',
     avatar: '/avatars/olivia-ba.png',
@@ -21,12 +29,20 @@ export const AGENTS: Agent[] = [
     required: true
   },
   {
+    id: 'research_analyst',
+    name: 'Emma (Research Analyst)',
+    avatar: '/avatars/emma-research.png',
+    description: 'Analyzes Use Cases, validates coverage, writes SDS documents',
+    estimatedTime: 5,
+    required: true
+  },
+  {
     id: 'architect',
     name: 'Marcus (Solution Architect)',
     avatar: '/avatars/marcus-architect.png',
     description: 'Designs technical architecture and integration strategy',
     estimatedTime: 5,
-    required: false
+    required: true
   },
   {
     id: 'apex',

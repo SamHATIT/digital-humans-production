@@ -1,7 +1,7 @@
 """
 Business Requirements API routes for BR validation workflow.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -29,7 +29,7 @@ from app.schemas.business_requirement import (
     BRReorderRequest,
     BRReorderResponse,
 )
-from app.utils.dependencies import get_current_user
+from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 
 router = APIRouter(prefix="/api/br", tags=["Business Requirements"])
 
@@ -41,7 +41,7 @@ async def list_business_requirements(
     project_id: int,
     include_deleted: bool = False,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Get all business requirements for a project.
@@ -95,7 +95,7 @@ async def list_business_requirements(
 async def get_business_requirement(
     br_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """Get a single business requirement by ID."""
     br = db.query(BusinessRequirement).join(Project).filter(
@@ -119,7 +119,7 @@ async def create_business_requirement(
     project_id: int,
     br_data: BusinessRequirementCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Manually add a new business requirement.
@@ -175,7 +175,7 @@ async def update_business_requirement(
     br_id: int,
     br_data: BusinessRequirementUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Update a business requirement.
@@ -220,7 +220,7 @@ async def update_business_requirement(
 async def delete_business_requirement(
     br_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Soft delete a business requirement.
@@ -251,7 +251,7 @@ async def delete_business_requirement(
 async def validate_all_requirements(
     project_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Validate all pending business requirements.
@@ -299,8 +299,9 @@ async def validate_all_requirements(
 @router.get("/{project_id}/export")
 async def export_requirements_csv(
     project_id: int,
+    token: Optional[str] = Query(None, description="JWT token for download"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Export all business requirements as CSV.
@@ -377,7 +378,7 @@ async def reorder_requirements(
     project_id: int,
     reorder_data: BRReorderRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """
     Reorder business requirements.

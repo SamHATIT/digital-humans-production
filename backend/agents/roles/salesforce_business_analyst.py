@@ -151,6 +151,7 @@ def main():
     parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
     parser.add_argument('--project-id', type=int, default=0, help='Project ID')
     parser.add_argument('--use-rag', action='store_true', default=True, help='Use RAG for context')
+    parser.add_argument('--mode', default='generate_uc', help='Agent mode')
     
     args = parser.parse_args()
     

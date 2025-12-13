@@ -90,6 +90,14 @@ export const AGENTS: Agent[] = [
     avatar: '/avatars/emma-research.png',
     description: 'Analyzes Use Cases, validates coverage, writes SDS documents',
     estimatedTime: 5,
+    required: true
+  },
+  {
+    id: 'PLACEHOLDER_REMOVE',
+    name: 'Emma (Research Analyst)',
+    avatar: '/avatars/emma-research.png',
+    description: 'Analyzes Use Cases, validates coverage, writes SDS documents',
+    estimatedTime: 5,
     required: false
   },
   {
