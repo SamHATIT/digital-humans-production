@@ -690,7 +690,7 @@ class PMOrchestratorServiceV2:
                     "objectives": project.architecture_notes or ""
                 },
                 "business_requirements": [
-                    {"id": br.br_id, "title": br.title, "description": br.description, "priority": br.priority.value if br.priority else "SHOULD"}
+                    {"id": br.br_id, "title": br.requirement[:100] if br.requirement else br.br_id, "description": br.requirement or "", "priority": br.priority.value if br.priority else "SHOULD"}
                     for br in self.db.query(BusinessRequirement).filter(BusinessRequirement.execution_id == execution_id).all()
                 ],
                 "use_cases": self._get_use_cases(execution_id, limit=None),
