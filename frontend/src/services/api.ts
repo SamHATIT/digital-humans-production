@@ -27,7 +27,8 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || 'Request failed');
+    const errorMsg = Array.isArray(error.detail) ? error.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(", ") : (error.detail || 'Request failed');
+    throw new Error(errorMsg);
   }
 
   return response.json();

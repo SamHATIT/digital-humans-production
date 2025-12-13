@@ -68,6 +68,13 @@ export default function ProjectWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [projectIdState, setProjectIdState] = useState<number | null>(projectId ? parseInt(projectId) : null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Helper to format date for API (converts YYYY-MM-DD to ISO datetime)
+  const formatDateForApi = (dateStr: string | undefined): string | undefined => {
+    if (!dateStr) return undefined;
+    if (dateStr.includes('T')) return dateStr;
+    return `${dateStr}T00:00:00`;
+  };
   const [error, setError] = useState('');
   const [sfTestResult, setSfTestResult] = useState<{success: boolean; message: string} | null>(null);
   const [gitTestResult, setGitTestResult] = useState<{success: boolean; message: string} | null>(null);
@@ -157,8 +164,8 @@ export default function ProjectWizard() {
           client_contact_name: data.client_contact_name,
           client_contact_email: data.client_contact_email,
           client_contact_phone: data.client_contact_phone,
-          start_date: data.start_date || undefined,
-          end_date: data.end_date || undefined,
+          start_date: formatDateForApi(data.start_date),
+          end_date: formatDateForApi(data.end_date),
         });
         setProjectIdState(result.project_id);
         setCurrentStep(2);
@@ -215,8 +222,8 @@ export default function ProjectWizard() {
           client_contact_name: data.client_contact_name,
           client_contact_email: data.client_contact_email,
           client_contact_phone: data.client_contact_phone,
-          start_date: data.start_date,
-          end_date: data.end_date,
+          start_date: formatDateForApi(data.start_date),
+          end_date: formatDateForApi(data.end_date),
         };
       case 2:
         return {
