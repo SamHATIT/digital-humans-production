@@ -50,6 +50,9 @@ class Execution(Base):
 
     # Logs
     logs = Column(Text)  # JSON array of log entries stored as text
+    
+    # Resume capability
+    last_completed_phase = Column(String(50))  # Last successfully completed phase for resume
 
     # Relationships
     project = relationship("Project", back_populates="executions")

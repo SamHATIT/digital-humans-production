@@ -93,6 +93,22 @@ PARALLEL_MODE = {
     "build_agents": False,  # Phase BUILD: Sequential for now (sandbox 2-user limit)
 }
 
+# CHECKPOINT PHASES for resume capability
+SDS_PHASES = [
+    "phase1_pm",           # Sophie BR extraction
+    "phase2_ba",           # Olivia UC generation
+    "phase2_5_emma",       # Emma UC Digest
+    "phase3_asis",         # Marcus As-Is
+    "phase3_gap",          # Marcus Gap Analysis
+    "phase3_design",       # Marcus Solution Design
+    "phase3_4_validate",   # Emma Coverage Validation
+    "phase3_wbs",          # Marcus WBS
+    "phase4_experts",      # SDS Experts (Elena, Jordan, Lucas, Aisha)
+    "phase5_write_sds",    # Emma Write SDS
+    "phase6_export"        # Export DOCX/PDF
+]
+
+
 
 class PMOrchestratorServiceV2:
     """
@@ -168,14 +184,33 @@ class PMOrchestratorServiceV2:
                 }
             }
             
+            # SMART RESUME: Detect and handle resume from failed execution
+            is_resume = False
+            if resume_from:
+                is_resume = True
+                logger.info(f"🔄 RESUMING execution from: {resume_from}")
+            elif execution.last_completed_phase:
+                # Auto-detect resume from last checkpoint
+                resume_from = self._get_resume_phase(execution)
+                if resume_from:
+                    is_resume = True
+                    logger.info(f"🔄 AUTO-RESUME detected. Last checkpoint: {execution.last_completed_phase}, resuming from: {resume_from}")
+            
+            if is_resume:
+                # Reload existing deliverables
+                results = self._reload_deliverables_for_resume(execution_id, results)
+                logger.info(f"📥 Reloaded {len(results['artifacts'])} artifacts from previous run")
+            
+
             # ========================================
             # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
             # ========================================
-            if resume_from == "phase2":
+            if resume_from and resume_from != "phase1_pm":
                 # Resuming after BR validation - load validated BRs from database
                 logger.info(f"[Phase 1] SKIPPED - Resuming from Phase 2 with validated BRs")
                 business_requirements = self._get_validated_brs(project_id)
                 self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
+                self._save_checkpoint(execution, "phase1_pm")
                 logger.info(f"[Phase 1] ✅ Loaded {len(business_requirements)} validated BRs from database")
                 
                 # Create br_result structure for compatibility with later phases
@@ -216,6 +251,7 @@ class PMOrchestratorServiceV2:
                 
                 logger.info(f"[Phase 1] ✅ Extracted {len(business_requirements)} Business Requirements")
                 self._update_progress(execution, "pm", "completed", 15, f"Extracted {len(business_requirements)} BRs")
+                self._save_checkpoint(execution, "phase1_pm")
                 
                 # ========================================
                 # PAUSE FOR BR VALIDATION (if full workflow)
@@ -309,6 +345,7 @@ class PMOrchestratorServiceV2:
             
             logger.info(f"[Phase 2] Saved {uc_stats["parsed"]} UCs + {uc_stats["raw_saved"]} raw to database")
             self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats["parsed"]} UCs")
+            self._save_checkpoint(execution, "phase2_ba")
             
             # ========================================
             # PHASE 2.5: Emma Research Analyst - UC Digest Generation
@@ -348,6 +385,7 @@ class PMOrchestratorServiceV2:
                 
                 logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
                 self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
+                self._save_checkpoint(execution, "phase2_5_emma")
             else:
                 logger.warning(f"[Phase 2.5] ⚠️ Emma failed: {emma_result.get('error', 'Unknown error')} - Marcus will use raw UCs")
                 self._update_progress(execution, "research_analyst", "failed", 45, "Analysis failed - using fallback")
@@ -561,6 +599,7 @@ class PMOrchestratorServiceV2:
             results["metrics"]["total_tokens"] += architect_tokens
             
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
+            self._save_checkpoint(execution, "phase3_wbs")
             
             # ========================================
             # PHASE 4: SDS Expert Agents (Conditional)
@@ -729,6 +768,7 @@ class PMOrchestratorServiceV2:
                 logger.warning(f"[Phase 5] ⚠️ Emma write_sds failed: {emma_write_result.get('error')}")
             
             self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
+            self._save_checkpoint(execution, "phase5_write_sds")
             
             # ========================================
             # PHASE 6: Export SDS to DOCX/PDF
@@ -772,6 +812,7 @@ class PMOrchestratorServiceV2:
                 execution.sds_document_path = sds_path
             
             self._update_progress(execution, "pm", "completed", 98, "SDS Document exported")
+            self._save_checkpoint(execution, "phase6_export")
             
             # ========================================
             # FINALIZE
@@ -1085,6 +1126,70 @@ class PMOrchestratorServiceV2:
             }
             for agent_id in agents
         }
+
+    # ============================================================================
+    # CHECKPOINT/RESUME METHODS
+    # ============================================================================
+    
+    def _save_checkpoint(self, execution: Execution, phase: str):
+        """Save checkpoint after successful phase completion for resume capability"""
+        try:
+            execution.last_completed_phase = phase
+            self.db.commit()
+            logger.info(f"✅ Checkpoint saved: {phase}")
+        except Exception as e:
+            logger.warning(f"Failed to save checkpoint: {e}")
+            self.db.rollback()
+    
+    def _get_resume_phase(self, execution: Execution) -> str:
+        """Determine which phase to resume from based on last checkpoint"""
+        if not execution.last_completed_phase:
+            return None
+        try:
+            idx = SDS_PHASES.index(execution.last_completed_phase)
+            if idx + 1 < len(SDS_PHASES):
+                return SDS_PHASES[idx + 1]
+        except ValueError:
+            pass
+        return None
+    
+    def _reload_deliverables_for_resume(self, execution_id: int, results: dict) -> dict:
+        """Reload existing deliverables into results dict for resume capability"""
+        deliverables = self.db.query(AgentDeliverable).filter(
+            AgentDeliverable.execution_id == execution_id
+        ).all()
+        
+        for d in deliverables:
+            try:
+                content = json.loads(d.content) if isinstance(d.content, str) else d.content
+                
+                if d.deliverable_type == "pm_br_extraction":
+                    results["artifacts"]["BR"] = content
+                    results["agent_outputs"]["pm"] = content
+                elif d.deliverable_type == "research_analyst_uc_digest":
+                    results["artifacts"]["UC_DIGEST"] = content
+                elif d.deliverable_type == "architect_as_is":
+                    results["artifacts"]["AS_IS"] = content
+                elif d.deliverable_type == "architect_gap_analysis":
+                    results["artifacts"]["GAP"] = content
+                elif d.deliverable_type == "architect_solution_design":
+                    results["artifacts"]["ARCHITECTURE"] = content
+                    results["agent_outputs"]["architect"] = content
+                elif d.deliverable_type == "research_analyst_coverage_report":
+                    results["artifacts"]["COVERAGE"] = content
+                elif d.deliverable_type == "architect_wbs":
+                    results["artifacts"]["WBS"] = content
+                elif d.deliverable_type.endswith("_specifications"):
+                    agent_id = d.deliverable_type.replace("_specifications", "")
+                    results["artifacts"][f"{agent_id.upper()}_SPECS"] = content
+                    results["agent_outputs"][agent_id] = content
+                    
+                logger.info(f"📥 Reloaded deliverable: {d.deliverable_type}")
+            except Exception as e:
+                logger.warning(f"Failed to reload {d.deliverable_type}: {e}")
+        
+        return results
+
 
     def _update_progress(self, execution: Execution, agent_id: str, state: str, progress: int, message: str):
         """Update execution progress for SSE"""

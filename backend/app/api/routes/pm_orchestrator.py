@@ -354,32 +354,52 @@ async def resume_execution(
             detail="Execution not found"
         )
     
-    # Validate status
-    if execution.status != ExecutionStatus.WAITING_BR_VALIDATION:
+    # Validate status - allow resume from WAITING_BR_VALIDATION or FAILED
+    if execution.status not in [ExecutionStatus.WAITING_BR_VALIDATION, ExecutionStatus.FAILED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Execution is not waiting for BR validation. Current status: {execution.status.value}"
+            detail=f"Cannot resume execution. Status must be WAITING_BR_VALIDATION or FAILED. Current: {execution.status.value}"
+        )
+    
+    # Determine resume point
+    resume_point = None
+    if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+        resume_point = "phase2_ba"
+    elif execution.last_completed_phase:
+        # Resume from next phase after last checkpoint
+        from app.services.pm_orchestrator_service_v2 import SDS_PHASES
+        try:
+            idx = SDS_PHASES.index(execution.last_completed_phase)
+            if idx + 1 < len(SDS_PHASES):
+                resume_point = SDS_PHASES[idx + 1]
+        except ValueError:
+            pass
+    
+    if not resume_point:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot determine resume point. No checkpoint found."
         )
     
     # Update status
     execution.status = ExecutionStatus.RUNNING
     db.commit()
     
-    # Resume from Phase 2 (Olivia BA)
+    # Resume from detected checkpoint
     asyncio.create_task(
         execute_workflow_background(
             db, 
             execution.id, 
             execution.project_id, 
             execution.selected_agents,
-            resume_from="phase2"
+            resume_from=resume_point
         )
     )
     
     return ExecutionStartResponse(
         execution_id=execution.id,
         status="resumed",
-        message="Execution resumed from Phase 2 (Olivia BA). Use the progress endpoint to track status."
+        message=f"Execution resumed from {resume_point}. Use the progress endpoint to track status."
     )
 
 @router.get("/execute/{execution_id}/progress")
