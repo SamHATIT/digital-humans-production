@@ -362,23 +362,35 @@ async def resume_execution(
         )
     
     # Determine resume point
+    # Note: The workflow only supports resuming from Phase 2 (after BR validation)
+    # More granular resume (from arbitrary phases) would require workflow refactoring
     resume_point = None
+    
     if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+        # Standard case: BRs validated, continue to Phase 2
         resume_point = "phase2_ba"
-    elif execution.last_completed_phase:
-        # Resume from next phase after last checkpoint
-        from app.services.pm_orchestrator_service_v2 import SDS_PHASES
-        try:
-            idx = SDS_PHASES.index(execution.last_completed_phase)
-            if idx + 1 < len(SDS_PHASES):
-                resume_point = SDS_PHASES[idx + 1]
-        except ValueError:
-            pass
+    elif execution.status == ExecutionStatus.FAILED:
+        # For FAILED executions, we can only resume if BRs are already validated
+        from app.models.business_requirement import BusinessRequirement, BRStatus
+        validated_brs = db.query(BusinessRequirement).filter(
+            BusinessRequirement.project_id == execution.project_id,
+            BusinessRequirement.status == BRStatus.VALIDATED
+        ).count()
+        
+        if validated_brs > 0:
+            # BRs exist and are validated, resume from Phase 2
+            resume_point = "phase2_ba"
+            logger.info(f"Resuming FAILED execution {execution_id} with {validated_brs} validated BRs")
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot resume: no validated Business Requirements found. Please validate BRs first or start a new execution."
+            )
     
     if not resume_point:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot determine resume point. No checkpoint found."
+            detail="Cannot determine resume point. Execution must be in WAITING_BR_VALIDATION or FAILED status with validated BRs."
         )
     
     # Update status
