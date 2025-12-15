@@ -506,13 +506,33 @@ def main():
             input_data = json.load(f)
         print(f"✅ Input loaded", file=sys.stderr)
         
-        # Get RAG context for design mode
+        # Get RAG context for design mode (BUG-047: Dynamic query based on project objects)
         rag_context = ""
         if args.mode == 'design' and args.use_rag and RAG_AVAILABLE:
             try:
-                query = f"Salesforce architecture design patterns data model"
-                print(f"🔍 Querying RAG...", file=sys.stderr)
-                rag_context = get_salesforce_context(query, n_results=5, agent_type="solution_architect")
+                # Extract objects mentioned in use cases and project summary
+                use_cases_text = json.dumps(input_data.get('use_cases', []))
+                project_summary = input_data.get('project_summary', '')
+                combined_text = f"{use_cases_text} {project_summary}".lower()
+                
+                # Detect standard Salesforce objects mentioned
+                standard_objects = [
+                    'case', 'contact', 'account', 'lead', 'opportunity', 'campaign',
+                    'task', 'event', 'user', 'product', 'pricebook', 'quote', 'order',
+                    'contract', 'asset', 'entitlement', 'knowledge', 'solution'
+                ]
+                detected_objects = [obj for obj in standard_objects if obj in combined_text]
+                
+                # Build dynamic query
+                if detected_objects:
+                    objects_str = ' '.join([obj.capitalize() for obj in detected_objects[:5]])
+                    query = f"Salesforce {objects_str} object standard fields relationships best practices"
+                    print(f"🔍 RAG query (detected objects: {detected_objects[:5]}): {query}", file=sys.stderr)
+                else:
+                    query = "Salesforce architecture design patterns data model best practices"
+                    print(f"🔍 RAG query (generic): {query}", file=sys.stderr)
+                
+                rag_context = get_salesforce_context(query, n_results=8, agent_type="solution_architect")
                 print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
             except Exception as e:
                 print(f"⚠️ RAG error: {e}", file=sys.stderr)

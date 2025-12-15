@@ -941,6 +941,34 @@ class PMOrchestratorServiceV2:
                 metadata["limits"] = {l["name"]: l for l in all_limits if l.get("name") in key_limits}
                 logger.info(f"[Metadata] ✅ Org limits retrieved")
             
+            # 6. BUG-047: Describe key standard objects (Case, Contact, Account, Lead, Opportunity)
+            # This gives Marcus the actual fields available, preventing redundant custom fields
+            key_objects = ["Case", "Contact", "Account", "Lead", "Opportunity"]
+            metadata["object_fields"] = {}
+            for obj_name in key_objects:
+                try:
+                    describe_cmd = f"sf sobject describe --sobject {obj_name} --target-org {salesforce_config.org_alias} --json"
+                    describe_result = subprocess.run(describe_cmd, shell=True, capture_output=True, text=True, timeout=30)
+                    if describe_result.returncode == 0:
+                        describe_data = json.loads(describe_result.stdout)
+                        fields = describe_data.get("result", {}).get("fields", [])
+                        # Extract key field info (name, type, label, nillable, createable)
+                        metadata["object_fields"][obj_name] = [
+                            {
+                                "name": f.get("name"),
+                                "type": f.get("type"),
+                                "label": f.get("label"),
+                                "nillable": f.get("nillable"),
+                                "createable": f.get("createable"),
+                                "referenceTo": f.get("referenceTo", [])
+                            }
+                            for f in fields
+                            if f.get("createable") or f.get("name") in ["Id", "Name", "CreatedDate", "LastModifiedDate"]
+                        ]
+                        logger.info(f"[Metadata] ✅ {obj_name}: {len(metadata['object_fields'][obj_name])} fields")
+                except Exception as e:
+                    logger.warning(f"[Metadata] ⚠️ Could not describe {obj_name}: {e}")
+            
             # Create summary for Marcus
             summary = self._create_metadata_summary(metadata)
             
@@ -1000,8 +1028,17 @@ class PMOrchestratorServiceV2:
             # Metadata capabilities
             "available_metadata_types": len(metadata.get("metadata_types", [])),
             
+            # BUG-047: Include standard object fields for Marcus
+            "standard_object_fields": {
+                obj_name: [
+                    {"name": f["name"], "type": f["type"], "label": f["label"]}
+                    for f in fields[:50]  # Top 50 fields per object
+                ]
+                for obj_name, fields in metadata.get("object_fields", {}).items()
+            },
+            
             # Note for Marcus
-            "note": "Full metadata available in DB - query salesforce_metadata deliverable for details"
+            "note": "Standard object fields (Case, Contact, Account, Lead, Opportunity) included above. Use these before creating custom fields."
         }
         
         return summary
