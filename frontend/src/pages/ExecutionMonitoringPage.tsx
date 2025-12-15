@@ -332,9 +332,16 @@ export default function ExecutionMonitoringPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {progress?.agent_progress?.map((agentProg) => {
-              const agent = AGENTS.find(
-                (a) => a.name.toLowerCase() === agentProg.agent_name.toLowerCase()
-              );
+              // Flexible agent matching: by name prefix or by ID extracted from parentheses
+              const agentNameLower = agentProg.agent_name.toLowerCase();
+              const agent = AGENTS.find((a) => {
+                const nameMatch = agentNameLower.startsWith(a.name.toLowerCase());
+                const idFromName = agentNameLower.includes('(') 
+                  ? agentNameLower.split('(')[1]?.replace(')', '').trim().replace(' ', '_')
+                  : '';
+                const idMatch = a.id === idFromName || agentNameLower === a.id;
+                return nameMatch || idMatch;
+              });
               const status = normalizeStatus(agentProg.status);
               const config = getStatusConfig(status);
               const StatusIcon = config.icon;

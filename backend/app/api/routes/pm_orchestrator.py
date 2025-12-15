@@ -441,6 +441,7 @@ async def get_execution_progress(
     agent_names = {
         "pm": "Sophie (PM)",
         "ba": "Olivia (BA)",
+        "research_analyst": "Emma (Research Analyst)",
         "architect": "Marcus (Architect)",
         "apex": "Diego (Apex)",
         "lwc": "Zara (LWC)",
@@ -558,10 +559,10 @@ async def stream_execution_progress(
                     selected_agents = json.loads(selected_agents)
                 
                 agent_names = {
-                    "pm": "Sophie (PM)", "ba": "Olivia (BA)", "architect": "Marcus (Architect)",
-                    "apex": "Diego (Apex)", "lwc": "Zara (LWC)", "admin": "Raj (Admin)",
-                    "qa": "Elena (QA)", "devops": "Jordan (DevOps)", "data": "Aisha (Data)",
-                    "trainer": "Lucas (Trainer)"
+                    "pm": "Sophie (PM)", "ba": "Olivia (BA)", "research_analyst": "Emma (Research Analyst)",
+                    "architect": "Marcus (Architect)", "apex": "Diego (Apex)", "lwc": "Zara (LWC)",
+                    "admin": "Raj (Admin)", "qa": "Elena (QA)", "devops": "Jordan (DevOps)",
+                    "data": "Aisha (Data)", "trainer": "Lucas (Trainer)"
                 }
                 
                 agent_progress = []

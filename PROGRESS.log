@@ -2165,3 +2165,49 @@ Final verification: 26/26 checks passed
 
 ### Commits
 - 8ffc681: Section 9 + Section 6 + Phase 7 E2E tests
+
+---
+## Session 2025-12-13 (en cours) - Resume + Emma write_sds
+
+### Corrections à faire
+- [ ] **Supprimer le fallback vers l'ancien générateur SDS** : Si Emma write_sds échoue, ne pas générer l'ancien document (inutile). Soit réessayer, soit échouer proprement.
+- [ ] **Ajouter Emma dans le frontend** : Elle n'apparaît pas dans le monitoring (research_analyst invisible)
+
+
+---
+## Session 2025-12-15 - Nettoyage Resume + Emma Frontend
+
+### Objectif
+Nettoyer le code de resume incomplet et corriger l'affichage d'Emma dans le frontend
+
+### Réalisé
+
+**1. Nettoyage code de resume incomplet** (pm_orchestrator_service_v2.py)
+- Supprimé `SDS_PHASES` et `phase_idx()` (code mort)
+- Supprimé `is_resume`, `start_idx`, et leur logique inutilisée
+- Supprimé `_get_resume_phase()` et `_reload_deliverables_for_resume()`
+- Gardé uniquement `_save_checkpoint()` pour le logging
+- **94 lignes de code mort supprimées** (2334 → 2240 lignes)
+
+**2. Suppression fallback ancien SDS**
+- Si Emma `write_sds` échoue → lève une exception (échec propre au lieu de fallback inutile)
+- Phase 6 : plus de fallback vers l'ancien générateur
+- Si DOCX export échoue → garde le markdown comme output (acceptable)
+
+**3. Ajout Emma dans le frontend monitoring**
+- Ajouté `"research_analyst": "Emma (Research Analyst)"` dans les deux mappings backend (polling + SSE endpoints)
+- Amélioré le matching frontend pour être plus flexible (par préfixe de nom ou par ID)
+
+### Fichiers modifiés
+- `backend/app/services/pm_orchestrator_service_v2.py` - Nettoyage resume + fallback
+- `backend/app/api/routes/pm_orchestrator.py` - Ajout Emma aux mappings
+- `frontend/src/pages/ExecutionMonitoringPage.tsx` - Matching flexible
+
+### Tests
+- ✅ Backend imports OK
+- ✅ Frontend build OK
+- ✅ Fichiers déployés dans containers
+
+### Prochaine étape
+- Test E2E avec l'interface web pour vérifier que Emma apparaît dans le monitoring
+

@@ -93,21 +93,8 @@ PARALLEL_MODE = {
     "build_agents": False,  # Phase BUILD: Sequential for now (sandbox 2-user limit)
 }
 
-# CHECKPOINT PHASES for resume capability
-SDS_PHASES = [
-    "phase1_pm",           # Sophie BR extraction
-    "phase2_ba",           # Olivia UC generation
-    "phase2_5_emma",       # Emma UC Digest
-    "phase3_asis",         # Marcus As-Is
-    "phase3_gap",          # Marcus Gap Analysis
-    "phase3_design",       # Marcus Solution Design
-    "phase3_4_validate",   # Emma Coverage Validation
-    "phase3_wbs",          # Marcus WBS
-    "phase4_experts",      # SDS Experts (Elena, Jordan, Lucas, Aisha)
-    "phase5_write_sds",    # Emma Write SDS
-    "phase6_export"        # Export DOCX/PDF
-]
-
+# Note: Resume capability is limited to Phase 1 (BR validation pause/resume)
+# Full phase-by-phase resume was attempted but removed due to complexity
 
 
 class PMOrchestratorServiceV2:
@@ -184,23 +171,8 @@ class PMOrchestratorServiceV2:
                 }
             }
             
-            # SMART RESUME: Detect and handle resume from failed execution
-            is_resume = False
-            if resume_from:
-                is_resume = True
-                logger.info(f"🔄 RESUMING execution from: {resume_from}")
-            elif execution.last_completed_phase:
-                # Auto-detect resume from last checkpoint
-                resume_from = self._get_resume_phase(execution)
-                if resume_from:
-                    is_resume = True
-                    logger.info(f"🔄 AUTO-RESUME detected. Last checkpoint: {execution.last_completed_phase}, resuming from: {resume_from}")
-            
-            if is_resume:
-                # Reload existing deliverables
-                results = self._reload_deliverables_for_resume(execution_id, results)
-                logger.info(f"📥 Reloaded {len(results['artifacts'])} artifacts from previous run")
-            
+            # Resume is only supported for Phase 1 (BR validation)
+            # If resume_from is set, we skip Phase 1 and use validated BRs
 
             # ========================================
             # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
@@ -717,6 +689,7 @@ class PMOrchestratorServiceV2:
             # ========================================
             # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
             # ========================================
+            sds_markdown = ""
             logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
             self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
             
@@ -751,7 +724,6 @@ class PMOrchestratorServiceV2:
             )
             
             emma_write_tokens = 0
-            sds_markdown = ""
             
             if emma_write_result.get("success"):
                 emma_output = emma_write_result["output"]
@@ -765,7 +737,10 @@ class PMOrchestratorServiceV2:
                 
                 logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
             else:
-                logger.warning(f"[Phase 5] ⚠️ Emma write_sds failed: {emma_write_result.get('error')}")
+                error_msg = emma_write_result.get('error', 'Unknown error')
+                logger.error(f"[Phase 5] ❌ Emma write_sds failed: {error_msg}")
+                self._update_progress(execution, "research_analyst", "failed", 92, f"Write SDS failed: {error_msg[:50]}")
+                raise Exception(f"SDS Document generation failed: {error_msg}")
             
             self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
             self._save_checkpoint(execution, "phase5_write_sds")
@@ -777,39 +752,32 @@ class PMOrchestratorServiceV2:
             self._update_progress(execution, "pm", "running", 94, "Exporting SDS Document...")
             
             # Generate SDS file (DOCX/PDF) from Emma's markdown
+            # Note: sds_markdown is guaranteed to exist (Emma failure raises exception above)
+            
+            # Save markdown first
+            md_path = f"/tmp/sds_{execution_id}.md"
+            with open(md_path, 'w', encoding='utf-8') as f:
+                f.write(sds_markdown)
+            results["sds_markdown_path"] = md_path
+            
+            # Convert to DOCX using document generator
             try:
-                if sds_markdown:
-                    # Save markdown first
-                    md_path = f"/tmp/sds_{execution_id}.md"
-                    with open(md_path, 'w', encoding='utf-8') as f:
-                        f.write(sds_markdown)
-                    results["sds_markdown_path"] = md_path
-                    
-                    # Try to convert to DOCX using document generator
-                    sds_path = await self._generate_sds_document(
-                        project=project,
-                        agent_outputs=results["agent_outputs"],
-                        artifacts=results["artifacts"],
-                        execution_id=execution_id,
-                        sds_markdown=sds_markdown  # Pass Emma's output
-                    )
-                else:
-                    # Fallback to old method
-                    sds_path = await self._generate_sds_document(
-                        project=project,
-                        agent_outputs=results["agent_outputs"],
-                        artifacts=results["artifacts"],
-                        execution_id=execution_id
-                    )
+                sds_path = await self._generate_sds_document(
+                    project=project,
+                    agent_outputs=results["agent_outputs"],
+                    artifacts=results["artifacts"],
+                    execution_id=execution_id,
+                    sds_markdown=sds_markdown
+                )
                 results["sds_path"] = sds_path
                 execution.sds_document_path = sds_path
                 logger.info(f"[Phase 6] ✅ SDS Document: {sds_path}")
             except Exception as e:
-                logger.error(f"[Phase 6] SDS export failed: {e}")
-                # Fallback to markdown
-                sds_path = self._generate_markdown_sds(project, results["artifacts"], execution_id)
-                results["sds_path"] = sds_path
-                execution.sds_document_path = sds_path
+                logger.error(f"[Phase 6] DOCX export failed: {e}")
+                # Keep markdown as the output (no fallback to old generator)
+                results["sds_path"] = md_path
+                execution.sds_document_path = md_path
+                logger.info(f"[Phase 6] ⚠️ Using Markdown instead: {md_path}")
             
             self._update_progress(execution, "pm", "completed", 98, "SDS Document exported")
             self._save_checkpoint(execution, "phase6_export")
@@ -1075,9 +1043,18 @@ class PMOrchestratorServiceV2:
                 env={**os.environ}
             )
             
+            # Dynamic timeout based on agent/mode
+            timeout_seconds = 300  # Default 5 min
+            if agent_id == "research_analyst" and mode == "write_sds":
+                timeout_seconds = 900  # 15 min for SDS generation
+            elif agent_id == "research_analyst" and mode == "validate":
+                timeout_seconds = 600  # 10 min for validation
+            elif agent_id == "architect":
+                timeout_seconds = 600  # 10 min for architecture
+            
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
-                timeout=300  # 5 min timeout
+                timeout=timeout_seconds
             )
             
             if process.returncode != 0:
@@ -1094,7 +1071,7 @@ class PMOrchestratorServiceV2:
                 return {"success": False, "error": "No output file"}
                 
         except asyncio.TimeoutError:
-            return {"success": False, "error": "Timeout (5 min)"}
+            return {"success": False, "error": f"Timeout ({timeout_seconds // 60} min)"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -1141,56 +1118,6 @@ class PMOrchestratorServiceV2:
             logger.warning(f"Failed to save checkpoint: {e}")
             self.db.rollback()
     
-    def _get_resume_phase(self, execution: Execution) -> str:
-        """Determine which phase to resume from based on last checkpoint"""
-        if not execution.last_completed_phase:
-            return None
-        try:
-            idx = SDS_PHASES.index(execution.last_completed_phase)
-            if idx + 1 < len(SDS_PHASES):
-                return SDS_PHASES[idx + 1]
-        except ValueError:
-            pass
-        return None
-    
-    def _reload_deliverables_for_resume(self, execution_id: int, results: dict) -> dict:
-        """Reload existing deliverables into results dict for resume capability"""
-        deliverables = self.db.query(AgentDeliverable).filter(
-            AgentDeliverable.execution_id == execution_id
-        ).all()
-        
-        for d in deliverables:
-            try:
-                content = json.loads(d.content) if isinstance(d.content, str) else d.content
-                
-                if d.deliverable_type == "pm_br_extraction":
-                    results["artifacts"]["BR"] = content
-                    results["agent_outputs"]["pm"] = content
-                elif d.deliverable_type == "research_analyst_uc_digest":
-                    results["artifacts"]["UC_DIGEST"] = content
-                elif d.deliverable_type == "architect_as_is":
-                    results["artifacts"]["AS_IS"] = content
-                elif d.deliverable_type == "architect_gap_analysis":
-                    results["artifacts"]["GAP"] = content
-                elif d.deliverable_type == "architect_solution_design":
-                    results["artifacts"]["ARCHITECTURE"] = content
-                    results["agent_outputs"]["architect"] = content
-                elif d.deliverable_type == "research_analyst_coverage_report":
-                    results["artifacts"]["COVERAGE"] = content
-                elif d.deliverable_type == "architect_wbs":
-                    results["artifacts"]["WBS"] = content
-                elif d.deliverable_type.endswith("_specifications"):
-                    agent_id = d.deliverable_type.replace("_specifications", "")
-                    results["artifacts"][f"{agent_id.upper()}_SPECS"] = content
-                    results["agent_outputs"][agent_id] = content
-                    
-                logger.info(f"📥 Reloaded deliverable: {d.deliverable_type}")
-            except Exception as e:
-                logger.warning(f"Failed to reload {d.deliverable_type}: {e}")
-        
-        return results
-
-
     def _update_progress(self, execution: Execution, agent_id: str, state: str, progress: int, message: str):
         """Update execution progress for SSE"""
         if execution.agent_execution_status is None:
