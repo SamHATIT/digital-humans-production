@@ -99,18 +99,36 @@ npm run dev
 
 ## 🔧 Configuration
 
+### Required Environment Variables
+
+Before starting, create your `.env` file:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+**⚠️ Required variables (no defaults):**
+
+| Variable | Description | How to Generate |
+|----------|-------------|-----------------|
+| `DATABASE_URL` | PostgreSQL connection string | See format below |
+| `SECRET_KEY` | JWT signing key (min 32 chars) | `python -c "import secrets; print(secrets.token_urlsafe(32))"` |
+| `DB_PASSWORD` | Database password | Use a strong password generator |
+| `OPENAI_API_KEY` | OpenAI API key | Get from [OpenAI Dashboard](https://platform.openai.com/api-keys) |
+
 ### Backend Environment Variables
 
 ```env
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/digital_humans_db
+# Database (required)
+DATABASE_URL=postgresql://digital_humans:YOUR_STRONG_PASSWORD@localhost:5432/digital_humans_db
+DB_PASSWORD=YOUR_STRONG_PASSWORD
 
-# Security
-SECRET_KEY=your-secret-key-min-32-characters
+# Security (required)
+SECRET_KEY=your-generated-secret-key-here
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# OpenAI
+# OpenAI (required)
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4
 
