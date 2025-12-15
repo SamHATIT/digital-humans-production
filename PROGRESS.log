@@ -2211,3 +2211,88 @@ Nettoyer le code de resume incomplet et corriger l'affichage d'Emma dans le fron
 ### Prochaine étape
 - Test E2E avec l'interface web pour vérifier que Emma apparaît dans le monitoring
 
+
+---
+## Session 2025-12-15 (suite) - Audit de Sécurité Complet
+
+### Objectif
+Implémenter toutes les corrections identifiées dans l'audit de sécurité (SECURITY_TASKS.md)
+
+### Réalisé - 9/9 tâches complétées
+
+**CRITIQUES (Priorité 0)**
+1. **BUG-010** - Fix import SDS_PHASES cassé (commit b5cd38d)
+   - Route `/execute/{id}/resume` importait une constante supprimée
+   - Remplacé par vérification des BRs validés en DB
+
+2. **SEC-001** - Supprimer CORS wildcard (commit 731ebc6)
+   - Retiré `"*"` de allow_origins (vulnérabilité CSRF avec credentials)
+   - Seuls domaines explicites autorisés
+
+**SÉCURITÉ (Priorité 1-2)**
+3. **SEC-002** - Rate limiting API (commit f8e3625)
+   - Installé slowapi, créé rate_limiter.py
+   - Login: 5/min, Register: 3/min, API: 100/min, SDS: 10/h, BUILD: 5/h
+   - Test: 6ème requête login → 429 Too Many Requests ✅
+
+4. **SEC-003** - SECRET_KEY fallback dev (commit 9ef7ee5)
+   - Production (DEBUG=False): crash si SECRET_KEY manquant
+   - Development (DEBUG=True): auto-génère avec warning
+   - Pydantic v2 model_validator
+
+**CLEANUP (Priorité 2)**
+5. **CLEAN-001** - Supprimer fichiers .bak (commit 43a3583)
+   - 7 fichiers .bak supprimés
+   - Pattern `*.bak*` ajouté à .gitignore
+
+6. **CLEAN-002** - Supprimer mot de passe défaut (commit cbdb014)
+   - Retiré `changeme` de docker-compose.yml
+   - README mis à jour avec variables requises
+
+**PERFORMANCE (Priorité 3)**
+7. **PERF-001** - PostgreSQL NOTIFY vs polling (commit 9b96715)
+   - Créé notification_service.py avec asyncpg
+   - SSE: notifications + fallback polling 3s
+   - WebSocket: polling réduit 3s → 5s
+   - _update_progress envoie notifications temps réel
+
+**DOCUMENTATION (Priorité 3)**
+8. **DOC-001** - Compléter README (commit dcad974)
+   - Checklist pré-déploiement (8 points)
+   - Section troubleshooting (5 problèmes courants)
+
+### Fichiers modifiés
+- `backend/app/main.py` - CORS + rate limiting + notification hooks
+- `backend/app/config.py` - SECRET_KEY validation
+- `backend/app/rate_limiter.py` - Nouveau fichier
+- `backend/app/services/notification_service.py` - Nouveau fichier
+- `backend/app/services/pm_orchestrator_service_v2.py` - Notifications
+- `backend/app/api/routes/pm_orchestrator.py` - SSE notifications + BUG-010
+- `backend/app/api/routes/auth.py` - Rate limiting decorators
+- `backend/requirements.txt` - slowapi, asyncpg
+- `docker-compose.yml` - Suppression mot de passe défaut
+- `README.md` - Checklist + troubleshooting
+- `.gitignore` - Pattern *.bak*
+
+### Commits
+- 43a3583: chore(CLEAN-001): remove backup files
+- b5cd38d: fix(BUG-010): fix broken SDS_PHASES import
+- 731ebc6: fix(SEC-001): remove CORS wildcard
+- f8e3625: feat(SEC-002): implement API rate limiting
+- cbdb014: fix(CLEAN-002): remove default password
+- 9b96715: perf(PERF-001): PostgreSQL LISTEN/NOTIFY
+- 9ef7ee5: feat(SEC-003): SECRET_KEY auto-generate dev
+- dcad974: docs(DOC-001): pre-deployment checklist
+
+### Tests effectués
+- ✅ Rate limiting: 5 requêtes OK, 6ème bloquée (429)
+- ✅ CORS: domaine autorisé OK, domaine inconnu bloqué
+- ✅ SECRET_KEY: crash en prod, auto-génère en dev
+- ✅ NotificationService: NOTIFY envoyé avec succès
+- ✅ API /health: healthy
+- ✅ Syntaxe tous fichiers Python validée
+
+### Prochaine étape
+- Tester le système de notifications en conditions réelles (exécution SDS complète)
+- Surveiller les logs pour vérifier que les notifications fonctionnent
+
