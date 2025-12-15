@@ -37,6 +37,8 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://72.61.161.222",        # Port 80 via nginx
+        "http://srv1064321.hstgr.cloud",  # Port 80 via nginx
         "http://72.61.161.222:3002",
         "http://72.61.161.222:3000", 
         "http://srv1064321.hstgr.cloud:3000",

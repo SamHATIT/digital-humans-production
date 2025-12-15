@@ -88,7 +88,7 @@ export default function ExecutionMonitoringPage() {
         }
 
         // Stop polling if completed or failed
-        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'waiting_br_validation') {
+        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'cancelled' || data?.status === 'waiting_br_validation') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -152,7 +152,7 @@ export default function ExecutionMonitoringPage() {
       pollingRef.current = setInterval(async () => {
         const data = await executions.getProgress(Number(executionId));
         setProgress(data);
-        if (data.status === 'completed' || data.status === 'failed') {
+        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
           if (pollingRef.current) clearInterval(pollingRef.current);
         }
       }, 3000);
@@ -199,6 +199,7 @@ export default function ExecutionMonitoringPage() {
   const normalizedMainStatus = progress?.status?.toLowerCase() || '';
   const isCompleted = normalizedMainStatus === 'completed';
   const isFailed = normalizedMainStatus === 'failed';
+  const isCancelled = normalizedMainStatus === 'cancelled';
   const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
 
@@ -218,7 +219,7 @@ export default function ExecutionMonitoringPage() {
           <div>
             <h1 className="text-3xl font-extrabold text-white">Execution Monitor</h1>
             <p className="text-slate-400 mt-1">
-              {progress?.current_phase || 'Initializing...'}
+              {isCancelled ? '❌ Execution Cancelled' : (progress?.current_phase || 'Initializing...')}
             </p>
           </div>
 
@@ -319,7 +320,7 @@ export default function ExecutionMonitoringPage() {
             )}
             {!isCompleted && !isFailed && (
               <span className="inline-flex items-center gap-1 text-cyan-400 text-sm">
-                <RefreshCw className="w-4 h-4 animate-spin" /> Processing...
+                {isCancelled ? '❌ Cancelled' : <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>}
               </span>
             )}
           </div>
