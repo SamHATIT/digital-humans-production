@@ -46,3 +46,4 @@ sentence-transformers>=2.2.0
 # RAG embeddings
 nomic
 einops
+slowapi>=0.1.9

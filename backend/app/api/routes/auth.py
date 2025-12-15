@@ -9,12 +9,15 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, User as UserSchema, Token
 from app.utils.auth import verify_password, get_password_hash, create_access_token
 from app.utils.dependencies import get_current_user
+from app.rate_limiter import limiter, RateLimits
+from fastapi import Request
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit(RateLimits.AUTH_REGISTER)
+async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user account.
 
@@ -53,7 +56,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-async def login(user_credentials: UserLogin, db: Session = Depends(get_db)):
+@limiter.limit(RateLimits.AUTH_LOGIN)
+async def login(request: Request, user_credentials: UserLogin, db: Session = Depends(get_db)):
     """
     Authenticate user and return JWT access token.
 

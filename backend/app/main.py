@@ -11,6 +11,8 @@ from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
+from app.rate_limiter import limiter, rate_limit_exceeded_handler
 import logging
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,10 @@ app = FastAPI(
     version="2.0.0",
     description="Digital Humans API for Salesforce specification generation"
 )
+
+# SEC-002: Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(

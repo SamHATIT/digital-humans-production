@@ -1,7 +1,7 @@
 """
 PM Orchestrator API routes for project definition and execution.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -28,6 +28,7 @@ from app.schemas.execution import (
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.services.pm_orchestrator_service_v2 import execute_workflow_background
+from app.rate_limiter import limiter, RateLimits
 
 router = APIRouter(tags=["PM Orchestrator"])
 
@@ -256,7 +257,9 @@ async def delete_project(
 # ==================== EXECUTION ROUTES ====================
 
 @router.post("/execute", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(RateLimits.EXECUTE_SDS)
 async def start_execution(
+    request: Request,
     execution_data: ExecutionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -938,7 +941,9 @@ async def get_build_tasks(
 # ==================== START BUILD PHASE ====================
 
 @router.post("/projects/{project_id}/start-build")
+@limiter.limit(RateLimits.EXECUTE_BUILD)
 async def start_build_phase(
+    request: Request,
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
