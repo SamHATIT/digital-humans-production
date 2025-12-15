@@ -144,6 +144,58 @@ Located in `frontend/src/services/api.ts`:
 const API_BASE_URL = 'http://localhost:8002/api';
 ```
 
+### Pre-Deployment Checklist
+
+Before deploying to production, verify:
+
+- [ ] **SECRET_KEY**: Generated and set in `.env` (required in production)
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(32))"
+  ```
+- [ ] **DB_PASSWORD**: Strong password set (no default `changeme`)
+- [ ] **DATABASE_URL**: Correct format with strong password
+- [ ] **OPENAI_API_KEY**: Valid API key from OpenAI
+- [ ] **DEBUG**: Set to `False` in production
+- [ ] **CORS**: Only allowed origins configured in `main.py`
+- [ ] **PostgreSQL**: Running and accessible
+- [ ] **Docker**: All containers healthy (`docker ps`)
+
+### Troubleshooting
+
+**Application won't start:**
+```bash
+# Check container logs
+docker logs digital-humans-backend --tail 50
+
+# Verify PostgreSQL is running
+pg_isready -h localhost -p 5432
+
+# Test database connection
+psql -U digital_humans -d digital_humans_db -c "SELECT 1"
+```
+
+**SECRET_KEY error in production:**
+```
+ValueError: SECRET_KEY is required in production mode
+```
+→ Generate and add to `.env`: `python -c "import secrets; print(secrets.token_urlsafe(32))"`
+
+**Database connection failed:**
+```bash
+# Check DATABASE_URL format
+echo $DATABASE_URL
+# Should be: postgresql://user:password@host:5432/dbname
+
+# Verify PostgreSQL service
+systemctl status postgresql
+```
+
+**CORS errors in browser:**
+→ Add your frontend origin to `allow_origins` in `backend/app/main.py`
+
+**Rate limit exceeded (429):**
+→ Wait 60 seconds or check rate limits in `backend/app/rate_limiter.py`
+
 ## 📈 Performance Metrics
 
 - **Execution Time**: 12-15 minutes for complete SDS
