@@ -56,7 +56,7 @@ outputs/
 # Backups
 backups/
 *.backup
-*.bak
+*.bak*
 
 # Testing
 .pytest_cache/
