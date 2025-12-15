@@ -5,8 +5,8 @@
     "last_updated": "2025-12-15",
     "total_features": 149,
     "stats": {
-      "completed": 120,
-      "not_started": 29,
+      "completed": 121,
+      "not_started": 28,
       "in_progress": 0,
       "blocked": 0
     }
@@ -1998,7 +1998,7 @@
       "title": "Marcus ne connaît pas les champs standard Salesforce",
       "description": "Marcus crée des champs custom redondants (Contact_Request_Name__c, Contact_Request_Email__c) alors que Case a déjà ContactId lookup et SuppliedName/Email/Phone. Le RAG ne lui fournit pas la structure des objets standard.",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "RAG contient la structure des objets standard SF (Case, Account, Contact, etc.)",
         "Marcus vérifie les champs existants avant de proposer des custom fields"
@@ -2009,7 +2009,7 @@
         "data/rag_documents/"
       ],
       "estimated_hours": 4,
-      "notes": "Ajouter documentation objets standard SF au RAG ou injecter metadata org"
+      "notes": "Corrigé le 15/12/2025 (commit 67ac644): RAG query dynamique + sf sobject describe pour Case/Contact/Account/Lead/Opportunity. Le RAG contenait déjà 6017 chunks du PDF - le problème était la query statique."
     },
     {
       "id": "BUG-048",

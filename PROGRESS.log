@@ -2296,3 +2296,42 @@ Implémenter toutes les corrections identifiées dans l'audit de sécurité (SEC
 - Tester le système de notifications en conditions réelles (exécution SDS complète)
 - Surveiller les logs pour vérifier que les notifications fonctionnent
 
+
+---
+## Session 2025-12-15 (suite 2) - Fix BUG-047
+
+### Objectif
+Résoudre le problème de Marcus qui crée des champs custom redondants (ex: Contact_Request_Name__c au lieu d'utiliser Case.SuppliedName)
+
+### Analyse du problème
+1. Le RAG contient bien le object_reference.pdf (6,017 chunks dans technical_collection)
+2. Les chunks avec Case.SuppliedEmail, ContactId, etc. EXISTENT dans la base
+3. ❌ MAIS la query RAG était STATIQUE: "Salesforce architecture design patterns data model"
+4. Marcus ne demandait jamais les champs spécifiques des objets du projet
+
+### Solution implémentée (Option A+B)
+
+**A. RAG query dynamique** (salesforce_solution_architect.py)
+- Détecte les objets standard mentionnés dans les Use Cases (Case, Contact, Account, Lead, etc.)
+- Construit une query RAG ciblée: "Salesforce Case Contact object standard fields relationships best practices"
+- Augmenté n_results de 5 à 8 pour meilleure couverture
+
+**B. sf sobject describe** (pm_orchestrator_service_v2.py)
+- Ajouté étape 6 dans _get_salesforce_metadata()
+- Récupère les vrais champs de l'org pour: Case, Contact, Account, Lead, Opportunity
+- Inclut: name, type, label, nillable, createable, referenceTo
+- Ajouté standard_object_fields au metadata summary
+
+### Fichiers modifiés
+- `backend/agents/roles/salesforce_solution_architect.py` - Query RAG dynamique
+- `backend/app/services/pm_orchestrator_service_v2.py` - sobject describe + summary
+
+### Commit
+- 67ac644: fix(BUG-047): Marcus now knows standard Salesforce object fields
+
+### Test
+À faire: exécution SDS avec projet mentionnant "Case" ou "Contact" pour vérifier que Marcus utilise les champs standard
+
+### Stats
+- features.json: 121 completed, 28 not_started
+
