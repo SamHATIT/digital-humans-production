@@ -29,7 +29,14 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://72.61.161.222:3002", "http://72.61.161.222:3000", "http://srv1064321.hstgr.cloud:3000", "http://localhost:3000", "http://localhost:3002", "*"],
+    allow_origins=[
+        "http://72.61.161.222:3002",
+        "http://72.61.161.222:3000", 
+        "http://srv1064321.hstgr.cloud:3000",
+        "http://localhost:3000",
+        "http://localhost:3002",
+        # Note: "*" removed for security - add specific origins as needed
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,9 +86,23 @@ app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscr
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     logger.error(f"Validation error: {exc}")
+    # Handle bytes body (e.g., from form data)
+    body = exc.body
+    if isinstance(body, bytes):
+        try:
+            body = body.decode('utf-8')
+        except:
+            body = "<binary data>"
+    
+    # Sanitize errors for JSON serialization
+    try:
+        errors = exc.errors()
+    except:
+        errors = [{"msg": str(exc)}]
+    
     return JSONResponse(
         status_code=422,
-        content={"detail": exc.errors(), "body": exc.body}
+        content={"detail": errors, "body": body}
     )
 
 @app.get("/")
