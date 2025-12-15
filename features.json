@@ -5,8 +5,8 @@
     "last_updated": "2025-12-15",
     "total_features": 149,
     "stats": {
-      "completed": 121,
-      "not_started": 28,
+      "completed": 129,
+      "not_started": 25,
       "in_progress": 0,
       "blocked": 0
     }
@@ -568,7 +568,7 @@
       "title": "Template SDS DOCX amélioré",
       "description": "Améliorer le template du Solution Design Specification pour éliminer les duplications",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "BRs apparaissent une seule fois",
         "UCs intégrés sans duplication",
@@ -579,7 +579,7 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 3,
-      "notes": "Actuellement BRs apparaissent 2 fois"
+      "notes": "Résolu par refactoring: Emma (mode write_sds) rédige maintenant le SDS. L'ancien sds_template_generator.py qui causait les duplications n'est plus utilisé. Implémenté session 12-13/12/2025."
     },
     {
       "id": "SDS-02",
@@ -672,7 +672,7 @@
       "title": "Validation BRs par utilisateur",
       "description": "Interface permettant à l'utilisateur de valider/modifier les BRs extraits par Sophie",
       "priority": 2,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Liste des BRs éditable",
         "Possibilité d'ajouter/supprimer des BRs",
@@ -684,7 +684,7 @@
         "backend/app/api/routes/br_validation.py"
       ],
       "estimated_hours": 4,
-      "notes": "Améliore la qualité en amont"
+      "notes": "Implémenté: BRValidationPage.tsx (22KB), route /br-validation, statut waiting_br_validation. Testé session 12/12/2025."
     },
     {
       "id": "BLD-01",
@@ -1623,10 +1623,10 @@
       "id": "BUG-023",
       "title": "Format SDS généré à améliorer",
       "description": "Le document SDS généré nécessite une amélioration du format et du contenu",
-      "status": "not_started",
+      "status": "completed",
       "priority": 3,
       "category": "WORKFLOW_SDS",
-      "notes": "User request - à retravailler"
+      "notes": "Résolu par Emma write_sds - format professionnel. Améliorations futures possibles mais acceptable pour MVP."
     },
     {
       "id": "BUG-024",
@@ -2508,6 +2508,51 @@
       ],
       "estimated_hours": 1,
       "notes": "Complété 15/12/2025 (commit dcad974). 8 points checklist + 5 problèmes troubleshooting."
+    },
+    {
+      "id": "FIX-001",
+      "category": "FIXES",
+      "title": "Timeout Emma/Marcus augmenté à 15 minutes",
+      "description": "Timeout passé de 5min à 15min pour Emma (tous modes) et Marcus",
+      "priority": 1,
+      "status": "completed",
+      "notes": "Corrigé le 15/12/2025 - évite les timeouts sur gros projets (200+ UCs)"
+    },
+    {
+      "id": "FIX-002",
+      "category": "FIXES",
+      "title": "Emma visible dans frontend monitoring",
+      "description": "Ajout de research_analyst au mapping agent_names dans pm_orchestrator.py",
+      "priority": 1,
+      "status": "completed",
+      "notes": "Corrigé le 15/12/2025"
+    },
+    {
+      "id": "FIX-003",
+      "category": "FIXES",
+      "title": "Suppression fallback ancien générateur SDS",
+      "description": "Si Emma write_sds échoue, pas de fallback vers l'ancien générateur",
+      "priority": 1,
+      "status": "completed",
+      "notes": "Corrigé le 15/12/2025"
+    },
+    {
+      "id": "FIX-004",
+      "category": "FIXES",
+      "title": "Nettoyage code resume cassé",
+      "description": "Suppression de SDS_PHASES, start_idx et autre code de resume non fonctionnel",
+      "priority": 1,
+      "status": "completed",
+      "notes": "Corrigé le 15/12/2025 - 94 lignes de code mort supprimées"
+    },
+    {
+      "id": "FIX-005",
+      "category": "FIXES",
+      "title": "Frontend status 'cancelled' reconnu",
+      "description": "Le frontend reconnaît maintenant le statut cancelled et arrête le polling",
+      "priority": 1,
+      "status": "completed",
+      "notes": "Corrigé le 15/12/2025"
     }
   ],
   "stats": {
