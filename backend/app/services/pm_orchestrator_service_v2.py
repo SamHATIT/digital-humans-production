@@ -38,6 +38,14 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
+
+# PERF-001: Notification service for real-time updates
+try:
+    from app.services.notification_service import get_notification_service
+    NOTIFICATIONS_ENABLED = True
+except ImportError:
+    NOTIFICATIONS_ENABLED = False
+
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -529,31 +537,34 @@ class PMOrchestratorServiceV2:
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_validate_tokens
                     results["metrics"]["total_tokens"] += emma_validate_tokens
 
-                    # 3.5: WBS (Break down implementation tasks)
-                    self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
-                    
-                    wbs_result = await self._run_agent(
-                        agent_id="architect",
-                        mode="wbs",
-                        input_data={
-                            "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
-                            "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                            "constraints": project.compliance_requirements or project.architecture_notes or ""
-                        },
-                        execution_id=execution_id,
-                        project_id=project_id
-                    )
-                    
-                    if wbs_result.get("success"):
-                        results["artifacts"]["WBS"] = wbs_result["output"]
-                        architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
-                        self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
-                        logger.info(f"[Phase 3.5] ✅ WBS (WBS-001)")
+                    self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
 
                 else:
                     logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
+                    self._update_progress(execution, "research_analyst", "completed", 72, "Coverage check skipped")
+                    
+                # 3.5: WBS (Break down implementation tasks) - ALWAYS generate WBS even if validate failed
+                self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
                 
-                self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
+                wbs_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="wbs",
+                    input_data={
+                        "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
+                        "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+                        "constraints": project.compliance_requirements or project.architecture_notes or ""
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                
+                if wbs_result.get("success"):
+                    results["artifacts"]["WBS"] = wbs_result["output"]
+                    architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
+                    self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
+                    logger.info(f"[Phase 3.5] ✅ WBS (WBS-001)")
+                else:
+                    logger.warning(f"[Phase 3.5] ⚠️ WBS generation failed: {wbs_result.get('error', 'Unknown')}")
 
 
             else:
@@ -1045,12 +1056,10 @@ class PMOrchestratorServiceV2:
             
             # Dynamic timeout based on agent/mode
             timeout_seconds = 300  # Default 5 min
-            if agent_id == "research_analyst" and mode == "write_sds":
-                timeout_seconds = 900  # 15 min for SDS generation
-            elif agent_id == "research_analyst" and mode == "validate":
-                timeout_seconds = 600  # 10 min for validation
+            if agent_id == "research_analyst":
+                timeout_seconds = 900  # 15 min for all Emma modes
             elif agent_id == "architect":
-                timeout_seconds = 600  # 10 min for architecture
+                timeout_seconds = 900  # 15 min for architecture
             
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
@@ -1119,7 +1128,7 @@ class PMOrchestratorServiceV2:
             self.db.rollback()
     
     def _update_progress(self, execution: Execution, agent_id: str, state: str, progress: int, message: str):
-        """Update execution progress for SSE"""
+        """Update execution progress for SSE and send real-time notification"""
         if execution.agent_execution_status is None:
             execution.agent_execution_status = {}
         
@@ -1146,6 +1155,33 @@ class PMOrchestratorServiceV2:
         # CRITICAL: Mark JSON column as modified for SQLAlchemy to detect changes
         flag_modified(execution, "agent_execution_status")
         self.db.commit()
+        
+        # PERF-001: Send real-time notification (fire-and-forget)
+        self._send_progress_notification(execution.id, agent_id, state, progress, message)
+    
+    def _send_progress_notification(self, execution_id: int, agent_id: str, state: str, progress: int, message: str):
+        """Send progress notification via PostgreSQL NOTIFY (non-blocking)"""
+        if not NOTIFICATIONS_ENABLED:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self._async_notify_progress(execution_id, agent_id, state, progress, message))
+        except RuntimeError:
+            pass  # No running loop, skip notification
+    
+    async def _async_notify_progress(self, execution_id: int, agent_id: str, state: str, progress: int, message: str):
+        """Async helper to send notification"""
+        try:
+            service = await get_notification_service()
+            await service.notify_execution_progress(
+                execution_id=execution_id,
+                status=state,
+                progress=progress,
+                agent=agent_id,
+                message=message
+            )
+        except Exception as e:
+            logger.debug(f"Notification failed (non-critical): {e}")
 
     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
         """Track tokens per agent"""
@@ -2182,6 +2218,7 @@ class BuildPhaseService:
         """
         from app.models.execution import Execution, ExecutionStatus
         from sqlalchemy.orm.attributes import flag_modified
+
         
         execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
         if not execution:
@@ -2212,6 +2249,7 @@ class BuildPhaseService:
         """
         from app.models.execution import Execution
         from sqlalchemy.orm.attributes import flag_modified
+
         
         execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
         if not execution:

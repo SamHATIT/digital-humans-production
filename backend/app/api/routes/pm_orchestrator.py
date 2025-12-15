@@ -515,6 +515,7 @@ async def get_execution_progress(
     }
 
 # FRNT-04: SSE endpoint for real-time progress updates
+# PERF-001: Uses PostgreSQL NOTIFY for instant updates with polling fallback
 @router.get("/execute/{execution_id}/progress/stream")
 async def stream_execution_progress(
     execution_id: int,
@@ -524,6 +525,7 @@ async def stream_execution_progress(
     """
     Stream execution progress updates via Server-Sent Events (SSE).
     
+    Uses PostgreSQL LISTEN/NOTIFY for instant updates, with polling fallback.
     Connect with: const eventSource = new EventSource(`/api/pm-orchestrator/execute/{id}/progress/stream?token={jwt}`)
     """
     from fastapi.responses import StreamingResponse
@@ -548,83 +550,124 @@ async def stream_execution_progress(
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
     
+    # Try to use notifications, fallback to polling
+    try:
+        from app.services.notification_service import get_notification_service
+        notification_service = await get_notification_service()
+        use_notifications = True
+    except Exception as e:
+        logger.debug(f"Notifications unavailable, using polling: {e}")
+        use_notifications = False
+        notification_service = None
+    
     async def event_generator():
         """Generate SSE events for progress updates"""
         last_status = None
         last_progress = -1
-        retry_count = 0
-        max_retries = 300  # 5 minutes max (1 second intervals)
+        max_duration = 600  # 10 minutes max
+        start_time = asyncio.get_event_loop().time()
+        poll_interval = 3 if use_notifications else 2  # Longer interval when using notifications
         
-        while retry_count < max_retries:
+        # Helper to build progress data
+        def build_progress_data():
+            db.refresh(execution)
+            agent_status = {}
+            if execution.agent_execution_status:
+                if isinstance(execution.agent_execution_status, str):
+                    agent_status = json.loads(execution.agent_execution_status)
+                else:
+                    agent_status = execution.agent_execution_status
+            
+            selected_agents = execution.selected_agents or []
+            if isinstance(selected_agents, str):
+                selected_agents = json.loads(selected_agents)
+            
+            agent_names = {
+                "pm": "Sophie (PM)", "ba": "Olivia (BA)", "research_analyst": "Emma (Research Analyst)",
+                "architect": "Marcus (Architect)", "apex": "Diego (Apex)", "lwc": "Zara (LWC)",
+                "admin": "Raj (Admin)", "qa": "Elena (QA)", "devops": "Jordan (DevOps)",
+                "data": "Aisha (Data)", "trainer": "Lucas (Trainer)"
+            }
+            
+            agent_progress = []
+            for agent_id in selected_agents:
+                info = agent_status.get(agent_id, {})
+                state = info.get("state", "waiting")
+                status_map = {"waiting": "pending", "running": "in_progress", "completed": "completed", "failed": "failed"}
+                agent_progress.append({
+                    "agent_name": agent_names.get(agent_id, agent_id),
+                    "status": status_map.get(state, state),
+                    "progress": info.get("progress", 0),
+                    "current_task": info.get("message", ""),
+                    "output_summary": info.get("message", "")
+                })
+            
+            total = len(selected_agents)
+            completed = sum(1 for a in agent_status.values() if a.get("state") == "completed")
+            overall = int((completed / total) * 100) if total > 0 else 0
+            current_status = execution.status.value if hasattr(execution.status, "value") else str(execution.status)
+            
+            return {
+                "execution_id": execution.id,
+                "status": current_status,
+                "overall_progress": overall,
+                "current_phase": f"Running {agent_names.get(execution.current_agent, execution.current_agent)}" if execution.current_agent else "Processing...",
+                "agent_progress": agent_progress
+            }, current_status, overall
+        
+        if use_notifications and notification_service:
+            # PERF-001: Event-driven mode with notifications
+            channel = f"execution_{execution_id}"
             try:
-                # Refresh execution from DB
-                db.refresh(execution)
-                
-                # Parse agent status
-                agent_status = {}
-                if execution.agent_execution_status:
-                    if isinstance(execution.agent_execution_status, str):
-                        agent_status = json.loads(execution.agent_execution_status)
-                    else:
-                        agent_status = execution.agent_execution_status
-                
-                # Build progress data
-                selected_agents = execution.selected_agents or []
-                if isinstance(selected_agents, str):
-                    selected_agents = json.loads(selected_agents)
-                
-                agent_names = {
-                    "pm": "Sophie (PM)", "ba": "Olivia (BA)", "research_analyst": "Emma (Research Analyst)",
-                    "architect": "Marcus (Architect)", "apex": "Diego (Apex)", "lwc": "Zara (LWC)",
-                    "admin": "Raj (Admin)", "qa": "Elena (QA)", "devops": "Jordan (DevOps)",
-                    "data": "Aisha (Data)", "trainer": "Lucas (Trainer)"
-                }
-                
-                agent_progress = []
-                for agent_id in selected_agents:
-                    info = agent_status.get(agent_id, {})
-                    state = info.get("state", "waiting")
-                    status_map = {"waiting": "pending", "running": "in_progress", "completed": "completed", "failed": "failed"}
-                    agent_progress.append({
-                        "agent_name": agent_names.get(agent_id, agent_id),
-                        "status": status_map.get(state, state),
-                        "progress": info.get("progress", 0),
-                        "current_task": info.get("message", ""),
-                        "output_summary": info.get("message", "")
-                    })
-                
-                # Calculate overall progress
-                total = len(selected_agents)
-                completed = sum(1 for a in agent_status.values() if a.get("state") == "completed")
-                overall = int((completed / total) * 100) if total > 0 else 0
-                
-                current_status = execution.status.value if hasattr(execution.status, "value") else str(execution.status)
-                
-                # Only send if changed
-                if current_status != last_status or overall != last_progress:
-                    data = {
-                        "execution_id": execution.id,
-                        "status": current_status,
-                        "overall_progress": overall,
-                        "current_phase": f"Running {agent_names.get(execution.current_agent, execution.current_agent)}" if execution.current_agent else "Processing...",
-                        "agent_progress": agent_progress
-                    }
-                    
-                    yield f"data: {json.dumps(data)}\n\n"
-                    last_status = current_status
-                    last_progress = overall
-                
-                # Stop if execution finished
-                if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
-                    yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
-                    break
-                
-                await asyncio.sleep(1)  # 1 second interval
-                retry_count += 1
-                
+                async with notification_service.subscribe(channel) as queue:
+                    while (asyncio.get_event_loop().time() - start_time) < max_duration:
+                        try:
+                            # Wait for notification or timeout
+                            try:
+                                notification = await asyncio.wait_for(queue.get(), timeout=poll_interval)
+                                logger.debug(f"SSE: Received notification for execution {execution_id}")
+                            except asyncio.TimeoutError:
+                                notification = None
+                            
+                            # Build and send progress data
+                            data, current_status, overall = build_progress_data()
+                            
+                            if current_status != last_status or overall != last_progress:
+                                yield f"data: {json.dumps(data)}\n\n"
+                                last_status = current_status
+                                last_progress = overall
+                            
+                            if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+                                yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
+                                return
+                                
+                        except Exception as e:
+                            logger.error(f"SSE notification error: {e}")
+                            break
             except Exception as e:
-                yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
-                break
+                logger.warning(f"SSE notification subscription failed, falling back to polling: {e}")
+                use_notifications = False
+        
+        # Polling fallback (or primary if notifications unavailable)
+        if not use_notifications:
+            while (asyncio.get_event_loop().time() - start_time) < max_duration:
+                try:
+                    data, current_status, overall = build_progress_data()
+                    
+                    if current_status != last_status or overall != last_progress:
+                        yield f"data: {json.dumps(data)}\n\n"
+                        last_status = current_status
+                        last_progress = overall
+                    
+                    if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+                        yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
+                        return
+                    
+                    await asyncio.sleep(poll_interval)
+                    
+                except Exception as e:
+                    yield f"data: {json.dumps({'event': 'error', 'message': str(e)})}\n\n"
+                    return
         
         yield f"data: {json.dumps({'event': 'timeout'})}\n\n"
     
@@ -1146,8 +1189,8 @@ async def websocket_endpoint(
                     })
                     break
                 
-                # Wait before next poll (3 seconds)
-                await asyncio.sleep(3)
+                # PERF-001: Increased poll interval (notifications reduce need for frequent polling)
+                await asyncio.sleep(5)  # Reduced from 3s - notifications handle instant updates
                 
             except Exception as e:
                 logger.error(f"Error in WebSocket loop: {str(e)}")
@@ -1398,6 +1441,7 @@ async def execute_build_phase(execution_id: int):
                         logger.warning(f"[BUILD] ⚠️ {summary['by_status'].get('BLOCKED', 0)} tasks blocked - cannot continue")
                         break
                     logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['by_status'].get('COMPLETED', 0)}, blocked: {summary['by_status'].get('BLOCKED', 0)})")
+                    # PERF-001: Intentional delay while waiting for dependencies
                     await asyncio.sleep(2)
                     continue
             
@@ -1419,7 +1463,7 @@ async def execute_build_phase(execution_id: int):
                     logger.error(f"[BUILD] Too many failures ({tasks_failed}), stopping BUILD")
                     break
             
-            # Small delay between tasks
+            # PERF-001: Small intentional delay between BUILD tasks
             await asyncio.sleep(1)
         
         # Finalize build

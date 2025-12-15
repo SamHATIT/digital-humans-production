@@ -47,3 +47,4 @@ sentence-transformers>=2.2.0
 nomic
 einops
 slowapi>=0.1.9
+asyncpg>=0.29.0

@@ -13,6 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.rate_limiter import limiter, rate_limit_exceeded_handler
+from app.services.notification_service import get_notification_service, shutdown_notification_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,25 @@ async def root():
         "status": "healthy",
         "features": ["V1 PM Orchestrator", "V2 Artifacts System", "V2 Orchestrator", "Audit Logging", "Deployment", "Quality Dashboard"]
     }
+
+# PERF-001: Notification service lifecycle
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    try:
+        await get_notification_service()
+        logger.info("NotificationService initialized")
+    except Exception as e:
+        logger.warning(f"NotificationService failed to initialize (non-critical): {e}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup services on shutdown."""
+    try:
+        await shutdown_notification_service()
+        logger.info("NotificationService shutdown complete")
+    except Exception as e:
+        logger.error(f"Error shutting down NotificationService: {e}")
 
 @app.get("/health")
 async def health_check():
