@@ -1634,14 +1634,15 @@ See WBS-001 artifact for details.
         for i, br in enumerate(business_requirements):
             br_id = br.get("id", f"BR-{i+1:03d}")
             
-            # Check if already exists
+            # Check if already exists FOR THIS EXECUTION (not project-level)
+            # FIX: Use execution_id instead of project_id to allow re-runs
             existing = self.db.query(BusinessRequirement).filter(
-                BusinessRequirement.project_id == project_id,
+                BusinessRequirement.execution_id == execution_id,
                 BusinessRequirement.br_id == br_id
             ).first()
             
             if existing:
-                continue  # Skip if already exists
+                continue  # Skip if already exists for this execution
             
             # Map priority - EMMA-P1-001: Support all priority formats from Sophie
             priority_map = {
