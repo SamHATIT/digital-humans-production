@@ -328,6 +328,9 @@ WRITE_FULL_SDS_PROMPT = """# GÉNÉRATION DU DOCUMENT SDS
 ### UC Digest (Emma analyze):
 {uc_digest_json}
 
+### Use Cases Complets (pour Annexe A.1):
+{use_cases_json}
+
 ### Solution Design (Marcus):
 {solution_design_json}
 
@@ -764,6 +767,7 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
             template_json=json.dumps(template.get("sections", []), indent=2)[:5000],
             business_requirements_json=json.dumps(business_requirements, indent=2, ensure_ascii=False, default=str)[:30000],
             uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:50000],
+            use_cases_json=json.dumps(use_cases, indent=2, ensure_ascii=False, default=str)[:80000],  # Full UCs for Annexe A.1
             solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:60000],
             coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:20000],
             wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000]
