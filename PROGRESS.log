@@ -2411,3 +2411,81 @@ Emma reçoit des données TRONQUÉES:
 4. Inclure tous les UCs dans le SDS (annexe)
 5. Corriger _save_extracted_brs pour sauver par execution_id
 
+
+---
+## Session: 2025-12-17 ~16h00 - Corrections Emma SDS (troncatures, ERD, hallucinations)
+
+### Objectif
+Corriger les problèmes identifiés dans le rapport de session précédent concernant Emma et la génération SDS
+
+### Corrections appliquées
+
+#### 1. ERD Mermaid en images PNG
+- **Problème**: mmdc installé sur VPS mais absent du container Docker
+- **Solution**: Rebuild image Docker avec mmdc + Chromium/Puppeteer
+- **Résultat**: `convert_mermaid_to_image()` génère des PNG (test: 7.7KB)
+- **Preuve**: `docker exec digital-humans-backend mmdc --version` → 11.12.0
+
+#### 2. Troncatures Emma supprimées (commit dd16fd5)
+**Problème**: Emma recevait ~28KB au lieu de ~135KB (80% de perte)
+
+| Donnée | Avant | Après |
+|--------|-------|-------|
+| Seuil single_call | 50KB | 150KB |
+| business_requirements | [:15][:5000] | [:30000] |
+| uc_digest | [:8000] | [:50000] |
+| solution_design | [:10000] | [:60000] |
+| wbs | [:5000] | [:60000] |
+| use_cases (analyze) | [:50] | [:200] |
+
+#### 3. Règles anti-hallucination (commit 226618d)
+- Ajouté section "CRITICAL: ANTI-HALLUCINATION RULES" dans WRITE_SDS_SYSTEM
+- Instructions: "Information non disponible" si données manquantes
+- NEVER invent component names, workshops, dates, statistics
+- Checklist qualité mise à jour
+
+#### 4. Use Cases complets pour Annexe (commit 74ee226)
+- **Problème**: use_cases manquait du prompt WRITE_FULL_SDS_PROMPT
+- **Solution**: Ajouté use_cases_json (80KB max) pour Annexe A.1
+- **Résultat**: 127 UCs disponibles au lieu de 8
+
+#### 5. Fix _save_extracted_brs (commit 3145669)
+- **Problème**: Duplicate check utilisait project_id au lieu de execution_id
+- **Solution**: Changé pour execution_id
+- **Résultat**: Re-exécution SDS possible sur même projet
+
+### État SECURITY_TASKS.md
+| Tâche | État |
+|-------|------|
+| BUG-010: Import SDS_PHASES | ✅ Fait |
+| SEC-001: CORS wildcard | ✅ Fait |
+| SEC-002: Rate limiting | ✅ Fait |
+| CLEAN-001: Fichiers .bak | ✅ Fait |
+| CLEAN-002: Mot de passe défaut | ✅ Fait |
+| PERF-001: Events vs Polling | ⏳ Long terme |
+| DOC-001: README | ⏳ Basse priorité |
+
+### Commits de la session
+- dd16fd5: fix(emma): Remove aggressive data truncation
+- 226618d: fix(emma): Add anti-hallucination rules
+- 74ee226: fix(emma): Include full use_cases for Annexe
+- 3145669: fix(brs): Use execution_id for duplicate check
+
+### Fichiers modifiés
+- backend/Dockerfile (rebuild)
+- backend/agents/roles/salesforce_research_analyst.py
+- backend/app/services/pm_orchestrator_service_v2.py
+
+### Features ajoutées
+- EMMA-SDS-002: Fix troncatures (completed)
+- EMMA-SDS-003: ERD Mermaid PNG (completed)
+- EMMA-SDS-004: Règles anti-hallucination (completed)
+- EMMA-SDS-005: Use Cases Annexe (completed)
+- BUG-049: Fix _save_extracted_brs (completed)
+
+### Stats
+- features.json: 134 completed, 25 not_started, 161 total
+
+### Prochaine étape
+Lancer un test SDS complet pour valider toutes les corrections
+
