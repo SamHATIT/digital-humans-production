@@ -1,7 +1,7 @@
 """
 Authentication routes for user registration, login, and profile management.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,14 +10,13 @@ from app.schemas.user import UserCreate, UserLogin, User as UserSchema, Token
 from app.utils.auth import verify_password, get_password_hash, create_access_token
 from app.utils.dependencies import get_current_user
 from app.rate_limiter import limiter, RateLimits
-from fastapi import Request
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/register", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
 @limiter.limit(RateLimits.AUTH_REGISTER)
-async def register(request: Request, user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(request: Request, response: Response, user_data: UserCreate, db: Session = Depends(get_db)):
     """
     Register a new user account.
 
@@ -57,7 +56,7 @@ async def register(request: Request, user_data: UserCreate, db: Session = Depend
 
 @router.post("/login", response_model=Token)
 @limiter.limit(RateLimits.AUTH_LOGIN)
-async def login(request: Request, user_credentials: UserLogin, db: Session = Depends(get_db)):
+async def login(request: Request, response: Response, user_credentials: UserLogin, db: Session = Depends(get_db)):
     """
     Authenticate user and return JWT access token.
 
