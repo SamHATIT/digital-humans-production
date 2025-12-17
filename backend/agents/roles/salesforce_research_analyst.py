@@ -590,7 +590,7 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
     # Step 1: Map elements with BATCHING (to avoid JSON continuation issues)
     print(f"📋 Step 1/2: Mapping UC elements to Solution...", file=sys.stderr)
     
-    BATCH_SIZE = 5  # Optimal size to avoid JSON truncation
+    BATCH_SIZE = 15  # Increased for faster processing (Claude handles larger batches)
     all_mappings = []
     tokens_step1 = 0
     model_used = "unknown"
