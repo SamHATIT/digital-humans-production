@@ -455,7 +455,7 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
     cluster_prompt = CLUSTER_UCS_PROMPT.format(
         uc_count=len(use_cases),
         br_count=len(business_requirements),
-        use_cases_json=json.dumps(use_cases[:50], indent=2),  # Limit for context
+        use_cases_json=json.dumps(use_cases[:200], indent=2),  # Increased limit
         business_requirements_json=json.dumps(business_requirements, indent=2)
     )
     
@@ -738,7 +738,7 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
     
     # Check data size to decide approach
     total_data_size = len(json.dumps(sources, default=str))
-    use_single_call = total_data_size < 50000  # ~50KB threshold
+    use_single_call = total_data_size < 150000  # ~150KB threshold (Claude handles 200K tokens)
     
     sds_sections = {}
     total_tokens = 0
@@ -750,13 +750,13 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
         print(f"📝 Generating full document (single call, {total_data_size} bytes)...", file=sys.stderr)
         
         full_prompt = WRITE_FULL_SDS_PROMPT.format(
-            project_info_json=json.dumps(project_info, indent=2, ensure_ascii=False, default=str)[:3000],
-            template_json=json.dumps(template.get("sections", []), indent=2)[:2000],
-            business_requirements_json=json.dumps(business_requirements[:15], indent=2, ensure_ascii=False, default=str)[:5000],
-            uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:8000],
-            solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:10000],
-            coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:3000],
-            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:5000]
+            project_info_json=json.dumps(project_info, indent=2, ensure_ascii=False, default=str)[:5000],
+            template_json=json.dumps(template.get("sections", []), indent=2)[:5000],
+            business_requirements_json=json.dumps(business_requirements, indent=2, ensure_ascii=False, default=str)[:30000],
+            uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:50000],
+            solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:60000],
+            coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:20000],
+            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000]
         )
         
         if LLM_SERVICE_AVAILABLE:
@@ -816,7 +816,7 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
                 section_id=section_id,
                 section_title=section_title,
                 section_description=guidance,
-                section_data_json=json.dumps(section_data, indent=2, ensure_ascii=False, default=str)[:12000],
+                section_data_json=json.dumps(section_data, indent=2, ensure_ascii=False, default=str)[:30000],
                 format_type=subsections[0].get("format", "prose") if subsections else "prose",
                 subsections_list=subsections_list
             )
