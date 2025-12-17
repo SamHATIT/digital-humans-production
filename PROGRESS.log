@@ -2335,3 +2335,79 @@ Résoudre le problème de Marcus qui crée des champs custom redondants (ex: Con
 ### Stats
 - features.json: 121 completed, 28 not_started
 
+
+---
+## Session: 2025-12-17 ~14h30 - Gap Analysis UC Traceability Fix
+
+### Problème identifié
+Investigation du WBS incomplet (Zara n'avait qu'1 tâche LWC au lieu de 3+)
+
+### Analyse root cause
+1. **Gap Analysis recevait un UC context minimal** :
+   - Avant: `BR-005: Objects=Candidate__c, Automations=LWC with Apex Controller`
+   - Après: Contexte enrichi avec ui_components, automation purposes, key_acceptance_criteria
+
+2. **Prompt Gap manquait** :
+   - Table des agents avec assignations strictes
+   - Champ `uc_refs` obligatoire pour traçabilité
+   - Emphase sur les composants UI
+
+3. **Mauvaises assignations** :
+   - GAP-001-22 (LWC) était assigné à Raj au lieu de Zara
+
+### Corrections appliquées
+- `backend/agents/roles/salesforce_solution_architect.py`:
+  - `get_gap_prompt()`: Ajout table agents, règles assignation, format uc_refs
+  - Extraction UC Digest: Ajout ui_components, purposes, criteria
+
+### Commit
+- a96ada2: fix(marcus): Enrich UC context for gap analysis
+
+### Prochaines étapes
+- Tester la génération SDS sur un nouveau projet
+- Vérifier que le Gap Analysis contient maintenant uc_refs
+- Vérifier que Zara reçoit toutes les tâches LWC
+
+---
+## Session: 2025-12-17 ~15h00 - Analyse SDS et Fix BRs
+
+### Analyse exhaustive du SDS (Execution 121)
+
+**7 erreurs identifiées:**
+
+1. **Incohérence BRs** - Section 3 dit "aucun BR" puis Section 4 utilise 13 BRs
+   - Cause: business_requirements table vide pour exec 121 (bug _save_extracted_brs)
+
+2. **ERD = faux diagramme** - Texte avec emojis (📦📊🔗), pas Mermaid
+   - Attendu: syntax `erDiagram` avec relations
+
+3. **5 LWCs hallucinés** - candidatePipelineKanban, bulkCVUploader, etc.
+   - WBS réel: 1 seul LWC (TASK-028 resume upload)
+   - Zara: 0 tâches assignées
+
+4. **119 UCs manquants** - 8/127 UCs détaillés (UC-001-01 à UC-002-03)
+   - Seuls BR-001 et BR-002 couverts
+
+5. **49 tâches WBS manquantes** - 13/62 tâches, 2/7 agents
+
+6. **12+ placeholders hallucinés** - "ateliers de cadrage" qui n'existent pas
+
+7. **Tableau BRs vide** contredit par tableaux suivants
+
+### Cause racine
+Emma reçoit des données TRONQUÉES:
+- business_requirements[:15][:5000]
+- uc_digest[:8000]
+- wbs[:5000]
+
+### Fix appliqué
+- `_get_business_requirements_for_sds()`: fallback vers agent_deliverables si table vide
+- Commit: ad6e187
+
+### Prochaines corrections nécessaires
+1. Supprimer les troncatures dans Emma write_sds (ligne 753-759)
+2. Générer de vrais diagrammes ERD Mermaid
+3. Corriger le prompt pour éviter les hallucinations
+4. Inclure tous les UCs dans le SDS (annexe)
+5. Corriger _save_extracted_brs pour sauver par execution_id
+
