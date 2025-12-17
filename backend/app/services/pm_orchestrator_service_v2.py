@@ -712,10 +712,7 @@ class PMOrchestratorServiceV2:
                     "client_name": getattr(project, 'client_name', '') or "",
                     "objectives": project.architecture_notes or ""
                 },
-                "business_requirements": [
-                    {"id": br.br_id, "title": br.requirement[:100] if br.requirement else br.br_id, "description": br.requirement or "", "priority": br.priority.value if br.priority else "SHOULD"}
-                    for br in self.db.query(BusinessRequirement).filter(BusinessRequirement.execution_id == execution_id).all()
-                ],
+                "business_requirements": self._get_business_requirements_for_sds(execution_id),
                 "use_cases": self._get_use_cases(execution_id, limit=None),
                 "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
                 "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
@@ -1393,6 +1390,72 @@ class PMOrchestratorServiceV2:
             logger.error(f"Failed to get use cases: {e}")
             return []
     
+    
+    def _get_business_requirements_for_sds(self, execution_id: int) -> List[Dict]:
+        """
+        Get Business Requirements for SDS generation.
+        First tries business_requirements table, then falls back to agent_deliverables.
+        
+        FIX for BUG: When multiple executions exist for same project, 
+        _save_extracted_brs may skip saving due to project-level duplicate check,
+        leaving business_requirements empty for the current execution.
+        """
+        try:
+            # First try: Get from business_requirements table
+            brs_from_table = self.db.query(BusinessRequirement).filter(
+                BusinessRequirement.execution_id == execution_id
+            ).all()
+            
+            if brs_from_table:
+                logger.info(f"[SDS] Found {len(brs_from_table)} BRs in business_requirements table")
+                return [
+                    {
+                        "id": br.br_id,
+                        "title": br.requirement[:100] if br.requirement else br.br_id,
+                        "description": br.requirement or "",
+                        "priority": br.priority.value if br.priority else "SHOULD"
+                    }
+                    for br in brs_from_table
+                ]
+            
+            # Fallback: Get from agent_deliverables (Sophie's extraction)
+            logger.warning(f"[SDS] No BRs in table for execution {execution_id}, checking agent_deliverables...")
+            
+            br_deliverable = self.db.query(AgentDeliverable).filter(
+                AgentDeliverable.execution_id == execution_id,
+                AgentDeliverable.deliverable_type.in_(["br_extraction", "pm_br_extraction", "business_requirements_extraction"])
+            ).first()
+            
+            if br_deliverable and br_deliverable.content:
+                content_data = br_deliverable.content
+                if isinstance(content_data, str):
+                    import json
+                    content_data = json.loads(content_data)
+                
+                # Navigate to business_requirements in the nested structure
+                brs = content_data.get("content", {}).get("business_requirements", [])
+                if not brs:
+                    brs = content_data.get("business_requirements", [])
+                
+                if brs:
+                    logger.info(f"[SDS] Found {len(brs)} BRs in agent_deliverables (fallback)")
+                    return [
+                        {
+                            "id": br.get("id", f"BR-{i+1:03d}"),
+                            "title": br.get("title", br.get("requirement", "")[:100]),
+                            "description": br.get("description", br.get("requirement", "")),
+                            "priority": br.get("priority", "SHOULD")
+                        }
+                        for i, br in enumerate(brs)
+                    ]
+            
+            logger.error(f"[SDS] No BRs found for execution {execution_id} in any source!")
+            return []
+            
+        except Exception as e:
+            logger.error(f"[SDS] Failed to get business requirements: {e}")
+            return []
+
     def _get_use_case_count(self, execution_id: int) -> Dict[str, int]:
         """
         Get statistics about saved Use Cases.
