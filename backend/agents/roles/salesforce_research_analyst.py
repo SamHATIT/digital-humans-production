@@ -765,7 +765,7 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
     
     # Check data size to decide approach
     total_data_size = len(json.dumps(sources, default=str))
-    use_single_call = total_data_size < 150000  # ~150KB threshold (Claude handles 200K tokens)
+    use_single_call = total_data_size < 500000  # ~500KB (Claude handles 200K tokens = ~800KB)
     
     sds_sections = {}
     total_tokens = 0
@@ -781,11 +781,11 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
             template_json=json.dumps(template.get("sections", []), indent=2)[:5000],
             business_requirements_json=json.dumps(business_requirements, indent=2, ensure_ascii=False, default=str)[:30000],
             uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:50000],
-            use_cases_json=json.dumps(use_cases, indent=2, ensure_ascii=False, default=str)[:80000],  # Full UCs for Annexe A.1
+            use_cases_json=json.dumps(use_cases, indent=2, ensure_ascii=False, default=str)[:180000],  # Full UCs for Annexe A.1
             solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:60000],
             coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:20000],
             wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000],
-            qa_specs_json=json.dumps(qa_specs, indent=2, ensure_ascii=False, default=str)[:30000],
+            qa_specs_json=json.dumps(qa_specs, indent=2, ensure_ascii=False, default=str)[:50000],
             devops_specs_json=json.dumps(devops_specs, indent=2, ensure_ascii=False, default=str)[:30000],
             training_specs_json=json.dumps(training_specs, indent=2, ensure_ascii=False, default=str)[:30000],
             data_specs_json=json.dumps(data_specs, indent=2, ensure_ascii=False, default=str)[:30000]
