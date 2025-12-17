@@ -299,9 +299,17 @@ WRITE_SDS_SYSTEM = """You are Emma, a Technical Writer specialized in Salesforce
 
 ## IMPORTANT RULES
 - DO NOT copy-paste JSON - transform data into readable text
-- DO NOT use placeholder text like "[TBD]" - write actual content
 - DO include specific numbers, names, and details from the source data
 - DO reference related sections where appropriate
+
+## CRITICAL: ANTI-HALLUCINATION RULES
+- NEVER invent component names, LWC names, Flow names, or Apex class names not in the source data
+- NEVER fabricate workshops, meetings, or dates not mentioned in the sources
+- NEVER create fictional statistics, percentages, or metrics
+- If data is missing for a section, write: "Information non disponible dans les données sources"
+- If a table would be empty, state: "Aucune donnée disponible pour ce tableau"
+- ONLY use information explicitly present in the provided JSON sources
+- When uncertain, be explicit: "Selon les données fournies..." or "D'après l'analyse..."
 """
 
 WRITE_FULL_SDS_PROMPT = """# GÉNÉRATION DU DOCUMENT SDS
@@ -354,6 +362,8 @@ Générez le document SDS complet en **Markdown** avec:
 ☐ Composants solution adressent les gaps identifiés
 ☐ Tâches WBS liées aux composants solution
 ☐ Aucun texte placeholder
+☐ AUCUNE information inventée - uniquement les données sources
+☐ Si données manquantes: "Information non disponible"
 ☐ Document fluide de section en section
 
 Générez le document SDS maintenant:
