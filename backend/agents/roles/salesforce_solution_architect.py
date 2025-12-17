@@ -283,12 +283,13 @@ Generate an As-Is analysis with:
 # ============================================================================
 def get_gap_prompt(arch_summary: str, asis_summary: str, uc_context: str = "") -> str:
     """
-    Generate gap analysis prompt with optional UC context from Emma's digest.
+    Generate gap analysis prompt with UC context from Emma's digest.
+    UPDATED: Added agent table, uc_refs requirement, UI component emphasis.
     """
     uc_section = ""
     if uc_context:
         uc_section = f"""
-## USE CASE CONTEXT (from Emma's Analysis)
+## USE CASE REQUIREMENTS (from Emma's Analysis)
 {uc_context}
 
 """
@@ -298,43 +299,80 @@ def get_gap_prompt(arch_summary: str, asis_summary: str, uc_context: str = "") -
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
 ## YOUR MISSION
-Compare the Target Architecture with the Current State to identify gaps.
-Ensure ALL Use Case requirements are addressed in the gap analysis.
-{uc_section}
-## TARGET ARCHITECTURE (ARCH-001)
-{arch_summary}
+Analyze the Use Case requirements and Current State to identify ALL implementation gaps.
+Each gap must trace back to specific Use Cases (uc_refs) for complete coverage.
 
+**CRITICAL**: Every UI component (LWC, Screen Flow, custom page) mentioned in requirements 
+MUST have a corresponding gap with category "UI" and appropriate agent assignment.
+{uc_section}
 ## CURRENT STATE (ASIS-001)
 {asis_summary}
 
+## AVAILABLE AGENTS (assign gaps to the RIGHT agent)
+
+| Agent | Role | Handles |
+|-------|------|---------|
+| Diego | Apex Developer | Apex classes, triggers, batch jobs, schedulable, REST/SOAP integrations |
+| Zara | LWC Developer | Lightning Web Components, Aura components, custom UI components |
+| Raj | SF Admin | Objects, fields, page layouts, flows, validation rules, profiles, permission sets |
+| Elena | QA Engineer | Test plans, test cases, UAT scenarios |
+| Jordan | DevOps | CI/CD, deployments, environments |
+| Aisha | Data Migration | Data mapping, ETL, migration scripts |
+| Lucas | Trainer | Training materials, user guides, documentation |
+| Marcus | Architect | Architecture reviews only |
+
+## AGENT ASSIGNMENT RULES (STRICT)
+
+- **Lightning Web Components (LWC)** → **Zara** (NOT Raj, NOT Diego)
+- **Aura components** → **Zara**
+- **Custom UI with JavaScript** → **Zara**
+- **Screen Flows** → **Raj** (declarative, no code)
+- **Record-Triggered Flows** → **Raj**
+- **Validation Rules** → **Raj**
+- **Objects, Fields, Layouts** → **Raj**
+- **Apex classes/triggers** → **Diego**
+- **Apex integration code** → **Diego**
+
 ## OUTPUT FORMAT (JSON)
-Generate a gap analysis with:
-- "artifact_id": "GAP-001"
-- "title": "Gap Analysis"
-- "gaps": Array of gap objects, each with:
-  - "id": "GAP-001-01", "GAP-001-02", etc.
-  - "category": One of DATA_MODEL, AUTOMATION, SECURITY, INTEGRATION, UI, OTHER
-  - "current_state": What exists now
-  - "target_state": What is needed
-  - "gap_description": Clear description of the delta
-  - "complexity": One of LOW, MEDIUM, HIGH
-  - "effort_days": Estimated effort in days
-  - "dependencies": Array of other gap IDs this depends on
-  - "assigned_agent": Which agent should handle (Diego, Zara, Raj, etc.)
-- "summary": Object with:
-  - "total_gaps": Number
-  - "by_category": Object with counts per category
-  - "by_complexity": Object with counts per complexity
-  - "total_effort_days": Sum of all efforts
-- "migration_considerations": Array of data migration notes
-- "risk_areas": Array of high-risk changes
+
+```json
+{{{{
+  "artifact_id": "GAP-001",
+  "title": "Gap Analysis",
+  "gaps": [
+    {{{{
+      "id": "GAP-001-01",
+      "category": "DATA_MODEL | AUTOMATION | SECURITY | INTEGRATION | UI | OTHER",
+      "uc_refs": ["UC-001-01", "UC-001-02"],
+      "current_state": "What exists now (or 'None' if greenfield)",
+      "target_state": "What is needed - be specific about component type",
+      "gap_description": "Clear description of the delta",
+      "complexity": "LOW | MEDIUM | HIGH",
+      "effort_days": 2,
+      "dependencies": ["GAP-001-XX"],
+      "assigned_agent": "Raj | Diego | Zara | Elena | Jordan | Aisha | Lucas | Marcus"
+    }}}}
+  ],
+  "summary": {{{{
+    "total_gaps": 50,
+    "by_category": {{{{"DATA_MODEL": 15, "AUTOMATION": 20, "UI": 8}}}},
+    "by_complexity": {{{{"LOW": 20, "MEDIUM": 25, "HIGH": 5}}}},
+    "by_agent": {{{{"Raj": 25, "Diego": 10, "Zara": 8}}}},
+    "total_effort_days": 120
+  }}}},
+  "migration_considerations": ["..."],
+  "risk_areas": ["..."]
+}}}}
+```
 
 ## RULES
-1. Be specific about what exists vs what's needed
-2. Realistic effort estimates (consider testing)
-3. Identify dependencies between gaps
-4. Assign appropriate agent for each gap
-5. Flag breaking changes
+
+1. **EVERY UI component** in requirements needs a UI category gap (LWC → Zara, Screen Flow → Raj)
+2. **uc_refs is MANDATORY** - each gap must reference which UCs it addresses
+3. **Be specific** about component types in target_state (e.g., "LWC with drag-drop upload" not just "upload component")
+4. **Realistic effort estimates** - include time for testing
+5. **No orphan UCs** - every UC must be covered by at least one gap
+6. **Correct agent assignment** - LWC/Aura always to Zara, never to Raj or Diego
 
 ---
 
@@ -574,18 +612,51 @@ def main():
         elif args.mode == 'gap':
             arch_summary = json.dumps(input_data.get('architecture', {}), indent=2)
             asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
-            # EMMA: Build UC context from digest or raw UCs
+            # EMMA: Build ENRICHED UC context from digest
             uc_context = ""
             uc_digest = input_data.get('uc_digest', None)
             if uc_digest and uc_digest.get('by_requirement'):
-                print(f"✅ Using UC Digest for gap context", file=sys.stderr)
-                # Build concise UC context from digest
+                print(f"✅ Using ENRICHED UC Digest for gap context", file=sys.stderr)
+                # Build DETAILED UC context from digest - include UI components!
                 uc_lines = []
                 for br_id, br_data in uc_digest.get('by_requirement', {}).items():
+                    title = br_data.get('title', br_id)
+                    uc_count = br_data.get('uc_count', 0)
                     objects = br_data.get('sf_objects', [])
-                    automations = [a.get('type', '') for a in br_data.get('automations', [])]
-                    uc_lines.append(f"- {br_id}: Objects={', '.join(objects[:5])}, Automations={', '.join(automations[:3])}")
+                    
+                    # Get UI components (CRITICAL for Zara's work)
+                    ui_components = br_data.get('ui_components', [])
+                    
+                    # Get automations with PURPOSE (not just type)
+                    automations = br_data.get('automations', [])
+                    auto_details = []
+                    for a in automations:
+                        a_type = a.get('type', '') if isinstance(a, dict) else str(a)
+                        a_purpose = a.get('purpose', '')[:80] if isinstance(a, dict) else ''
+                        if a_purpose:
+                            auto_details.append(f"{a_type}: {a_purpose}")
+                        else:
+                            auto_details.append(a_type)
+                    
+                    # Get key acceptance criteria
+                    criteria = br_data.get('key_acceptance_criteria', [])
+                    
+                    # Build rich context line
+                    line = f"\n### {br_id}: {title} ({uc_count} UCs)"
+                    line += f"\n- **Objects**: {', '.join(objects)}"
+                    if ui_components:
+                        line += f"\n- **UI Components**: {', '.join(ui_components)}"
+                    if auto_details:
+                        line += f"\n- **Automations**:"
+                        for ad in auto_details[:4]:
+                            line += f"\n  - {ad}"
+                    if criteria:
+                        line += f"\n- **Key Criteria**: {criteria[0][:100]}..."
+                    
+                    uc_lines.append(line)
+                
                 uc_context = "\n".join(uc_lines)
+                print(f"  → Generated {len(uc_lines)} BR contexts with UI details", file=sys.stderr)
             else:
                 # Fallback: Use raw UCs
                 use_cases = input_data.get('use_cases', [])
