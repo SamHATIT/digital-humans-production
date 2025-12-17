@@ -720,7 +720,8 @@ class PMOrchestratorServiceV2:
                 "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
                 "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
                 "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
-                "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {}
+                "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
+                "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
             }
             
             emma_write_result = await self._run_agent(

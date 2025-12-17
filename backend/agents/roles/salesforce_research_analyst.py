@@ -340,6 +340,18 @@ WRITE_FULL_SDS_PROMPT = """# GÉNÉRATION DU DOCUMENT SDS
 ### Work Breakdown Structure (Marcus):
 {wbs_json}
 
+### Spécifications QA (Elena):
+{qa_specs_json}
+
+### Spécifications DevOps (Jordan):
+{devops_specs_json}
+
+### Spécifications Formation (Lucas):
+{training_specs_json}
+
+### Spécifications Data (Aisha):
+{data_specs_json}
+
 ## VOTRE TÂCHE
 Générez un document SDS complet et professionnel en français selon la structure du template.
 
@@ -730,6 +742,7 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
     qa_specs = input_data.get("qa_specs", {})
     devops_specs = input_data.get("devops_specs", {})
     training_specs = input_data.get("training_specs", {})
+    data_specs = input_data.get("data_specs", {})
     
     project_name = project_info.get("name", "Projet Salesforce")
     print(f"📄 Writing SDS document for: {project_name}", file=sys.stderr)
@@ -746,7 +759,8 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
         "wbs": wbs,
         "qa_specs": qa_specs,
         "devops_specs": devops_specs,
-        "training_specs": training_specs
+        "training_specs": training_specs,
+        "data_specs": data_specs
     }
     
     # Check data size to decide approach
@@ -770,7 +784,11 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
             use_cases_json=json.dumps(use_cases, indent=2, ensure_ascii=False, default=str)[:80000],  # Full UCs for Annexe A.1
             solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:60000],
             coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:20000],
-            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000]
+            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000],
+            qa_specs_json=json.dumps(qa_specs, indent=2, ensure_ascii=False, default=str)[:30000],
+            devops_specs_json=json.dumps(devops_specs, indent=2, ensure_ascii=False, default=str)[:30000],
+            training_specs_json=json.dumps(training_specs, indent=2, ensure_ascii=False, default=str)[:30000],
+            data_specs_json=json.dumps(data_specs, indent=2, ensure_ascii=False, default=str)[:30000]
         )
         
         if LLM_SERVICE_AVAILABLE:
