@@ -758,19 +758,41 @@ def main():
             except Exception as e:
                 print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
         
-        # Parse JSON output
+        # Parse JSON output - improved handling of markdown and control chars
         try:
             clean_content = content.strip()
-            if clean_content.startswith('```'):
-                clean_content = clean_content.split('\n', 1)[1]
+            
+            # Remove markdown code blocks
+            if clean_content.startswith('```json'):
+                clean_content = clean_content[7:]
+            elif clean_content.startswith('```'):
+                clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
             if clean_content.endswith('```'):
                 clean_content = clean_content[:-3]
             clean_content = clean_content.strip()
             
-            parsed_content = json.loads(clean_content)
+            # Remove leading 'json' if present
+            if clean_content.startswith('json'):
+                clean_content = clean_content[4:].strip()
+            
+            # Find JSON start
+            if not clean_content.startswith('{') and not clean_content.startswith('['):
+                start_obj = clean_content.find('{')
+                if start_obj >= 0:
+                    clean_content = clean_content[start_obj:]
+            
+            try:
+                parsed_content = json.loads(clean_content)
+            except json.JSONDecodeError:
+                # Try removing control characters
+                import re
+                clean_content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', clean_content)
+                parsed_content = json.loads(clean_content)
+            
             print(f"✅ JSON parsed successfully", file=sys.stderr)
         except json.JSONDecodeError as e:
             print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
+            print(f"   Content preview: {clean_content[:200]}...", file=sys.stderr)
             parsed_content = {"raw": content, "parse_error": str(e)}
         
         # Build output

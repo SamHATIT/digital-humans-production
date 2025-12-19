@@ -431,16 +431,78 @@ SECTION_GUIDANCE = {
 # ============================================================================
 
 def parse_json_response(content: str) -> Dict:
-    """Clean and parse JSON from LLM response"""
+    """Clean and parse JSON from LLM response - handles markdown backticks and control chars"""
     clean = content.strip()
-    if clean.startswith('```'):
-        clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+    
+    # Remove markdown code blocks (```json or ```)
+    if clean.startswith('```json'):
+        clean = clean[7:]  # Remove ```json
+    elif clean.startswith('```'):
+        clean = clean[3:]  # Remove ```
+    
     if clean.endswith('```'):
         clean = clean[:-3]
+    
     clean = clean.strip()
+    
+    # Remove leading 'json' if present (some LLMs add it)
     if clean.startswith('json'):
         clean = clean[4:].strip()
-    return json.loads(clean)
+    
+    # Try to find JSON object/array boundaries if there's extra text
+    if not clean.startswith('{') and not clean.startswith('['):
+        # Find first { or [
+        start_obj = clean.find('{')
+        start_arr = clean.find('[')
+        if start_obj >= 0 and (start_arr < 0 or start_obj < start_arr):
+            clean = clean[start_obj:]
+        elif start_arr >= 0:
+            clean = clean[start_arr:]
+    
+    # Remove trailing text after JSON
+    if clean.startswith('{'):
+        # Find matching closing brace
+        depth = 0
+        in_string = False
+        escape_next = False
+        end_pos = 0
+        for i, c in enumerate(clean):
+            if escape_next:
+                escape_next = False
+                continue
+            if c == '\\':
+                escape_next = True
+                continue
+            if c == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if not in_string:
+                if c == '{':
+                    depth += 1
+                elif c == '}':
+                    depth -= 1
+                    if depth == 0:
+                        end_pos = i + 1
+                        break
+        if end_pos > 0:
+            clean = clean[:end_pos]
+    
+    # Fix control characters in strings (tabs, newlines that aren't escaped)
+    # This is a common LLM issue
+    def fix_control_chars(match):
+        s = match.group(0)
+        # Replace literal control chars with escaped versions
+        s = s.replace('\t', '\\t').replace('\n', '\\n').replace('\r', '\\r')
+        return s
+    
+    try:
+        return json.loads(clean)
+    except json.JSONDecodeError as e:
+        # Try fixing common issues
+        # Remove any BOM or zero-width chars
+        clean = clean.encode('utf-8', errors='ignore').decode('utf-8')
+        clean = re.sub(r'[\x00-\x1f](?![\x09\x0a\x0d])', '', clean)  # Remove control chars except tab/newline/cr
+        return json.loads(clean)
 
 
 def calculate_coverage_score(mappings: Dict) -> float:
@@ -624,6 +686,22 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
             tokens_step1 += response["tokens_used"]
             model_used = response["model"]
             provider_used = response["provider"]
+            
+            # LOG EACH BATCH LLM CALL
+            if LLM_LOGGER_AVAILABLE:
+                log_llm_interaction(
+                    agent_id="emma",
+                    prompt=map_prompt,
+                    response=mappings_content,
+                    execution_id=execution_id,
+                    agent_mode="validate_batch",
+                    tokens_input=response.get("tokens_input", 0),
+                    tokens_output=response["tokens_used"],
+                    model=model_used,
+                    provider=provider_used,
+                    execution_time_seconds=0,
+                    success=True
+                )
         else:
             raise ValueError("LLM Service not available")
         
@@ -658,6 +736,22 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
         )
         report_content = response["content"]
         tokens_step2 = response["tokens_used"]
+        
+        # LOG COVERAGE REPORT LLM CALL
+        if LLM_LOGGER_AVAILABLE:
+            log_llm_interaction(
+                agent_id="emma",
+                prompt=report_prompt,
+                response=report_content,
+                execution_id=execution_id,
+                agent_mode="validate_report",
+                tokens_input=response.get("tokens_input", 0),
+                tokens_output=tokens_step2,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=0,
+                success=True
+            )
     
     try:
         coverage_report = parse_json_response(report_content)
