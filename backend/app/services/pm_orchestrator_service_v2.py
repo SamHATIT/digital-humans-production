@@ -560,6 +560,8 @@ class PMOrchestratorServiceV2:
                 
                 if wbs_result.get("success"):
                     results["artifacts"]["WBS"] = wbs_result["output"]
+                    logger.info(f"[Phase 3.5 DEBUG] WBS stored, keys: {list(wbs_result["output"].keys())}")
+                    logger.info(f"[Phase 3.5 DEBUG] WBS content keys: {list(wbs_result["output"].get("content", {}).keys())}")
                     architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
                     self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
                     logger.info(f"[Phase 3.5] ✅ WBS (WBS-001)")
@@ -706,6 +708,10 @@ class PMOrchestratorServiceV2:
             
             # Prepare all sources for Emma write_sds
             emma_write_input = {
+            # DEBUG: Log sizes of data passed to Emma
+            logger.info(f"[Phase 5 DEBUG] wbs size: {len(json.dumps(results["artifacts"].get("WBS", {}), default=str))} bytes")
+            logger.info(f"[Phase 5 DEBUG] WBS keys: {list(results["artifacts"].get("WBS", {}).keys())}")
+            logger.info(f"[Phase 5 DEBUG] WBS content keys: {list(results["artifacts"].get("WBS", {}).get("content", {}).keys())}")
                 "project_info": {
                     "name": project.name,
                     "description": project.description or "",
