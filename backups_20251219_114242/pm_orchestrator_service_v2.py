@@ -390,25 +390,6 @@ class PMOrchestratorServiceV2:
             self._update_progress(execution, "architect", "running", 48, "Starting architecture analysis...")
             architect_tokens = 0
             
-            # HELPER: Validate UC Digest is properly parsed (ADDED 19/12/2025)
-            def is_digest_valid(digest: dict) -> bool:
-                """Check if UC Digest was properly parsed (not just raw data)"""
-                if not digest:
-                    return False
-                # Check for parse error indicators
-                if digest.get('parse_error') or digest.get('raw'):
-                    return False
-                # Check for required structure
-                if digest.get('by_requirement'):
-                    return True
-                return False
-            
-            # Validate UC Digest before using it
-            uc_digest_valid = is_digest_valid(uc_digest)
-            if uc_digest and not uc_digest_valid:
-                logger.warning(f"[Phase 3] ⚠️ UC Digest is corrupted (parse_error or missing by_requirement), falling back to raw UCs")
-                logger.warning(f"[Phase 3]    Digest keys: {list(uc_digest.keys())}")
-            
             # 3.1: As-Is Analysis (Analyze current Salesforce org - ALWAYS RUN)
             self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
             
@@ -433,33 +414,44 @@ class PMOrchestratorServiceV2:
                 results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
                 logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
             
-            # Gap Analysis moved to Phase 3.4 (after Emma Validate)
+            # 3.2: Gap Analysis (Compare requirements vs current state)
+            self._update_progress(execution, "architect", "running", 58, "Identifying gaps...")
             
-            # Gap success handling moved to Phase 3.4
+            gap_result = await self._run_agent(
+                agent_id="architect",
+                mode="gap",
+                input_data={
+                    "requirements": br_result["output"]["content"].get("business_requirements", []),
+                    # EMMA: Use UC Digest if available, otherwise fallback to raw UCs
+                    "uc_digest": uc_digest if uc_digest else None,
+                    "use_cases": self._get_use_cases(execution_id, 15) if not uc_digest else [],
+                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
+                },
+                execution_id=execution_id,
+                project_id=project_id
+            )
             
-            # ========================================
-            # 3.2: Solution Design (Design target architecture) - REORDERED
-            # ========================================
-            # Marcus designs the solution BEFORE gap analysis
-            # This way Gap Analysis compares As-Is vs a defined target
-            self._update_progress(execution, "architect", "running", 56, "Designing solution architecture...")
-            
-            # Use valid digest or fallback to raw UCs
-            design_uc_digest = uc_digest if uc_digest_valid else None
-            design_use_cases = [] if uc_digest_valid else self._get_use_cases(execution_id, limit=50)
-            
-            if design_uc_digest:
-                logger.info(f"[Phase 3.2] Using UC Digest ({len(design_uc_digest.get('by_requirement', {}))} BRs)")
+            if gap_result.get("success"):
+                results["artifacts"]["GAP"] = gap_result["output"]
+                architect_tokens += gap_result["output"]["metadata"].get("tokens_used", 0)
+                self._save_deliverable(execution_id, "architect", "gap_analysis", gap_result["output"])
+                logger.info(f"[Phase 3.2] ✅ Gap Analysis (GAP-001)")
             else:
-                logger.info(f"[Phase 3.2] Using raw UCs ({len(design_use_cases)} UCs)")
+                results["artifacts"]["GAP"] = {"artifact_id": "GAP-001", "content": {"gaps": []}}
+                logger.warning(f"[Phase 3.2] ⚠️ Gap Analysis failed")
+            
+            # 3.3: Solution Design (Design solution to address gaps)
+            self._update_progress(execution, "architect", "running", 66, "Designing solution...")
             
             design_result = await self._run_agent(
                 agent_id="architect",
                 mode="design",
                 input_data={
                     "project_summary": br_result["output"]["content"].get("project_summary", ""),
-                    "uc_digest": design_uc_digest,
-                    "use_cases": design_use_cases,
+                    # EMMA: Use UC Digest if available, otherwise fallback to raw UCs
+                    "uc_digest": uc_digest if uc_digest else None,
+                    "use_cases": self._get_use_cases(execution_id, 15) if not uc_digest else [],
+                    "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
                     "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
                 },
                 execution_id=execution_id,
@@ -470,10 +462,10 @@ class PMOrchestratorServiceV2:
                 results["artifacts"]["ARCHITECTURE"] = design_result["output"]
                 architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
-                logger.info(f"[Phase 3.2] ✅ Solution Design (ARCH-001)")
+                logger.info(f"[Phase 3.3] ✅ Solution Design (ARCH-001)")
                 
                 # ========================================
-                # PHASE 3.3: Emma Validate (REORDERED) (Coverage Check)
+                # PHASE 3.4: Emma Validate (Coverage Check)
                 # ========================================
                 # Emma validates that the solution design covers all UCs
                 # If coverage < 95%, Marcus will revise with gaps
@@ -505,14 +497,14 @@ class PMOrchestratorServiceV2:
                     self._save_deliverable(execution_id, "research_analyst", "coverage_report", validate_result["output"])
                     results["artifacts"]["COVERAGE"] = validate_result["output"]
                     
-                    logger.info(f"[Phase 3.3] ✅ Emma Validate - Coverage: {coverage_pct}%")
+                    logger.info(f"[Phase 3.4] ✅ Emma Validate - Coverage: {coverage_pct}%")
                     
                     # Coverage loop: if < 95%, ask Marcus to revise
                     if coverage_pct < 95:
                         gaps = coverage_report.get("gaps", [])
                         uncovered_ucs = coverage_report.get("uncovered_use_cases", [])
                         
-                        logger.info(f"[Phase 3.3] ⚠️ Coverage insufficient ({coverage_pct}%), requesting revision...")
+                        logger.info(f"[Phase 3.4] ⚠️ Coverage insufficient ({coverage_pct}%), requesting revision...")
                         self._update_progress(execution, "architect", "running", 70, f"Revising design (coverage: {coverage_pct}%)...")
                         
                         # Marcus revision with gaps
@@ -538,9 +530,9 @@ class PMOrchestratorServiceV2:
                             results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
                             architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
                             self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
-                            logger.info(f"[Phase 3.3] ✅ Solution Design Revised (after validation)")
+                            logger.info(f"[Phase 3.4] ✅ Solution Design Revised")
                         else:
-                            logger.warning(f"[Phase 3.3] ⚠️ Revision failed, keeping original design")
+                            logger.warning(f"[Phase 3.4] ⚠️ Revision failed, keeping original design")
                     
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_validate_tokens
                     results["metrics"]["total_tokens"] += emma_validate_tokens
@@ -548,45 +540,10 @@ class PMOrchestratorServiceV2:
                     self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
 
                 else:
-                    logger.warning(f"[Phase 3.3] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
+                    logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
                     self._update_progress(execution, "research_analyst", "completed", 72, "Coverage check skipped")
                     
-                # ========================================
-                # 3.4: Gap Analysis (Compare As-Is vs Final Design) - REORDERED
-                # ========================================
-                # NOW we do Gap Analysis with the FINAL validated design
-                self._update_progress(execution, "architect", "running", 70, "Analyzing implementation gaps...")
-                
-                # Get the final solution design (original or revised)
-                final_solution_design = results["artifacts"]["ARCHITECTURE"].get("content", {})
-                
-                gap_result = await self._run_agent(
-                    agent_id="architect",
-                    mode="gap",
-                    input_data={
-                        "requirements": br_result["output"]["content"].get("business_requirements", []),
-                        "uc_digest": design_uc_digest,
-                        "use_cases": design_use_cases,
-                        "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
-                        # FIXED: Pass the solution design for proper gap analysis
-                        "solution_design": final_solution_design
-                    },
-                    execution_id=execution_id,
-                    project_id=project_id
-                )
-                
-                if gap_result.get("success"):
-                    results["artifacts"]["GAP"] = gap_result["output"]
-                    architect_tokens += gap_result["output"]["metadata"].get("tokens_used", 0)
-                    self._save_deliverable(execution_id, "architect", "gap_analysis", gap_result["output"])
-                    logger.info(f"[Phase 3.4] ✅ Gap Analysis (GAP-001)")
-                else:
-                    results["artifacts"]["GAP"] = {"artifact_id": "GAP-001", "content": {"gaps": []}}
-                    logger.warning(f"[Phase 3.4] ⚠️ Gap Analysis failed")
-                
-                # ========================================
-                # 3.5: WBS (Break down gaps into tasks)
-                # ========================================
+                # 3.5: WBS (Break down implementation tasks) - ALWAYS generate WBS even if validate failed
                 self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
                 
                 wbs_result = await self._run_agent(
@@ -612,7 +569,7 @@ class PMOrchestratorServiceV2:
 
             else:
                 results["artifacts"]["ARCHITECTURE"] = {"artifact_id": "ARCH-001", "content": {}}
-                logger.warning(f"[Phase 3.2] ⚠️ Solution Design failed: {design_result.get('error', 'Unknown error')}")
+                logger.warning(f"[Phase 3.3] ⚠️ Solution Design failed: {design_result.get('error', 'Unknown error')}")
             
             
             results["agent_outputs"]["architect"] = {

@@ -431,31 +431,27 @@ SECTION_GUIDANCE = {
 # ============================================================================
 
 def parse_json_response(content: str) -> Dict:
-    """
-    Clean and parse JSON from LLM response.
-    ENHANCED (19/12/2025): Better handling of control characters that cause parse errors.
-    """
-    import re
-    
+    """Clean and parse JSON from LLM response - handles markdown backticks and control chars"""
     clean = content.strip()
     
     # Remove markdown code blocks (```json or ```)
     if clean.startswith('```json'):
-        clean = clean[7:]
+        clean = clean[7:]  # Remove ```json
     elif clean.startswith('```'):
-        clean = clean[3:]
+        clean = clean[3:]  # Remove ```
     
     if clean.endswith('```'):
         clean = clean[:-3]
     
     clean = clean.strip()
     
-    # Remove leading 'json' if present
+    # Remove leading 'json' if present (some LLMs add it)
     if clean.startswith('json'):
         clean = clean[4:].strip()
     
-    # Find JSON boundaries
+    # Try to find JSON object/array boundaries if there's extra text
     if not clean.startswith('{') and not clean.startswith('['):
+        # Find first { or [
         start_obj = clean.find('{')
         start_arr = clean.find('[')
         if start_obj >= 0 and (start_arr < 0 or start_obj < start_arr):
@@ -463,8 +459,9 @@ def parse_json_response(content: str) -> Dict:
         elif start_arr >= 0:
             clean = clean[start_arr:]
     
-    # Find matching closing brace
+    # Remove trailing text after JSON
     if clean.startswith('{'):
+        # Find matching closing brace
         depth = 0
         in_string = False
         escape_next = False
@@ -490,22 +487,13 @@ def parse_json_response(content: str) -> Dict:
         if end_pos > 0:
             clean = clean[:end_pos]
     
-    # ENHANCED: Aggressive control character cleaning
-    def clean_control_chars(s: str) -> str:
-        """Remove or escape control characters that break JSON parsing"""
-        # Replace common problematic control chars
-        result = s
-        # Remove NULL bytes
-        result = result.replace('\x00', '')
-        # Handle literal control chars in strings (not escaped)
-        # Replace tabs, newlines, carriage returns with escaped versions
-        result = re.sub(r'(?<!\\)\t', '\\\\t', result)
-        result = re.sub(r'(?<!\\)\r', '\\\\r', result)
-        # Remove other control chars (0x00-0x1F except already handled)
-        result = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', result)
-        return result
-    
-    clean = clean_control_chars(clean)
+    # Fix control characters in strings (tabs, newlines that aren't escaped)
+    # This is a common LLM issue
+    def fix_control_chars(match):
+        s = match.group(0)
+        # Replace literal control chars with escaped versions
+        s = s.replace('\t', '\\t').replace('\n', '\\n').replace('\r', '\\r')
+        return s
     
     try:
         return json.loads(clean)

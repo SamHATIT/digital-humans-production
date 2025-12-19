@@ -279,11 +279,11 @@ Generate an As-Is analysis with:
 '''
 
 # ============================================================================
-# PROMPT 3: GAP ANALYSIS (SOLUTION DESIGN + ASIS → Implementation Gaps)
+# PROMPT 3: GAP ANALYSIS (ARCH + ASIS → Deltas)
 # ============================================================================
-def get_gap_prompt(solution_design: str, asis_summary: str, uc_context: str = "") -> str:
+def get_gap_prompt(arch_summary: str, asis_summary: str, uc_context: str = "") -> str:
     """
-    Generate gap analysis comparing Solution Design (target) vs As-Is (current).
+    Generate gap analysis prompt with UC context from Emma's digest.
     UPDATED: Added agent table, uc_refs requirement, UI component emphasis.
     """
     uc_section = ""
@@ -294,33 +294,17 @@ def get_gap_prompt(solution_design: str, asis_summary: str, uc_context: str = ""
 
 """
     
-    # ADDED (19/12/2025): Include Solution Design as the TARGET architecture
-    design_section = ""
-    if solution_design and solution_design.strip() != "{{}}":
-        design_section = f"""
-## TARGET ARCHITECTURE (Solution Design - ARCH-001)
-This is the validated architecture we need to implement.
-Identify gaps between Current State and this Target.
-Use the EXACT object and component names from this design.
-
-{solution_design}
-
-"""
-    
     return f'''# 🔍 GAP ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
 ## YOUR MISSION
-Compare the **Current State (As-Is)** with the **Target Architecture (Solution Design)** to identify ALL implementation gaps.
-Each gap represents work needed to transform the current org into the target architecture.
+Analyze the Use Case requirements and Current State to identify ALL implementation gaps.
+Each gap must trace back to specific Use Cases (uc_refs) for complete coverage.
 
-**CRITICAL RULES**:
-1. ONLY create gaps for components defined in the Solution Design
-2. Use the EXACT object names from the Solution Design (e.g., Property__c, Lease__c)
-3. DO NOT invent objects or components not in the Solution Design
-4. Every UI component (LWC, Screen Flow) in the Solution Design MUST have a corresponding gap
-{design_section}{uc_section}
+**CRITICAL**: Every UI component (LWC, Screen Flow, custom page) mentioned in requirements 
+MUST have a corresponding gap with category "UI" and appropriate agent assignment.
+{uc_section}
 ## CURRENT STATE (ASIS-001)
 {asis_summary}
 
@@ -383,14 +367,12 @@ Each gap represents work needed to transform the current org into the target arc
 
 ## RULES
 
-1. **Match Solution Design exactly** - use the SAME object/field names as in ARCH-001
-2. **EVERY component in Solution Design** needs a gap if it doesn't exist in As-Is
-3. **uc_refs is MANDATORY** - each gap must reference which UCs it addresses
-4. **Be specific** about component types (e.g., "LWC propertyCard" not just "component")
-5. **Realistic effort estimates** - include time for testing
-6. **No orphan UCs** - every UC must be covered by at least one gap
-7. **Correct agent assignment** - LWC/Aura always to Zara, never to Raj or Diego
-8. **NO HALLUCINATION** - ONLY include components from Solution Design, never invent new ones
+1. **EVERY UI component** in requirements needs a UI category gap (LWC → Zara, Screen Flow → Raj)
+2. **uc_refs is MANDATORY** - each gap must reference which UCs it addresses
+3. **Be specific** about component types in target_state (e.g., "LWC with drag-drop upload" not just "upload component")
+4. **Realistic effort estimates** - include time for testing
+5. **No orphan UCs** - every UC must be covered by at least one gap
+6. **Correct agent assignment** - LWC/Aura always to Zara, never to Raj or Diego
 
 ---
 
@@ -627,10 +609,8 @@ def main():
             deliverable_type = "as_is_analysis"
             artifact_prefix = "ASIS"
             
-        elif args.mode == 'gap':  # FIXED 19/12/2025
-            # FIXED: Use solution_design (target) instead of architecture
-            solution_design_data = input_data.get('solution_design', input_data.get('architecture', {}))
-            solution_design_str = json.dumps(solution_design_data, indent=2)
+        elif args.mode == 'gap':
+            arch_summary = json.dumps(input_data.get('architecture', {}), indent=2)
             asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
             # EMMA: Build ENRICHED UC context from digest
             uc_context = ""
@@ -688,7 +668,7 @@ def main():
                         objects = sf.get('objects', [])
                         uc_lines.append(f"- {uc.get('id', 'UC')}: {uc.get('title', '')[:50]} (Objects: {', '.join(objects[:3])})")
                     uc_context = "\n".join(uc_lines)
-            prompt = get_gap_prompt(solution_design_str, asis_summary, uc_context)
+            prompt = get_gap_prompt(arch_summary, asis_summary, uc_context)
             deliverable_type = "gap_analysis"
             artifact_prefix = "GAP"
             
