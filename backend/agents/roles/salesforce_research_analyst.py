@@ -570,6 +570,22 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
         tokens_step1 = response["tokens_used"]
         model_used = response["model"]
         provider_used = response["provider"]
+        
+        # LOG CLUSTER LLM CALL (19/12/2025)
+        if LLM_LOGGER_AVAILABLE:
+            log_llm_interaction(
+                agent_id="emma",
+                prompt=cluster_prompt,
+                response=clusters_content[:5000],
+                execution_id=execution_id,
+                agent_mode="analyze_cluster",
+                tokens_input=response.get("tokens_input", 0),
+                tokens_output=tokens_step1,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=0,
+                success=True
+            )
     else:
         raise ValueError("LLM Service not available")
     
@@ -598,6 +614,22 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
         )
         digest_content = response["content"]
         tokens_step2 = response["tokens_used"]
+        
+        # LOG DIGEST LLM CALL (19/12/2025)
+        if LLM_LOGGER_AVAILABLE:
+            log_llm_interaction(
+                agent_id="emma",
+                prompt=digest_prompt,
+                response=digest_content[:5000],
+                execution_id=execution_id,
+                agent_mode="analyze_digest",
+                tokens_input=response.get("tokens_input", 0),
+                tokens_output=tokens_step2,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=0,
+                success=True
+            )
     
     try:
         digest = parse_json_response(digest_content)
@@ -909,6 +941,22 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
             total_tokens = response["tokens_used"]
             model_used = response["model"]
             provider_used = response["provider"]
+            
+            # LOG FULL SDS LLM CALL (19/12/2025)
+            if LLM_LOGGER_AVAILABLE:
+                log_llm_interaction(
+                    agent_id="emma",
+                    prompt=full_prompt[:50000],  # Truncate for storage
+                    response=response["content"][:5000],
+                    execution_id=execution_id,
+                    agent_mode="write_sds_full",
+                    tokens_input=response.get("tokens_input", 0),
+                    tokens_output=total_tokens,
+                    model=model_used,
+                    provider=provider_used,
+                    execution_time_seconds=0,
+                    success=True
+                )
         
         print(f"✅ Full document generated ({len(sds_sections.get('full_document', ''))} chars)", file=sys.stderr)
         
@@ -974,6 +1022,22 @@ async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
                 total_tokens += response["tokens_used"]
                 model_used = response["model"]
                 provider_used = response["provider"]
+                
+                # LOG SECTION LLM CALL (19/12/2025)
+                if LLM_LOGGER_AVAILABLE:
+                    log_llm_interaction(
+                        agent_id="emma",
+                        prompt=section_prompt,
+                        response=response["content"][:3000],
+                        execution_id=execution_id,
+                        agent_mode=f"write_sds_section_{section_id}",
+                        tokens_input=response.get("tokens_input", 0),
+                        tokens_output=response["tokens_used"],
+                        model=model_used,
+                        provider=provider_used,
+                        execution_time_seconds=0,
+                        success=True
+                    )
             
             print(f"   ✅ Section {section_id} done", file=sys.stderr)
     
