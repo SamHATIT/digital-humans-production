@@ -2489,3 +2489,42 @@ Corriger les problèmes identifiés dans le rapport de session précédent conce
 ### Prochaine étape
 Lancer un test SDS complet pour valider toutes les corrections
 
+
+## 2025-12-19 (Session 2 - Correctifs Phase 3)
+
+### Objectif
+Corriger les bugs critiques identifiés dans l'audit de l'exécution 124
+
+### Bugs corrigés
+| Bug | Description | Fix |
+|-----|-------------|-----|
+| BUG-A | JSON parse errors (control chars) | Enhanced parse_json_response() |
+| BUG-B | UC Digest fallback non déclenché | Validation is_digest_valid() |
+| BUG-C | Pas de warning si digest corrompu | Logging explicite |
+| BUG-D | Ordre phases incorrect (Gap avant Design) | Réordonnancement complet |
+| BUG-E | Gap sans cible (Solution Design) | Passage solution_design à Gap |
+
+### Nouvel ordre des phases Marcus (Phase 3)
+1. **3.1: As-Is Analysis** - Analyse org existante
+2. **3.2: Solution Design** - Conception architecture cible (depuis UC Digest ou UCs bruts)
+3. **3.3: Emma Validate** - Vérification couverture, révision si < 95%
+4. **3.4: Gap Analysis** - Compare As-Is vs Design FINAL validé
+5. **3.5: WBS** - Découpage en tâches depuis les gaps
+
+### Anti-hallucination
+- Prompt Gap inclut maintenant TARGET ARCHITECTURE (Solution Design)
+- Règle explicite: "ONLY use objects from Solution Design"
+- Règle 8: "NO HALLUCINATION - never invent new components"
+
+### Fichiers modifiés
+- `pm_orchestrator_service_v2.py`: Réordonnancement phases + validation digest
+- `salesforce_solution_architect.py`: get_gap_prompt avec Solution Design
+- `salesforce_research_analyst.py`: Parsing JSON amélioré
+
+### Commits
+- 71172c5: fix: Reorder Marcus phases + UC Digest validation + Gap Analysis with Solution Design
+
+### Prochaines étapes
+1. Tester avec une nouvelle exécution (projet 79 - ImmoPrime)
+2. Valider que Gap Analysis génère Property__c (pas Project__c)
+3. Valider que les experts SDS ne hallucinent plus

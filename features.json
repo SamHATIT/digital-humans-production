@@ -2670,6 +2670,30 @@
       ],
       "estimated_hours": 0.5,
       "notes": "Corrigé le 17/12/2025 (commit 3145669). Causait table business_requirements vide sur re-run."
+    },
+    {
+      "id": "F-078",
+      "title": "Validation UC Digest avant utilisation",
+      "category": "SDS Quality",
+      "status": "done",
+      "priority": "high",
+      "notes": "Ajouté 19/12/2025 (71172c5). is_digest_valid() vérifie by_requirement, fallback raw UCs si corrompu."
+    },
+    {
+      "id": "F-079",
+      "title": "Réordonnancement phases Marcus",
+      "category": "SDS Quality",
+      "status": "done",
+      "priority": "critical",
+      "notes": "Ajouté 19/12/2025 (71172c5). Ordre: As-Is → Design → Validate → Gap → WBS."
+    },
+    {
+      "id": "F-080",
+      "title": "Gap Analysis avec Solution Design",
+      "category": "SDS Quality",
+      "status": "done",
+      "priority": "critical",
+      "notes": "Ajouté 19/12/2025 (71172c5). Gap reçoit solution_design pour comparer As-Is vs Target."
     }
   ],
   "stats": {
@@ -2678,7 +2702,7 @@
     "not_started": 29,
     "total": 128
   },
-  "last_updated": "2025-12-12T17:30:00Z",
+  "last_updated": "2025-12-19T11:50:00Z",
   "summary": {
     "total": 141,
     "completed": 112,
