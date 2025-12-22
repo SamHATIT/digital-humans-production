@@ -2778,6 +2778,16 @@
       "added": "2025-12-22",
       "completed": "2025-12-22",
       "notes": "Fixed with programmatic coverage calculation. USE_PROGRAMMATIC_COVERAGE flag for rollback."
+    },
+    {
+      "id": "BUG-058",
+      "name": "Emma validate timeout 30min insufficient",
+      "description": "Large projects (173+ UCs) need more than 30min for validate batches, causing Coverage check skipped",
+      "status": "done",
+      "priority": "high",
+      "added": "2025-12-22",
+      "completed": "2025-12-22",
+      "notes": "Fixed: timeout increased from 30min to 60min"
     }
   ],
   "stats": {
