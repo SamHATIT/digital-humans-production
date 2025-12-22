@@ -2621,3 +2621,45 @@ Test de bout en bout SDS + BUILD sur nouveau projet
 ### Prochaine étape
 - Tester Emma validate avec nouvelle exécution complète
 - Vérifier le rapport de couverture programmatique en conditions réelles
+
+## 2025-12-22 - Session complète (matin + après-midi)
+
+### Contexte
+Tentative de test end-to-end après corrections BUG-053/054/055. Exec 127 puis 128.
+
+### Bugs découverts et corrigés
+- **BUG-056**: Anthropic client timeout 30s → 600s (llm_service.py)
+- **BUG-057**: Emma validate accumule 543K tokens → calcul programmatique du coverage report
+  - Ajout flag USE_PROGRAMMATIC_COVERAGE pour rollback
+  - Fonction generate_coverage_report_programmatic()
+  - NON TESTÉ : timeout BUG-058 atteint avant
+- **BUG-058**: Emma timeout 30min insuffisant pour gros projets → 60min
+
+### Autres modifications
+- max_tokens cluster Emma: 8000 → 12000
+- max_tokens legacy coverage: 8000 → 12000  
+- Configuration PostgreSQL accès externe (restreint 88.178.x.x)
+- Accès ODBC configuré pour Sam
+
+### Résultats tests
+- Exec 127: FAILED à Emma validate (timeout + overflow)
+- Exec 128: Coverage check skipped (timeout 30min dépassé avec 173 UCs / 12 batches)
+  - 10 validate_batch exécutés sur 12 avant timeout
+  - Fix programmatique jamais atteint
+
+### État réel
+- Aucun test end-to-end réussi
+- Chaque fix révèle un nouveau bug
+- ~30€ dépensés en tokens aujourd'hui
+- Plusieurs semaines sur ces tests sans succès complet
+
+### Commits
+- 0743f6d: fix(BUG-057): Programmatic coverage calculation
+- d1b4153: fix(emma): Increase max_tokens cluster/coverage
+- ec0146c: fix: Increase Emma timeout 30min → 60min
+- 1adcaa4: docs: Add BUG-058
+
+### Prochaine session
+- Relancer test avec timeout 60min
+- Valider que le calcul programmatique fonctionne
+- Objectif: premier test end-to-end réussi
