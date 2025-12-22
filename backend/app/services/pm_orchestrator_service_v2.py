@@ -1168,7 +1168,7 @@ class PMOrchestratorServiceV2:
             # Dynamic timeout based on agent/mode
             timeout_seconds = 300  # Default 5 min
             if agent_id == "research_analyst":
-                timeout_seconds = 1800  # 30 min for all Emma modes
+                timeout_seconds = 3600  # 60 min for all Emma modes (large projects)
             elif agent_id == "architect":
                 timeout_seconds = 900  # 15 min for architecture
             
