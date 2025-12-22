@@ -2592,3 +2592,32 @@ Test de bout en bout SDS + BUILD sur nouveau projet
 
 ### Prochaine étape
 - Corriger Emma validate (BUG-057)
+
+## 2025-12-22 - Session BUG-057 Fix (après pause)
+
+### Investigation
+- Emma digest vérifié : contient 28 clusters avec sf_objects extraits des UCs d'Olivia
+- Marcus design vérifié : reçoit bien le digest dans son prompt (23 BRs)
+- Chaîne confirmée : Olivia (avec RAG) → Emma (sans RAG, synthèse) → Marcus (avec RAG)
+
+### Bug corrigé
+- **BUG-057**: Emma validate overflow 543K tokens
+  - Cause: accumule tous les mappings des batches puis envoie en un seul prompt
+  - Fix: Calcul programmatique du coverage report en Python
+  - Flag `USE_PROGRAMMATIC_COVERAGE = True` pour rollback si besoin
+  - Fichier: backend/agents/roles/salesforce_research_analyst.py
+  - Backup: salesforce_research_analyst.py.bak_bug057
+
+### Autres
+- Configuration PostgreSQL pour accès externe (restreint à 88.178.x.x)
+- Sam peut maintenant accéder à la DB via Access/ODBC
+
+### Commits
+- 0743f6d: fix(BUG-057): Programmatic coverage calculation
+
+### Fichiers modifiés
+- backend/agents/roles/salesforce_research_analyst.py
+
+### Prochaine étape
+- Tester Emma validate avec nouvelle exécution complète
+- Vérifier le rapport de couverture programmatique en conditions réelles
