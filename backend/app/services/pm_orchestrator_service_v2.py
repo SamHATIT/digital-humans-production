@@ -267,19 +267,37 @@ class PMOrchestratorServiceV2:
             ba_tokens_total = 0
             ba_ucs_saved = 0
             
-            for i, br in enumerate(business_requirements):
-                br_id = br.get("id", f"BR-{i+1:03d}")
-                progress = 18 + ((i + 1) / len(business_requirements)) * 27  # 18-45%
+            # F-081: Process BRs in batches of 2 to reduce API calls
+            BATCH_SIZE = 2
+            total_batches = (len(business_requirements) + BATCH_SIZE - 1) // BATCH_SIZE
+            logger.info(f"[Phase 2] Processing {len(business_requirements)} BRs in {total_batches} batches of {BATCH_SIZE}")
+            
+            batch_idx = 0
+            for i in range(0, len(business_requirements), BATCH_SIZE):
+                batch_brs = business_requirements[i:i + BATCH_SIZE]
+                br_ids = [br.get("id", f"BR-{i+j+1:03d}") for j, br in enumerate(batch_brs)]
+                progress = 18 + ((batch_idx + 1) / total_batches) * 27  # 18-45%
                 
                 self._update_progress(execution, "ba", "running", int(progress), 
-                                      f"Processing {br_id} ({i+1}/{len(business_requirements)})...")
+                                      f"Processing {', '.join(br_ids)} (batch {batch_idx+1}/{total_batches})...")
+                
+                # Send batch or single BR based on count
+                if len(batch_brs) > 1:
+                    input_data = {"business_requirements": batch_brs}
+                else:
+                    input_data = {"business_requirement": batch_brs[0]}
                 
                 uc_result = await self._run_agent(
                     agent_id="ba",
-                    input_data={"business_requirement": br},
+                    input_data=input_data,
                     execution_id=execution_id,
                     project_id=project_id
                 )
+                
+                # For compatibility with existing code, use first BR's id
+                br = batch_brs[0]
+                br_id = br_ids[0]
+                batch_idx += 1
                 
                 if uc_result.get("success"):
                     # Extract metadata
@@ -287,6 +305,9 @@ class PMOrchestratorServiceV2:
                     tokens_used = metadata.get("tokens_used", 0)
                     model_used = metadata.get("model", "unknown")
                     exec_time = metadata.get("execution_time_seconds", 0)
+                    
+                    # F-081: Handle batch results - tokens are for the whole batch
+                    batch_tokens = tokens_used // len(batch_brs) if len(batch_brs) > 1 else tokens_used
                     
                     # SAVE IMMEDIATELY TO DATABASE (database-first)
                     saved = self._save_use_cases_from_result(
@@ -1392,11 +1413,13 @@ class PMOrchestratorServiceV2:
         if "use_cases" in content:
             use_cases = content.get("use_cases", [])
             for uc in use_cases:
-                uc_id = uc.get("id", f"UC-{br_id[3:]}-{saved_count+1:02d}")
+                # F-081: Support batch mode - UC may have its own parent_br
+                uc_parent_br = uc.get("parent_br", br_id)
+                uc_id = uc.get("id", f"UC-{uc_parent_br[3:]}-{saved_count+1:02d}")
                 if self._save_deliverable_item(
                     execution_id=execution_id,
                     agent_id="ba",
-                    parent_ref=br_id,
+                    parent_ref=uc_parent_br,
                     item_id=uc_id,
                     item_type="use_case",
                     content=uc,

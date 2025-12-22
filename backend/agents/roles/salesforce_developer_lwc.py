@@ -253,7 +253,7 @@ FIX THESE ISSUES.
                 rag_context=rag_context if rag_context else None,
                 previous_feedback=previous_feedback if previous_feedback else None,
                 parsed_files={"files": list(files.keys()), "count": len(files)},
-                tokens_input=None,  # Not available from response
+                tokens_input=input_tokens,  # Not available from response
                 tokens_output=tokens_used,
                 model=model_used,
                 provider="anthropic" if "claude" in model_used else "openai",

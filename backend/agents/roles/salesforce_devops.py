@@ -149,7 +149,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
                 agent_id="jordan", prompt=prompt, response=content,
                 execution_id=execution_id, task_id=None, agent_mode="spec",
                 rag_context=rag_context, previous_feedback=None, parsed_files=None,
-                tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
+                tokens_input=input_tokens, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
                 provider="anthropic", execution_time_seconds=round(time.time() - start_time, 2),
                 success=True, error_message=None
             )
@@ -200,7 +200,7 @@ def generate_deploy(task: dict, components: list, target_env: str, execution_id:
                 agent_id="jordan", prompt=prompt, response=content,
                 execution_id=execution_id, task_id=task_id, agent_mode="deploy",
                 rag_context=None, previous_feedback=None, parsed_files={"files": list(files.keys())},
-                tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
+                tokens_input=input_tokens, tokens_output=tokens_used, model="claude-sonnet-4-20250514",
                 provider="anthropic", execution_time_seconds=round(time.time() - start_time, 2),
                 success=len(files) > 0, error_message=None
             )

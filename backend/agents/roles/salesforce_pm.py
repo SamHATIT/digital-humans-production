@@ -299,6 +299,7 @@ def main():
             )
             content = response["content"]
             tokens_used = response["tokens_used"]
+            input_tokens = response.get("input_tokens", 0)
             model_used = response["model"]
             provider_used = response["provider"]
         else:
@@ -318,6 +319,7 @@ def main():
             )
             content = response.content[0].text
             tokens_used = response.usage.input_tokens + response.usage.output_tokens
+            input_tokens = response.usage.input_tokens
             model_used = "claude-sonnet-4-20250514"
             provider_used = "anthropic"
         
@@ -340,7 +342,7 @@ def main():
                     rag_context=None,
                     previous_feedback=None,
                     parsed_files=None,
-                    tokens_input=None,
+                    tokens_input=input_tokens,
                     tokens_output=tokens_used,
                     model=model_used,
                     provider=provider_used,

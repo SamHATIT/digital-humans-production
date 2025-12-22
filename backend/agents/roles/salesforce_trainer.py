@@ -366,7 +366,7 @@ def main():
                     agent_id="lucas", prompt=prompt, response=content,
                     execution_id=args.execution_id, task_id=None, agent_mode=args.mode,
                     rag_context=None, previous_feedback=None, parsed_files=None,
-                    tokens_input=None, tokens_output=tokens_used, model="claude-sonnet-4",
+                    tokens_input=input_tokens, tokens_output=tokens_used, model="claude-sonnet-4",
                     provider="anthropic", execution_time_seconds=round(execution_time, 2),
                     success=True, error_message=None
                 )

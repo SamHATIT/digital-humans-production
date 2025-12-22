@@ -734,6 +734,7 @@ def main():
             )
             content = response["content"]
             tokens_used = response["tokens_used"]
+            input_tokens = response.get("input_tokens", 0)
             model_used = response["model"]
             provider_used = response["provider"]
         else:
@@ -775,7 +776,7 @@ def main():
                     rag_context=rag_context if rag_context else None,
                     previous_feedback=None,
                     parsed_files=None,
-                    tokens_input=None,
+                    tokens_input=input_tokens,
                     tokens_output=tokens_used,
                     model=model_used,
                     provider=provider_used,

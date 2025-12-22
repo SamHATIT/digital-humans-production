@@ -31,6 +31,14 @@ except ImportError as e:
     print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
+# JSON Cleaner for robust parsing (F-081)
+try:
+    from app.utils.json_cleaner import clean_llm_json_response
+    JSON_CLEANER_AVAILABLE = True
+except ImportError:
+    JSON_CLEANER_AVAILABLE = False
+    def clean_llm_json_response(s): return None, "JSON cleaner not available"
+
 # RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
@@ -141,6 +149,61 @@ Generate 3-5 **concise** Use Cases for this BR. Each UC must be:
 **Generate Use Cases for {br_id}. Output ONLY valid JSON, no markdown fences or explanations.**
 '''
 
+
+
+# F-081: Batch mode prompt for processing 2 BRs at once
+def get_uc_generation_prompt_batch(brs: list, rag_context: str = "") -> str:
+    """Generate UC prompt for 1 or 2 BRs at once (F-081 optimization)"""
+    br_sections = []
+    br_ids = []
+    
+    for br in brs:
+        br_id = br.get('id', 'BR-XXX')
+        br_ids.append(br_id)
+        br_title = br.get('title', br.get('requirement', '')[:50])
+        br_description = br.get('description', br.get('requirement', ''))
+        br_category = br.get('category', 'OTHER')
+        br_stakeholder = br.get('stakeholder', br.get('metadata', {}).get('stakeholder', 'Business User'))
+        
+        br_metadata = br.get('metadata', br.get('br_metadata', {}))
+        br_fields = br_metadata.get('fields', [])
+        
+        fields_text = f"Fields: {', '.join(br_fields)}" if br_fields else ""
+        
+        br_sections.append(f"""### {br_id}: {br_title}
+- Category: {br_category} | Stakeholder: {br_stakeholder}
+- {br_description[:500]}
+{fields_text}""")
+    
+    brs_text = "\n\n".join(br_sections)
+    br_count = len(brs)
+    
+    rag_section = f"\n## SALESFORCE CONTEXT\n{rag_context[:1200]}\n" if rag_context else ""
+    
+    return f"""# USE CASE GENERATION - {br_count} BR{"s" if br_count > 1 else ""}
+
+You are **Olivia**, Senior Salesforce Business Analyst.
+
+## INPUT BRs
+
+{brs_text}
+{rag_section}
+
+## OUTPUT FORMAT
+
+Return a JSON object with "results" array. Each result has "parent_br" and "use_cases" array.
+Generate 3-5 Use Cases per BR with: id, title, actor, trigger, main_flow (max 6 steps), 
+alt_flows (max 3), acceptance_criteria (GIVEN/WHEN/THEN), sf_objects, sf_fields, sf_automation.
+
+## RULES
+- UC IDs: UC-XXX-01, UC-XXX-02 (XXX = BR number)
+- Real Salesforce object/field names with __c suffix
+- One automation type per UC (Flow/Apex/None)
+- Max 6 main_flow steps, max 4 acceptance criteria
+
+Output ONLY valid JSON, no markdown fences."""
+
+
 # ============================================================================
 # MAIN EXECUTION
 # ============================================================================
@@ -163,16 +226,25 @@ def main():
         with open(args.input, 'r', encoding='utf-8') as f:
             input_data = json.load(f)
         
-        # Handle both direct BR object and wrapped format
-        if 'business_requirement' in input_data:
-            br = input_data['business_requirement']
-        elif 'id' in input_data and input_data['id'].startswith('BR-'):
-            br = input_data
+        # Handle single BR, wrapped BR, or batch of BRs (F-081)
+        brs = []
+        if 'business_requirements' in input_data:
+            # Batch mode: list of BRs
+            brs = input_data['business_requirements']
+        elif 'business_requirement' in input_data:
+            brs = [input_data['business_requirement']]
+        elif 'id' in input_data and str(input_data.get('id', '')).startswith('BR-'):
+            brs = [input_data]
         else:
-            raise ValueError("Input must contain a Business Requirement with 'id' starting with 'BR-'")
+            raise ValueError("Input must contain business_requirement(s) with 'id' starting with 'BR-'")
         
-        br_id = br.get('id', 'BR-XXX')
-        print(f"✅ Processing {br_id}: {br.get('title', 'Untitled')}", file=sys.stderr)
+        batch_mode = len(brs) > 1
+        br_ids = [br.get('id', 'BR-XXX') for br in brs]
+        print(f"✅ Processing {len(brs)} BR(s): {', '.join(br_ids)}", file=sys.stderr)
+        
+        # For compatibility, keep single br reference
+        br = brs[0]
+        br_id = br_ids[0]
         
         # Get RAG context if available
         rag_context = ""
@@ -188,7 +260,11 @@ def main():
                 rag_context = ""
         
         # Build prompt
-        prompt = get_uc_generation_prompt(br, rag_context)
+        # F-081: Use batch prompt if multiple BRs
+        if batch_mode:
+            prompt = get_uc_generation_prompt_batch(brs, rag_context)
+        else:
+            prompt = get_uc_generation_prompt(br, rag_context)
         system_prompt = "You are Olivia, a Senior Salesforce Business Analyst. Generate detailed Use Cases from the Business Requirement. Output ONLY valid JSON."
         
         print(f"📝 Prompt size: {len(prompt)} characters", file=sys.stderr)
@@ -205,6 +281,7 @@ def main():
             )
             content = response["content"]
             tokens_used = response["tokens_used"]
+            input_tokens = response.get("input_tokens", 0)
             model_used = response["model"]
             provider_used = response["provider"]
         else:
@@ -224,6 +301,7 @@ def main():
             )
             content = response.content[0].text
             tokens_used = response.usage.input_tokens + response.usage.output_tokens
+            input_tokens = response.usage.input_tokens
             model_used = "claude-sonnet-4-20250514"
             provider_used = "anthropic"
         
@@ -246,7 +324,7 @@ def main():
                     rag_context=None,
                     previous_feedback=None,
                     parsed_files=None,
-                    tokens_input=None,
+                    tokens_input=input_tokens,
                     tokens_output=tokens_used,
                     model=model_used,
                     provider=provider_used,
