@@ -2528,3 +2528,40 @@ Corriger les bugs critiques identifiés dans l'audit de l'exécution 124
 1. Tester avec une nouvelle exécution (projet 79 - ImmoPrime)
 2. Valider que Gap Analysis génère Property__c (pas Project__c)
 3. Valider que les experts SDS ne hallucinent plus
+
+## 2025-12-22 - Session corrections batch
+
+### Objectifs
+Corriger les bugs de parsing JSON et optimiser Olivia
+
+### Réalisé
+1. **BUG-053** (JSON tronqué) - CORRIGÉ
+   - Ajout repair_truncated_json() dans json_cleaner.py
+   - Ferme automatiquement les structures JSON incomplètes
+   - Testé avec WBS 68KB tronqué → parsé correctement
+
+2. **BUG-054** (input_tokens vides) - CORRIGÉ
+   - 8 agents modifiés pour capturer response.get("input_tokens", 0)
+   - Sophie, Olivia, Marcus, Emma, Zara, Jordan, Elena, Lucas
+
+3. **BUG-055** (Emma coverage faible) - CORRIGÉ
+   - Emma utilise maintenant json_cleaner pour parse_json_response
+   - Tous les batches validate devraient être combinés correctement
+
+4. **F-081** (Olivia batch mode) - IMPLÉMENTÉ
+   - get_uc_generation_prompt_batch() pour 2 BRs par appel
+   - Orchestrateur BATCH_SIZE = 2
+   - Parsing réponse batch {"results": [...]}
+   - Réduction ~50% des appels API Phase 2
+
+### Commits
+- 69852e9: fix: BUG-053/054/055 + feat: F-081 batch mode Olivia
+- 1ba0c5c: fix(F-081): Add missing batch response parsing
+
+### Fichiers modifiés
+- backend/app/utils/json_cleaner.py
+- backend/app/services/pm_orchestrator_service_v2.py
+- backend/agents/roles/salesforce_*.py (8 fichiers)
+
+### Prochaine étape
+Test de bout en bout SDS + BUILD sur nouveau projet

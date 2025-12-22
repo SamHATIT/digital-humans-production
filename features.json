@@ -2,12 +2,13 @@
   "metadata": {
     "version": "1.0",
     "created": "2025-12-08",
-    "last_updated": "2025-12-17",
-    "total_features": 161,
+    "last_updated": "2025-12-22",
+    "total_features": 168,
     "stats": {
-      "completed": 134,
+      "completed": 138,
       "not_started": 25,
       "in_progress": 1,
+      "planned": 0,
       "blocked": 0
     }
   },
@@ -2699,10 +2700,64 @@
       "id": "F-081",
       "name": "Olivia: Grouper 2 BRs par appel LLM",
       "description": "Optimisation Phase 2 - Grouper 2 BRs par appel generate_uc pour diviser le nombre d'appels par 2. Output ~3000-4000 tokens reste dans la limite 8192.",
-      "status": "planned",
+      "status": "completed",
       "priority": "low",
       "category": "optimization",
-      "added": "2025-12-19"
+      "added": "2025-12-19",
+      "completed_date": "2025-12-22",
+      "notes": "Implémenté le 22/12/2025: get_uc_generation_prompt_batch(), parsing batch response, orchestrateur BATCH_SIZE=2. Réduit les appels API Phase 2 de ~50%."
+    },
+    {
+      "id": "BUG-053",
+      "name": "JSON Cleaner - Réparation JSON tronqués",
+      "description": "Les réponses LLM sont parfois tronquées (max_tokens atteint), causant des parse errors. Ajout de repair_truncated_json() qui ferme automatiquement les structures ouvertes.",
+      "status": "completed",
+      "priority": "high",
+      "category": "bug",
+      "assignee": "Claude",
+      "created_date": "2025-12-22",
+      "completed_date": "2025-12-22",
+      "files": [
+        "backend/app/utils/json_cleaner.py"
+      ],
+      "notes": "Fonction repair_truncated_json() ajoutée. Testé avec succès sur le WBS exec 126 (68KB tronqué → parsé correctement)."
+    },
+    {
+      "id": "BUG-054",
+      "name": "LLM Logger - input_tokens non capturés",
+      "description": "Les agents passaient tokens_input=None au lieu de response.get('input_tokens', 0). La colonne tokens_input restait vide dans llm_interactions.",
+      "status": "completed",
+      "priority": "medium",
+      "category": "bug",
+      "assignee": "Claude",
+      "created_date": "2025-12-22",
+      "completed_date": "2025-12-22",
+      "files": [
+        "backend/agents/roles/salesforce_pm.py",
+        "backend/agents/roles/salesforce_business_analyst.py",
+        "backend/agents/roles/salesforce_solution_architect.py",
+        "backend/agents/roles/salesforce_research_analyst.py",
+        "backend/agents/roles/salesforce_developer_lwc.py",
+        "backend/agents/roles/salesforce_devops.py",
+        "backend/agents/roles/salesforce_qa_tester.py",
+        "backend/agents/roles/salesforce_trainer.py"
+      ],
+      "notes": "Tous les agents corrigés pour capturer input_tokens = response.get('input_tokens', 0) et le passer au logger."
+    },
+    {
+      "id": "BUG-055",
+      "name": "Emma Coverage - Parsing batches échoué silencieusement",
+      "description": "Emma validate_batch retournait 9 batches mais seulement 19 mappings au total car le parsing JSON échouait silencieusement sur certains batches. Intégration du json_cleaner résout le problème.",
+      "status": "completed",
+      "priority": "high",
+      "category": "bug",
+      "assignee": "Claude",
+      "created_date": "2025-12-22",
+      "completed_date": "2025-12-22",
+      "files": [
+        "backend/agents/roles/salesforce_research_analyst.py"
+      ],
+      "notes": "Emma utilise maintenant clean_llm_json_response() pour parser les réponses. Tous les batches devraient être correctement combinés."
     }
   ],
   "stats": {
