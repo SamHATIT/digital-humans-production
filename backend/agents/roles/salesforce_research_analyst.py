@@ -50,6 +50,10 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
+# BUG-057 FIX: Use programmatic coverage calculation instead of LLM
+# Set to False to rollback to LLM-based coverage report
+USE_PROGRAMMATIC_COVERAGE = True
+
 
 
 # ============================================================================
@@ -640,6 +644,113 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
     }
 
 
+
+
+# ============================================================================
+# BUG-057 FIX: Programmatic Coverage Calculation
+# ============================================================================
+
+def generate_coverage_report_programmatic(all_mappings: List[Dict]) -> Dict:
+    """
+    Calculate coverage report programmatically instead of using LLM.
+    This avoids the 543K+ token issue when accumulating all mappings.
+    
+    Args:
+        all_mappings: List of UC mappings from validate_batch calls
+        
+    Returns:
+        Coverage report dict with score, gaps, and recommendations
+    """
+    total_elements = 0
+    covered = 0
+    partial = 0
+    missing = 0
+    gaps = []
+    uc_stats = {}  # Track per-UC coverage
+    
+    for mapping in all_mappings:
+        uc_id = mapping.get("uc_id", "UNKNOWN")
+        uc_title = mapping.get("uc_title", "")
+        elements = mapping.get("elements", [])
+        
+        uc_covered = 0
+        uc_total = len(elements)
+        
+        for element in elements:
+            total_elements += 1
+            status = element.get("coverage_status", "missing")
+            
+            if status == "covered":
+                covered += 1
+                uc_covered += 1
+            elif status == "partial":
+                partial += 1
+                gaps.append({
+                    "gap_id": f"GAP-{len(gaps)+1:03d}",
+                    "uc_id": uc_id,
+                    "uc_title": uc_title,
+                    "element_type": element.get("element_type", "unknown"),
+                    "element_value": element.get("element_value", ""),
+                    "severity": "medium",
+                    "notes": element.get("notes", "Partially covered - needs clarification")
+                })
+            else:  # missing
+                missing += 1
+                gaps.append({
+                    "gap_id": f"GAP-{len(gaps)+1:03d}",
+                    "uc_id": uc_id,
+                    "uc_title": uc_title,
+                    "element_type": element.get("element_type", "unknown"),
+                    "element_value": element.get("element_value", ""),
+                    "severity": "high",
+                    "notes": element.get("notes", "Missing from solution design")
+                })
+        
+        # Track UC-level stats
+        uc_stats[uc_id] = {
+            "title": uc_title,
+            "total_elements": uc_total,
+            "covered": uc_covered,
+            "coverage_pct": round((uc_covered / uc_total * 100) if uc_total > 0 else 0, 1)
+        }
+    
+    # Calculate overall score
+    score = round((covered / total_elements * 100) if total_elements > 0 else 0, 1)
+    
+    # Count UC coverage levels
+    fully_covered_ucs = sum(1 for s in uc_stats.values() if s["coverage_pct"] == 100)
+    partial_ucs = sum(1 for s in uc_stats.values() if 0 < s["coverage_pct"] < 100)
+    missing_ucs = sum(1 for s in uc_stats.values() if s["coverage_pct"] == 0)
+    
+    # Generate recommendations from top gaps
+    recommendations = []
+    high_severity_gaps = [g for g in gaps if g["severity"] == "high"][:10]
+    for gap in high_severity_gaps:
+        recommendations.append(
+            f"Add {gap['element_type']} '{gap['element_value']}' for {gap['uc_id']}"
+        )
+    
+    return {
+        "report_id": f"COVERAGE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+        "generated_at": datetime.now().isoformat(),
+        "coverage_score": score,
+        "status": "APPROVED" if score >= 95 else "NEEDS_REVISION",
+        "summary": {
+            "total_ucs": len(all_mappings),
+            "fully_covered_ucs": fully_covered_ucs,
+            "partial_ucs": partial_ucs,
+            "missing_ucs": missing_ucs,
+            "total_elements": total_elements,
+            "covered_elements": covered,
+            "partial_elements": partial,
+            "missing_elements": missing
+        },
+        "gaps": gaps[:100],  # Limit to top 100 gaps
+        "recommendations_for_marcus": recommendations,
+        "calculation_method": "programmatic"  # Flag to identify this was calculated, not LLM-generated
+    }
+
+
 async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
     """
     Mode VALIDATE: Check 100% coverage of UCs by Solution Design
@@ -723,52 +834,64 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
     mappings = {"mappings": all_mappings}
     print(f"✅ Total mapped: {len(all_mappings)} UCs", file=sys.stderr)
     
-    # Step 2: Generate coverage report (equivalent to ConductResearch)
+    # Step 2: Generate coverage report
     print(f"📊 Step 2/2: Generating Coverage Report...", file=sys.stderr)
     
-    report_prompt = COVERAGE_REPORT_PROMPT.format(
-        mappings_json=json.dumps(mappings, indent=2),
-        timestamp=datetime.now().isoformat()
-    )
+    tokens_step2 = 0
     
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(
-            prompt=report_prompt,
-            agent_type="research",
-            system_prompt=VALIDATE_SYSTEM,
-            max_tokens=8000,
-            temperature=0.2
-        )
-        report_content = response["content"]
-        tokens_step2 = response["tokens_used"]
-        
-        # LOG COVERAGE REPORT LLM CALL
-        if LLM_LOGGER_AVAILABLE:
-            log_llm_interaction(
-                agent_id="emma",
-                prompt=report_prompt,
-                response=report_content,
-                execution_id=execution_id,
-                agent_mode="validate_report",
-                tokens_input=response.get("input_tokens", 0),
-                tokens_output=tokens_step2,
-                model=model_used,
-                provider=provider_used,
-                execution_time_seconds=0,
-                success=True
-            )
-    
-    try:
-        coverage_report = parse_json_response(report_content)
+    if USE_PROGRAMMATIC_COVERAGE:
+        # BUG-057 FIX: Calculate coverage programmatically (no LLM call)
+        print(f"   Using programmatic calculation (BUG-057 fix)", file=sys.stderr)
+        coverage_report = generate_coverage_report_programmatic(all_mappings)
         coverage_score = coverage_report.get("coverage_score", 0)
-        print(f"✅ Coverage Score: {coverage_score}%", file=sys.stderr)
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Report JSON parse error: {e}", file=sys.stderr)
-        coverage_report = {"raw": report_content, "parse_error": str(e), "coverage_score": 0}
-        coverage_score = 0
+        print(f"✅ Coverage Score: {coverage_score}% (programmatic)", file=sys.stderr)
+    else:
+        # LEGACY: LLM-based coverage report (can cause context overflow on large projects)
+        print(f"   ⚠️ Using LLM-based calculation (legacy mode)", file=sys.stderr)
+        report_prompt = COVERAGE_REPORT_PROMPT.format(
+            mappings_json=json.dumps(mappings, indent=2),
+            timestamp=datetime.now().isoformat()
+        )
+        
+        if LLM_SERVICE_AVAILABLE:
+            response = generate_llm_response(
+                prompt=report_prompt,
+                agent_type="research",
+                system_prompt=VALIDATE_SYSTEM,
+                max_tokens=8000,
+                temperature=0.2
+            )
+            report_content = response["content"]
+            tokens_step2 = response["tokens_used"]
+            
+            # LOG COVERAGE REPORT LLM CALL
+            if LLM_LOGGER_AVAILABLE:
+                log_llm_interaction(
+                    agent_id="emma",
+                    prompt=report_prompt,
+                    response=report_content,
+                    execution_id=execution_id,
+                    agent_mode="validate_report",
+                    tokens_input=response.get("input_tokens", 0),
+                    tokens_output=tokens_step2,
+                    model=model_used,
+                    provider=provider_used,
+                    execution_time_seconds=0,
+                    success=True
+                )
+        
+        try:
+            coverage_report = parse_json_response(report_content)
+            coverage_score = coverage_report.get("coverage_score", 0)
+            print(f"✅ Coverage Score: {coverage_score}%", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"⚠️ Report JSON parse error: {e}", file=sys.stderr)
+            coverage_report = {"raw": report_content, "parse_error": str(e), "coverage_score": 0}
+            coverage_score = 0
     
     execution_time = time.time() - start_time
     total_tokens = tokens_step1 + tokens_step2
+
     
     # Log LLM interaction
     if LLM_LOGGER_AVAILABLE:
