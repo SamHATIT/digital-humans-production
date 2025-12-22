@@ -2694,6 +2694,15 @@
       "status": "done",
       "priority": "critical",
       "notes": "Ajouté 19/12/2025 (71172c5). Gap reçoit solution_design pour comparer As-Is vs Target."
+    },
+    {
+      "id": "F-081",
+      "name": "Olivia: Grouper 2 BRs par appel LLM",
+      "description": "Optimisation Phase 2 - Grouper 2 BRs par appel generate_uc pour diviser le nombre d'appels par 2. Output ~3000-4000 tokens reste dans la limite 8192.",
+      "status": "planned",
+      "priority": "low",
+      "category": "optimization",
+      "added": "2025-12-19"
     }
   ],
   "stats": {

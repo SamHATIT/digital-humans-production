@@ -42,6 +42,15 @@ except ImportError as e:
     print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
+# JSON Cleaner for robust parsing (added 2025-12-22)
+try:
+    from app.utils.json_cleaner import clean_llm_json_response
+    JSON_CLEANER_AVAILABLE = True
+except ImportError:
+    JSON_CLEANER_AVAILABLE = False
+    def clean_llm_json_response(s): return None, "JSON cleaner not available"
+
+
 
 # ============================================================================
 # PROMPTS - MODE ANALYZE (inspired by CollectLinks + ConductResearch)
@@ -433,88 +442,40 @@ SECTION_GUIDANCE = {
 def parse_json_response(content: str) -> Dict:
     """
     Clean and parse JSON from LLM response.
-    ENHANCED (19/12/2025): Better handling of control characters that cause parse errors.
+    UPDATED (2025-12-22): Uses json_cleaner for robust parsing.
     """
-    import re
+    # Try the robust cleaner first
+    if JSON_CLEANER_AVAILABLE:
+        parsed, error = clean_llm_json_response(content)
+        if parsed is not None:
+            return parsed
+        # If cleaner fails, fall through to legacy code
+        print(f"⚠️ JSON cleaner failed: {error}, trying legacy parser", file=sys.stderr)
     
+    # Legacy parsing (fallback)
+    import re as regex
     clean = content.strip()
     
-    # Remove markdown code blocks (```json or ```)
+    # Remove markdown code blocks
     if clean.startswith('```json'):
         clean = clean[7:]
     elif clean.startswith('```'):
         clean = clean[3:]
-    
     if clean.endswith('```'):
         clean = clean[:-3]
-    
     clean = clean.strip()
     
-    # Remove leading 'json' if present
-    if clean.startswith('json'):
-        clean = clean[4:].strip()
-    
-    # Find JSON boundaries
+    # Find JSON start
     if not clean.startswith('{') and not clean.startswith('['):
         start_obj = clean.find('{')
-        start_arr = clean.find('[')
-        if start_obj >= 0 and (start_arr < 0 or start_obj < start_arr):
+        if start_obj >= 0:
             clean = clean[start_obj:]
-        elif start_arr >= 0:
-            clean = clean[start_arr:]
     
-    # Find matching closing brace
-    if clean.startswith('{'):
-        depth = 0
-        in_string = False
-        escape_next = False
-        end_pos = 0
-        for i, c in enumerate(clean):
-            if escape_next:
-                escape_next = False
-                continue
-            if c == '\\':
-                escape_next = True
-                continue
-            if c == '"' and not escape_next:
-                in_string = not in_string
-                continue
-            if not in_string:
-                if c == '{':
-                    depth += 1
-                elif c == '}':
-                    depth -= 1
-                    if depth == 0:
-                        end_pos = i + 1
-                        break
-        if end_pos > 0:
-            clean = clean[:end_pos]
+    # Remove control characters
+    clean = regex.sub(r'[\x00-\x1f]', ' ', clean)
     
-    # ENHANCED: Aggressive control character cleaning
-    def clean_control_chars(s: str) -> str:
-        """Remove or escape control characters that break JSON parsing"""
-        # Replace common problematic control chars
-        result = s
-        # Remove NULL bytes
-        result = result.replace('\x00', '')
-        # Handle literal control chars in strings (not escaped)
-        # Replace tabs, newlines, carriage returns with escaped versions
-        result = re.sub(r'(?<!\\)\t', '\\\\t', result)
-        result = re.sub(r'(?<!\\)\r', '\\\\r', result)
-        # Remove other control chars (0x00-0x1F except already handled)
-        result = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', result)
-        return result
-    
-    clean = clean_control_chars(clean)
-    
-    try:
-        return json.loads(clean)
-    except json.JSONDecodeError as e:
-        # Try fixing common issues
-        # Remove any BOM or zero-width chars
-        clean = clean.encode('utf-8', errors='ignore').decode('utf-8')
-        clean = re.sub(r'[\x00-\x1f](?![\x09\x0a\x0d])', '', clean)  # Remove control chars except tab/newline/cr
-        return json.loads(clean)
+    return json.loads(clean)
+
 
 
 def calculate_coverage_score(mappings: Dict) -> float:

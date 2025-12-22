@@ -46,6 +46,15 @@ except ImportError as e:
     print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
+# JSON Cleaner for robust parsing (added 2025-12-22)
+try:
+    from app.utils.json_cleaner import clean_llm_json_response
+    JSON_CLEANER_AVAILABLE = True
+except ImportError:
+    JSON_CLEANER_AVAILABLE = False
+    def clean_llm_json_response(s): return None, "JSON cleaner not available"
+
+
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC → Architecture)
 # ============================================================================
@@ -778,42 +787,28 @@ def main():
             except Exception as e:
                 print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
         
-        # Parse JSON output - improved handling of markdown and control chars
-        try:
-            clean_content = content.strip()
-            
-            # Remove markdown code blocks
-            if clean_content.startswith('```json'):
-                clean_content = clean_content[7:]
-            elif clean_content.startswith('```'):
-                clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
-            if clean_content.endswith('```'):
-                clean_content = clean_content[:-3]
-            clean_content = clean_content.strip()
-            
-            # Remove leading 'json' if present
-            if clean_content.startswith('json'):
-                clean_content = clean_content[4:].strip()
-            
-            # Find JSON start
-            if not clean_content.startswith('{') and not clean_content.startswith('['):
-                start_obj = clean_content.find('{')
-                if start_obj >= 0:
-                    clean_content = clean_content[start_obj:]
-            
+        # Parse JSON output using robust cleaner (updated 2025-12-22)
+        if JSON_CLEANER_AVAILABLE:
+            parsed_content, parse_error = clean_llm_json_response(content)
+            if parsed_content is not None:
+                print(f"✅ JSON parsed successfully (via cleaner)", file=sys.stderr)
+            else:
+                print(f"⚠️ JSON parse error: {parse_error}", file=sys.stderr)
+                print(f"   Content preview: {content[:200]}...", file=sys.stderr)
+                parsed_content = {"raw": content, "parse_error": parse_error}
+        else:
+            # Fallback to basic parsing
             try:
-                parsed_content = json.loads(clean_content)
-            except json.JSONDecodeError:
-                # Try removing control characters
                 import re
-                clean_content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', clean_content)
-                parsed_content = json.loads(clean_content)
-            
-            print(f"✅ JSON parsed successfully", file=sys.stderr)
-        except json.JSONDecodeError as e:
-            print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
-            print(f"   Content preview: {clean_content[:200]}...", file=sys.stderr)
-            parsed_content = {"raw": content, "parse_error": str(e)}
+                clean_content = content.strip()
+                if clean_content.startswith('```'):
+                    clean_content = re.sub(r'^```(?:json)?\s*', '', clean_content)
+                    clean_content = re.sub(r'```\s*$', '', clean_content)
+                parsed_content = json.loads(clean_content.strip())
+                print(f"✅ JSON parsed successfully (basic)", file=sys.stderr)
+            except json.JSONDecodeError as e:
+                print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
+                parsed_content = {"raw": content, "parse_error": str(e)}
         
         # Build output
         output_data = {

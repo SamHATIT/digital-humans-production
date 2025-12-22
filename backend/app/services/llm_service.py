@@ -503,3 +503,60 @@ if __name__ == "__main__":
         tier = service.get_tier_for_agent(agent)
         model = service.get_model_for_agent(agent)
         print(f"  {agent}: tier={tier.value}, model={model}")
+
+
+# === JSON RESPONSE HELPER (added 2025-12-22) ===
+def generate_json_response(
+    prompt: str,
+    agent_type: str = "worker",
+    system_prompt: Optional[str] = None,
+    agent_id: str = "unknown",
+    mode: str = "unknown",
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Generate LLM response and parse it as JSON with robust cleaning.
+    
+    Handles:
+    - Markdown code blocks (```json ... ```)
+    - Text before/after JSON
+    - Control characters in strings
+    - Trailing commas
+    
+    Returns:
+        Dict with:
+        - content: parsed JSON dict/list, OR {"raw": ..., "parse_error": ...} if parsing fails
+        - content_raw: original raw string (for debugging)
+        - json_parsed: True if JSON parsing succeeded
+        - Plus all standard fields (model, tokens_used, etc.)
+    """
+    from app.utils.json_cleaner import clean_llm_json_response
+    
+    # Get raw response
+    response = generate_llm_response(
+        prompt=prompt,
+        agent_type=agent_type,
+        system_prompt=system_prompt,
+        **kwargs
+    )
+    
+    raw_content = response.get("content", "")
+    
+    # Try to parse as JSON
+    parsed, error = clean_llm_json_response(raw_content)
+    
+    if parsed is not None:
+        response["content"] = parsed
+        response["content_raw"] = raw_content
+        response["json_parsed"] = True
+        logger.debug(f"[{agent_id}/{mode}] JSON parsed successfully")
+    else:
+        response["content"] = {
+            "raw": raw_content,
+            "parse_error": error
+        }
+        response["content_raw"] = raw_content
+        response["json_parsed"] = False
+        logger.warning(f"[{agent_id}/{mode}] JSON parse failed: {error}")
+    
+    return response
