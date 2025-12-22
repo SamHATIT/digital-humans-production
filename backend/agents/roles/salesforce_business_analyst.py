@@ -336,18 +336,37 @@ def main():
             except Exception as e:
                 print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
         
-        # Parse JSON output
+        # Parse JSON output (with json_cleaner and batch support - F-081)
         try:
-            clean_content = content.strip()
-            if clean_content.startswith('```'):
-                clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
-            if clean_content.endswith('```'):
-                clean_content = clean_content[:-3]
-            clean_content = clean_content.strip()
+            # Use robust json_cleaner
+            if JSON_CLEANER_AVAILABLE:
+                parsed_content, parse_error = clean_llm_json_response(content)
+                if parsed_content is None:
+                    raise json.JSONDecodeError(parse_error or "Parse error", content, 0)
+            else:
+                clean_content = content.strip()
+                if clean_content.startswith('```'):
+                    clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
+                if clean_content.endswith('```'):
+                    clean_content = clean_content[:-3]
+                parsed_content = json.loads(clean_content.strip())
             
-            parsed_content = json.loads(clean_content)
-            uc_count = len(parsed_content.get('use_cases', []))
-            print(f"✅ Generated {uc_count} Use Cases for {br_id}", file=sys.stderr)
+            # F-081: Handle batch response format {"results": [...]}
+            if 'results' in parsed_content and isinstance(parsed_content['results'], list):
+                # Batch response - flatten all use_cases with their parent_br
+                all_use_cases = []
+                for result in parsed_content['results']:
+                    parent_br = result.get('parent_br', br_id)
+                    for uc in result.get('use_cases', []):
+                        uc['parent_br'] = parent_br  # Tag each UC with its parent
+                        all_use_cases.append(uc)
+                parsed_content = {"use_cases": all_use_cases, "batch_mode": True, "parent_brs": br_ids}
+                uc_count = len(all_use_cases)
+                print(f"✅ Batch mode: Generated {uc_count} Use Cases for {len(br_ids)} BRs", file=sys.stderr)
+            else:
+                # Single BR response
+                uc_count = len(parsed_content.get('use_cases', []))
+                print(f"✅ Generated {uc_count} Use Cases for {br_id}", file=sys.stderr)
         except json.JSONDecodeError as e:
             print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
             parsed_content = {"raw": content, "parse_error": str(e)}
