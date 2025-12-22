@@ -570,7 +570,7 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
             prompt=digest_prompt,
             agent_type="research",
             system_prompt=ANALYZE_SYSTEM,
-            max_tokens=12000,
+            max_tokens=20000,  # Increased for large projects (was 12000)
             temperature=0.3
         )
         digest_content = response["content"]

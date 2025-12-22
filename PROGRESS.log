@@ -2565,3 +2565,30 @@ Corriger les bugs de parsing JSON et optimiser Olivia
 
 ### Prochaine étape
 Test de bout en bout SDS + BUILD sur nouveau projet
+
+## 2025-12-22 - Session Debug Exec 127
+
+### Validations confirmées
+- F-081 (Olivia batch mode) : ✅ 14 appels au lieu de 28
+- BUG-054 (input_tokens tracking) : ✅ Fonctionne
+- BUG-053 (JSON cleaner) : ✅ Pas de parse_error
+
+### Bug corrigé
+- BUG-056: Client Anthropic timeout trop court (défaut ~30s)
+  - Fix: timeout=600.0 dans llm_service.py ligne 180
+  - Fichier: backend/app/services/llm_service.py
+
+### Bug découvert (NON CORRIGÉ)
+- BUG-057: Emma validate cassée pour gros projets
+  - Cause: Accumule ~2MB de mappings (543K tokens) puis essaie de les envoyer en un seul prompt
+  - Impact: Dépasse le context window, process hang indéfiniment
+  - Solution requise: Refactorer pour générer le rapport de couverture de manière incrémentale
+
+### Tokens gaspillés
+- ~720K tokens sur Emma validate tests
+
+### Fichiers modifiés
+- backend/app/services/llm_service.py (timeout 600s)
+
+### Prochaine étape
+- Corriger Emma validate (BUG-057)

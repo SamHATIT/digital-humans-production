@@ -177,7 +177,7 @@ class LLMService:
         if ANTHROPIC_AVAILABLE:
             api_key = os.environ.get('ANTHROPIC_API_KEY')
             if api_key:
-                self._anthropic_client = Anthropic(api_key=api_key)
+                self._anthropic_client = Anthropic(api_key=api_key, timeout=600.0)  # 10 min timeout for large requests
                 print("✅ Anthropic client initialized", file=sys.stderr)
             else:
                 print("⚠️ ANTHROPIC_API_KEY not set", file=sys.stderr)
