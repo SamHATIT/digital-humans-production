@@ -528,7 +528,7 @@ async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
             prompt=cluster_prompt,
             agent_type="research",  # Uses appropriate tier
             system_prompt=ANALYZE_SYSTEM,
-            max_tokens=8000,
+            max_tokens=12000,  # Increased for large projects
             temperature=0.3
         )
         clusters_content = response["content"]
@@ -858,7 +858,7 @@ async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
                 prompt=report_prompt,
                 agent_type="research",
                 system_prompt=VALIDATE_SYSTEM,
-                max_tokens=8000,
+                max_tokens=12000,  # Increased for large projects
                 temperature=0.2
             )
             report_content = response["content"]
