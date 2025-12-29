@@ -89,6 +89,10 @@ app.include_router(wizard.router, prefix=settings.API_V1_PREFIX)
 # Subscription routes (Section 9)
 app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscription", tags=["subscription"])
 
+# Leads capture
+from app.api.routes import leads
+app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
+
 # Environment routes (Section 6.2, 6.3, 6.4)
 
 # Exception handler for validation errors

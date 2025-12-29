@@ -2663,3 +2663,68 @@ Tentative de test end-to-end après corrections BUG-053/054/055. Exec 127 puis 1
 - Relancer test avec timeout 60min
 - Valider que le calcul programmatique fonctionne
 - Objectif: premier test end-to-end réussi
+
+## 2025-12-29 - Session Website (WEB-01 + WEB-05)
+
+### Contexte
+Travail sur le site vitrine digital-humans.fr et système de capture de leads.
+
+### WEB-01: Refonte complète du site (session matin - non documentée)
+- Nouveau site React avec Vite + Tailwind
+- Composants: Hero, RealityCheck, HowItWorks, OurAgents, Manifesto, CTA, FAQ
+- Toggle Dark/Light mode
+- Traductions FR/EN complètes
+- Déployé sur /var/www/digital-humans.fr/
+
+### WEB-05: Lead Capture avec Double Opt-in
+**Implémentation complète:**
+
+1. **Base de données** - Table `leads`:
+   - Colonnes: email, name, company, source, newsletter, verified
+   - Colonnes verification: verification_token, verified_at, token_expires_at
+   - Token expire après 24h
+
+2. **Backend** - `/api/leads`:
+   - POST /api/leads → Crée lead + génère token
+   - GET /api/leads/verify?token=xxx → Vérifie email, page HTML branded
+   - GET /api/leads/count → Stats
+
+3. **Nginx** - Proxy configuré:
+   - /api/leads → localhost:8002
+
+4. **Email Hostinger**:
+   - Adresse: contact@digital-humans.fr
+   - SMTP: smtp.hostinger.com:465 (SSL)
+   - Credentials stockés dans N8N
+
+5. **N8N Workflow** (ID: Gb8H5ObXg1FETVb5):
+   - Webhook POST /lead-capture
+   - Save Lead to DB → HTTP Request
+   - Send Verification Email → SMTP Hostinger
+   - Email template branded (logo Digital-Humans.fr, couleurs site)
+
+6. **Frontend** - Formulaire CTA:
+   - Champs: email, name, company, newsletter
+   - Messages FR/EN pour success/error
+   - POST vers N8N webhook
+
+### Fichiers modifiés
+- backend/app/api/routes/leads.py (créé)
+- backend/app/api/routes/__init__.py
+- backend/app/main.py
+- /etc/nginx/sites-enabled/digital-humans
+- /root/workspace/digital-humans-website/* (React app)
+
+### Tests validés
+- ✅ Soumission formulaire → Lead créé en DB
+- ✅ Email de vérification envoyé
+- ✅ Lien de vérification fonctionnel
+- ✅ Page de confirmation branded
+
+### Commits
+- (à venir)
+
+### Prochaine session
+- Finaliser charte graphique (couleurs exactes)
+- Templates email/slides/documents
+- Analytics (WEB-06)
