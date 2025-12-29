@@ -2728,3 +2728,72 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 - Finaliser charte graphique (couleurs exactes)
 - Templates email/slides/documents
 - Analytics (WEB-06)
+
+---
+
+## Session 29 décembre 2025 - Agents N8N & Ollama
+
+### Objectifs
+- Installer LLM local (Ollama + Mistral Nemo)
+- Créer tous les agents N8N d'acquisition
+- Dashboard de métriques
+
+### Réalisations
+
+#### 1. Ollama + Mistral Nemo
+- Installation Ollama sur VPS (localhost:11434)
+- Modèle Mistral Nemo 7.1GB (128K contexte)
+- Performance: ~4-10 tokens/sec en CPU-only
+- Commande: `ollama run mistral-nemo`
+
+#### 2. Workflows N8N créés (9 workflows actifs)
+
+| ID | Workflow | Webhook | Trigger | LLM |
+|----|----------|---------|---------|-----|
+| N8N-01 | LinkedIn Enrichment - Prospects | POST /enrich-prospect | Manuel | Mistral Nemo |
+| N8N-02 | Email Outreach - Mistral Nemo | POST /send-outreach | 6h | Mistral Nemo |
+| N8N-03 | Content Articles - Blog Generator | POST /generate-article | Manuel | Mistral Nemo |
+| N8N-04 | LinkedIn Posts - Mistral Nemo | POST /generate-linkedin-post | Hebdo | Mistral Nemo |
+| N8N-05 | Veille Concurrence - Mistral Nemo | POST /run-veille | Quotidien | Mistral Nemo |
+| N8N-06 | Lead Scoring - Mistral Nemo | POST /score-leads | 1h | Mistral Nemo |
+| N8N-07 | Follow-up Relances - Mistral Nemo | POST /send-followup | Quotidien | Mistral Nemo |
+| N8N-08 | Meeting Booking - Calendly | POST /book-meeting | Manuel | ❌ |
+| N8N-09 | Dashboard Acquisition - Metrics | GET /acquisition-metrics | Manuel | ❌ |
+| N8N-09b | Dashboard Acquisition - Web UI | GET /dashboard | Manuel | ❌ |
+
+#### 3. Tables PostgreSQL créées
+- `outreach_emails` - Tracking emails de prospection
+- `prospects` - Prospects LinkedIn enrichis
+- `linkedin_posts` - Posts générés (draft/published)
+- `veille_reports` - Rapports de veille quotidiens
+- `meeting_requests` - Demandes de démo
+- `blog_articles` - Articles de blog générés
+- `leads` - +3 colonnes (score, score_reason, scored_at)
+
+#### 4. Dashboard Web
+- URL: https://n8n.samhatit-consulting.cloud/webhook/dashboard
+- Design cohérent avec digital-humans.fr
+- Icônes SVG modernes (outline style)
+- Métriques temps réel
+
+#### 5. Audit sécurité SECURITY_TASKS.md
+- ✅ 7/8 tâches résolues
+- ⏳ PERF-001 (Events vs Polling) reste à faire (6h)
+
+### Fichiers créés
+- /tmp/n8n_*.json (workflows)
+- Tables PostgreSQL
+
+### Tests validés
+- ✅ Lead scoring: Jorg Geerlings scoré à 85/100
+- ✅ Dashboard: Métriques affichées correctement
+- ✅ Webhooks accessibles via URL publique
+
+### Features mises à jour
+- N8N-01 à N8N-09: done
+
+### Prochaine session
+- Tests complets de tous les workflows N8N
+- Intégration Calendly réelle
+- API Claude/GPT-4 pour articles premium
+- Affiner les prompts Mistral Nemo

@@ -1161,7 +1161,7 @@
       "title": "Agent LinkedIn - Scraping prospects",
       "description": "Agent N8N pour identifier et scraper des prospects sur LinkedIn",
       "priority": 3,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Workflow N8N fonctionnel",
         "Extraction profils ciblés",
@@ -1170,7 +1170,7 @@
       "dependencies": [],
       "files": [],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-02",
@@ -1178,7 +1178,7 @@
       "title": "Agent Email - Outreach automatisé",
       "description": "Agent N8N pour envoyer des emails de prospection personnalisés",
       "priority": 3,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Séquences email configurées",
         "Personnalisation via LLM",
@@ -1189,7 +1189,7 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-03",
@@ -1197,7 +1197,7 @@
       "title": "Agent Content - Génération articles",
       "description": "Agent N8N pour générer automatiquement des articles de blog",
       "priority": 4,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Articles générés par LLM",
         "Publication automatique WordPress",
@@ -1208,7 +1208,7 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-04",
@@ -1216,7 +1216,7 @@
       "title": "Agent Social - Posts LinkedIn",
       "description": "Agent N8N pour publier automatiquement sur LinkedIn",
       "priority": 4,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Posts générés par LLM",
         "Publication programmée",
@@ -1225,7 +1225,7 @@
       "dependencies": [],
       "files": [],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-05",
@@ -1233,7 +1233,7 @@
       "title": "Agent Monitoring - Veille concurrence",
       "description": "Agent N8N pour surveiller la concurrence et les tendances",
       "priority": 4,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Sources de veille configurées",
         "Alertes automatiques",
@@ -1242,7 +1242,7 @@
       "dependencies": [],
       "files": [],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-06",
@@ -1250,7 +1250,7 @@
       "title": "Agent Lead Scoring",
       "description": "Agent N8N pour scorer automatiquement les leads entrants",
       "priority": 3,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Critères de scoring définis",
         "Score calculé automatiquement",
@@ -1261,7 +1261,7 @@
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-07",
@@ -1269,7 +1269,7 @@
       "title": "Agent Follow-up - Relances automatiques",
       "description": "Agent N8N pour relancer automatiquement les prospects",
       "priority": 3,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Séquences de relance configurées",
         "Timing intelligent",
@@ -1280,7 +1280,7 @@
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-08",
@@ -1288,7 +1288,7 @@
       "title": "Agent Meeting - Booking automatique",
       "description": "Agent N8N pour proposer et booker des meetings",
       "priority": 4,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Intégration Calendly ou Cal.com",
         "Proposition créneaux automatique",
@@ -1299,7 +1299,7 @@
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-09",
@@ -1307,7 +1307,7 @@
       "title": "Dashboard acquisition",
       "description": "Dashboard centralisant les métriques d'acquisition",
       "priority": 4,
-      "status": "not_started",
+      "status": "done",
       "validation_criteria": [
         "Métriques clés affichées",
         "Mise à jour automatique",
@@ -1320,7 +1320,7 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": ""
+      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
     },
     {
       "id": "GTM-01",
