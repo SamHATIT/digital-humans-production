@@ -2797,3 +2797,58 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 - Intégration Calendly réelle
 - API Claude/GPT-4 pour articles premium
 - Affiner les prompts Mistral Nemo
+
+## Session 2026-01-04 15:30-17:30 - Blog Generator Phase 3
+
+### Objectifs
+- Implémenter le générateur d'articles avec IA
+- Ajouter les encadrés expert-tip et signature
+- Tester tous les agents
+- Créer le workflow N8N
+
+### Réalisations
+
+**Script blog_generator.py:**
+- Support Claude Haiku (API, ~20s) et Mistral Nemo (local, ~5min)
+- Images via Gemini Nano Banana Pro (~5s)
+- Ghost API avec ?source=html
+- 10 agents configurés avec personas complètes
+- Options: --agent, --publish, --no-image, --local
+
+**Frontend React:**
+- styles/blog.css: Variables couleurs agents, expert-tip, agent-signature
+- BlogContent.tsx: Post-processing HTML Ghost → composants stylés
+- BlogArticle.tsx: Utilise BlogContent + AuthorCard sidebar
+
+**Tests:**
+- 10/10 agents testés avec succès
+- 20 articles créés (19 drafts, 1 publié)
+- ~30s par article (Haiku + image)
+
+**Workflow N8N:**
+- blog-generate.json prêt à importer
+- POST /webhook/generate-article
+
+### Fichiers créés/modifiés
+- scripts/blog_generator.py (nouveau)
+- n8n/workflows/blog-generate.json (nouveau)
+- frontend/styles/blog.css (nouveau)
+- frontend/components/blog/BlogContent.tsx (nouveau)
+- frontend/components/blog/BlogArticle.tsx (modifié)
+- frontend/index.tsx (modifié - import CSS)
+
+### URLs
+- Blog: https://digital-humans.fr/blog
+- Ghost Admin: https://blog-admin.digital-humans.fr/ghost/
+- Article publié: /blog/maitriser-les-fondamentaux-de-data-cloud-salesforce-pour-une-mise-en-place-reussie
+
+### Prochaines étapes
+1. Importer workflow N8N (manuel)
+2. Tester rendu bandeau auteur sur articles publiés
+3. Créer workflows: blog-veille, blog-linkedin, blog-newsletter
+4. Publier quelques articles pour SEO initial
+
+### Stats session
+- Durée: ~2h
+- Features complétées: WEB-04, N8N-03
+- Commits: 2 (backend + frontend)
