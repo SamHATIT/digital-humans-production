@@ -6,6 +6,7 @@ Blog Article Generator for Digital Humans
 - Publish: Ghost CMS
 """
 
+import os
 import sys
 import json
 import jwt
@@ -15,12 +16,27 @@ import requests
 import argparse
 import re
 
-# Configuration
-GHOST_URL = "https://blog-admin.digital-humans.fr"
-GHOST_ADMIN_KEY = "695a5936e3b3d60001bcd398:1e384dc5f1c00c38c1deb03594c10369904f81e3e0c0b3a809bb6a41ac66e430"
-GEMINI_API_KEY = "GEMINI_KEY_REMOVED"
-ANTHROPIC_API_KEY = "ANTHROPIC_KEY_REMOVED"
-OLLAMA_URL = "http://localhost:11434"
+# Configuration from environment variables
+GHOST_URL = os.getenv("GHOST_URL", "https://blog-admin.digital-humans.fr")
+GHOST_ADMIN_KEY = os.getenv("GHOST_ADMIN_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+
+# Load from .env file if keys not in environment
+if not GHOST_ADMIN_KEY or not ANTHROPIC_API_KEY:
+    env_file = "/root/workspace/digital-humans-production/.env"
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                if '=' in line and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    if key == "GHOST_ADMIN_KEY" and not GHOST_ADMIN_KEY:
+                        GHOST_ADMIN_KEY = value
+                    elif key == "ANTHROPIC_API_KEY" and not ANTHROPIC_API_KEY:
+                        ANTHROPIC_API_KEY = value
+                    elif key == "GEMINI_API_KEY" and not GEMINI_API_KEY:
+                        GEMINI_API_KEY = value
 
 AGENTS = {
     'sophie-chen': {'name': 'Sophie Chen', 'role': 'Chef de Projet', 'color': '#8B5CF6',
@@ -76,7 +92,6 @@ def call_haiku(prompt: str, max_tokens: int = 4000) -> str:
 def generate_article_haiku(topic: str, agent: dict, agent_slug: str) -> dict:
     print(f"📝 Génération avec Claude Haiku...")
     
-    # Step 1: Generate article content
     prompt1 = f"""Tu es {agent['name']}, {agent['role']} chez Digital Humans (experts Salesforce).
 Style d'écriture: {agent['style']}
 Expertise: {agent['expertise']}
@@ -95,7 +110,6 @@ Utilise du HTML: <p>, <h2>, <h3>, <pre><code>, <ul>, <li>, <strong>"""
         html_content = call_haiku(prompt1, 3500)
         print(f"   ✅ Contenu: {len(html_content)} chars")
         
-        # Step 2: Generate title, excerpt, tip and actions
         prompt2 = f"""Voici un article sur "{topic}" écrit par {agent['name']}:
 
 {html_content[:800]}...
@@ -105,7 +119,6 @@ Génère les métadonnées. Réponds UNIQUEMENT avec ce JSON (une ligne, pas de 
 
         meta_str = call_haiku(prompt2, 300)
         
-        # Parse JSON
         js = meta_str.find('{')
         je = meta_str.rfind('}') + 1
         meta = json.loads(meta_str[js:je]) if js >= 0 else {}
@@ -117,7 +130,6 @@ Génère les métadonnées. Réponds UNIQUEMENT avec ce JSON (une ligne, pas de 
         
         print(f"   ✅ Titre: {title[:50]}...")
         
-        # Add expert-tip and signature
         expert_tip = f'''
 
 <hr>
@@ -174,18 +186,16 @@ ACTIONS: [action1 | action2 | action3]"""
         
         html = re.sub(r'(TITRE|EXCERPT|TIP|ACTIONS):.*', '', result).strip()
         
-        # Add encadrés
         html += f'''
 
-<div class="expert-tip" data-agent="{agent_slug}">
-<div class="expert-tip-header">💡 {agent['tip_name']}</div>
-<p>"{tip}"</p>
-</div>
+<hr>
+<blockquote>
+<p><strong>💡 {agent['tip_name']}</strong></p>
+<p><em>"{tip}"</em></p>
+</blockquote>
 
-<div class="agent-signature">
-<div class="signature-header">{agent['sig_emoji']} <strong>{agent['sig_title']}</strong></div>
-<ul><li>{actions[0]}</li><li>{actions[1] if len(actions)>1 else "Point 2"}</li><li>{actions[2] if len(actions)>2 else "Point 3"}</li></ul>
-</div>'''
+<h3>{agent['sig_emoji']} {agent['sig_title']}</h3>
+<ul><li>{actions[0]}</li><li>{actions[1] if len(actions)>1 else "Point 2"}</li><li>{actions[2] if len(actions)>2 else "Point 3"}</li></ul>'''
         
         print(f"   ✅ Article: {title[:50]}...")
         return {"title": title, "excerpt": excerpt, "html": html}
@@ -195,6 +205,9 @@ ACTIONS: [action1 | action2 | action3]"""
 
 def generate_image(topic: str, agent: dict) -> bytes:
     print(f"🎨 Génération image...")
+    if not GEMINI_API_KEY:
+        print(f"   ⚠️ GEMINI_API_KEY non configurée")
+        return None
     try:
         response = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key={GEMINI_API_KEY}",
@@ -275,13 +288,21 @@ if __name__ == '__main__':
     parser.add_argument('--agent', '-a', default='diego-martinez', choices=list(AGENTS.keys()))
     parser.add_argument('--publish', '-p', action='store_true')
     parser.add_argument('--no-image', action='store_true')
-    parser.add_argument('--local', action='store_true')
+    parser.add_argument('--local', action='store_true', help='Use Mistral Nemo')
     parser.add_argument('--list-agents', '-l', action='store_true')
     args = parser.parse_args()
     
     if args.list_agents:
         for s, d in AGENTS.items(): print(f"  {s}: {d['name']}")
         sys.exit(0)
+    
+    # Validate required keys
+    if not GHOST_ADMIN_KEY:
+        print("❌ GHOST_ADMIN_KEY non configurée. Ajoutez-la dans .env ou en variable d'environnement.")
+        sys.exit(1)
+    if not args.local and not ANTHROPIC_API_KEY:
+        print("❌ ANTHROPIC_API_KEY non configurée. Utilisez --local pour Mistral Nemo ou configurez la clé.")
+        sys.exit(1)
     
     result = generate_blog_article(args.topic, args.agent, args.publish, args.no_image, args.local)
     sys.exit(0 if result.get('success') else 1)
