@@ -1,0 +1,65 @@
+{
+  "name": "Blog - Generate Article",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-article",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "command": "=cd /root/workspace/digital-humans-production/scripts && python3 blog_generator.py \"{{ $json.body.topic }}\" --agent {{ $json.body.agent || 'diego-martinez' }}{{ $json.body.publish ? ' --publish' : '' }}{{ $json.body.no_image ? ' --no-image' : '' }}{{ $json.body.local ? ' --local' : '' }} 2>&1"
+      },
+      "id": "execute",
+      "name": "Generate Article",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout || '';\n\n// Parse le résultat\nconst titleMatch = output.match(/✅ (.+)/);\nconst urlMatch = output.match(/✏️\\s+(https:\\/\\/[^\\s]+)/);\n\nconst success = output.includes('✅') && !output.includes('❌');\n\nreturn [{\n  json: {\n    success,\n    title: titleMatch ? titleMatch[1] : null,\n    editor_url: urlMatch ? urlMatch[1] : null,\n    output: output\n  }\n}];"
+      },
+      "id": "parse",
+      "name": "Parse Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Generate Article", "type": "main", "index": 0}]]
+    },
+    "Generate Article": {
+      "main": [[{"node": "Parse Result", "type": "main", "index": 0}]]
+    },
+    "Parse Result": {
+      "main": [[{"node": "Respond", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["blog"]
+}
