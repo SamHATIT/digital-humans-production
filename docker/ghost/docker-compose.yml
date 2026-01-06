@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  ghost:
+    image: ghost:5-alpine
+    container_name: ghost-blog
+    restart: unless-stopped
+    ports:
+      - "2368:2368"
+    environment:
+      # URL HTTPS officielle
+      url: https://blog-admin.digital-humans.fr
+      
+      # Configuration base de données (SQLite)
+      database__client: sqlite3
+      database__connection__filename: /var/lib/ghost/content/data/ghost.db
+      
+      # Mode production
+      NODE_ENV: production
+      
+    volumes:
+      - ghost_content:/var/lib/ghost/content
+    
+    networks:
+      - ghost-network
+
+volumes:
+  ghost_content:
+    driver: local
+
+networks:
+  ghost-network:
+    driver: bridge

@@ -2852,3 +2852,26 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 - Durée: ~2h
 - Features complétées: WEB-04, N8N-03
 - Commits: 2 (backend + frontend)
+
+## 2026-01-06 - Session Blog Workflow (interrompue)
+
+### Réalisé
+- ✅ Correction blog_generator.py : suppression intro LLM + images réalistes
+- ✅ Nettoyage historique Git (secrets exposés supprimés avec git-filter-repo)
+- ✅ Nouvelles clés API mises à jour dans .env (Anthropic + Gemini)
+- ✅ Table blog_topics créée dans PostgreSQL
+- ✅ Route API /api/v1/blog créée (backend/app/api/routes/blog.py)
+- ✅ Venv backend recréé avec slowapi + asyncpg
+
+### En cours / À faire
+- ⏳ Redémarrer backend (problèmes de démarrage)
+- ⏳ Importer 3 workflows N8N (fichiers JSON à recréer, /tmp vidé au reboot)
+  - blog-veille : découverte sujets RSS + analyse LLM
+  - blog-topics-dashboard : interface validation HTML
+  - blog-topics-api : actions approve/reject/generate
+- ⏳ Supprimer anciens articles Ghost (garder seulement post bienvenue Sophie)
+- ⏳ Tester flux complet veille → validation → génération
+
+### Notes techniques
+- blog_topics table: id, title, description, source_url, source_name, suggested_agent, status, approved_agent, veille_date, ghost_post_id
+- Workflows N8N à recréer dans prochaine session
