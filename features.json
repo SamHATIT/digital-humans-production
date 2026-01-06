@@ -2,7 +2,7 @@
   "metadata": {
     "version": "1.0",
     "created": "2025-12-08",
-    "last_updated": "2026-01-04",
+    "last_updated": "2026-01-06",
     "total_features": 168,
     "stats": {
       "completed": 157,
@@ -1118,7 +1118,7 @@
         "n8n/workflows/blog-generate.json"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté session 04/01/2026:\nPhase 1: Ghost CMS installé (Docker, port 2368)\nPhase 2: Intégration React (BlogList, BlogArticle, AuthorCard)\nPhase 3: Générateur articles (blog_generator.py)\n- Claude Haiku (20s) ou Mistral Nemo (5min) pour le texte\n- Gemini Nano Banana Pro pour les images\n- 10 agents avec personas complètes\n- 20 articles créés (1 publié)\n- CSS custom (expert-tip, agent-signature)\n- BlogContent.tsx pour post-processing HTML Ghost\nURLs: digital-humans.fr/blog, blog-admin.digital-humans.fr"
+      "notes": "Implémenté session 04/01/2026:\nPhase 1: Ghost CMS installé (Docker, port 2368)\nPhase 2: Intégration React (BlogList, BlogArticle, AuthorCard)\nPhase 3: Générateur articles (blog_generator.py)\n- Claude Haiku (20s) ou Mistral Nemo (5min) pour le texte\n- Gemini Nano Banana Pro pour les images\n- 10 agents avec personas complètes\n- 20 articles créés (1 publié)\n- CSS custom (expert-tip, agent-signature)\n- BlogContent.tsx pour post-processing HTML Ghost\nURLs: digital-humans.fr/blog, blog-admin.digital-humans.fr\n\nAméliorations session 06/01/2026:\n- Service systemd blog-api.service (port 8765) pour génération articles\n- Workflow blog-veille-haiku.json (migration Mistral Nemo → Claude Haiku)\n- Workflow blog-topics-dashboard.json (interface validation topics)\n- Workflow blog-topics-api.json (approve/reject/generate via webhook)\n- Fix titre français dans blog_generator.py\n- Fix GEMINI_API_KEY dans service systemd pour images de couverture\n- Pipeline complet: veille RSS → validation → génération → publication Ghost"
     },
     {
       "id": "WEB-05",
@@ -1216,7 +1216,7 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": "Implémenté session 04/01/2026:\n- Script blog_generator.py avec support Haiku + Nemo\n- Workflow N8N prêt (blog-generate.json)\n- Publication via Ghost API (pas WordPress)\n- Endpoint: POST /webhook/generate-article"
+      "notes": "Implémenté session 04/01/2026:\n- Script blog_generator.py avec support Haiku + Nemo\n- Workflow N8N prêt (blog-generate.json)\n- Publication via Ghost API (pas WordPress)\n- Endpoint: POST /webhook/generate-article\n\nAméliorations session 06/01/2026:\n- blog-api.py exposé via systemd (port 8765)\n- Workflows N8N: dashboard, API, veille (tous actifs)\n- Prompts optimisés pour titres français\n- Haiku pour la génération (plus rapide que Nemo)"
     },
     {
       "id": "N8N-04",

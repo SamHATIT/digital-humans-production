@@ -2875,3 +2875,45 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 ### Notes techniques
 - blog_topics table: id, title, description, source_url, source_name, suggested_agent, status, approved_agent, veille_date, ghost_post_id
 - Workflows N8N à recréer dans prochaine session
+
+## 2026-01-06 - Session Blog Workflows (suite et fin)
+
+### Réalisé
+- ✅ Migration LLM veille: Mistral Nemo → Claude Haiku (5-10s vs 120s+)
+- ✅ 3 workflows N8N créés et actifs:
+  - blog-topics-dashboard (GET /webhook/blog-topics-dashboard) - Interface HTML validation
+  - blog-topics-api (POST /webhook/blog-topics-api) - Actions approve/reject/generate  
+  - blog-veille-haiku (POST /webhook/blog-veille) - Découverte sujets RSS + Haiku
+- ✅ Service systemd blog-api.service (port 8765) pour génération articles
+- ✅ Corrections workflow blog-topics-api:
+  - Méthode POST au lieu de GET
+  - 127.0.0.1 au lieu de localhost (IPv6 issue)
+  - COALESCE(approved_agent, suggested_agent) pour fallback agent
+  - Parse Output: $json.output au lieu de $json.stdout
+- ✅ Fix blog_generator.py: titre explicitement "EN FRANÇAIS" dans prompt
+- ✅ Fix GEMINI_API_KEY ajoutée au service systemd (images de couverture)
+- ✅ Nettoyage Ghost: suppression 12 posts sans image
+- ✅ 8 topics prêts à générer avec images
+
+### Fichiers créés/modifiés
+- /etc/systemd/system/blog-api.service (nouveau)
+- scripts/blog_generator.py (prompt titre français)
+- n8n/workflows/blog-topics-dashboard.json
+- n8n/workflows/blog-topics-api.json
+- n8n/workflows/blog-veille-haiku.json
+
+### État final
+- Dashboard: https://n8n.samhatit-consulting.cloud/webhook/blog-topics-dashboard
+- 25 topics en attente, 8 approuvés, 0 générés (prêts pour génération)
+- Pipeline complet fonctionnel: veille → validation → génération → Ghost
+
+### Prochaines étapes
+1. Générer les 8 articles approuvés avec images
+2. Configurer trigger automatique veille (ex: dimanche 20h)
+3. Tester workflow newsletter (blog-newsletter.json)
+4. Intégration LinkedIn auto-post
+
+### Stats session
+- Durée: ~4h (2 conversations)
+- Commits: à faire
+- Workflows N8N: 3 actifs

@@ -12,163 +12,352 @@
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [220, 300]
+      "position": [
+        220,
+        300
+      ]
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
-          "conditions": [
-            {"id": "approve", "leftValue": "={{ $json.body.action }}", "rightValue": "approve", "operator": {"type": "string", "operation": "equals"}},
-            {"id": "reject", "leftValue": "={{ $json.body.action }}", "rightValue": "reject", "operator": {"type": "string", "operation": "equals"}},
-            {"id": "generate", "leftValue": "={{ $json.body.action }}", "rightValue": "generate", "operator": {"type": "string", "operation": "equals"}}
-          ],
-          "combinator": "or"
-        },
-        "options": {}
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "reject",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "generate",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
       },
       "id": "router",
       "name": "Route Action",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [440, 300]
+      "position": [
+        440,
+        300
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE blog_topics SET status = 'approved', approved_agent = '{{ $json.body.agent }}' WHERE id = {{ $json.body.topic_id }} RETURNING id, title, approved_agent",
+        "query": "=UPDATE blog_topics SET status = 'approved', approved_agent = '{{ $json.body.agent }}' WHERE id = {{ $json.body.topic_id }} RETURNING id, title, approved_agent;",
         "options": {}
       },
       "id": "approve",
       "name": "Approve Topic",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [660, 200],
-      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+      "position": [
+        660,
+        180
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE blog_topics SET status = 'rejected' WHERE id = {{ $json.body.topic_id }} RETURNING id",
+        "query": "=UPDATE blog_topics SET status = 'rejected' WHERE id = {{ $json.body.topic_id }} RETURNING id, title;",
         "options": {}
       },
       "id": "reject",
       "name": "Reject Topic",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [660, 380],
-      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=SELECT id, title, approved_agent FROM blog_topics WHERE id = {{ $json.body.topic_id }} AND status = 'approved'",
+        "query": "=SELECT id, title, COALESCE(approved_agent, suggested_agent) as approved_agent, source_url, source_name FROM blog_topics WHERE id = {{ $json.body.topic_id }} AND status = 'approved';",
         "options": {}
       },
       "id": "get_topic",
       "name": "Get Topic",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [660, 560],
-      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+      "position": [
+        660,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
     },
     {
       "parameters": {
-        "command": "=cd /root/workspace/digital-humans-production/scripts && python3 blog_generator.py \"{{ $input.first().json.title }}\" --agent {{ $input.first().json.approved_agent }}{{ $input.first().json.source_url ? " --source-url \"" + $input.first().json.source_url + "\"" : "" }}{{ $input.first().json.source_name ? " --source-name \"" + $input.first().json.source_name + "\"" : "" }} 2>&1"
+        "url": "http://127.0.0.1:8765/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ topic: $json.title, agent: $json.approved_agent, source_url: $json.source_url || null, source_name: $json.source_name || null }) }}",
+        "options": {
+          "timeout": 180000
+        },
+        "method": "POST"
       },
       "id": "generate",
       "name": "Generate Article",
-      "type": "n8n-nodes-base.executeCommand",
-      "typeVersion": 1,
-      "position": [880, 560]
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        420
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const output = $input.first().json.stdout || '';\nconst topic_id = $('Get Topic').first().json.id;\n\n// Extraire ghost_post_id du log\nconst postIdMatch = output.match(/ghost_post_id[=:]\\s*([a-f0-9]+)/i) || output.match(/Post ID:\\s*([a-f0-9]+)/i);\nconst ghost_post_id = postIdMatch ? postIdMatch[1] : null;\n\nconst success = output.includes('✅') && !output.includes('❌');\n\nreturn [{\n  json: {\n    success,\n    topic_id,\n    ghost_post_id,\n    output: output.substring(0, 500)\n  }\n}];"
+        "jsCode": "const output = $input.first().json.output || \"\";\nconst match = output.match(/ghost\\/#\\/editor\\/post\\/([a-f0-9]+)/);\nconst ghostPostId = match ? match[1] : null;\nconst success = output.includes(\"✅\");\n\nreturn [{ json: { \n  success,\n  ghost_post_id: ghostPostId,\n  output: output.substring(0, 500),\n  topic_id: $(\"Get Topic\").first().json.id\n} }];"
       },
-      "id": "parse_gen",
-      "name": "Parse Generation",
+      "id": "parse_output",
+      "name": "Parse Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1100, 560]
+      "position": [
+        1100,
+        420
+      ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=UPDATE blog_topics SET status = 'generated', ghost_post_id = '{{ $json.ghost_post_id }}' WHERE id = {{ $json.topic_id }}",
+        "query": "=UPDATE blog_topics SET status = 'generated', ghost_post_id = {{ $json.ghost_post_id ? \"'\" + $json.ghost_post_id + \"'\" : \"NULL\" }}, generated_at = NOW() WHERE id = {{ $json.topic_id }};",
         "options": {}
       },
-      "id": "update_gen",
-      "name": "Update Status",
+      "id": "update_generated",
+      "name": "Update Generated",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "position": [1320, 560],
-      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+      "position": [
+        1320,
+        420
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { success: true, action: 'approved' } }}"
+        "responseBody": "={{ { success: true, action: 'approved', data: $json } }}"
       },
-      "id": "resp_approve",
+      "id": "respond_approve",
       "name": "Respond Approve",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [880, 200]
+      "position": [
+        880,
+        180
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { success: true, action: 'rejected' } }}"
+        "responseBody": "={{ { success: true, action: 'rejected', data: $json } }}"
       },
-      "id": "resp_reject",
+      "id": "respond_reject",
       "name": "Respond Reject",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [880, 380]
+      "position": [
+        880,
+        300
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { success: $json.success, ghost_post_id: $json.ghost_post_id, output: $json.output } }}"
+        "responseBody": "={{ { success: $json.success, action: 'generated', ghost_post_id: $json.ghost_post_id } }}"
       },
-      "id": "resp_gen",
+      "id": "respond_generate",
       "name": "Respond Generate",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1540, 560]
+      "position": [
+        1540,
+        420
+      ]
     }
   ],
   "connections": {
     "Webhook": {
-      "main": [[{"node": "Route Action", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Route Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Route Action": {
       "main": [
-        [{"node": "Approve Topic", "type": "main", "index": 0}],
-        [{"node": "Reject Topic", "type": "main", "index": 0}],
-        [{"node": "Get Topic", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Approve Topic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reject Topic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Approve Topic": {
-      "main": [[{"node": "Respond Approve", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Respond Approve",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Reject Topic": {
-      "main": [[{"node": "Respond Reject", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Respond Reject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Topic": {
-      "main": [[{"node": "Generate Article", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Generate Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generate Article": {
-      "main": [[{"node": "Parse Generation", "type": "main", "index": 0}]]
+      "main": [
+        [
+          {
+            "node": "Parse Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Parse Generation": {
-      "main": [[{"node": "Update Status", "type": "main", "index": 0}]]
+    "Parse Output": {
+      "main": [
+        [
+          {
+            "node": "Update Generated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Update Status": {
-      "main": [[{"node": "Respond Generate", "type": "main", "index": 0}]]
+    "Update Generated": {
+      "main": [
+        [
+          {
+            "node": "Respond Generate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "settings": {"executionOrder": "v1"},
-  "tags": ["blog"]
+  "settings": {
+    "executionOrder": "v1"
+  }
 }

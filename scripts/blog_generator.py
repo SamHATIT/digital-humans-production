@@ -155,7 +155,7 @@ Utilise du HTML: <p>, <h2>, <h3>, <pre><code>, <ul>, <li>, <strong>"""
 {html_content[:800]}...
 
 Génère les métadonnées. Réponds UNIQUEMENT avec ce JSON (une ligne, pas de retour à la ligne):
-{{"title":"Titre accrocheur","excerpt":"Description SEO 150 chars","tip":"Un conseil pratique mémorable en 1 phrase","actions":["Action 1","Action 2","Action 3"]}}"""
+{{"title":"Titre accrocheur EN FRANÇAIS","excerpt":"Description SEO 150 chars","tip":"Un conseil pratique mémorable en 1 phrase","actions":["Action 1","Action 2","Action 3"]}}"""
 
         meta_str = call_haiku(prompt2, 300)
         

@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  backend:
+    depends_on: []
+  
+  # Désactiver le service db car PostgreSQL tourne en service système
+  db:
+    profiles:
+      - disabled

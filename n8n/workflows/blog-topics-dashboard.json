@@ -27,8 +27,8 @@
       "position": [440, 300],
       "credentials": {
         "postgres": {
-          "id": "1",
-          "name": "Digital Humans DB"
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
         }
       }
     },
