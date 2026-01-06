@@ -78,6 +78,26 @@ def get_ghost_token():
                       bytes.fromhex(secret), algorithm='HS256', 
                       headers={'alg': 'HS256', 'typ': 'JWT', 'kid': key_id})
 
+def clean_llm_intro(html_content: str) -> str:
+    """Remove typical LLM intro phrases that shouldn't appear in final article."""
+    intro_patterns = [
+        r'^<p>Voici un article[^<]*?:</p>\s*',
+        r'^<p>Voici un article[^<]*?</p>\s*',
+        r'^Voici un article[^<\n]*?:\s*\n*',
+        r"^<p>Voici l'article[^<]*?:</p>\s*",
+        r'^<p>Je vous propose[^<]*?:</p>\s*',
+        r'^<p>Voici mon article[^<]*?:</p>\s*',
+        r'^<p>Bien sûr[^<]*?:</p>\s*',
+        r"^<p>D'accord[^<]*?:</p>\s*",
+    ]
+    cleaned = html_content.strip()
+    for pattern in intro_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.MULTILINE)
+    # Remove duplicate title if <p>Title</p> followed by <h2>Title</h2>
+    cleaned = re.sub(r'^<p>([^<]{10,80})</p>\s*<h2>\1</h2>', r'<h2>\1</h2>', cleaned, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
 def call_haiku(prompt: str, max_tokens: int = 4000) -> str:
     response = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -98,11 +118,13 @@ Expertise: {agent['expertise']}
 
 Écris un article de blog PROFESSIONNEL en FRANÇAIS sur: {topic}
 
+IMPORTANT: Commence DIRECTEMENT par le contenu. NE COMMENCE PAS par "Voici un article..." ou une phrase méta.
+
 Structure:
-1. Introduction engageante (2-3 paragraphes)
-2. 3-4 sections principales avec sous-titres
+1. Introduction engageante (2-3 paragraphes) - parle directement au lecteur
+2. 3-4 sections principales avec sous-titres <h2>
 3. Exemples concrets, code si pertinent
-4. Conclusion
+4. Conclusion avec appel à l'action
 
 Utilise du HTML: <p>, <h2>, <h3>, <pre><code>, <ul>, <li>, <strong>"""
 
@@ -145,7 +167,7 @@ Génère les métadonnées. Réponds UNIQUEMENT avec ce JSON (une ligne, pas de 
 <li>{actions[2] if len(actions) > 2 else "Point 3"}</li>
 </ul>'''
         
-        return {"title": title, "excerpt": excerpt, "html": html_content + expert_tip}
+        return {"title": title, "excerpt": excerpt, "html": clean_llm_intro(html_content) + expert_tip}
         
     except Exception as e:
         print(f"   ❌ Erreur: {e}")
@@ -184,7 +206,7 @@ ACTIONS: [action1 | action2 | action3]"""
         actions = re.search(r'ACTIONS:\s*(.+?)(?:\n|$)', result)
         actions = [a.strip() for a in actions.group(1).split('|')] if actions else ["Point 1", "Point 2", "Point 3"]
         
-        html = re.sub(r'(TITRE|EXCERPT|TIP|ACTIONS):.*', '', result).strip()
+        html = clean_llm_intro(re.sub(r'(TITRE|EXCERPT|TIP|ACTIONS):.*', '', result).strip())
         
         html += f'''
 
@@ -211,7 +233,7 @@ def generate_image(topic: str, agent: dict) -> bytes:
     try:
         response = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/nano-banana-pro-preview:generateContent?key={GEMINI_API_KEY}",
-            json={"contents": [{"parts": [{"text": f"Professional blog header for Salesforce article about \"{topic}\". Modern minimalist tech. Colors: {agent['color']} accent, Salesforce blue. Abstract shapes. NO text. 16:9."}]}],
+            json={"contents": [{"parts": [{"text": f"Photorealistic professional blog header for article about \"{topic}\". Style: high-quality stock photo, modern office or tech environment, shallow depth of field. Show realistic workplace scene or metaphorical concept representation. Subtle {agent['color']} accent tones. Corporate aesthetic. NO text, NO logos. 16:9 ratio."}]}],
                   "generationConfig": {"responseModalities": ["IMAGE", "TEXT"]}},
             timeout=60)
         data = response.json()
