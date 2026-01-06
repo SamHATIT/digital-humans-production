@@ -98,6 +98,24 @@ def clean_llm_intro(html_content: str) -> str:
     return cleaned.strip()
 
 
+
+def generate_source_section(source_url: str = None, source_name: str = None) -> str:
+    """Generate HTML section for source attribution."""
+    if not source_url and not source_name:
+        return ""
+    
+    source_html = '\n<hr>\n<div class="article-sources">\n<h3>📚 Sources & Références</h3>\n<p>Cet article a été inspiré par l\'actualité Salesforce. Nous remercions les auteurs originaux pour leur travail.</p>\n<ul>\n'
+    
+    if source_url and source_name:
+        source_html += f'<li><a href="{source_url}" target="_blank" rel="noopener">{source_name}</a> — Article source</li>\n'
+    elif source_url:
+        source_html += f'<li><a href="{source_url}" target="_blank" rel="noopener">Article source</a></li>\n'
+    elif source_name:
+        source_html += f'<li>{source_name}</li>\n'
+    
+    source_html += '</ul>\n</div>\n'
+    return source_html
+
 def call_haiku(prompt: str, max_tokens: int = 4000) -> str:
     response = requests.post(
         "https://api.anthropic.com/v1/messages",
@@ -276,7 +294,7 @@ def create_ghost_post(title, html, excerpt, agent_slug, feature_image=None, stat
         return None
     except: return None
 
-def generate_blog_article(topic, agent_slug='diego-martinez', publish=False, skip_image=False, use_local=False):
+def generate_blog_article(topic, agent_slug='diego-martinez', publish=False, skip_image=False, use_local=False, source_url=None, source_name=None):
     agent = AGENTS.get(agent_slug, AGENTS['diego-martinez'])
     llm = "Mistral Nemo" if use_local else "Claude Haiku"
     
@@ -295,7 +313,13 @@ def generate_blog_article(topic, agent_slug='diego-martinez', publish=False, ski
             slug = re.sub(r'[^a-z0-9]+', '-', article['title'].lower())[:25]
             img_url = upload_image_to_ghost(img, f"cover-{slug}-{int(time.time())}.jpg")
     
-    post = create_ghost_post(article['title'], article['html'], article.get('excerpt', ''), 
+    
+    # Add source reference section if provided
+    final_html = article['html']
+    if source_url or source_name:
+        final_html += generate_source_section(source_url, source_name)
+    
+    post = create_ghost_post(article['title'], final_html, article.get('excerpt', ''), 
                             agent_slug, img_url, 'published' if publish else 'draft')
     
     if post:
@@ -312,6 +336,8 @@ if __name__ == '__main__':
     parser.add_argument('--no-image', action='store_true')
     parser.add_argument('--local', action='store_true', help='Use Mistral Nemo')
     parser.add_argument('--list-agents', '-l', action='store_true')
+    parser.add_argument('--source-url', help="URL de l'article source")
+    parser.add_argument('--source-name', help="Nom du site source")
     args = parser.parse_args()
     
     if args.list_agents:
@@ -326,5 +352,5 @@ if __name__ == '__main__':
         print("❌ ANTHROPIC_API_KEY non configurée. Utilisez --local pour Mistral Nemo ou configurez la clé.")
         sys.exit(1)
     
-    result = generate_blog_article(args.topic, args.agent, args.publish, args.no_image, args.local)
+    result = generate_blog_article(args.topic, args.agent, args.publish, args.no_image, args.local, args.source_url, args.source_name)
     sys.exit(0 if result.get('success') else 1)

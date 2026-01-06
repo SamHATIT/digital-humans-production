@@ -1,0 +1,75 @@
+{
+  "name": "Blog - Topics Dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "blog-topics-dashboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, title, description, suggested_agent, source_url, source_name, status, approved_agent, veille_date, ghost_post_id, created_at FROM blog_topics ORDER BY created_at DESC LIMIT 50",
+        "options": {}
+      },
+      "id": "db",
+      "name": "Get Topics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [440, 300],
+      "credentials": {
+        "postgres": {
+          "id": "1",
+          "name": "Digital Humans DB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const topics = $input.all().map(i => i.json);\n\nconst agentColors = {\n  'sophie-chen': '#8B5CF6',\n  'olivia-parker': '#3B82F6',\n  'marcus-johnson': '#F97316',\n  'diego-martinez': '#EF4444',\n  'zara-thompson': '#22C55E',\n  'raj-patel': '#EAB308',\n  'elena-vasquez': '#6B7280',\n  'jordan-blake': '#1E40AF',\n  'aisha-okonkwo': '#92400E',\n  'lucas-fernandez': '#D946EF'\n};\n\nconst statusColors = {\n  'pending': '#F59E0B',\n  'approved': '#22C55E',\n  'rejected': '#EF4444',\n  'generated': '#3B82F6'\n};\n\nconst html = `<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Blog Topics Dashboard - Digital Humans</title>\n  <style>\n    * { box-sizing: border-box; margin: 0; padding: 0; }\n    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }\n    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }\n    h1 { font-size: 1.5rem; color: #fff; }\n    .stats { display: flex; gap: 1rem; }\n    .stat { background: #1e293b; padding: 0.75rem 1.5rem; border-radius: 0.5rem; }\n    .stat-value { font-size: 1.5rem; font-weight: bold; }\n    .stat-label { font-size: 0.75rem; color: #94a3b8; }\n    .topics { display: grid; gap: 1rem; }\n    .topic { background: #1e293b; border-radius: 0.75rem; padding: 1.25rem; border-left: 4px solid; }\n    .topic-header { display: flex; justify-content: space-between; margin-bottom: 0.75rem; }\n    .topic-title { font-weight: 600; font-size: 1rem; color: #fff; }\n    .topic-status { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.75rem; font-weight: 500; }\n    .topic-desc { color: #94a3b8; font-size: 0.875rem; margin-bottom: 1rem; line-height: 1.5; }\n    .topic-meta { display: flex; gap: 1rem; font-size: 0.75rem; color: #64748b; margin-bottom: 1rem; }\n    .topic-actions { display: flex; gap: 0.5rem; }\n    .btn { padding: 0.5rem 1rem; border-radius: 0.375rem; border: none; cursor: pointer; font-size: 0.875rem; font-weight: 500; transition: all 0.2s; }\n    .btn-approve { background: #22C55E; color: white; }\n    .btn-approve:hover { background: #16A34A; }\n    .btn-reject { background: #EF4444; color: white; }\n    .btn-reject:hover { background: #DC2626; }\n    .btn-generate { background: #3B82F6; color: white; }\n    .btn-generate:hover { background: #2563EB; }\n    .agent-select { padding: 0.5rem; border-radius: 0.375rem; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }\n    .loading { opacity: 0.5; pointer-events: none; }\n  </style>\n</head>\n<body>\n  <div class=\"header\">\n    <h1>📝 Blog Topics Dashboard</h1>\n    <div class=\"stats\">\n      <div class=\"stat\"><div class=\"stat-value\">${topics.filter(t => t.status === 'pending').length}</div><div class=\"stat-label\">En attente</div></div>\n      <div class=\"stat\"><div class=\"stat-value\">${topics.filter(t => t.status === 'approved').length}</div><div class=\"stat-label\">Approuvés</div></div>\n      <div class=\"stat\"><div class=\"stat-value\">${topics.filter(t => t.status === 'generated').length}</div><div class=\"stat-label\">Générés</div></div>\n    </div>\n  </div>\n  <div class=\"topics\">\n    ${topics.map(t => `\n      <div class=\"topic\" id=\"topic-${t.id}\" style=\"border-color: ${agentColors[t.suggested_agent] || '#64748b'}\">\n        <div class=\"topic-header\">\n          <span class=\"topic-title\">${t.title}</span>\n          <span class=\"topic-status\" style=\"background: ${statusColors[t.status] || '#64748b'}\">${t.status.toUpperCase()}</span>\n        </div>\n        <p class=\"topic-desc\">${t.description || 'Pas de description'}</p>\n        <div class=\"topic-meta\">\n          <span>👤 ${t.suggested_agent}</span>\n          <span>📰 ${t.source_name || 'N/A'}</span>\n          <span>📅 ${t.veille_date ? new Date(t.veille_date).toLocaleDateString('fr-FR') : 'N/A'}</span>\n        </div>\n        ${t.status === 'pending' ? `\n        <div class=\"topic-actions\">\n          <select class=\"agent-select\" id=\"agent-${t.id}\">\n            ${Object.keys(agentColors).map(a => `<option value=\"${a}\" ${a === t.suggested_agent ? 'selected' : ''}>${a}</option>`).join('')}\n          </select>\n          <button class=\"btn btn-approve\" onclick=\"approveTopic(${t.id})\">✓ Approuver</button>\n          <button class=\"btn btn-reject\" onclick=\"rejectTopic(${t.id})\">✗ Rejeter</button>\n        </div>\n        ` : t.status === 'approved' ? `\n        <div class=\"topic-actions\">\n          <button class=\"btn btn-generate\" onclick=\"generateArticle(${t.id})\">🚀 Générer l'article</button>\n        </div>\n        ` : t.ghost_post_id ? `<a href=\"https://blog-admin.digital-humans.fr/ghost/#/editor/post/${t.ghost_post_id}\" target=\"_blank\" class=\"btn\" style=\"background:#334155;color:#fff;text-decoration:none;\">✏️ Voir dans Ghost</a>` : ''}\n      </div>\n    `).join('')}\n  </div>\n  <script>\n    async function approveTopic(id) {\n      const agent = document.getElementById('agent-' + id).value;\n      const el = document.getElementById('topic-' + id);\n      el.classList.add('loading');\n      const resp = await fetch('/webhook/blog-topics-api', {\n        method: 'POST',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({action: 'approve', topic_id: id, agent: agent})\n      });\n      if (resp.ok) location.reload();\n      else { alert('Erreur'); el.classList.remove('loading'); }\n    }\n    async function rejectTopic(id) {\n      const el = document.getElementById('topic-' + id);\n      el.classList.add('loading');\n      const resp = await fetch('/webhook/blog-topics-api', {\n        method: 'POST',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({action: 'reject', topic_id: id})\n      });\n      if (resp.ok) location.reload();\n      else { alert('Erreur'); el.classList.remove('loading'); }\n    }\n    async function generateArticle(id) {\n      if (!confirm('Générer l\\\\'article ? (\\\\~30s)')) return;\n      const el = document.getElementById('topic-' + id);\n      el.classList.add('loading');\n      el.querySelector('.btn-generate').textContent = '⏳ Génération...';\n      const resp = await fetch('/webhook/blog-topics-api', {\n        method: 'POST',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({action: 'generate', topic_id: id})\n      });\n      const data = await resp.json();\n      if (data.success) { alert('Article généré !'); location.reload(); }\n      else { alert('Erreur: ' + (data.error || 'Inconnue')); el.classList.remove('loading'); }\n    }\n  </script>\n</body>\n</html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "id": "render",
+      "name": "Render HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [{"name": "Content-Type", "value": "text/html; charset=utf-8"}]
+          }
+        }
+      },
+      "id": "respond",
+      "name": "Respond HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Get Topics", "type": "main", "index": 0}]]
+    },
+    "Get Topics": {
+      "main": [[{"node": "Render HTML", "type": "main", "index": 0}]]
+    },
+    "Render HTML": {
+      "main": [[{"node": "Respond HTML", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": ["blog"]
+}

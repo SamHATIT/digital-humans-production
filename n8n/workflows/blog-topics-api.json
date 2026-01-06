@@ -1,0 +1,174 @@
+{
+  "name": "Blog - Topics API",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blog-topics-api",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {"id": "approve", "leftValue": "={{ $json.body.action }}", "rightValue": "approve", "operator": {"type": "string", "operation": "equals"}},
+            {"id": "reject", "leftValue": "={{ $json.body.action }}", "rightValue": "reject", "operator": {"type": "string", "operation": "equals"}},
+            {"id": "generate", "leftValue": "={{ $json.body.action }}", "rightValue": "generate", "operator": {"type": "string", "operation": "equals"}}
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "router",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE blog_topics SET status = 'approved', approved_agent = '{{ $json.body.agent }}' WHERE id = {{ $json.body.topic_id }} RETURNING id, title, approved_agent",
+        "options": {}
+      },
+      "id": "approve",
+      "name": "Approve Topic",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [660, 200],
+      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE blog_topics SET status = 'rejected' WHERE id = {{ $json.body.topic_id }} RETURNING id",
+        "options": {}
+      },
+      "id": "reject",
+      "name": "Reject Topic",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [660, 380],
+      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT id, title, approved_agent FROM blog_topics WHERE id = {{ $json.body.topic_id }} AND status = 'approved'",
+        "options": {}
+      },
+      "id": "get_topic",
+      "name": "Get Topic",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [660, 560],
+      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+    },
+    {
+      "parameters": {
+        "command": "=cd /root/workspace/digital-humans-production/scripts && python3 blog_generator.py \"{{ $input.first().json.title }}\" --agent {{ $input.first().json.approved_agent }}{{ $input.first().json.source_url ? " --source-url \"" + $input.first().json.source_url + "\"" : "" }}{{ $input.first().json.source_name ? " --source-name \"" + $input.first().json.source_name + "\"" : "" }} 2>&1"
+      },
+      "id": "generate",
+      "name": "Generate Article",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [880, 560]
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = $input.first().json.stdout || '';\nconst topic_id = $('Get Topic').first().json.id;\n\n// Extraire ghost_post_id du log\nconst postIdMatch = output.match(/ghost_post_id[=:]\\s*([a-f0-9]+)/i) || output.match(/Post ID:\\s*([a-f0-9]+)/i);\nconst ghost_post_id = postIdMatch ? postIdMatch[1] : null;\n\nconst success = output.includes('✅') && !output.includes('❌');\n\nreturn [{\n  json: {\n    success,\n    topic_id,\n    ghost_post_id,\n    output: output.substring(0, 500)\n  }\n}];"
+      },
+      "id": "parse_gen",
+      "name": "Parse Generation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 560]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE blog_topics SET status = 'generated', ghost_post_id = '{{ $json.ghost_post_id }}' WHERE id = {{ $json.topic_id }}",
+        "options": {}
+      },
+      "id": "update_gen",
+      "name": "Update Status",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1320, 560],
+      "credentials": {"postgres": {"id": "1", "name": "Digital Humans DB"}}
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, action: 'approved' } }}"
+      },
+      "id": "resp_approve",
+      "name": "Respond Approve",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, action: 'rejected' } }}"
+      },
+      "id": "resp_reject",
+      "name": "Respond Reject",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [880, 380]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: $json.success, ghost_post_id: $json.ghost_post_id, output: $json.output } }}"
+      },
+      "id": "resp_gen",
+      "name": "Respond Generate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1540, 560]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Route Action", "type": "main", "index": 0}]]
+    },
+    "Route Action": {
+      "main": [
+        [{"node": "Approve Topic", "type": "main", "index": 0}],
+        [{"node": "Reject Topic", "type": "main", "index": 0}],
+        [{"node": "Get Topic", "type": "main", "index": 0}]
+      ]
+    },
+    "Approve Topic": {
+      "main": [[{"node": "Respond Approve", "type": "main", "index": 0}]]
+    },
+    "Reject Topic": {
+      "main": [[{"node": "Respond Reject", "type": "main", "index": 0}]]
+    },
+    "Get Topic": {
+      "main": [[{"node": "Generate Article", "type": "main", "index": 0}]]
+    },
+    "Generate Article": {
+      "main": [[{"node": "Parse Generation", "type": "main", "index": 0}]]
+    },
+    "Parse Generation": {
+      "main": [[{"node": "Update Status", "type": "main", "index": 0}]]
+    },
+    "Update Status": {
+      "main": [[{"node": "Respond Generate", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1"},
+  "tags": ["blog"]
+}
