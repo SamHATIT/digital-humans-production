@@ -1,5 +1,5 @@
 {
-  "name": "Blog - Veille Hebdo (Jeudi)",
+  "name": "Blog - Veille Hebdo (Jeudi 20h)",
   "nodes": [
     {
       "parameters": {
@@ -23,13 +23,13 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 9 * * 4"
+              "expression": "0 20 * * 4"
             }
           ]
         }
       },
       "id": "schedule",
-      "name": "Jeudi 9h",
+      "name": "Jeudi 20h",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
