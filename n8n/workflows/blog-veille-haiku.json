@@ -1,5 +1,7 @@
 {
   "name": "Blog - Veille Hebdo (Jeudi 20h)",
+  "description": null,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -15,7 +17,8 @@
       "position": [
         220,
         300
-      ]
+      ],
+      "webhookId": "blog-veille-trigger"
     },
     {
       "parameters": {
@@ -162,7 +165,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "${ANTHROPIC_API_KEY}"
+              "value": "<ANTHROPIC_API_KEY>"
             },
             {
               "name": "anthropic-version",
@@ -273,7 +276,7 @@
       ],
       "credentials": {
         "smtp": {
-          "id": "2",
+          "id": "E4tVgAIcdXPgRisS",
           "name": "Hostinger SMTP"
         }
       }
@@ -521,10 +524,8 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
-  },
-  "tags": [
-    "blog",
-    "veille"
-  ]
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
 }
