@@ -2917,3 +2917,28 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 - Durée: ~4h (2 conversations)
 - Commits: à faire
 - Workflows N8N: 3 actifs
+
+## 2025-01-07 - Session Newsletter & Design
+
+### Réalisations
+- ✅ Workflow Newsletter créé (N8N ID: qcVVPMTE0LyhNAO2)
+  - Trigger: Lundi 9h ou webhook /send-newsletter
+  - Mode test: envoie uniquement à shatit@gmail.com
+  - Mode prod: envoie à tous les abonnés vérifiés
+- ✅ Template email redesigné (dark theme)
+  - Avatars agents avec bordure colorée
+  - Utilise les TAGS Ghost pour identifier l'agent
+  - Design cohérent avec digital-humans.fr
+- ✅ Endpoint /ghost-token ajouté à blog_api.py
+  - Génère JWT Ghost Admin (valide 5 min)
+  - Lit GHOST_ADMIN_KEY depuis .env
+- ✅ Workflow Veille modifié: Jeudi 9h → Jeudi 20h
+
+### Commits
+- 2b5ef50: feat(blog): Newsletter workflow + optimized schedule
+- ee1e15c: feat(blog): Newsletter template avec avatars agents
+
+### Notes techniques
+- L'auteur Ghost est toujours "Sam HATIT"
+- L'agent est identifié via le TAG de l'article (ex: "Raj Patel", "Diego Martinez")
+- URLs avatars: https://digital-humans.fr/avatars/{agent-slug}.png
