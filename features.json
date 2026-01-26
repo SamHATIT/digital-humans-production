@@ -2803,6 +2803,62 @@
       "status": "pending",
       "priority": "high",
       "notes": "Intégrer micro-analyse dans workflow SDS:\n1. pm_orchestrator_service_v3.py\n2. Appeler microanalyze après Phase 2 (Olivia)\n3. Prompt synthèse Claude (fiches → SDS)\n4. Validation cohérence Emma (objets SF)\n5. Test sur projet 120+ UCs"
+    },
+    {
+      "id": "SDS-V3-002",
+      "name": "Prompt synthèse Claude (fiches → SDS)",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Étape 5 du plan SDS v3: agréger les fiches Nemo en SDS cohérent via Claude"
+    },
+    {
+      "id": "SDS-V3-003",
+      "name": "Validation cohérence Emma (objets SF)",
+      "status": "pending",
+      "priority": "medium",
+      "notes": "Détecter incohérences type Case vs Service_Request__c pour même concept"
+    },
+    {
+      "id": "B2B-001",
+      "name": "Profil entreprise (SIRET, TVA, facturation)",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Requis pour commercialisation B2B"
+    },
+    {
+      "id": "B2B-002",
+      "name": "Multi-utilisateurs par entreprise",
+      "status": "pending",
+      "priority": "medium",
+      "notes": "Gestion équipes avec rôles (admin, user, viewer)"
+    },
+    {
+      "id": "PAY-001",
+      "name": "Intégration Stripe (paiement)",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Système de paiement pour abonnements"
+    },
+    {
+      "id": "PAY-002",
+      "name": "Facturation automatique",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Génération factures PDF, envoi email"
+    },
+    {
+      "id": "PAY-003",
+      "name": "Système tokens/crédits LLM",
+      "status": "pending",
+      "priority": "medium",
+      "notes": "Suivi consommation temps réel, alertes seuils"
+    },
+    {
+      "id": "BUILD-VALID-001",
+      "name": "Validation BUILD sur org Salesforce réelle",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Test end-to-end: génération code → déploiement → tests Elena"
     }
   ],
   "stats": {

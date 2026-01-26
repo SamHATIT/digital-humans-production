@@ -4,44 +4,66 @@
 
 ---
 
-## 📊 Métriques Projet
+## ⚠️ État Réel du Projet
+
+| Domaine | État | Commentaire |
+|---------|------|-------------|
+| **SDS** | 🟡 Partiel | Pipeline existe, génère documents, mais qualité insuffisante pour client |
+| **BUILD** | 🔴 Non validé | Code jamais déployé sur Salesforce réel |
+| **Tests** | 🔴 Aucun | Aucun test end-to-end validé sur org SF |
+| **Coûts** | 🟡 Élevés | ~10-12€/SDS, BUILD inconnu |
+| **Business** | 🔴 Incomplet | Pas de SIRET, paiement, facturation |
+
+---
+
+## 📊 Métriques Features
 
 | Métrique | Valeur |
 |----------|--------|
-| Features totales | 171 |
+| Features totales | 172 |
 | Complétées | 142 (83%) |
 | En cours | SDS v3 micro-analyse |
 
 ---
 
-## 🎯 Priorités Actuelles
+## 🎯 Priorité P0 : SDS v3 Micro-Analyse
 
-### P0 - En cours : SDS v3 Micro-Analyse
+**Objectif:** Réduire coût de 10-12€ à ~2€ + améliorer qualité
 
-**Objectif:** Réduire coût SDS de 10-12€ à ~2€ tout en améliorant la qualité
+### Progression
 
-**État:**
-- ✅ Table `uc_requirement_sheets` créée
-- ✅ Route `POST /execute/{id}/microanalyze` fonctionnelle
-- ✅ Route `GET /execute/{id}/requirement-sheets` fonctionnelle  
-- ✅ Test réussi: 8/8 UCs analysés, 18 min, $0 (Mistral local)
-- ⏳ Intégrer dans pipeline SDS complet
+| Étape | Action | Durée est. | Statut |
+|-------|--------|------------|--------|
+| 1 | `llm_router_service.py` + config YAML | 2h | ✅ Done |
+| 2 | Table `uc_requirement_sheets` | 30min | ✅ Done |
+| 3 | Prompt "Fiche Besoin" pour Nemo | 1h | ✅ Done |
+| 4 | Tester sur 5+ UCs avec Nemo | 30min | ✅ Done (8 UCs) |
+| 5 | Créer prompt synthèse Claude | 1h | ⏳ À faire |
+| 6 | Tester synthèse sur les fiches | 15min | ⏳ À faire |
+| 7 | Comparer qualité avec SDS v2 | 30min | ⏳ À faire |
 
-**Prochaines étapes:**
-1. Créer `pm_orchestrator_service_v3.py` (intégrer micro-analyse après Phase 2 Olivia)
-2. Créer prompt synthèse Claude (agréger fiches → SDS cohérent)
-3. Tester sur projet 120+ UCs
-4. Comparer qualité/coût vs v2
+**Résultat test étape 4:** 8/8 UCs analysés, 18 min, $0 (Mistral local)
 
-### P1 - Validation Cohérence
+---
 
-**Problème identifié:** Olivia génère parfois des incohérences (ex: Case vs Service_Request__c pour même concept)
+## 🚧 Ce qui manque pour commercialiser
 
-**Solution:** Ajouter validation Emma pour détecter objets SF incohérents
+### Côté Client (B2B)
+- [ ] Profil entreprise (SIRET, TVA, adresse facturation)
+- [ ] Gestion multi-utilisateurs par entreprise
+- [ ] Rôles/permissions (admin, utilisateur, viewer)
 
-### P2 - Sécurité Restante
+### Côté Monétisation
+- [ ] Système de paiement (Stripe)
+- [ ] Facturation automatique
+- [ ] Gestion abonnements (free/premium)
+- [ ] Système tokens/crédits pour LLM
+- [ ] Suivi consommation temps réel
 
-- PERF-001: Remplacer polling WebSocket par events PostgreSQL LISTEN/NOTIFY (~6h)
+### Côté Produit
+- [ ] Qualité SDS suffisante pour facturer
+- [ ] BUILD validé en production SF
+- [ ] Success story démontrable
 
 ---
 
@@ -51,21 +73,10 @@
 |---------|------|------|
 | Backend FastAPI | 8002 | ✅ |
 | Frontend React | 3000 | ✅ |
-| PostgreSQL | 5432 | ✅ (service système) |
+| PostgreSQL | 5432 | ✅ |
 | Ollama (Mistral) | 11434 | ✅ |
 | Ghost CMS | 2368 | ✅ |
-| Blog API | 8765 | ✅ |
 | N8N | 5678 | ✅ |
-
----
-
-## 📁 Fichiers Clés
-
-| Fichier | Rôle |
-|---------|------|
-| `features.json` | État des 171 features |
-| `CURRENT_STATE.md` | Ce fichier - priorités actuelles |
-| `SECURITY_TASKS.md` | 8/9 résolus, reste PERF-001 |
 
 ---
 
@@ -73,18 +84,19 @@
 
 ```bash
 # Vérifier services
-curl -s http://localhost:8002/health  # Backend
-curl -s http://localhost:11434/api/tags | jq  # Ollama
+curl -s http://localhost:8002/health
+curl -s http://localhost:11434/api/tags | jq
 
-# Lancer micro-analyse (avec token user 2)
+# Token user 2 (expire 27/01)
 TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZXhwIjoxNzY5NTM4ODI3fQ.ezj-NJnptM6K0yIrFjhPV5JbSt8V-v6tsSLZ_jSjqCI"
+
+# Micro-analyse
 curl -X POST "http://localhost:8002/api/pm-orchestrator/execute/{id}/microanalyze" -H "Authorization: Bearer $TOKEN"
 
-# Redémarrer backend
-pkill -f "uvicorn.*8002"
-nohup bash -c 'cd /root/workspace/digital-humans-production/backend && source venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8002' > /var/log/dh-backend.log 2>&1 &
+# Consulter fiches générées
+curl "http://localhost:8002/api/pm-orchestrator/execute/{id}/requirement-sheets" -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
-*Note: L'historique complet est dans `docs/archives/PROGRESS_archive_*.log`*
+*Historique complet: `docs/archives/`*

@@ -1,25 +1,31 @@
 # Digital Humans - Journal de Session
 
-*Pour l'historique complet, voir `docs/archives/`*
+*Historique complet: `docs/archives/`*
 
 ---
 
-## 2026-01-26 - SDS v3 Micro-Analyse
+## 2026-01-26 - SDS v3 Micro-Analyse + Restructuration
 
-### Réalisations
-- Route `/microanalyze` intégrée (analyse UC par UC avec Mistral local)
-- Route `/requirement-sheets` pour consulter les fiches générées
+### Réalisations techniques
+- Route `/microanalyze` intégrée (Mistral local, ~110s/UC)
+- Route `/requirement-sheets` pour consulter les fiches
+- Table `uc_requirement_sheets` avec persistance
 - Test réussi: 8/8 UCs en 18 min, coût $0
-- Modèle UCRequirementSheet avec persistance DB
+
+### Restructuration fichiers suivi
+- CURRENT_STATE.md créé (état synthétique + priorités)
+- PROGRESS.log archivé (3000+ lignes → docs/archives/)
+- features.json enrichi (+8 features B2B/PAY/BUILD)
+
+### Observations
+- Incohérence Olivia détectée (Case vs Service_Request__c)
+- État réel projet documenté (SDS partiel, BUILD non validé, pas de B2B)
 
 ### Commits
 - cbf7a62: feat(sds-v3): Micro-analyse UC avec LLM local
+- 4343344: chore: Restructuration fichiers de suivi
 
-### Observations
-- Incohérence détectée dans UCs d'Olivia (Case vs Service_Request__c)
-- La micro-analyse reflète fidèlement ces incohérences → besoin validation Emma
-
-### Prochaine session
-1. Intégrer micro-analyse dans pipeline SDS complet
-2. Prompt synthèse Claude pour agréger fiches
-3. Test sur projet 120+ UCs
+### Prochaine étape
+1. **SDS-V3-002**: Prompt synthèse Claude (étape 5/7)
+2. Tester synthèse + comparer qualité vs v2
+3. Puis: validation BUILD sur org SF réelle
