@@ -2568,7 +2568,7 @@
       "name": "Emma SDS Document Quality",
       "status": "in_progress",
       "priority": "high",
-      "notes": "Bug BRs corrigé (fallback agent_deliverables). Reste: troncatures, ERD, hallucinations"
+      "notes": "SDS v3 Micro-analyse implémentée:\n- Route /microanalyze fonctionnelle (Mistral local)\n- Table uc_requirement_sheets avec persistance\n- Test OK: 8/8 UCs, 18 min, $0\nReste: intégrer dans pipeline complet, prompt synthèse Claude"
     },
     {
       "id": "MARCUS-GAP-001",
@@ -2796,6 +2796,13 @@
       "added": "2025-12-22",
       "completed": "2025-12-22",
       "notes": "Fixed: timeout increased from 30min to 60min"
+    },
+    {
+      "id": "SDS-V3-001",
+      "name": "Pipeline SDS v3 - Intégration complète",
+      "status": "pending",
+      "priority": "high",
+      "notes": "Intégrer micro-analyse dans workflow SDS:\n1. pm_orchestrator_service_v3.py\n2. Appeler microanalyze après Phase 2 (Olivia)\n3. Prompt synthèse Claude (fiches → SDS)\n4. Validation cohérence Emma (objets SF)\n5. Test sur projet 120+ UCs"
     }
   ],
   "stats": {
