@@ -2566,9 +2566,9 @@
     {
       "id": "EMMA-SDS-001",
       "name": "Emma SDS Document Quality",
-      "status": "in_progress",
+      "status": "completed",
       "priority": "high",
-      "notes": "SDS v3 Micro-analyse implémentée:\n- Route /microanalyze fonctionnelle (Mistral local)\n- Table uc_requirement_sheets avec persistance\n- Test OK: 8/8 UCs, 18 min, $0\nReste: intégrer dans pipeline complet, prompt synthèse Claude"
+      "notes": "Micro-analyse + synthèse complètes. Pipeline SDS v3 fonctionnel."
     },
     {
       "id": "MARCUS-GAP-001",
@@ -2807,9 +2807,9 @@
     {
       "id": "SDS-V3-002",
       "name": "Prompt synthèse Claude (fiches → SDS)",
-      "status": "pending",
+      "status": "completed",
       "priority": "high",
-      "notes": "Étape 5 du plan SDS v3: agréger les fiches Nemo en SDS cohérent via Claude"
+      "notes": "Synthèse Claude implémentée. Test: 8 UCs, 3 domaines, $0.11, 53s. Commit 2026-01-26"
     },
     {
       "id": "SDS-V3-003",

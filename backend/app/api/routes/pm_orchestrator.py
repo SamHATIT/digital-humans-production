@@ -1792,3 +1792,272 @@ async def get_requirement_sheets(
         },
         "sheets": [s.to_dict() for s in sheets]
     }
+
+
+# ==================== SDS v3 SYNTHESIS ROUTES ====================
+
+@router.post("/execute/{execution_id}/synthesize")
+async def synthesize_sds_v3(
+    execution_id: int,
+    project_context: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SDS v3 - Synthèse des Fiches Besoin en document SDS professionnel.
+    
+    Pipeline:
+    1. Charge les fiches besoin depuis uc_requirement_sheets
+    2. Agrège par domaine fonctionnel
+    3. Génère chaque section via Claude
+    4. Assemble le document final
+    
+    Prérequis: microanalyze doit avoir été exécuté avant.
+    
+    Args:
+        execution_id: ID de l'exécution
+        project_context: Contexte additionnel (optionnel)
+    
+    Returns:
+        - sections: Sections SDS générées par domaine
+        - erd: Diagramme ERD Mermaid
+        - permissions: Matrice des permissions
+        - stats: Tokens, coût, temps
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from app.services.sds_synthesis_service import get_sds_synthesis_service
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Charger les fiches besoin
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    if not sheets:
+        raise HTTPException(
+            status_code=400, 
+            detail="No requirement sheets found. Run /microanalyze first."
+        )
+    
+    # Extraire les fiches JSON
+    fiches = []
+    for sheet in sheets:
+        if sheet.sheet_content:
+            fiche = sheet.sheet_content.copy()
+            fiche["uc_id"] = sheet.uc_id
+            fiches.append(fiche)
+    
+    logger.info(f"[SDS v3] Starting synthesis for execution {execution_id}: {len(fiches)} fiches")
+    
+    # Lancer la synthèse
+    synthesis_service = get_sds_synthesis_service()
+    
+    try:
+        result = await synthesis_service.synthesize_sds(
+            fiches=fiches,
+            project_name=project.name,
+            project_context=project_context or project.description or ""
+        )
+        
+        # Convertir les sections en dict
+        sections_data = []
+        for section in result.sections:
+            sections_data.append({
+                "domain": section.domain,
+                "content": section.content,
+                "uc_count": section.uc_count,
+                "objects": section.objects,
+                "tokens_used": section.tokens_used,
+                "cost_usd": round(section.cost_usd, 4),
+                "generation_time_ms": section.generation_time_ms
+            })
+        
+        return {
+            "execution_id": execution_id,
+            "project_name": result.project_name,
+            "total_ucs": result.total_ucs,
+            "domains_count": len(sections_data),
+            "sections": sections_data,
+            "erd_mermaid": result.erd_mermaid,
+            "permissions_matrix": result.permissions_matrix,
+            "stats": {
+                "total_tokens": result.total_tokens,
+                "total_cost_usd": round(result.total_cost_usd, 4),
+                "generation_time_ms": result.generation_time_ms
+            },
+            "generated_at": result.generated_at
+        }
+        
+    except Exception as e:
+        logger.error(f"[SDS v3] Synthesis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
+
+
+@router.get("/execute/{execution_id}/sds-preview")
+async def preview_sds_v3(
+    execution_id: int,
+    format: str = Query("markdown", enum=["markdown", "html"]),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Prévisualise le SDS v3 généré en Markdown ou HTML.
+    
+    Nécessite que /synthesize ait été appelé avant (pour une vraie implémentation,
+    on stockerait le résultat en DB).
+    
+    Pour l'instant, cette route renvoie un template avec les sections disponibles.
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from app.services.sds_synthesis_service import get_sds_synthesis_service
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Charger les fiches pour l'aperçu (agrégation seulement)
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    if not sheets:
+        raise HTTPException(status_code=400, detail="No requirement sheets found")
+    
+    # Extraire les fiches
+    fiches = [s.sheet_content for s in sheets if s.sheet_content]
+    
+    # Agréger par domaine (sans appeler Claude)
+    synthesis_service = get_sds_synthesis_service()
+    domains = synthesis_service.aggregate_by_domain(fiches)
+    
+    # Générer aperçu Markdown
+    md_lines = [
+        f"# SDS - {project.name}",
+        f"",
+        f"**Date de génération**: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        f"**Use Cases analysés**: {len(fiches)}",
+        f"**Domaines identifiés**: {len(domains)}",
+        f"",
+        "---",
+        "",
+        "## Table des matières",
+        ""
+    ]
+    
+    for i, (name, group) in enumerate(domains.items(), 1):
+        md_lines.append(f"{i}. [{name}](#{name.lower().replace(' ', '-')}) ({group.uc_count} UCs)")
+    
+    md_lines.extend([
+        "",
+        "---",
+        "",
+        "## Résumé par domaine",
+        ""
+    ])
+    
+    for name, group in domains.items():
+        summary = group.to_summary()
+        md_lines.extend([
+            f"### {name}",
+            f"",
+            f"- **Use Cases**: {summary['uc_count']}",
+            f"- **Objets SF**: {', '.join(summary['objects'][:5])}{'...' if len(summary['objects']) > 5 else ''}",
+            f"- **Agents assignés**: {', '.join(summary['agents'])}",
+            f"- **Complexité**: Simple={summary['complexity_distribution']['simple']}, "
+            f"Moyenne={summary['complexity_distribution']['moyenne']}, "
+            f"Complexe={summary['complexity_distribution']['complexe']}",
+            ""
+        ])
+    
+    markdown_content = "\n".join(md_lines)
+    
+    if format == "html":
+        # Conversion simple Markdown → HTML
+        import re
+        html = markdown_content
+        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
+        html = re.sub(r'^---$', r'<hr>', html, flags=re.MULTILINE)
+        html = html.replace('\n\n', '</p><p>').replace('\n', '<br>')
+        html = f"<html><body style='font-family: Arial; max-width: 800px; margin: auto; padding: 20px;'><p>{html}</p></body></html>"
+        return Response(content=html, media_type="text/html")
+    
+    return {
+        "execution_id": execution_id,
+        "format": format,
+        "content": markdown_content,
+        "domains_summary": [g.to_summary() for g in domains.values()]
+    }
+
+
+@router.get("/execute/{execution_id}/domains-summary")
+async def get_domains_summary(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Retourne un résumé de l'agrégation par domaine fonctionnel.
+    Utile pour prévisualiser avant de lancer la synthèse complète.
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from app.services.sds_synthesis_service import get_sds_synthesis_service
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Charger fiches
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    if not sheets:
+        return {
+            "execution_id": execution_id,
+            "total_fiches": 0,
+            "domains": [],
+            "message": "No requirement sheets found. Run /microanalyze first."
+        }
+    
+    fiches = [s.sheet_content for s in sheets if s.sheet_content]
+    
+    # Agréger
+    synthesis_service = get_sds_synthesis_service()
+    domains = synthesis_service.aggregate_by_domain(fiches)
+    
+    return {
+        "execution_id": execution_id,
+        "total_fiches": len(fiches),
+        "domains_count": len(domains),
+        "domains": [g.to_summary() for g in domains.values()],
+        "estimated_cost_usd": round(len(domains) * 0.10, 2),  # ~$0.10 par section
+        "estimated_time_sec": len(domains) * 30  # ~30s par section
+    }

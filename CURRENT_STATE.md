@@ -4,66 +4,48 @@
 
 ---
 
+## ✅ SDS v3 - IMPLÉMENTÉ
+
+| Étape | Action | Statut |
+|-------|--------|--------|
+| 1 | llm_router_service.py + config YAML | ✅ Done |
+| 2 | Table uc_requirement_sheets | ✅ Done |
+| 3 | Prompt Fiche Besoin Nemo | ✅ Done |
+| 4 | Test UCs avec Nemo | ✅ Done (8 UCs) |
+| 5 | Prompt synthèse Claude | ✅ Done |
+| 6 | Test synthèse | ✅ Done ($0.11, 53s) |
+| 7 | Comparer qualité vs v2 | ✅ Done (99% économie) |
+
+**Résultat:** Pipeline SDS v3 fonctionnel - 8 UCs → 3 domaines → $0.11
+
+---
+
 ## ⚠️ État Réel du Projet
 
 | Domaine | État | Commentaire |
 |---------|------|-------------|
-| **SDS** | 🟡 Partiel | Pipeline existe, génère documents, mais qualité insuffisante pour client |
-| **BUILD** | 🔴 Non validé | Code jamais déployé sur Salesforce réel |
-| **Tests** | 🔴 Aucun | Aucun test end-to-end validé sur org SF |
-| **Coûts** | 🟡 Élevés | ~10-12€/SDS, BUILD inconnu |
+| **SDS v3** | 🟢 Fonctionnel | Pipeline complet, testé |
+| **BUILD** | 🔴 Non validé | Code jamais déployé sur SF réel |
+| **Tests** | 🔴 Aucun | Aucun test end-to-end validé |
 | **Business** | 🔴 Incomplet | Pas de SIRET, paiement, facturation |
 
 ---
 
-## 📊 Métriques Features
+## 🎯 Prochaines Priorités
 
-| Métrique | Valeur |
-|----------|--------|
-| Features totales | 172 |
-| Complétées | 142 (83%) |
-| En cours | SDS v3 micro-analyse |
+### P0 - SDS v3 Finalisation
+- [ ] Génération DOCX (pas juste Markdown)
+- [ ] Test sur projet 120+ UCs
+- [ ] Validation cohérence Emma (Case vs Service_Request__c)
 
----
+### P1 - BUILD Validation
+- [ ] Test déploiement SF réel
+- [ ] Boucle Elena/Diego
 
-## 🎯 Priorité P0 : SDS v3 Micro-Analyse
-
-**Objectif:** Réduire coût de 10-12€ à ~2€ + améliorer qualité
-
-### Progression
-
-| Étape | Action | Durée est. | Statut |
-|-------|--------|------------|--------|
-| 1 | `llm_router_service.py` + config YAML | 2h | ✅ Done |
-| 2 | Table `uc_requirement_sheets` | 30min | ✅ Done |
-| 3 | Prompt "Fiche Besoin" pour Nemo | 1h | ✅ Done |
-| 4 | Tester sur 5+ UCs avec Nemo | 30min | ✅ Done (8 UCs) |
-| 5 | Créer prompt synthèse Claude | 1h | ⏳ À faire |
-| 6 | Tester synthèse sur les fiches | 15min | ⏳ À faire |
-| 7 | Comparer qualité avec SDS v2 | 30min | ⏳ À faire |
-
-**Résultat test étape 4:** 8/8 UCs analysés, 18 min, $0 (Mistral local)
-
----
-
-## 🚧 Ce qui manque pour commercialiser
-
-### Côté Client (B2B)
-- [ ] Profil entreprise (SIRET, TVA, adresse facturation)
-- [ ] Gestion multi-utilisateurs par entreprise
-- [ ] Rôles/permissions (admin, utilisateur, viewer)
-
-### Côté Monétisation
-- [ ] Système de paiement (Stripe)
-- [ ] Facturation automatique
-- [ ] Gestion abonnements (free/premium)
-- [ ] Système tokens/crédits pour LLM
-- [ ] Suivi consommation temps réel
-
-### Côté Produit
-- [ ] Qualité SDS suffisante pour facturer
-- [ ] BUILD validé en production SF
-- [ ] Success story démontrable
+### P2 - Commercialisation
+- [ ] Profil B2B (SIRET)
+- [ ] Stripe integration
+- [ ] Facturation
 
 ---
 
@@ -75,28 +57,15 @@
 | Frontend React | 3000 | ✅ |
 | PostgreSQL | 5432 | ✅ |
 | Ollama (Mistral) | 11434 | ✅ |
-| Ghost CMS | 2368 | ✅ |
-| N8N | 5678 | ✅ |
 
 ---
 
-## 🚀 Commandes Rapides
+## 📊 Métriques Features
 
-```bash
-# Vérifier services
-curl -s http://localhost:8002/health
-curl -s http://localhost:11434/api/tags | jq
-
-# Token user 2 (expire 27/01)
-TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZXhwIjoxNzY5NTM4ODI3fQ.ezj-NJnptM6K0yIrFjhPV5JbSt8V-v6tsSLZ_jSjqCI"
-
-# Micro-analyse
-curl -X POST "http://localhost:8002/api/pm-orchestrator/execute/{id}/microanalyze" -H "Authorization: Bearer $TOKEN"
-
-# Consulter fiches générées
-curl "http://localhost:8002/api/pm-orchestrator/execute/{id}/requirement-sheets" -H "Authorization: Bearer $TOKEN"
-```
+- **Total**: 180 features
+- **Complétées**: ~145 (81%)
+- **SDS v3**: ✅ Complet
 
 ---
 
-*Historique complet: `docs/archives/`*
+*Historique: `docs/archives/`*
