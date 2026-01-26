@@ -2942,3 +2942,44 @@ Travail sur le site vitrine digital-humans.fr et système de capture de leads.
 - L'auteur Ghost est toujours "Sam HATIT"
 - L'agent est identifié via le TAG de l'article (ex: "Raj Patel", "Diego Martinez")
 - URLs avatars: https://digital-humans.fr/avatars/{agent-slug}.png
+
+## Session 2026-01-26 - LLM Router & UC Analyzer (SDS v3)
+
+### Objectif
+Implémenter le routage LLM multi-provider et l'analyseur UC pour réduire les coûts SDS
+
+### Réalisations
+- ✅ **llm_router_service.py** (718 lignes): Routage multi-provider
+  - Providers: Ollama local, Anthropic, OpenAI
+  - Routing par complexité: simple→local, medium→Haiku, complex→Sonnet
+  - Calcul des coûts, fallback automatique
+  
+- ✅ **uc_analyzer_service.py**: Micro-analyse UC → Fiche Besoin JSON
+  - Génère JSON structuré pour chaque UC
+  - Routing agent avec critères explicites
+  
+- ✅ **llm_routing.yaml**: Configuration centralisée
+
+- ✅ **Mistral 7B installé** (4.4GB) - alternative plus légère à Nemo 12B
+
+### Tests
+- 5 UCs analysés: **100% succès**
+- Latence moyenne: ~80s/UC (CPU only)
+- Routing agent corrigé avec règles explicites
+
+### Règles de routing agent (BUILD)
+- raj: Config standard, Flows, Dashboards, Reports
+- diego: Apex, Triggers, Batch, logique complexe
+- zara: LWC, UI custom, pages Lightning
+- aisha: Data, migration, ETL, intégrations
+- (À ajouter: elena, jordan, lucas)
+
+### Commits
+- b429e5a: feat(sds-v3): LLM Router + UC Analyzer services
+
+### Prochaine session
+1. Ajouter elena/jordan/lucas aux règles de routing
+2. Intégrer UC Analyzer dans pipeline SDS
+3. Tester sur projet complet
+4. Ajouter ANTHROPIC_API_KEY pour routing medium/complex
+
