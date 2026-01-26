@@ -1567,3 +1567,228 @@ async def resume_build(
         "message": "BUILD resumed. Execution continuing from next pending task.",
         "execution_id": execution_id
     }
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# SDS V3 - MICRO-ANALYSE UC (LLM LOCAL)
+# ════════════════════════════════════════════════════════════════════════════════
+
+@router.post("/execute/{execution_id}/microanalyze")
+async def microanalyze_ucs(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SDS V3: Lance la micro-analyse des UCs avec LLM local (Mistral).
+    
+    Cette étape analyse chaque UC individuellement pour générer des "Fiches Besoin" JSON
+    qui seront utilisées pour enrichir le SDS et le WBS.
+    
+    Prérequis: L'exécution doit avoir des UCs générés (Phase 2 - Olivia terminée).
+    
+    Returns:
+        - total_ucs: Nombre d'UCs à analyser
+        - analyzed: Nombre d'UCs analysés avec succès
+        - failed: Nombre d'échecs
+        - agent_distribution: Répartition des agents suggérés
+        - cost_usd: Coût total (0 si LLM local)
+        - avg_latency_ms: Latence moyenne par UC
+    """
+    from app.models.deliverable_item import DeliverableItem
+    from app.services.uc_analyzer_service import get_uc_analyzer, UCAnalyzerService
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from sqlalchemy import select
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier que l'utilisateur a accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Récupérer les UCs depuis deliverable_items
+    ucs = db.query(DeliverableItem).filter(
+        DeliverableItem.execution_id == execution_id,
+        DeliverableItem.item_type == "use_case"
+    ).all()
+    
+    if not ucs:
+        raise HTTPException(
+            status_code=400, 
+            detail="No Use Cases found. Run Phase 2 (Olivia) first."
+        )
+    
+    logger.info(f"[MicroAnalyze] Starting analysis of {len(ucs)} UCs for execution {execution_id}")
+    
+    # Convertir en format dict pour l'analyseur
+    uc_dicts = []
+    for uc in ucs:
+        # content_parsed contient le JSON complet du UC
+        parsed = uc.content_parsed or {}
+        uc_dict = {
+            "id": uc.item_id,
+            "uc_id": uc.item_id,
+            "title": parsed.get("title", ""),
+            "parent_br_id": uc.parent_ref,
+        }
+        # Fusionner le contenu JSON si disponible
+        if isinstance(parsed, dict):
+            uc_dict.update(parsed)
+        uc_dicts.append(uc_dict)
+    
+    # Lancer l'analyse
+    analyzer = get_uc_analyzer()
+    
+    # Analyse séquentielle (LLM local = pas de parallélisme)
+    results = await analyzer.analyze_batch(uc_dicts)
+    
+    # Sauvegarder en base
+    saved_count = 0
+    errors = []
+    for (fiche, llm_response), uc_dict in zip(results, uc_dicts):
+        try:
+            # Vérifier si existe déjà
+            existing = db.query(UCRequirementSheet).filter(
+                UCRequirementSheet.execution_id == execution_id,
+                UCRequirementSheet.uc_id == fiche.uc_id
+            ).first()
+            
+            if existing:
+                # Mise à jour
+                existing.uc_title = fiche.titre or uc_dict.get("title", "")
+                existing.sheet_content = fiche.to_dict()
+                existing.analysis_complete = not bool(fiche.error)
+                existing.analysis_error = fiche.error
+                if llm_response:
+                    existing.llm_provider = llm_response.provider
+                    existing.llm_model = llm_response.model_id
+                    existing.tokens_in = llm_response.tokens_in
+                    existing.tokens_out = llm_response.tokens_out
+                    existing.cost_usd = llm_response.cost_usd
+                    existing.latency_ms = llm_response.latency_ms
+            else:
+                # Création
+                sheet = UCRequirementSheet(
+                    execution_id=execution_id,
+                    uc_id=fiche.uc_id,
+                    uc_title=fiche.titre or uc_dict.get("title", ""),
+                    parent_br_id=uc_dict.get("parent_br_id"),
+                    sheet_content=fiche.to_dict(),
+                    analysis_complete=not bool(fiche.error),
+                    analysis_error=fiche.error,
+                    llm_provider=llm_response.provider if llm_response else None,
+                    llm_model=llm_response.model_id if llm_response else None,
+                    tokens_in=llm_response.tokens_in if llm_response else 0,
+                    tokens_out=llm_response.tokens_out if llm_response else 0,
+                    cost_usd=llm_response.cost_usd if llm_response else 0.0,
+                    latency_ms=llm_response.latency_ms if llm_response else 0
+                )
+                db.add(sheet)
+            
+            if not fiche.error:
+                saved_count += 1
+            else:
+                errors.append({"uc_id": fiche.uc_id, "error": fiche.error})
+                
+        except Exception as e:
+            logger.error(f"[MicroAnalyze] Error saving {fiche.uc_id}: {e}")
+            errors.append({"uc_id": fiche.uc_id, "error": str(e)})
+    
+    db.commit()
+    
+    # Stats
+    stats = analyzer.get_stats()
+    
+    # Distribution des agents
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    agent_distribution = {}
+    for sheet in sheets:
+        if sheet.sheet_content:
+            agent = sheet.sheet_content.get("agent_suggere", "unknown")
+            agent_distribution[agent] = agent_distribution.get(agent, 0) + 1
+    
+    logger.info(f"[MicroAnalyze] Completed: {saved_count}/{len(ucs)} UCs analyzed")
+    logger.info(f"[MicroAnalyze] Agent distribution: {agent_distribution}")
+    
+    return {
+        "execution_id": execution_id,
+        "total_ucs": len(ucs),
+        "analyzed": saved_count,
+        "failed": len(errors),
+        "errors": errors[:5] if errors else [],  # Max 5 erreurs affichées
+        "agent_distribution": agent_distribution,
+        "cost_usd": round(stats.get("total_cost_usd", 0), 4),
+        "avg_latency_ms": stats.get("avg_latency_ms", 0),
+        "success_rate": stats.get("success_rate", 0),
+        "llm_provider": "ollama/mistral" if saved_count > 0 else None
+    }
+
+
+@router.get("/execute/{execution_id}/requirement-sheets")
+async def get_requirement_sheets(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère les Fiches Besoin générées par la micro-analyse.
+    
+    Returns:
+        - sheets: Liste des fiches avec leur contenu
+        - stats: Statistiques agrégées
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier que l'utilisateur a accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id
+    ).order_by(UCRequirementSheet.uc_id).all()
+    
+    # Stats
+    total = len(sheets)
+    complete = sum(1 for s in sheets if s.analysis_complete)
+    total_latency = sum(s.latency_ms or 0 for s in sheets)
+    total_cost = sum(s.cost_usd or 0 for s in sheets)
+    
+    # Distribution agents
+    agent_dist = {}
+    complexity_dist = {"simple": 0, "moyenne": 0, "complexe": 0}
+    for s in sheets:
+        if s.analysis_complete and s.sheet_content:
+            agent = s.sheet_content.get("agent_suggere", "unknown")
+            agent_dist[agent] = agent_dist.get(agent, 0) + 1
+            comp = s.sheet_content.get("complexite", "moyenne")
+            if comp in complexity_dist:
+                complexity_dist[comp] += 1
+    
+    return {
+        "execution_id": execution_id,
+        "stats": {
+            "total": total,
+            "analyzed": complete,
+            "pending": total - complete,
+            "total_latency_ms": total_latency,
+            "avg_latency_ms": round(total_latency / max(1, complete)),
+            "total_cost_usd": round(total_cost, 4),
+            "agent_distribution": agent_dist,
+            "complexity_distribution": complexity_dist
+        },
+        "sheets": [s.to_dict() for s in sheets]
+    }

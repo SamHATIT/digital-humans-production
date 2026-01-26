@@ -1,16 +1,8 @@
 """
-UC Requirement Sheet model for SDS v3 micro-analysis
-
-Each Use Case is analyzed individually by Mistral Nemo (local, free)
-to produce a structured "Fiche Besoin" JSON.
-These sheets are then synthesized by Claude for the final SDS.
-
-Version: 1.0.0
-Created: 2026-01-26
+UC Requirement Sheet model - Stockage des Fiches Besoin générées par micro-analyse (SDS v3)
+Chaque UC analysé par LLM local produit une fiche stockée ici.
 """
-
-from sqlalchemy import Column, Integer, String, Text, Boolean, Float, ForeignKey, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, JSON, Float, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -18,85 +10,79 @@ from app.database import Base
 
 
 class UCRequirementSheet(Base):
-    """
-    Fiche Besoin generated from individual UC analysis.
-    
-    SDS v3 Pipeline:
-    1. Olivia generates UCs
-    2. Each UC is analyzed by Nemo → UCRequirementSheet
-    3. Claude synthesizes all sheets → Final SDS
-    
-    Cost optimization: Nemo is free, only Claude synthesis is charged.
-    """
+    """Fiche Besoin générée pour chaque Use Case - SDS v3 Pipeline"""
+
     __tablename__ = "uc_requirement_sheets"
-    
+
     id = Column(Integer, primary_key=True, index=True)
+    
+    # Relations
     execution_id = Column(Integer, ForeignKey("executions.id", ondelete="CASCADE"), nullable=False, index=True)
     
-    # UC reference
-    uc_id = Column(String(50), nullable=False, index=True)  # 'UC-001', 'UC-002', etc.
-    uc_title = Column(String(500))                          # Use Case title
-    parent_br_id = Column(String(50), index=True)           # Parent BR reference
+    # Identifiant UC source (UC-001, etc.)
+    uc_id = Column(String(50), nullable=False, index=True)
+    uc_title = Column(String(500))
+    parent_br_id = Column(String(50), index=True)  # BR parent (BR-001, etc.)
     
-    # Fiche Besoin content (structured JSON)
-    sheet_content = Column(JSONB, nullable=False)
-    """
-    Expected JSON structure:
-    {
-        "business_context": "...",           # Contexte métier
-        "actors": ["..."],                   # Acteurs impliqués
-        "sf_objects": [                      # Objets Salesforce
-            {"name": "Account", "purpose": "..."}
-        ],
-        "sf_fields": [                       # Champs requis
-            {"object": "Account", "field": "Industry", "type": "Picklist", "required": true}
-        ],
-        "automations": [                     # Automatisations suggérées
-            {"type": "flow", "trigger": "...", "purpose": "..."}
-        ],
-        "ui_components": [                   # Composants UI
-            {"type": "lwc", "name": "...", "purpose": "..."}
-        ],
-        "acceptance_criteria": ["..."],      # Critères d'acceptation
-        "dependencies": ["..."],             # Dépendances UC
-        "complexity_score": 3,               # 1-5
-        "estimated_effort_hours": 8
-    }
-    """
+    # Contenu complet de la fiche (JSON)
+    # Structure: {titre, acteur, objectif, objets_salesforce, champs_cles, 
+    #             automatisations, regles_metier, complexite, agent_suggere, justification_agent}
+    sheet_content = Column(JSON, nullable=False)
     
-    # Analysis quality
+    # Status analyse
     analysis_complete = Column(Boolean, default=False)
-    analysis_error = Column(Text)           # Error if analysis failed
-    confidence_score = Column(Float)        # 0.0-1.0, quality of analysis
+    analysis_error = Column(Text)
+    confidence_score = Column(Float)  # 0.0 - 1.0
     
-    # LLM tracking
-    llm_provider = Column(String(100))      # 'local/mistral-nemo'
-    llm_model = Column(String(100))         # 'mistral-nemo:latest'
+    # Méta-données LLM
+    llm_provider = Column(String(100))  # ollama/mistral-7b, anthropic/haiku, etc.
+    llm_model = Column(String(100))
     tokens_in = Column(Integer, default=0)
     tokens_out = Column(Integer, default=0)
-    cost_usd = Column(Float, default=0.0)   # 0 for local
+    cost_usd = Column(Float, default=0.0)
     latency_ms = Column(Integer, default=0)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
+    # Relation vers Execution (back_populates défini dans execution.py)
     execution = relationship("Execution", back_populates="uc_requirement_sheets")
     
-    def __repr__(self):
-        return f"<UCRequirementSheet {self.uc_id} - complete={self.analysis_complete}>"
+    def to_dict(self):
+        """Sérialisation complète pour API"""
+        content = self.sheet_content or {}
+        return {
+            "id": self.id,
+            "execution_id": self.execution_id,
+            "uc_id": self.uc_id,
+            "uc_title": self.uc_title,
+            "parent_br_id": self.parent_br_id,
+            "titre": content.get("titre", self.uc_title),
+            "acteur": content.get("acteur", ""),
+            "objectif": content.get("objectif", ""),
+            "objets_salesforce": content.get("objets_salesforce", []),
+            "champs_cles": content.get("champs_cles", []),
+            "automatisations": content.get("automatisations", []),
+            "regles_metier": content.get("regles_metier", []),
+            "complexite": content.get("complexite", "moyenne"),
+            "agent_suggere": content.get("agent_suggere", "raj"),
+            "justification_agent": content.get("justification_agent", ""),
+            "analysis_complete": self.analysis_complete,
+            "llm_provider": self.llm_provider,
+            "latency_ms": self.latency_ms,
+            "cost_usd": self.cost_usd
+        }
     
-    @property
-    def sf_object_names(self) -> list:
-        """Extract Salesforce object names from sheet"""
-        if not self.sheet_content:
-            return []
-        return [obj.get("name") for obj in self.sheet_content.get("sf_objects", [])]
-    
-    @property
-    def automation_types(self) -> list:
-        """Extract automation types from sheet"""
-        if not self.sheet_content:
-            return []
-        return [auto.get("type") for auto in self.sheet_content.get("automations", [])]
+    def to_sds_format(self):
+        """Format compact pour inclusion dans le SDS/WBS"""
+        content = self.sheet_content or {}
+        return {
+            "uc_id": self.uc_id,
+            "titre": content.get("titre", self.uc_title),
+            "objets": content.get("objets_salesforce", []),
+            "champs": content.get("champs_cles", []),
+            "automatisations": content.get("automatisations", []),
+            "agent": content.get("agent_suggere", "raj"),
+            "complexite": content.get("complexite", "moyenne")
+        }
