@@ -1,0 +1,43 @@
+# LLM Router Configuration - Digital Humans Platform
+default_routing:
+  simple: local/mistral:7b-instruct
+  medium: anthropic/claude-haiku
+  complex: anthropic/claude-sonnet
+  critical: anthropic/claude-sonnet
+
+pricing:
+  local/mistral:7b-instruct:
+    input: 0.0
+    output: 0.0
+  local/mistral-nemo:
+    input: 0.0
+    output: 0.0
+  anthropic/claude-haiku:
+    input: 0.25
+    output: 1.25
+  anthropic/claude-sonnet:
+    input: 3.0
+    output: 15.0
+
+providers:
+  ollama:
+    enabled: true
+    base_url: "http://localhost:11434"
+    timeout_seconds: 300
+    models:
+      mistral:7b-instruct:
+        context_length: 32768
+      mistral-nemo:
+        context_length: 32768
+  anthropic:
+    enabled: true
+    api_key_env: "ANTHROPIC_API_KEY"
+    timeout_seconds: 600
+    models:
+      claude-haiku:
+        model_id: "claude-haiku-4-5-20251001"
+      claude-sonnet:
+        model_id: "claude-sonnet-4-5-20250929"
+  openai:
+    enabled: true
+    api_key_env: "OPENAI_API_KEY"

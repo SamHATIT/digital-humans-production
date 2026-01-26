@@ -41,6 +41,7 @@ from app.models.sds_version import SDSVersion
 # ORCH-03a: Incremental Build
 from app.models.task_execution import TaskExecution, TaskStatus
 from app.models.llm_interaction import LLMInteraction
+from app.models.uc_requirement_sheet import UCRequirementSheet
 from app.models.change_request import ChangeRequest, CRStatus, CRCategory, CRPriority
 from app.models.project_conversation import ProjectConversation
 
@@ -98,6 +99,7 @@ __all__ = [
     "TaskExecution",
     "TaskStatus",
     "LLMInteraction",
+    "UCRequirementSheet",
     # Audit Logging
     "AuditLog",
     "ActorType",

@@ -72,3 +72,6 @@ class Execution(Base):
     
     # ORCH-03a: Task executions for incremental build
     task_executions = relationship("TaskExecution", back_populates="execution", cascade="all, delete-orphan")
+    
+    # SDS v3: UC Requirement Sheets (micro-analysis by Nemo)
+    uc_requirement_sheets = relationship("UCRequirementSheet", back_populates="execution", cascade="all, delete-orphan")
