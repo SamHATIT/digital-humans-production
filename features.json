@@ -2,12 +2,12 @@
   "metadata": {
     "version": "1.0",
     "created": "2025-12-08",
-    "last_updated": "2026-01-06",
-    "total_features": 168,
+    "last_updated": "2026-01-27",
+    "total_features": 187,
     "stats": {
-      "completed": 157,
-      "not_started": 13,
-      "in_progress": 1,
+      "completed": 144,
+      "not_started": 20,
+      "in_progress": 0,
       "planned": 0,
       "blocked": 0
     }
@@ -2859,6 +2859,185 @@
       "status": "pending",
       "priority": "high",
       "notes": "Test end-to-end: génération code → déploiement → tests Elena"
+    },
+    {
+      "id": "SDS-07",
+      "category": "WORKFLOW_SDS",
+      "title": "Export SDS en DOCX - Sortie principale payante",
+      "description": "Générer le SDS au format Word (.docx) professionnel avec mise en forme, styles, table des matières. C'est le livrable principal pour les clients payants (PDF = version gratuite contrôlée).",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Template DOCX professionnel avec styles Salesforce/consulting",
+        "Table des matières automatique",
+        "Sections bien formatées: Executive Summary, Data Model, Business Rules, Automations, etc.",
+        "Diagrammes Mermaid convertis en images intégrées",
+        "Téléchargeable depuis l'interface utilisateur",
+        "Métadonnées document (auteur, date, version)"
+      ],
+      "dependencies": [
+        "SDS-V3-003"
+      ],
+      "files": [
+        "backend/app/services/docx_generator_service.py",
+        "backend/app/templates/sds_template.docx"
+      ],
+      "estimated_hours": 8,
+      "notes": "Utiliser python-docx. Le DOCX est la sortie premium, PDF pour freemium (contrôle contenu)."
+    },
+    {
+      "id": "BILLING-001",
+      "category": "BILLING",
+      "title": "Système de tokens utilisateur",
+      "description": "Implémenter un système de tokens pour gérer la consommation LLM. Chaque utilisateur a un solde de tokens qui diminue à chaque appel LLM. Permet de gérer la variabilité de complexité des projets (4 projets/mois mais périmètre imprévisible).",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Table user_tokens: user_id, balance, allocated_monthly, used_this_month, last_reset",
+        "Déduction automatique des tokens après chaque appel LLM",
+        "Blocage si solde insuffisant (avec message explicite)",
+        "Reset mensuel automatique du quota inclus dans l'abonnement",
+        "Historique des consommations par projet/agent/date",
+        "API endpoint pour consulter son solde"
+      ],
+      "dependencies": [
+        "CORE-001"
+      ],
+      "files": [
+        "backend/app/models/user_tokens.py",
+        "backend/app/services/token_billing_service.py",
+        "backend/app/api/routes/billing.py"
+      ],
+      "estimated_hours": 8,
+      "notes": "1 token ≈ 1 token LLM ou ratio configurable. Le système doit être transparent pour l'utilisateur."
+    },
+    {
+      "id": "BILLING-002",
+      "category": "BILLING",
+      "title": "Tracking coût LLM par projet détaillé",
+      "description": "Tracker précisément le coût de chaque appel LLM par projet, agent, phase. Permet d'analyser la rentabilité et d'optimiser les prompts/modèles.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Table llm_usage: project_id, agent_name, phase, model, input_tokens, output_tokens, cost_usd, timestamp",
+        "Calcul automatique du coût selon le modèle (Claude Sonnet, Haiku, Mistral Nemo local=0)",
+        "Dashboard coût par projet avec breakdown par agent",
+        "Alertes si un projet dépasse un seuil configurable",
+        "Export CSV des données de consommation"
+      ],
+      "dependencies": [
+        "BILLING-001"
+      ],
+      "files": [
+        "backend/app/models/llm_usage.py",
+        "backend/app/services/llm_cost_tracker.py"
+      ],
+      "estimated_hours": 6,
+      "notes": "Intégrer avec llm_service.py et llm_router_service.py existants. Prix: Claude Sonnet ~$3/1M in + $15/1M out, Haiku ~$0.25/$1.25, Nemo local = $0."
+    },
+    {
+      "id": "BILLING-003",
+      "category": "BILLING",
+      "title": "Achat de tokens supplémentaires",
+      "description": "Permettre aux utilisateurs d'acheter des tokens supplémentaires quand leur quota mensuel est épuisé. Intégration Stripe pour le paiement.",
+      "priority": 2,
+      "status": "not_started",
+      "validation_criteria": [
+        "Page achat tokens avec différents packs (ex: 10K, 50K, 100K tokens)",
+        "Intégration Stripe Checkout",
+        "Webhook Stripe pour créditer automatiquement les tokens",
+        "Email de confirmation d'achat",
+        "Historique des achats dans le profil utilisateur",
+        "Tokens achetés ne expirent pas (vs quota mensuel)"
+      ],
+      "dependencies": [
+        "BILLING-001",
+        "BILLING-004"
+      ],
+      "files": [
+        "backend/app/services/stripe_service.py",
+        "backend/app/api/routes/payments.py",
+        "frontend/src/pages/BuyTokensPage.tsx"
+      ],
+      "estimated_hours": 12,
+      "notes": "Stripe pour simplicité. Tokens achetés = bonus permanent, quota mensuel = reset chaque mois."
+    },
+    {
+      "id": "BILLING-004",
+      "category": "BILLING",
+      "title": "Profil B2B - SIRET, facturation entreprise",
+      "description": "Permettre aux utilisateurs professionnels de renseigner leurs informations entreprise (SIRET, TVA, adresse facturation) pour générer des factures conformes.",
+      "priority": 2,
+      "status": "not_started",
+      "validation_criteria": [
+        "Champs profil: company_name, siret, vat_number, billing_address, billing_email",
+        "Validation SIRET via API INSEE ou simple format",
+        "Validation numéro TVA intracommunautaire",
+        "Génération factures PDF automatiques",
+        "Historique factures téléchargeables",
+        "Gestion TVA selon pays (France 20%, UE reverse charge, hors UE 0%)"
+      ],
+      "dependencies": [],
+      "files": [
+        "backend/app/models/company_profile.py",
+        "backend/app/services/invoice_service.py",
+        "frontend/src/pages/CompanyProfilePage.tsx"
+      ],
+      "estimated_hours": 10,
+      "notes": "Obligatoire pour clients B2B français. Factures mensuelles ou à l'achat de tokens."
+    },
+    {
+      "id": "BILLING-005",
+      "category": "BILLING",
+      "title": "Dashboard consommation utilisateur",
+      "description": "Interface utilisateur pour visualiser sa consommation de tokens, historique par projet, prévisions, et alertes.",
+      "priority": 2,
+      "status": "not_started",
+      "validation_criteria": [
+        "Widget solde tokens dans header/sidebar",
+        "Page détaillée avec graphique consommation mensuelle",
+        "Breakdown par projet et par agent",
+        "Estimation tokens restants pour X projets similaires",
+        "Alertes configurables (ex: 80% quota atteint)",
+        "Comparaison mois précédent"
+      ],
+      "dependencies": [
+        "BILLING-001",
+        "BILLING-002"
+      ],
+      "files": [
+        "frontend/src/pages/ConsumptionDashboard.tsx",
+        "frontend/src/components/TokenBalanceWidget.tsx"
+      ],
+      "estimated_hours": 8,
+      "notes": "UX importante pour la transparence et éviter les mauvaises surprises."
+    },
+    {
+      "id": "BUILD-TEST-001",
+      "category": "WORKFLOW_BUILD",
+      "title": "Test E2E déploiement Salesforce réel",
+      "description": "Valider le workflow BUILD complet sur un org Salesforce réel: génération code → SFDX deploy → tests Elena → commit Git.",
+      "priority": 1,
+      "status": "not_started",
+      "validation_criteria": [
+        "Scratch org ou sandbox de test configuré",
+        "Déploiement SFDX réussi d'au moins 1 projet complet",
+        "Apex classes compilent sans erreur",
+        "LWC déployés et fonctionnels",
+        "Tests Apex passent (coverage > 75%)",
+        "Metadata admin (flows, objects) déployée",
+        "Commit Git automatique post-déploiement"
+      ],
+      "dependencies": [
+        "ORCH-03e"
+      ],
+      "files": [
+        "backend/app/services/sfdx_service.py",
+        "backend/app/services/git_service.py",
+        "docs/BUILD_TEST_REPORT.md"
+      ],
+      "estimated_hours": 16,
+      "notes": "Jamais testé en production réelle. Critique pour valider que le code généré est déployable. Prévoir debugging."
     }
   ],
   "stats": {
