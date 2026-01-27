@@ -2218,20 +2218,48 @@ async def download_sds_v3(
     """
     Télécharge le SDS v3 généré.
     
-    Pour l'instant, seul le format DOCX est supporté.
-    Le PDF sera ajouté ultérieurement (version gratuite).
-    
-    Args:
-        execution_id: ID de l'exécution
-        format: Format de sortie (docx ou pdf)
+    Si le fichier existe déjà, le sert directement.
+    Sinon, le génère puis le sert.
     """
+    import os
+    import glob
+    
     if format == "pdf":
         raise HTTPException(
             status_code=501, 
             detail="PDF format not yet implemented. Use 'docx' format."
         )
     
-    # Rediriger vers generate-docx
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Chercher le fichier existant
+    output_dir = f"/app/outputs/sds_v3"
+    pattern = f"{output_dir}/SDS_*_{execution_id}.docx"
+    existing_files = glob.glob(pattern)
+    
+    if existing_files:
+        # Servir le fichier existant
+        output_path = existing_files[0]
+        safe_name = "".join(c if c.isalnum() or c in "- _" else "_" for c in project.name)
+        
+        return FileResponse(
+            path=output_path,
+            filename=f"SDS_{safe_name}.docx",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="SDS_{safe_name}.docx"'
+            }
+        )
+    
+    # Sinon, générer via la route complète
     return await generate_sds_docx(execution_id, db, current_user)
 
 
