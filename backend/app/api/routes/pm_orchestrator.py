@@ -2061,3 +2061,175 @@ async def get_domains_summary(
         "estimated_cost_usd": round(len(domains) * 0.10, 2),  # ~$0.10 par section
         "estimated_time_sec": len(domains) * 30  # ~30s par section
     }
+
+
+# ==================== SDS v3 DOCX GENERATION ====================
+
+@router.post("/execute/{execution_id}/generate-docx")
+async def generate_sds_docx(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SDS v3 - Génère le document DOCX professionnel à partir de la synthèse.
+    
+    Pipeline complet:
+    1. Vérifie que la synthèse a été faite (/synthesize)
+    2. Charge les données de synthèse
+    3. Génère le DOCX avec style professionnel (LVMH/Shiseido)
+    4. Retourne le fichier pour téléchargement
+    
+    Prérequis: /synthesize doit avoir été exécuté avant.
+    
+    Returns:
+        FileResponse avec le document SDS.docx
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from app.services.sds_synthesis_service import get_sds_synthesis_service
+    from app.services.sds_docx_generator_v3 import generate_sds_docx_v3
+    from app.models.agent_deliverable import AgentDeliverable
+    import tempfile
+    import os
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Charger les fiches besoin
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    if not sheets:
+        raise HTTPException(
+            status_code=400, 
+            detail="No requirement sheets found. Run /microanalyze and /synthesize first."
+        )
+    
+    # Extraire les fiches JSON
+    fiches = []
+    for sheet in sheets:
+        if sheet.sheet_content:
+            fiche = sheet.sheet_content.copy()
+            fiche["uc_id"] = sheet.uc_id
+            fiches.append(fiche)
+    
+    logger.info(f"[DOCX Gen] Starting for execution {execution_id}: {len(fiches)} fiches")
+    
+    # Lancer la synthèse (ou récupérer le cache si disponible)
+    synthesis_service = get_sds_synthesis_service()
+    
+    try:
+        synthesis_result = await synthesis_service.synthesize_sds(
+            fiches=fiches,
+            project_name=project.name,
+            project_context=project.description or ""
+        )
+        
+        # Convertir en dict pour le générateur
+        synthesis_dict = {
+            "project_name": synthesis_result.project_name,
+            "total_ucs": synthesis_result.total_ucs,
+            "domains_count": len(synthesis_result.sections),
+            "sections": [
+                {
+                    "domain": s.domain,
+                    "content": s.content,
+                    "uc_count": s.uc_count,
+                    "objects": s.objects,
+                    "tokens_used": s.tokens_used,
+                    "cost_usd": s.cost_usd,
+                    "generation_time_ms": s.generation_time_ms
+                }
+                for s in synthesis_result.sections
+            ],
+            "erd_mermaid": synthesis_result.erd_mermaid,
+            "permissions_matrix": synthesis_result.permissions_matrix,
+            "stats": {
+                "total_tokens": synthesis_result.total_tokens,
+                "total_cost_usd": synthesis_result.total_cost_usd,
+                "generation_time_ms": synthesis_result.generation_time_ms
+            },
+            "generated_at": synthesis_result.generated_at
+        }
+        
+        # Récupérer WBS si disponible
+        wbs_data = None
+        wbs_deliverable = db.query(AgentDeliverable).filter(
+            AgentDeliverable.execution_id == execution_id,
+            AgentDeliverable.agent_name == "architect",
+            AgentDeliverable.artifact_type == "wbs"
+        ).first()
+        
+        if wbs_deliverable and wbs_deliverable.content:
+            wbs_data = wbs_deliverable.content
+        
+        # Infos projet
+        project_info = {
+            "salesforce_product": project.salesforce_product,
+            "organization_type": project.organization_type
+        }
+        
+        # Générer le DOCX
+        output_dir = tempfile.mkdtemp(prefix="sds_docx_")
+        safe_name = "".join(c if c.isalnum() or c in "- _" else "_" for c in project.name)
+        output_path = os.path.join(output_dir, f"SDS_{safe_name}_{execution_id}.docx")
+        
+        generate_sds_docx_v3(
+            project_name=project.name,
+            synthesis_result=synthesis_dict,
+            wbs_data=wbs_data,
+            project_info=project_info,
+            output_path=output_path
+        )
+        
+        logger.info(f"[DOCX Gen] Generated: {output_path}")
+        
+        # Retourner le fichier
+        return FileResponse(
+            path=output_path,
+            filename=f"SDS_{safe_name}.docx",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={
+                "Content-Disposition": f'attachment; filename="SDS_{safe_name}.docx"'
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"[DOCX Gen] Failed: {e}")
+        raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
+
+
+@router.get("/execute/{execution_id}/download-sds-v3")
+async def download_sds_v3(
+    execution_id: int,
+    format: str = Query("docx", enum=["docx", "pdf"]),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Télécharge le SDS v3 généré.
+    
+    Pour l'instant, seul le format DOCX est supporté.
+    Le PDF sera ajouté ultérieurement (version gratuite).
+    
+    Args:
+        execution_id: ID de l'exécution
+        format: Format de sortie (docx ou pdf)
+    """
+    if format == "pdf":
+        raise HTTPException(
+            status_code=501, 
+            detail="PDF format not yet implemented. Use 'docx' format."
+        )
+    
+    # Rediriger vers generate-docx
+    return await generate_sds_docx(execution_id, db, current_user)
