@@ -29,3 +29,47 @@
 1. Génération DOCX (pas juste Markdown)
 2. Test sur 120+ UCs
 3. Validation cohérence Emma
+
+---
+
+## 2026-01-27 - SDS-07 DOCX Generator ✅
+
+### Réalisations
+- **sds_docx_generator_v3.py** créé (661 lignes)
+  - Style professionnel inspiré LVMH/Shiseido
+  - Page titre avec infos projet
+  - Table des matières automatique Word
+  - Styles personnalisés (Calibri, couleurs corporate)
+  - Tableaux avec en-têtes colorés (#1F4E79)
+  - Conversion Mermaid → PNG via Kroki.io (avec fallback texte)
+  - Sections par domaine fonctionnel
+  - ERD, matrice permissions, WBS
+  - Annexes avec métadonnées génération
+
+- **Routes API ajoutées**:
+  - POST `/execute/{id}/generate-docx` - Génère le DOCX
+  - GET `/execute/{id}/download-sds-v3` - Télécharge le SDS
+
+- **Tag Git créé**: `v1-full-workflow-backup` (rollback si besoin)
+
+### Test réussi
+- Exécution 86: 8 UCs → 3 domaines
+- Synthèse: $0.11, ~55s
+- DOCX: 45.6 KB
+- Erreur Kroki (syntaxe ERD) → fallback OK
+
+### Fichiers modifiés
+- backend/app/services/sds_docx_generator_v3.py (nouveau)
+- backend/app/api/routes/pm_orchestrator.py (+routes)
+- features.json (SDS-07 completed, +7 BILLING features)
+
+### Commits
+- c212932: feat(billing): Add BILLING-001 to 005 + SDS-07 + BUILD-TEST-001
+- 99806a6: feat(sds-v3): Add DOCX generator with professional styling
+
+### Prochaine session
+1. Corriger la syntaxe ERD Mermaid dans sds_synthesis_service.py
+2. Tester sur une exécution complète (pas juste micro-analyse)
+3. Intégrer le flux v3 dans pm_orchestrator_service_v2.py
+4. Ajouter en-têtes/pieds de page au DOCX
+5. Test avec plus de UCs (120+)

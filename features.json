@@ -5,8 +5,8 @@
     "last_updated": "2026-01-27",
     "total_features": 187,
     "stats": {
-      "completed": 144,
-      "not_started": 20,
+      "completed": 145,
+      "not_started": 19,
       "in_progress": 0,
       "planned": 0,
       "blocked": 0
@@ -2866,7 +2866,7 @@
       "title": "Export SDS en DOCX - Sortie principale payante",
       "description": "Générer le SDS au format Word (.docx) professionnel avec mise en forme, styles, table des matières. C'est le livrable principal pour les clients payants (PDF = version gratuite contrôlée).",
       "priority": 1,
-      "status": "not_started",
+      "status": "completed",
       "validation_criteria": [
         "Template DOCX professionnel avec styles Salesforce/consulting",
         "Table des matières automatique",
@@ -2883,7 +2883,7 @@
         "backend/app/templates/sds_template.docx"
       ],
       "estimated_hours": 8,
-      "notes": "Utiliser python-docx. Le DOCX est la sortie premium, PDF pour freemium (contrôle contenu)."
+      "notes": "Implémenté le 27/01/2026 (commit 99806a6):\n- sds_docx_generator_v3.py créé avec style LVMH/Shiseido\n- Page titre, TOC automatique, styles Calibri\n- Tableaux colorés, conversion Mermaid via Kroki\n- Routes API: /generate-docx, /download-sds-v3\n- Test: 8 UCs → 3 domaines → 45.6KB, $0.11"
     },
     {
       "id": "BILLING-001",
