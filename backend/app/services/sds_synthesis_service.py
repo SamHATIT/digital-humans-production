@@ -338,13 +338,30 @@ class SDSSynthesisService:
     
     def generate_erd_mermaid(self, all_fiches: List[Dict[str, Any]]) -> str:
         """Génère un ERD Mermaid à partir de tous les objets"""
+        import re as regex
+        
+        def clean_name(name: str) -> str:
+            """Nettoie un nom pour Mermaid (alphanumeric + underscore seulement)"""
+            # Enlever __c, remplacer caractères spéciaux
+            cleaned = name.replace("__c", "").replace("__", "_")
+            # Garder seulement alphanumeric et underscore
+            cleaned = regex.sub(r'[^a-zA-Z0-9_]', '_', cleaned)
+            # Enlever underscores multiples
+            cleaned = regex.sub(r'_+', '_', cleaned)
+            # Enlever underscores au début/fin
+            cleaned = cleaned.strip('_')
+            return cleaned[:30] if cleaned else "Unknown"
+        
         objects = defaultdict(lambda: {"fields": set(), "relations": set()})
         
         for fiche in all_fiches:
             for obj in fiche.get("objets_salesforce", []):
-                obj_clean = obj.replace("__c", "").replace("__", "_")
-                for field in fiche.get("champs_cles", []):
-                    objects[obj_clean]["fields"].add(field)
+                obj_clean = clean_name(obj)
+                if obj_clean:
+                    for field in fiche.get("champs_cles", []):
+                        field_clean = clean_name(field)
+                        if field_clean:
+                            objects[obj_clean]["fields"].add(field_clean)
         
         # Détecter relations (simpliste: si un objet référence un autre)
         obj_names = list(objects.keys())
@@ -363,8 +380,7 @@ class SDSSynthesisService:
             if fields:
                 lines.append(f"    {obj} {{")
                 for f in fields:
-                    f_clean = f.replace(" ", "_").replace("__c", "")[:30]
-                    lines.append(f"        string {f_clean}")
+                    lines.append(f"        string {f}")
                 lines.append("    }")
             
             # Ajouter les relations

@@ -5,6 +5,7 @@ import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
+import SDSv3Generator from '../components/SDSv3Generator';
 import { AGENTS } from '../constants';
 
 // Define Agent type inline - TypeScript types get erased at runtime
@@ -264,6 +265,20 @@ export default function ExecutionMonitoringPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* SDS v3 Generator - Show when UCs are ready (after Phase 2) */}
+        {(isWaitingBRValidation || isCompleted || normalizedMainStatus === 'running' || normalizedMainStatus === 'sds_generated') && progress?.execution_id && (
+          <div className="mb-8">
+            <SDSv3Generator 
+              executionId={progress.execution_id} 
+              projectName={`Project_${progress.project_id}`}
+              onComplete={() => {
+                // Refresh progress after generation
+                window.location.reload();
+              }}
+            />
           </div>
         )}
 

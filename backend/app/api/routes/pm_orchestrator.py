@@ -1,7 +1,7 @@
 """
 PM Orchestrator API routes for project definition and execution.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect, Request, Response, BackgroundTasks
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -2233,3 +2233,240 @@ async def download_sds_v3(
     
     # Rediriger vers generate-docx
     return await generate_sds_docx(execution_id, db, current_user)
+
+
+# ==================== SDS v3 FULL PIPELINE ====================
+
+@router.post("/execute/{execution_id}/generate-sds-v3")
+async def generate_sds_v3_full_pipeline(
+    execution_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    SDS v3 - Pipeline complet en une seule requête.
+    
+    Étapes:
+    1. Vérifie que les Use Cases existent (phase Olivia)
+    2. Lance la micro-analyse Mistral sur tous les UCs
+    3. Agrège par domaine fonctionnel
+    4. Génère les sections SDS via Claude Sonnet
+    5. Crée le document DOCX professionnel
+    6. Retourne le lien de téléchargement
+    
+    Cette route est idéale pour un test complet du workflow v3.
+    
+    Returns:
+        Status et URL de téléchargement du DOCX
+    """
+    from app.models.uc_requirement_sheet import UCRequirementSheet
+    from app.models.deliverable_item import DeliverableItem
+    from app.services.sds_synthesis_service import get_sds_synthesis_service
+    from app.services.sds_docx_generator_v3 import generate_sds_docx_v3
+    from app.services.uc_analyzer_service import get_uc_analyzer, UCAnalyzerService
+    import tempfile
+    import os
+    import time
+    
+    start_time = time.time()
+    
+    # Vérifier l'exécution
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Vérifier accès
+    project = db.query(Project).filter(Project.id == execution.project_id).first()
+    if not project or project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    logger.info(f"[SDS v3] Starting full pipeline for execution {execution_id}")
+    
+    # ===== ÉTAPE 1: Vérifier les Use Cases =====
+    use_cases = db.query(DeliverableItem).filter(
+        DeliverableItem.execution_id == execution_id,
+        DeliverableItem.item_type == "use_case"
+    ).all()
+    
+    if not use_cases:
+        raise HTTPException(
+            status_code=400,
+            detail="No Use Cases found. Please run the BA phase first (Olivia)."
+        )
+    
+    logger.info(f"[SDS v3] Found {len(use_cases)} Use Cases")
+    
+    # ===== ÉTAPE 2: Micro-analyse =====
+    # Vérifier si déjà fait
+    existing_sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).count()
+    
+    if existing_sheets < len(use_cases):
+        logger.info(f"[SDS v3] Running micro-analysis ({existing_sheets}/{len(use_cases)} done)")
+        
+        try:
+            analyzer = get_uc_analyzer()
+            
+            # Préparer les UCs à analyser
+            uc_dicts = []
+            for uc in use_cases:
+                # Vérifier si déjà analysé
+                existing = db.query(UCRequirementSheet).filter(
+                    UCRequirementSheet.execution_id == execution_id,
+                    UCRequirementSheet.uc_id == uc.item_id,
+                    UCRequirementSheet.analysis_complete == True
+                ).first()
+                
+                if existing:
+                    continue
+                
+                parsed = uc.content_parsed or {}
+                uc_dict = {
+                    "id": uc.item_id,
+                    "uc_id": uc.item_id,
+                    "title": parsed.get("title", uc.title or ""),
+                    "parent_br_id": uc.parent_ref,
+                }
+                if isinstance(parsed, dict):
+                    uc_dict.update(parsed)
+                uc_dicts.append(uc_dict)
+            
+            if uc_dicts:
+                logger.info(f"[SDS v3] Analyzing {len(uc_dicts)} UCs")
+                results = await analyzer.analyze_batch(uc_dicts)
+                
+                # Sauvegarder les résultats
+                for (fiche, llm_response), uc_dict in zip(results, uc_dicts):
+                    sheet = UCRequirementSheet(
+                        execution_id=execution_id,
+                        uc_id=fiche.uc_id,
+                        uc_title=fiche.titre or uc_dict.get("title", ""),
+                        parent_br_id=uc_dict.get("parent_br_id"),
+                        sheet_content=fiche.to_dict(),
+                        analysis_complete=not bool(fiche.error),
+                        analysis_error=fiche.error,
+                        llm_provider=llm_response.provider if llm_response else "local",
+                        llm_model=llm_response.model_id if llm_response else "mistral:7b",
+                        tokens_in=llm_response.tokens_in if llm_response else 0,
+                        tokens_out=llm_response.tokens_out if llm_response else 0,
+                        cost_usd=llm_response.cost_usd if llm_response else 0.0,
+                        latency_ms=llm_response.latency_ms if llm_response else 0
+                    )
+                    db.add(sheet)
+                
+                db.commit()
+                
+        except Exception as e:
+            logger.error(f"[SDS v3] Micro-analysis failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Micro-analysis failed: {str(e)}")
+    
+    # ===== ÉTAPE 3: Charger toutes les fiches =====
+    sheets = db.query(UCRequirementSheet).filter(
+        UCRequirementSheet.execution_id == execution_id,
+        UCRequirementSheet.analysis_complete == True
+    ).all()
+    
+    fiches = []
+    for sheet in sheets:
+        if sheet.sheet_content:
+            fiche = sheet.sheet_content.copy()
+            fiche["uc_id"] = sheet.uc_id
+            fiches.append(fiche)
+    
+    logger.info(f"[SDS v3] Loaded {len(fiches)} requirement sheets")
+    
+    # ===== ÉTAPE 4: Synthèse Claude =====
+    try:
+        synthesis_service = get_sds_synthesis_service()
+        synthesis_result = await synthesis_service.synthesize_sds(
+            fiches=fiches,
+            project_name=project.name,
+            project_context=project.description or ""
+        )
+        
+        logger.info(f"[SDS v3] Synthesis complete: {len(synthesis_result.sections)} sections, ${synthesis_result.total_cost_usd:.4f}")
+        
+    except Exception as e:
+        logger.error(f"[SDS v3] Synthesis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
+    
+    # ===== ÉTAPE 5: Génération DOCX =====
+    try:
+        synthesis_dict = {
+            "project_name": synthesis_result.project_name,
+            "total_ucs": synthesis_result.total_ucs,
+            "domains_count": len(synthesis_result.sections),
+            "sections": [
+                {
+                    "domain": s.domain,
+                    "content": s.content,
+                    "uc_count": s.uc_count,
+                    "objects": s.objects
+                }
+                for s in synthesis_result.sections
+            ],
+            "erd_mermaid": synthesis_result.erd_mermaid,
+            "permissions_matrix": synthesis_result.permissions_matrix,
+            "stats": {
+                "total_tokens": synthesis_result.total_tokens,
+                "total_cost_usd": synthesis_result.total_cost_usd,
+                "generation_time_ms": synthesis_result.generation_time_ms
+            },
+            "generated_at": synthesis_result.generated_at
+        }
+        
+        # Créer le répertoire de sortie
+        output_dir = f"/app/outputs/sds_v3"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        safe_name = "".join(c if c.isalnum() or c in "- _" else "_" for c in project.name)
+        output_path = os.path.join(output_dir, f"SDS_{safe_name}_{execution_id}.docx")
+        
+        generate_sds_docx_v3(
+            project_name=project.name,
+            synthesis_result=synthesis_dict,
+            project_info={
+                "salesforce_product": project.salesforce_product or "Salesforce",
+                "organization_type": project.organization_type or "Enterprise"
+            },
+            output_path=output_path
+        )
+        
+        # Mettre à jour l'exécution
+        execution.sds_document_path = output_path
+        db.commit()
+        
+        total_time = time.time() - start_time
+        
+        logger.info(f"[SDS v3] DOCX generated: {output_path}")
+        
+        return {
+            "status": "success",
+            "execution_id": execution_id,
+            "project_name": project.name,
+            "pipeline_summary": {
+                "use_cases_processed": len(use_cases),
+                "requirement_sheets": len(fiches),
+                "domains_generated": len(synthesis_result.sections),
+                "domains": [s.domain for s in synthesis_result.sections]
+            },
+            "costs": {
+                "synthesis_cost_usd": synthesis_result.total_cost_usd,
+                "total_tokens": synthesis_result.total_tokens
+            },
+            "timing": {
+                "total_time_seconds": round(total_time, 1),
+                "synthesis_time_ms": synthesis_result.generation_time_ms
+            },
+            "output": {
+                "docx_path": output_path,
+                "download_url": f"/api/pm/execute/{execution_id}/download-sds-v3"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"[SDS v3] DOCX generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
