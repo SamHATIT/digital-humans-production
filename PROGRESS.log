@@ -73,3 +73,33 @@
 3. Intégrer le flux v3 dans pm_orchestrator_service_v2.py
 4. Ajouter en-têtes/pieds de page au DOCX
 5. Test avec plus de UCs (120+)
+
+## 2026-01-27 (suite) - Intégration complète SDS v3
+
+### Corrections et intégration
+
+**Backend:**
+- Corrigé `generate_erd_mermaid()` avec fonction `clean_name()` pour nettoyer les caractères spéciaux
+- Ajouté route complète `/execute/{id}/generate-sds-v3` pour pipeline complet
+- Amélioré `/execute/{id}/download-sds-v3` pour servir les fichiers existants
+- Import BackgroundTasks ajouté
+
+**Frontend:**
+- Créé composant `SDSv3Generator.tsx` avec UI moderne (stats, progress, download)
+- Ajouté fonctions API: `generateSDSv3()`, `downloadSDSv3()`, `getSDSv3Preview()`
+- Intégré dans `ExecutionMonitoringPage.tsx` (visible après BR validation)
+
+### État des services
+- Backend: http://localhost:8002 ✅
+- Frontend: http://localhost:3000 ✅
+- Accessible via: http://72.61.161.222
+
+### Test manuel
+1. Se connecter sur http://72.61.161.222
+2. Aller sur un projet avec des Use Cases générés
+3. Cliquer sur "Générer SDS v3 (DOCX)"
+4. Télécharger le document
+
+### Commits
+- d2d2e85: feat(sds-v3): Full pipeline integration with web UI
+- b2fd8a5: fix(sds-v3): Improve download route to serve existing files
