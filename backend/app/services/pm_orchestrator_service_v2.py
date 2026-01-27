@@ -70,7 +70,7 @@ from app.services.document_generator import generate_professional_sds, Professio
 logger = logging.getLogger(__name__)
 
 # Agent script paths
-AGENTS_PATH = Path("/app/agents/roles")
+AGENTS_PATH = Path("/root/workspace/digital-humans-production/backend/agents/roles")
 
 # Agent configurations
 AGENT_CONFIG = {
@@ -185,7 +185,7 @@ class PMOrchestratorServiceV2:
             # ========================================
             # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
             # ========================================
-            if resume_from and resume_from != "phase1_pm":
+            if resume_from and resume_from not in (None, "phase1", "phase1_pm"):
                 # Resuming after BR validation - load validated BRs from database
                 logger.info(f"[Phase 1] SKIPPED - Resuming from Phase 2 with validated BRs")
                 business_requirements = self._get_validated_brs(project_id)
@@ -255,6 +255,17 @@ class PMOrchestratorServiceV2:
                         "artifacts": results["artifacts"],
                         "metrics": results["metrics"]
                     }
+            # ========================================
+            # GATE: Validate BRs before Phase 2
+            # ========================================
+            if not business_requirements:
+                logger.error("[GATE] No Business Requirements available - cannot proceed to Phase 2")
+                execution.status = ExecutionStatus.FAILED
+                self.db.commit()
+                raise Exception("No Business Requirements available. Please ensure Sophie extracts BRs first.")
+            logger.info(f"[GATE] ✅ {len(business_requirements)} BRs available - proceeding to Phase 2")
+            
+
             
             
             # ========================================
@@ -347,6 +358,18 @@ class PMOrchestratorServiceV2:
             logger.info(f"[Phase 2] Saved {uc_stats["parsed"]} UCs + {uc_stats["raw_saved"]} raw to database")
             self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats["parsed"]} UCs")
             self._save_checkpoint(execution, "phase2_ba")
+
+            # ========================================
+            # GATE: Validate UCs before Phase 2.5
+            # ========================================
+            all_ucs_count = uc_stats.get("parsed", 0) + uc_stats.get("raw_saved", 0)
+            if all_ucs_count == 0:
+                logger.error("[GATE] No Use Cases generated - cannot proceed")
+                execution.status = ExecutionStatus.FAILED
+                self.db.commit()
+                raise Exception("No Use Cases generated. Business Analyst failed to produce outputs.")
+            logger.info(f"[GATE] ✅ {all_ucs_count} UCs available - proceeding to Phase 2.5")
+            
             
             # ========================================
             # PHASE 2.5: Emma Research Analyst - UC Digest Generation

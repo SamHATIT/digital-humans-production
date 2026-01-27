@@ -103,3 +103,39 @@
 ### Commits
 - d2d2e85: feat(sds-v3): Full pipeline integration with web UI
 - b2fd8a5: fix(sds-v3): Improve download route to serve existing files
+
+## Session 2026-01-27 14:45 - Corrections critiques workflow SDS
+
+### Problèmes résolus
+
+1. **Login frontend cassé**
+   - Cause: VITE_API_URL pointait vers port 8002 direct au lieu du proxy nginx
+   - Fix: `.env` → `VITE_API_URL=` (vide pour utiliser URLs relatives)
+
+2. **N8N site vitrine down**
+   - Cause: Service N8N arrêté
+   - Fix: Redémarré manuellement `nohup n8n start`
+
+3. **Agents path introuvable**
+   - Cause: Chemins Docker `/app/agents/roles/` au lieu du VPS
+   - Fix: `pm_orchestrator_service_v2.py` et `agent_executor.py` → `/root/workspace/.../backend/agents/roles`
+
+4. **Agents enchaînent sans données (BUG CRITIQUE)**
+   - Cause: `resume_from="phase1"` skipait Phase 1 car condition `"phase1" != "phase1_pm"` était vraie
+   - Fix: Condition corrigée `resume_from not in (None, "phase1", "phase1_pm")`
+   - Fix: Gate validation avant Phase 2 (vérifie BRs > 0)
+   - Fix: Gate validation après Phase 2 (vérifie UCs > 0)
+
+### Fichiers modifiés
+- `backend/app/services/pm_orchestrator_service_v2.py` (condition resume_from + 2 gates)
+- `backend/app/services/agent_executor.py` (AGENTS_PATH)
+- `frontend/.env` (VITE_API_URL)
+
+### Bug noté pour plus tard
+- SDSv3Generator s'affiche dès le début au lieu d'après Olivia
+
+### Tokens consommés par erreur
+- ~27,000 tokens Claude Sonnet perdus sur exécution 129 (agents ont tourné avec 0 BRs/UCs)
+
+### Prochaine étape
+- Tester nouveau projet avec workflow complet (Sophie→BRs→validation→Olivia→UCs)

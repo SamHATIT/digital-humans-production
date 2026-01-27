@@ -75,7 +75,7 @@ class ExecutionLog:
 # AGENT CONFIG - Maps UI agent IDs to real scripts
 # ============================================================================
 
-AGENTS_PATH = Path("/app/agents/roles")
+AGENTS_PATH = Path("/root/workspace/digital-humans-production/backend/agents/roles")
 
 AGENT_CONFIG = {
     "marcus": {"script": "salesforce_solution_architect.py", "display_name": "Marcus (Solution Architect)", "tier": "architect"},
