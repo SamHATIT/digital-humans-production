@@ -186,3 +186,31 @@
 - Status : SDS_GENERATED
 - Exécution #130 : COMPLETED
 - Prêt pour approbation SDS puis BUILD
+
+## 2026-01-27 20:30 - Session: BUILD Phase Test + Diagnostic
+
+### Résumé
+- Tentative lancement BUILD après approbation SDS projet #84
+- Erreur "Failed to start BUILD phase" affichée à l'utilisateur
+- Diagnostic : TASK-001 (Setup development environment) échouée car manque config Git/SF
+
+### Cause Root
+- Projet créé sans configuration des environnements :
+  - Pas de repo Git configuré
+  - Pas de sandbox Salesforce connectée
+- Tâche manuelle TASK-001 ne peut pas s'exécuter automatiquement
+
+### Actions
+- Arrêt exécution #130 (status → CANCELLED)
+- Remise projet #84 à SDS_APPROVED
+- ~$0.15-0.20 tokens Opus consommés pour tentatives BUILD inutiles
+
+### Tokens consommés (BUILD inutile)
+- 4 appels Claude Opus : ~5,500 input + 1,300 output tokens
+- Appels Sonnet précédents : SDS generation (normal)
+
+### Prochaine session
+- Configurer repo Git dans projet #84
+- Configurer accès sandbox Salesforce
+- Relancer BUILD phase complet
+- Mesurer temps réel par tâche vs 244 j/h estimés
