@@ -671,12 +671,17 @@ async def run_agent_task(
         
         logger.info(f"[run_agent_task] Command: {' '.join(cmd)}")
         
-        # Run subprocess
+        # Run subprocess with environment variables
+        import os as os_module
+        env = os_module.environ.copy()
+        env["PYTHONPATH"] = "/root/workspace/digital-humans-production/backend"
+        
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd="/app"
+            cwd="/root/workspace/digital-humans-production/backend",
+            env=env
         )
         
         try:

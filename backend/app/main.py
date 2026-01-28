@@ -1,6 +1,10 @@
 """
 Main FastAPI application entry point.
 """
+# Load environment variables from .env file FIRST
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
