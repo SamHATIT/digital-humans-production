@@ -2,9 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, FileText, GitBranch, CheckCircle, Download, Plus,
-  Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp, Play
+  Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp, Play,
+  Settings, Cloud
 } from 'lucide-react';
 import api from '../services/api';
+import ProjectSettingsModal from '../components/ProjectSettingsModal';
 
 interface Project {
   id: number;
@@ -14,7 +16,12 @@ interface Project {
   organization_type: string;
   status: string;
   current_sds_version: number;
+  sf_connected?: boolean;
+  git_connected?: boolean;
+  sf_instance_url?: string;
+  git_repo_url?: string;
 }
+
 
 interface SDSVersion {
   id: number;
@@ -81,6 +88,7 @@ export default function ProjectDetailPage() {
   const [expandedCR, setExpandedCR] = useState<number | null>(null);
   const [startingBuild, setStartingBuild] = useState(false);
   const [latestExecutionId, setLatestExecutionId] = useState<number | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   const [newCR, setNewCR] = useState({
     category: 'business_rule',
@@ -291,6 +299,64 @@ export default function ProjectDetailPage() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Project Settings */}
+          <div className="bg-[#1a2744] rounded-xl p-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-amber-400" />
+                <h2 className="font-semibold">Project Settings</h2>
+              </div>
+              <button
+                onClick={() => setShowSettingsModal(true)}
+                className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
+              >
+                Configure
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Salesforce Status */}
+              <div className="flex items-center justify-between p-2 bg-[#0d1829] rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm">Salesforce</span>
+                </div>
+                {project?.sf_connected ? (
+                  <span className="text-xs text-green-400 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Connected
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500">Not configured</span>
+                )}
+              </div>
+              
+              {/* Git Status */}
+              <div className="flex items-center justify-between p-2 bg-[#0d1829] rounded-lg">
+                <div className="flex items-center gap-2">
+                  <GitBranch className="w-4 h-4 text-orange-400" />
+                  <span className="text-sm">Git Repository</span>
+                </div>
+                {project?.git_connected ? (
+                  <span className="text-xs text-green-400 flex items-center gap-1">
+                    <CheckCircle className="w-3 h-3" /> Connected
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500">Not configured</span>
+                )}
+              </div>
+            </div>
+            
+            {/* Warning if BUILD phase but no connections */}
+            {project?.status === 'sds_approved' && (!project?.sf_connected || !project?.git_connected) && (
+              <div className="mt-3 p-2 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                <p className="text-xs text-yellow-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Configure Git & Salesforce before starting BUILD
+                </p>
               </div>
             )}
           </div>
@@ -598,6 +664,17 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Settings Modal */}
+      <ProjectSettingsModal
+        projectId={parseInt(projectId || '0')}
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onSaved={() => {
+          setShowSettingsModal(false);
+          loadProjectData();
+        }}
+      />
     </div>
   );
 }

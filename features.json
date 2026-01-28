@@ -16,18 +16,18 @@
     {
       "id": "CORE-001",
       "category": "CORE",
-      "title": "Système de logging exhaustif - Audit Trail complet",
-      "description": "Implémenter un logging complet de TOUT ce qui se passe dans l'application : utilisateurs, agents SDS, agents BUILD, modifications de données (avant/après), erreurs, appels LLM, appels API, etc.",
+      "title": "Syst\u00e8me de logging exhaustif - Audit Trail complet",
+      "description": "Impl\u00e9menter un logging complet de TOUT ce qui se passe dans l'application : utilisateurs, agents SDS, agents BUILD, modifications de donn\u00e9es (avant/apr\u00e8s), erreurs, appels LLM, appels API, etc.",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
         "Table audit_logs avec: timestamp, actor_type, actor_id, action, entity_type, entity_id, old_value, new_value, metadata",
         "Logging automatique de toutes les modifications en base (triggers ou middleware)",
-        "Logging de tous les appels LLM (prompt, response, tokens, durée) - SDS ET BUILD",
-        "Logging de toutes les actions utilisateur (login, création projet, validation BR, etc.)",
-        "Logging de toutes les actions agents (démarrage, fin, succès, échec, retry)",
+        "Logging de tous les appels LLM (prompt, response, tokens, dur\u00e9e) - SDS ET BUILD",
+        "Logging de toutes les actions utilisateur (login, cr\u00e9ation projet, validation BR, etc.)",
+        "Logging de toutes les actions agents (d\u00e9marrage, fin, succ\u00e8s, \u00e9chec, retry)",
         "API endpoint pour consulter les logs avec filtres",
-        "Rétention et rotation des logs configurables"
+        "R\u00e9tention et rotation des logs configurables"
       ],
       "dependencies": [],
       "files": [
@@ -37,7 +37,7 @@
         "backend/app/api/audit.py"
       ],
       "estimated_hours": 8,
-      "notes": "Implémenté le 11/12/2025 (commit ab6e2b4):\n- Table audit_logs avec 22 colonnes et 14 indexes\n- AuditService centralisé avec méthodes utilitaires\n- Middleware HTTP pour logging automatique des requêtes\n- API /api/audit/* pour consultation\n- Intégration orchestrator SDS (start, complete, fail)\n- Intégration executor BUILD (task start, complete, fail)\nReste à intégrer: sfdx_service, git_service (optionnel)"
+      "notes": "Impl\u00e9ment\u00e9 le 11/12/2025 (commit ab6e2b4):\n- Table audit_logs avec 22 colonnes et 14 indexes\n- AuditService centralis\u00e9 avec m\u00e9thodes utilitaires\n- Middleware HTTP pour logging automatique des requ\u00eates\n- API /api/audit/* pour consultation\n- Int\u00e9gration orchestrator SDS (start, complete, fail)\n- Int\u00e9gration executor BUILD (task start, complete, fail)\nReste \u00e0 int\u00e9grer: sfdx_service, git_service (optionnel)"
     },
     {
       "id": "CRIT-01",
@@ -48,8 +48,8 @@
       "status": "completed",
       "validation_criteria": [
         "EventSource se connecte sans 403",
-        "Token validé côté backend",
-        "Progress events reçus en temps réel dans le frontend"
+        "Token valid\u00e9 c\u00f4t\u00e9 backend",
+        "Progress events re\u00e7us en temps r\u00e9el dans le frontend"
       ],
       "dependencies": [],
       "files": [
@@ -57,19 +57,19 @@
         "frontend/src/hooks/useExecutionProgress.ts"
       ],
       "estimated_hours": 2,
-      "notes": "Fix déjà en place (commit c28d224 du 25/11/2025). Validé le 08/12/2025 - les deux modes auth (header + query param) fonctionnent."
+      "notes": "Fix d\u00e9j\u00e0 en place (commit c28d224 du 25/11/2025). Valid\u00e9 le 08/12/2025 - les deux modes auth (header + query param) fonctionnent."
     },
     {
       "id": "CRIT-02",
       "category": "BACKEND_CRITICAL",
       "title": "Fix troncature outputs agents",
-      "description": "Implémenter une stratégie de chunking/streaming pour éviter la troncature des réponses longues (Elena, Jordan, Olivia)",
+      "description": "Impl\u00e9menter une strat\u00e9gie de chunking/streaming pour \u00e9viter la troncature des r\u00e9ponses longues (Elena, Jordan, Olivia)",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Elena génère 280+ tests sans troncature",
-        "Olivia génère 135 UCs complets",
-        "Jordan génère les 10 sections du plan de déploiement"
+        "Elena g\u00e9n\u00e8re 280+ tests sans troncature",
+        "Olivia g\u00e9n\u00e8re 135 UCs complets",
+        "Jordan g\u00e9n\u00e8re les 10 sections du plan de d\u00e9ploiement"
       ],
       "dependencies": [],
       "files": [
@@ -77,7 +77,7 @@
         "backend/app/services/agent_executor.py"
       ],
       "estimated_hours": 4,
-      "notes": "Fix implementé le 08/12/2025: (1) Elena/Jordan/Lucas upgradés vers Sonnet, (2) Continuation auto si max_tokens atteint"
+      "notes": "Fix implement\u00e9 le 08/12/2025: (1) Elena/Jordan/Lucas upgrad\u00e9s vers Sonnet, (2) Continuation auto si max_tokens atteint"
     },
     {
       "id": "CRIT-03",
@@ -88,8 +88,8 @@
       "status": "completed",
       "validation_criteria": [
         "Import sentence_transformers fonctionne",
-        "Reranker activé dans rag_service.py",
-        "Amélioration mesurable de la pertinence RAG"
+        "Reranker activ\u00e9 dans rag_service.py",
+        "Am\u00e9lioration mesurable de la pertinence RAG"
       ],
       "dependencies": [],
       "files": [
@@ -97,19 +97,19 @@
         "backend/app/services/rag_service.py"
       ],
       "estimated_hours": 2,
-      "notes": "Installé le 08/12/2025. sentence-transformers 5.1.2 + torch 2.9.1. Reranker BGE et Nomic embeddings fonctionnels."
+      "notes": "Install\u00e9 le 08/12/2025. sentence-transformers 5.1.2 + torch 2.9.1. Reranker BGE et Nomic embeddings fonctionnels."
     },
     {
       "id": "CRIT-04",
       "category": "BACKEND_CRITICAL",
       "title": "Fix persistance DB confuse",
-      "description": "Clarifier et corriger la logique de persistance des résultats agents dans PostgreSQL",
+      "description": "Clarifier et corriger la logique de persistance des r\u00e9sultats agents dans PostgreSQL",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Chaque output agent est sauvegardé correctement",
-        "Pas de duplication de données",
-        "Historique des exécutions consultable"
+        "Chaque output agent est sauvegard\u00e9 correctement",
+        "Pas de duplication de donn\u00e9es",
+        "Historique des ex\u00e9cutions consultable"
       ],
       "dependencies": [],
       "files": [
@@ -117,20 +117,20 @@
         "backend/app/models/"
       ],
       "estimated_hours": 3,
-      "notes": "Audit 08/12/2025: Stockage OK dans 4 tables (agent_deliverables, deliverable_items, business_requirements, execution_artifacts). Documentation ajoutée dans CONTEXT.md section 7."
+      "notes": "Audit 08/12/2025: Stockage OK dans 4 tables (agent_deliverables, deliverable_items, business_requirements, execution_artifacts). Documentation ajout\u00e9e dans CONTEXT.md section 7."
     },
     {
       "id": "ORCH-01",
       "category": "ORCHESTRATION",
       "title": "Logique conditionnelle agents BUILD",
-      "description": "Implémenter la sélection dynamique des agents BUILD basée sur le WBS de Marcus",
+      "description": "Impl\u00e9menter la s\u00e9lection dynamique des agents BUILD bas\u00e9e sur le WBS de Marcus",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "WBS sans Apex → Diego non exécuté",
-        "WBS sans LWC → Zara non exécutée",
-        "WBS sans migration → Aisha non exécutée",
-        "Log clair des agents sélectionnés/ignorés"
+        "WBS sans Apex \u2192 Diego non ex\u00e9cut\u00e9",
+        "WBS sans LWC \u2192 Zara non ex\u00e9cut\u00e9e",
+        "WBS sans migration \u2192 Aisha non ex\u00e9cut\u00e9e",
+        "Log clair des agents s\u00e9lectionn\u00e9s/ignor\u00e9s"
       ],
       "dependencies": [
         "PRPT-03"
@@ -139,18 +139,18 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. Frontend: MANDATORY_AGENTS=[pm,ba,architect]. Backend: Phase 4 filtre SDS_EXPERTS selon selected_agents. Tests unitaires OK."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Frontend: MANDATORY_AGENTS=[pm,ba,architect]. Backend: Phase 4 filtre SDS_EXPERTS selon selected_agents. Tests unitaires OK."
     },
     {
       "id": "ORCH-02",
       "category": "ORCHESTRATION",
-      "title": "Orchestration parallèle agents BUILD",
-      "description": "Exécuter Diego, Zara, Raj, Aisha en parallèle (quand applicable) pour réduire le temps total",
+      "title": "Orchestration parall\u00e8le agents BUILD",
+      "description": "Ex\u00e9cuter Diego, Zara, Raj, Aisha en parall\u00e8le (quand applicable) pour r\u00e9duire le temps total",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Agents BUILD lancés en parallèle via asyncio",
-        "Temps d'exécution réduit vs séquentiel",
+        "Agents BUILD lanc\u00e9s en parall\u00e8le via asyncio",
+        "Temps d'ex\u00e9cution r\u00e9duit vs s\u00e9quentiel",
         "Gestion des erreurs individuelles sans bloquer les autres"
       ],
       "dependencies": [
@@ -160,19 +160,19 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. PARALLEL_MODE config + asyncio.gather() pour Phase 4. build_agents=False préparé pour futur."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. PARALLEL_MODE config + asyncio.gather() pour Phase 4. build_agents=False pr\u00e9par\u00e9 pour futur."
     },
     {
       "id": "ORCH-03",
       "category": "ORCHESTRATION",
-      "title": "Mode incrémental - Exécution tâche par tâche",
-      "description": "Implémenter l'exécution d'une tâche WBS à la fois avec validation Elena entre chaque",
+      "title": "Mode incr\u00e9mental - Ex\u00e9cution t\u00e2che par t\u00e2che",
+      "description": "Impl\u00e9menter l'ex\u00e9cution d'une t\u00e2che WBS \u00e0 la fois avec validation Elena entre chaque",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Workflow pause après chaque tâche",
+        "Workflow pause apr\u00e8s chaque t\u00e2che",
         "Elena valide avant de continuer",
-        "Possibilité de reprendre à n'importe quelle tâche"
+        "Possibilit\u00e9 de reprendre \u00e0 n'importe quelle t\u00e2che"
       ],
       "dependencies": [
         "INC-01",
@@ -183,12 +183,12 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 0,
-      "notes": "Découpé en sous-tâches ORCH-03a à ORCH-03e (08/12/2025)"
+      "notes": "D\u00e9coup\u00e9 en sous-t\u00e2ches ORCH-03a \u00e0 ORCH-03e (08/12/2025)"
     },
     {
       "id": "ORCH-03a",
       "title": "Incremental Executor - Structure de base",
-      "description": "Créer incremental_executor.py + table task_executions pour tracker l'état de chaque tâche WBS",
+      "description": "Cr\u00e9er incremental_executor.py + table task_executions pour tracker l'\u00e9tat de chaque t\u00e2che WBS",
       "priority": 1,
       "estimated_hours": 4,
       "status": "completed",
@@ -201,17 +201,17 @@
         "backend/alembic/versions/xxx_add_task_executions.py"
       ],
       "validation_criteria": [
-        "Table task_executions créée (task_id, status, attempts, error_log)",
-        "IncrementalExecutor peut charger les tâches depuis WBS",
-        "États: pending, running, testing, passed, failed, skipped"
+        "Table task_executions cr\u00e9\u00e9e (task_id, status, attempts, error_log)",
+        "IncrementalExecutor peut charger les t\u00e2ches depuis WBS",
+        "\u00c9tats: pending, running, testing, passed, failed, skipped"
       ],
-      "notes": "Implémenté 08/12/2025. TaskExecution model + IncrementalExecutor service. Table créée, parsing WBS OK, 52 tâches chargées avec mapping agents.",
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. TaskExecution model + IncrementalExecutor service. Table cr\u00e9\u00e9e, parsing WBS OK, 52 t\u00e2ches charg\u00e9es avec mapping agents.",
       "category": "UNCATEGORIZED"
     },
     {
       "id": "ORCH-03b",
       "title": "Service SFDX - Deploy et Tests",
-      "description": "Service pour déployer le code sur sandbox et exécuter les tests Apex via SFDX CLI",
+      "description": "Service pour d\u00e9ployer le code sur sandbox et ex\u00e9cuter les tests Apex via SFDX CLI",
       "priority": 1,
       "estimated_hours": 3,
       "status": "completed",
@@ -224,16 +224,16 @@
       "validation_criteria": [
         "sfdx force:source:deploy fonctionne",
         "sfdx force:apex:test:run fonctionne",
-        "Récupération des résultats de test",
-        "Gestion des erreurs de déploiement"
+        "R\u00e9cup\u00e9ration des r\u00e9sultats de test",
+        "Gestion des erreurs de d\u00e9ploiement"
       ],
-      "notes": "Implémenté 08/12/2025. SFDXService avec deploy_source, deploy_metadata, run_tests, retrieve_source. Testé: connexion OK, org digital-humans-dev.",
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. SFDXService avec deploy_source, deploy_metadata, run_tests, retrieve_source. Test\u00e9: connexion OK, org digital-humans-dev.",
       "category": "UNCATEGORIZED"
     },
     {
       "id": "ORCH-03c",
       "title": "Service Git - Commit et PR",
-      "description": "Service pour commit le code généré, créer des PRs et merger (GitHub/GitLab)",
+      "description": "Service pour commit le code g\u00e9n\u00e9r\u00e9, cr\u00e9er des PRs et merger (GitHub/GitLab)",
       "priority": 1,
       "estimated_hours": 3,
       "status": "completed",
@@ -245,17 +245,17 @@
       ],
       "validation_criteria": [
         "Clone repo client ou interne selon config projet",
-        "Commit avec message descriptif (ref tâche WBS)",
-        "Création PR automatique",
+        "Commit avec message descriptif (ref t\u00e2che WBS)",
+        "Cr\u00e9ation PR automatique",
         "Merge PR (mode full auto)"
       ],
-      "notes": "Implémenté 08/12/2025. GitService avec clone, commit, push, create_pr, merge_pr. Support GitHub + GitLab API. Testé: clone OK.",
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. GitService avec clone, commit, push, create_pr, merge_pr. Support GitHub + GitLab API. Test\u00e9: clone OK.",
       "category": "UNCATEGORIZED"
     },
     {
       "id": "ORCH-03d",
-      "title": "Boucle Build complète avec retry Elena",
-      "description": "Intégrer le cycle complet: génération → deploy → test Elena → retry si KO → commit si OK",
+      "title": "Boucle Build compl\u00e8te avec retry Elena",
+      "description": "Int\u00e9grer le cycle complet: g\u00e9n\u00e9ration \u2192 deploy \u2192 test Elena \u2192 retry si KO \u2192 commit si OK",
       "priority": 1,
       "estimated_hours": 4,
       "status": "completed",
@@ -268,19 +268,19 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "validation_criteria": [
-        "Diego/Zara/Raj génère → SFDX deploy → Elena teste",
+        "Diego/Zara/Raj g\u00e9n\u00e8re \u2192 SFDX deploy \u2192 Elena teste",
         "Si KO: retry max 3 fois avec correction",
         "Si OK: commit Git + PR",
         "Mode full auto: merge automatique",
         "Mode semi auto: pause et notification user"
       ],
-      "notes": "Implémenté 08/12/2025. execute_single_task() intègre: génération code → SFDX deploy → Elena tests → retry si KO → Git commit/PR. Modes FULL_AUTO/SEMI_AUTO. Testé: workflow complet OK.",
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. execute_single_task() int\u00e8gre: g\u00e9n\u00e9ration code \u2192 SFDX deploy \u2192 Elena tests \u2192 retry si KO \u2192 Git commit/PR. Modes FULL_AUTO/SEMI_AUTO. Test\u00e9: workflow complet OK.",
       "category": "UNCATEGORIZED"
     },
     {
       "id": "ORCH-03e",
-      "title": "Jordan - Package final et déploiement UAT",
-      "description": "À la fin du build, Jordan prépare le package. Full auto: deploy UAT. Semi auto: package prêt pour client.",
+      "title": "Jordan - Package final et d\u00e9ploiement UAT",
+      "description": "\u00c0 la fin du build, Jordan pr\u00e9pare le package. Full auto: deploy UAT. Semi auto: package pr\u00eat pour client.",
       "priority": 1,
       "estimated_hours": 3,
       "status": "completed",
@@ -292,25 +292,25 @@
         "backend/app/agents/salesforce_devops.py"
       ],
       "validation_criteria": [
-        "Jordan génère package.xml complet",
+        "Jordan g\u00e9n\u00e8re package.xml complet",
         "Full auto: sfdx force:source:deploy vers UAT",
-        "Semi auto: package ZIP prêt à télécharger",
-        "Rapport de déploiement généré"
+        "Semi auto: package ZIP pr\u00eat \u00e0 t\u00e9l\u00e9charger",
+        "Rapport de d\u00e9ploiement g\u00e9n\u00e9r\u00e9"
       ],
-      "notes": "Implémenté 08/12/2025. finalize_build() génère package.xml, rapport, FULL_AUTO deploy UAT, SEMI_AUTO crée ZIP téléchargeable.",
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. finalize_build() g\u00e9n\u00e8re package.xml, rapport, FULL_AUTO deploy UAT, SEMI_AUTO cr\u00e9e ZIP t\u00e9l\u00e9chargeable.",
       "category": "UNCATEGORIZED"
     },
     {
       "id": "ORCH-04",
       "category": "ORCHESTRATION",
-      "title": "Gestion des reprises après erreur",
-      "description": "Permettre de reprendre une exécution échouée à partir du dernier point stable",
+      "title": "Gestion des reprises apr\u00e8s erreur",
+      "description": "Permettre de reprendre une ex\u00e9cution \u00e9chou\u00e9e \u00e0 partir du dernier point stable",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "État sauvegardé après chaque étape réussie",
+        "\u00c9tat sauvegard\u00e9 apr\u00e8s chaque \u00e9tape r\u00e9ussie",
         "Bouton 'Reprendre' dans le frontend",
-        "Reprise effective sans re-exécuter les étapes complétées"
+        "Reprise effective sans re-ex\u00e9cuter les \u00e9tapes compl\u00e9t\u00e9es"
       ],
       "dependencies": [
         "ORCH-03"
@@ -320,74 +320,74 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 4,
-      "notes": "Déjà implémenté. Backend: /retry endpoint avec reset tasks. Frontend: bouton Retry dans ExecutionMonitoringPage. API: executions.retry()."
+      "notes": "D\u00e9j\u00e0 impl\u00e9ment\u00e9. Backend: /retry endpoint avec reset tasks. Frontend: bouton Retry dans ExecutionMonitoringPage. API: executions.retry()."
     },
     {
       "id": "PRPT-01",
       "category": "PROMPTS_AGENTS",
-      "title": "Tuning prompt Sophie - BRs plus détaillés",
-      "description": "Améliorer le prompt de Sophie pour extraire des BRs avec plus de détails (champs, règles métier, dépendances)",
+      "title": "Tuning prompt Sophie - BRs plus d\u00e9taill\u00e9s",
+      "description": "Am\u00e9liorer le prompt de Sophie pour extraire des BRs avec plus de d\u00e9tails (champs, r\u00e8gles m\u00e9tier, d\u00e9pendances)",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "BRs incluent les champs spécifiques mentionnés",
-        "BRs incluent les règles de validation",
-        "BRs incluent les dépendances entre eux"
+        "BRs incluent les champs sp\u00e9cifiques mentionn\u00e9s",
+        "BRs incluent les r\u00e8gles de validation",
+        "BRs incluent les d\u00e9pendances entre eux"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/prompts/sophie_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté 08/12/2025. Prompt Sophie enrichi avec metadata: fields[], validation_rules[], dependencies[], acceptance_criteria[]. Modèle BR mis à jour avec br_metadata JSONB."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Prompt Sophie enrichi avec metadata: fields[], validation_rules[], dependencies[], acceptance_criteria[]. Mod\u00e8le BR mis \u00e0 jour avec br_metadata JSONB."
     },
     {
       "id": "PRPT-02",
       "category": "PROMPTS_AGENTS",
-      "title": "Tuning prompt Olivia - UCs structurés",
-      "description": "Optimiser le prompt d'Olivia pour générer des UCs plus structurés et moins verbeux",
+      "title": "Tuning prompt Olivia - UCs structur\u00e9s",
+      "description": "Optimiser le prompt d'Olivia pour g\u00e9n\u00e9rer des UCs plus structur\u00e9s et moins verbeux",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "UCs suivent un template strict",
         "Pas de contenu redondant entre UCs",
-        "Taille moyenne UC réduite de 30%"
+        "Taille moyenne UC r\u00e9duite de 30%"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/prompts/olivia_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté 08/12/2025. Prompt Olivia restructuré: template JSON strict, limites (6 steps, 3 alt_flows, 4 criteria), format GIVEN/WHEN/THEN, anti-patterns documentés."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Prompt Olivia restructur\u00e9: template JSON strict, limites (6 steps, 3 alt_flows, 4 criteria), format GIVEN/WHEN/THEN, anti-patterns document\u00e9s."
     },
     {
       "id": "PRPT-03",
       "category": "PROMPTS_AGENTS",
       "title": "Tuning prompt Marcus - WBS enrichi",
-      "description": "Modifier le prompt de Marcus pour générer un WBS avec critères de validation et agents assignés",
+      "description": "Modifier le prompt de Marcus pour g\u00e9n\u00e9rer un WBS avec crit\u00e8res de validation et agents assign\u00e9s",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Chaque tâche WBS a des critères de validation explicites",
-        "Chaque tâche indique quel(s) agent(s) la réalise",
-        "WBS exportable en JSON structuré"
+        "Chaque t\u00e2che WBS a des crit\u00e8res de validation explicites",
+        "Chaque t\u00e2che indique quel(s) agent(s) la r\u00e9alise",
+        "WBS exportable en JSON structur\u00e9"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/prompts/marcus_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. Prompt WBS enrichi: validation_criteria obligatoires (DONE WHEN/VERIFIED BY), table agents, règles assignation strictes, format JSON détaillé."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Prompt WBS enrichi: validation_criteria obligatoires (DONE WHEN/VERIFIED BY), table agents, r\u00e8gles assignation strictes, format JSON d\u00e9taill\u00e9."
     },
     {
       "id": "PRPT-04",
       "category": "PROMPTS_AGENTS",
       "title": "Tester et tuner prompt Diego (Apex)",
-      "description": "Tester le prompt Diego sur des cas réels et ajuster pour la qualité du code généré",
+      "description": "Tester le prompt Diego sur des cas r\u00e9els et ajuster pour la qualit\u00e9 du code g\u00e9n\u00e9r\u00e9",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Code Apex généré compile sans erreur",
+        "Code Apex g\u00e9n\u00e9r\u00e9 compile sans erreur",
         "Tests unitaires inclus",
         "Respect des best practices Salesforce"
       ],
@@ -398,19 +398,19 @@
         "backend/app/services/prompts/diego_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Code Quality, Security, Testing, Documentation. Vérifications obligatoires avant output."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Code Quality, Security, Testing, Documentation. V\u00e9rifications obligatoires avant output."
     },
     {
       "id": "PRPT-05",
       "category": "PROMPTS_AGENTS",
       "title": "Tester et tuner prompt Zara (LWC)",
-      "description": "Tester le prompt Zara sur des cas réels et ajuster pour la qualité des composants générés",
+      "description": "Tester le prompt Zara sur des cas r\u00e9els et ajuster pour la qualit\u00e9 des composants g\u00e9n\u00e9r\u00e9s",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Composants LWC valides et déployables",
-        "HTML/CSS/JS bien structurés",
-        "Accessibilité respectée"
+        "Composants LWC valides et d\u00e9ployables",
+        "HTML/CSS/JS bien structur\u00e9s",
+        "Accessibilit\u00e9 respect\u00e9e"
       ],
       "dependencies": [
         "ORCH-01"
@@ -419,17 +419,17 @@
         "backend/app/services/prompts/zara_prompt.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Component Quality, Salesforce Integration, Accessibility (WCAG 2.1), Testing, Performance."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Component Quality, Salesforce Integration, Accessibility (WCAG 2.1), Testing, Performance."
     },
     {
       "id": "PRPT-06",
       "category": "PROMPTS_AGENTS",
       "title": "Tester et tuner prompt Raj (Admin)",
-      "description": "Tester le prompt Raj sur des cas réels et ajuster pour la qualité des configurations",
+      "description": "Tester le prompt Raj sur des cas r\u00e9els et ajuster pour la qualit\u00e9 des configurations",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Métadonnées XML valides",
+        "M\u00e9tadonn\u00e9es XML valides",
         "Flows fonctionnels",
         "Validation rules correctes"
       ],
@@ -440,19 +440,19 @@
         "backend/app/services/prompts/raj_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Object & Field Config, Automation, Security, UI Config, Testing."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Ajout PRE-DELIVERY CHECKLIST: Object & Field Config, Automation, Security, UI Config, Testing."
     },
     {
       "id": "PRPT-07",
       "category": "PROMPTS_AGENTS",
       "title": "Configurer Lucas 2 modes (SDS + Delivery)",
-      "description": "Implémenter les deux modes de Lucas : stratégie formation (SDS) et supports formation (Delivery)",
+      "description": "Impl\u00e9menter les deux modes de Lucas : strat\u00e9gie formation (SDS) et supports formation (Delivery)",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Mode SDS génère plan de formation stratégique",
-        "Mode Delivery génère supports concrets (guides, vidéos scripts)",
-        "Sélection du mode via paramètre"
+        "Mode SDS g\u00e9n\u00e8re plan de formation strat\u00e9gique",
+        "Mode Delivery g\u00e9n\u00e8re supports concrets (guides, vid\u00e9os scripts)",
+        "S\u00e9lection du mode via param\u00e8tre"
       ],
       "dependencies": [],
       "files": [
@@ -460,18 +460,18 @@
         "backend/app/services/agent_executor.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté 08/12/2025. Lucas refactorisé avec 2 modes: sds_strategy (plan formation pour SDS) et delivery (supports concrets). Orchestrateur modifié pour passer mode=sds_strategy."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Lucas refactoris\u00e9 avec 2 modes: sds_strategy (plan formation pour SDS) et delivery (supports concrets). Orchestrateur modifi\u00e9 pour passer mode=sds_strategy."
     },
     {
       "id": "FRNT-01",
       "category": "FRONTEND",
       "title": "Fix AgentThoughtModal",
-      "description": "Corriger le modal qui affiche les pensées/raisonnements des agents",
+      "description": "Corriger le modal qui affiche les pens\u00e9es/raisonnements des agents",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "Modal s'ouvre au clic sur un agent",
-        "Affiche le raisonnement en temps réel",
+        "Affiche le raisonnement en temps r\u00e9el",
         "Se ferme proprement"
       ],
       "dependencies": [],
@@ -479,17 +479,17 @@
         "frontend/src/components/AgentThoughtModal.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "11/12/2025: Bug trouvé - agent_name mismatch (Sophie vs Sophie (PM)). Fix déployé, à tester."
+      "notes": "11/12/2025: Bug trouv\u00e9 - agent_name mismatch (Sophie vs Sophie (PM)). Fix d\u00e9ploy\u00e9, \u00e0 tester."
     },
     {
       "id": "FRNT-02",
       "category": "FRONTEND",
       "title": "Fix page qui se vide entre agents",
-      "description": "Corriger le bug où la page se vide quand on passe d'un agent à l'autre",
+      "description": "Corriger le bug o\u00f9 la page se vide quand on passe d'un agent \u00e0 l'autre",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Contenu des agents précédents reste visible",
+        "Contenu des agents pr\u00e9c\u00e9dents reste visible",
         "Scroll fluide vers le nouvel agent",
         "Pas de flash/re-render inutile"
       ],
@@ -498,19 +498,19 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "Corrigé le 11/12/2025: Ajout hasProgressChanged() pour éviter re-renders inutiles. setProgress utilise maintenant prevProgress pour ne mettre à jour que si les données changent."
+      "notes": "Corrig\u00e9 le 11/12/2025: Ajout hasProgressChanged() pour \u00e9viter re-renders inutiles. setProgress utilise maintenant prevProgress pour ne mettre \u00e0 jour que si les donn\u00e9es changent."
     },
     {
       "id": "FRNT-03",
       "category": "FRONTEND",
       "title": "Fix affichage statut (FAILED vs Completed)",
-      "description": "Corriger l'affichage du statut qui montre 'Completed' même quand c'est 'FAILED'",
+      "description": "Corriger l'affichage du statut qui montre 'Completed' m\u00eame quand c'est 'FAILED'",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Statut FAILED affiché en rouge",
-        "Statut COMPLETED affiché en vert",
-        "Statut RUNNING affiché en bleu"
+        "Statut FAILED affich\u00e9 en rouge",
+        "Statut COMPLETED affich\u00e9 en vert",
+        "Statut RUNNING affich\u00e9 en bleu"
       ],
       "dependencies": [],
       "files": [
@@ -522,13 +522,13 @@
     {
       "id": "FRNT-04",
       "category": "FRONTEND",
-      "title": "Intégrer SSE progress dans le frontend",
+      "title": "Int\u00e9grer SSE progress dans le frontend",
       "description": "Connecter le hook useExecutionProgress au nouveau endpoint SSE avec token",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Progress bar se met à jour en temps réel",
-        "Messages des agents affichés au fil de l'eau",
+        "Progress bar se met \u00e0 jour en temps r\u00e9el",
+        "Messages des agents affich\u00e9s au fil de l'eau",
         "Pas de polling inutile"
       ],
       "dependencies": [
@@ -539,19 +539,19 @@
         "frontend/src/pages/ExecutionMonitoringPage.tsx"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté 08/12/2025. Endpoint SSE /progress/stream avec auth token. Hook useExecutionProgress réécrit avec EventSource + fallback polling."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Endpoint SSE /progress/stream avec auth token. Hook useExecutionProgress r\u00e9\u00e9crit avec EventSource + fallback polling."
     },
     {
       "id": "FRNT-05",
       "category": "FRONTEND",
-      "title": "UI pour sélection agents BUILD",
-      "description": "Interface permettant de voir/modifier quels agents BUILD seront exécutés",
+      "title": "UI pour s\u00e9lection agents BUILD",
+      "description": "Interface permettant de voir/modifier quels agents BUILD seront ex\u00e9cut\u00e9s",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
         "Checkboxes pour chaque agent BUILD",
-        "Pré-sélection basée sur le WBS",
-        "Possibilité de forcer/exclure un agent"
+        "Pr\u00e9-s\u00e9lection bas\u00e9e sur le WBS",
+        "Possibilit\u00e9 de forcer/exclure un agent"
       ],
       "dependencies": [
         "ORCH-01"
@@ -561,36 +561,36 @@
         "frontend/src/pages/ProjectConfigPage.tsx"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté 08/12/2025. Page BuildMonitoringPage avec suivi tâches par agent, progress bar, détail erreurs. Endpoint /build-tasks + /start-build. Integration ProjectDetailPage avec bouton Start BUILD."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Page BuildMonitoringPage avec suivi t\u00e2ches par agent, progress bar, d\u00e9tail erreurs. Endpoint /build-tasks + /start-build. Integration ProjectDetailPage avec bouton Start BUILD."
     },
     {
       "id": "SDS-01",
       "category": "WORKFLOW_SDS",
-      "title": "Template SDS DOCX amélioré",
-      "description": "Améliorer le template du Solution Design Specification pour éliminer les duplications",
+      "title": "Template SDS DOCX am\u00e9lior\u00e9",
+      "description": "Am\u00e9liorer le template du Solution Design Specification pour \u00e9liminer les duplications",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "BRs apparaissent une seule fois",
-        "UCs intégrés sans duplication",
-        "Table des matières dynamique"
+        "UCs int\u00e9gr\u00e9s sans duplication",
+        "Table des mati\u00e8res dynamique"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 3,
-      "notes": "Résolu par refactoring: Emma (mode write_sds) rédige maintenant le SDS. L'ancien sds_template_generator.py qui causait les duplications n'est plus utilisé. Implémenté session 12-13/12/2025."
+      "notes": "R\u00e9solu par refactoring: Emma (mode write_sds) r\u00e9dige maintenant le SDS. L'ancien sds_template_generator.py qui causait les duplications n'est plus utilis\u00e9. Impl\u00e9ment\u00e9 session 12-13/12/2025."
     },
     {
       "id": "SDS-02",
       "category": "WORKFLOW_SDS",
-      "title": "Intégration complète tests Elena dans SDS",
-      "description": "Inclure tous les tests générés par Elena dans le SDS sans troncature",
+      "title": "Int\u00e9gration compl\u00e8te tests Elena dans SDS",
+      "description": "Inclure tous les tests g\u00e9n\u00e9r\u00e9s par Elena dans le SDS sans troncature",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Tous les tests présents (280+)",
+        "Tous les tests pr\u00e9sents (280+)",
         "Format tableau lisible",
         "Lien avec les UCs correspondants"
       ],
@@ -601,19 +601,19 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté 08/12/2025. Section 9 ajoutée: QA - Test Strategy, Test Cases Summary, Detailed Tests (max 50 + appendix note). Données depuis artifacts Elena."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Section 9 ajout\u00e9e: QA - Test Strategy, Test Cases Summary, Detailed Tests (max 50 + appendix note). Donn\u00e9es depuis artifacts Elena."
     },
     {
       "id": "SDS-03",
       "category": "WORKFLOW_SDS",
-      "title": "Section déploiement Jordan dans SDS",
-      "description": "Ajouter la section complète de déploiement générée par Jordan",
+      "title": "Section d\u00e9ploiement Jordan dans SDS",
+      "description": "Ajouter la section compl\u00e8te de d\u00e9ploiement g\u00e9n\u00e9r\u00e9e par Jordan",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "10 sections du plan de déploiement présentes",
-        "Checklist pré-déploiement incluse",
-        "Rollback plan documenté"
+        "10 sections du plan de d\u00e9ploiement pr\u00e9sentes",
+        "Checklist pr\u00e9-d\u00e9ploiement incluse",
+        "Rollback plan document\u00e9"
       ],
       "dependencies": [
         "CRIT-02"
@@ -622,19 +622,19 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté 08/12/2025. Section 10 ajoutée: Deployment - Strategy, Environments, CI/CD Pipeline, Pre-deployment Checklist, Rollback Plan. Données depuis artifacts Jordan."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Section 10 ajout\u00e9e: Deployment - Strategy, Environments, CI/CD Pipeline, Pre-deployment Checklist, Rollback Plan. Donn\u00e9es depuis artifacts Jordan."
     },
     {
       "id": "SDS-04",
       "category": "WORKFLOW_SDS",
       "title": "Section formation Lucas dans SDS",
-      "description": "Ajouter la section stratégie de formation générée par Lucas (mode SDS)",
+      "description": "Ajouter la section strat\u00e9gie de formation g\u00e9n\u00e9r\u00e9e par Lucas (mode SDS)",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
         "Plan de formation inclus",
-        "Profils utilisateurs identifiés",
-        "Calendrier formation proposé"
+        "Profils utilisateurs identifi\u00e9s",
+        "Calendrier formation propos\u00e9"
       ],
       "dependencies": [
         "PRPT-07"
@@ -643,7 +643,7 @@
         "backend/app/services/sds_generator.py"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté 08/12/2025. Section 11 ajoutée: Training - Strategy, Audience Analysis, Curriculum, Adoption Metrics, Timeline. Données depuis artifacts Lucas."
+      "notes": "Impl\u00e9ment\u00e9 08/12/2025. Section 11 ajout\u00e9e: Training - Strategy, Audience Analysis, Curriculum, Adoption Metrics, Timeline. Donn\u00e9es depuis artifacts Lucas."
     },
     {
       "id": "SDS-05",
@@ -655,7 +655,7 @@
       "validation_criteria": [
         "Bouton export PDF fonctionnel",
         "Mise en page propre",
-        "Table des matières cliquable"
+        "Table des mati\u00e8res cliquable"
       ],
       "dependencies": [
         "SDS-01"
@@ -671,13 +671,13 @@
       "id": "SDS-06",
       "category": "WORKFLOW_SDS",
       "title": "Validation BRs par utilisateur",
-      "description": "Interface permettant à l'utilisateur de valider/modifier les BRs extraits par Sophie",
+      "description": "Interface permettant \u00e0 l'utilisateur de valider/modifier les BRs extraits par Sophie",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Liste des BRs éditable",
-        "Possibilité d'ajouter/supprimer des BRs",
-        "Validation explicite avant passage à Olivia"
+        "Liste des BRs \u00e9ditable",
+        "Possibilit\u00e9 d'ajouter/supprimer des BRs",
+        "Validation explicite avant passage \u00e0 Olivia"
       ],
       "dependencies": [],
       "files": [
@@ -685,19 +685,19 @@
         "backend/app/api/routes/br_validation.py"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté: BRValidationPage.tsx (22KB), route /br-validation, statut waiting_br_validation. Testé session 12/12/2025."
+      "notes": "Impl\u00e9ment\u00e9: BRValidationPage.tsx (22KB), route /br-validation, statut waiting_br_validation. Test\u00e9 session 12/12/2025."
     },
     {
       "id": "BLD-01",
       "category": "WORKFLOW_BUILD",
-      "title": "Génération package SFDX",
-      "description": "Générer automatiquement la structure de package SFDX avec les livrables des agents BUILD",
+      "title": "G\u00e9n\u00e9ration package SFDX",
+      "description": "G\u00e9n\u00e9rer automatiquement la structure de package SFDX avec les livrables des agents BUILD",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "Structure force-app/ correcte",
         "sfdx-project.json valide",
-        "Package déployable sur scratch org"
+        "Package d\u00e9ployable sur scratch org"
       ],
       "dependencies": [
         "PRPT-04",
@@ -708,19 +708,19 @@
         "backend/app/services/sfdx_package_generator.py"
       ],
       "estimated_hours": 6,
-      "notes": "Complété le 11/12/2025: generate_sfdx_package() dans sfdx_service.py + endpoint POST /api/deployment/package/generate. Génère structure force-app/, sfdx-project.json, package.xml."
+      "notes": "Compl\u00e9t\u00e9 le 11/12/2025: generate_sfdx_package() dans sfdx_service.py + endpoint POST /api/deployment/package/generate. G\u00e9n\u00e8re structure force-app/, sfdx-project.json, package.xml."
     },
     {
       "id": "BLD-02",
       "category": "WORKFLOW_BUILD",
       "title": "Validation syntaxique Apex (Diego)",
-      "description": "Valider automatiquement la syntaxe du code Apex généré par Diego",
+      "description": "Valider automatiquement la syntaxe du code Apex g\u00e9n\u00e9r\u00e9 par Diego",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Parser Apex intégré",
-        "Erreurs de syntaxe détectées",
-        "Feedback à Diego pour correction"
+        "Parser Apex int\u00e9gr\u00e9",
+        "Erreurs de syntaxe d\u00e9tect\u00e9es",
+        "Feedback \u00e0 Diego pour correction"
       ],
       "dependencies": [
         "PRPT-04"
@@ -735,7 +735,7 @@
       "id": "BLD-03",
       "category": "WORKFLOW_BUILD",
       "title": "Validation LWC (Zara)",
-      "description": "Valider automatiquement les composants LWC générés par Zara",
+      "description": "Valider automatiquement les composants LWC g\u00e9n\u00e9r\u00e9s par Zara",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
@@ -755,14 +755,14 @@
     {
       "id": "BLD-04",
       "category": "WORKFLOW_BUILD",
-      "title": "Validation métadonnées XML (Raj)",
-      "description": "Valider automatiquement les métadonnées XML générées par Raj",
+      "title": "Validation m\u00e9tadonn\u00e9es XML (Raj)",
+      "description": "Valider automatiquement les m\u00e9tadonn\u00e9es XML g\u00e9n\u00e9r\u00e9es par Raj",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "XML bien formé",
-        "Schémas Salesforce respectés",
-        "Références valides"
+        "XML bien form\u00e9",
+        "Sch\u00e9mas Salesforce respect\u00e9s",
+        "R\u00e9f\u00e9rences valides"
       ],
       "dependencies": [
         "PRPT-06"
@@ -776,13 +776,13 @@
     {
       "id": "BLD-05",
       "category": "WORKFLOW_BUILD",
-      "title": "Génération scripts migration Aisha",
-      "description": "Générer des scripts de migration de données (CSV templates, mapping)",
+      "title": "G\u00e9n\u00e9ration scripts migration Aisha",
+      "description": "G\u00e9n\u00e9rer des scripts de migration de donn\u00e9es (CSV templates, mapping)",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Templates CSV générés",
-        "Mapping source→cible documenté",
+        "Templates CSV g\u00e9n\u00e9r\u00e9s",
+        "Mapping source\u2192cible document\u00e9",
         "Scripts Data Loader compatibles"
       ],
       "dependencies": [],
@@ -797,13 +797,13 @@
       "id": "BLD-06",
       "category": "WORKFLOW_BUILD",
       "title": "Tests unitaires automatiques Elena",
-      "description": "Elena génère des tests unitaires Apex exécutables, pas juste des cas de test",
+      "description": "Elena g\u00e9n\u00e8re des tests unitaires Apex ex\u00e9cutables, pas juste des cas de test",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Classes de test @isTest générées",
-        "Coverage minimum 75% visé",
-        "Tests déployables"
+        "Classes de test @isTest g\u00e9n\u00e9r\u00e9es",
+        "Coverage minimum 75% vis\u00e9",
+        "Tests d\u00e9ployables"
       ],
       "dependencies": [
         "BLD-02"
@@ -817,14 +817,14 @@
     {
       "id": "BLD-07",
       "category": "WORKFLOW_BUILD",
-      "title": "Dashboard qualité code",
-      "description": "Dashboard affichant les métriques de qualité du code généré",
+      "title": "Dashboard qualit\u00e9 code",
+      "description": "Dashboard affichant les m\u00e9triques de qualit\u00e9 du code g\u00e9n\u00e9r\u00e9",
       "priority": 4,
       "status": "completed",
       "validation_criteria": [
-        "Score qualité Apex affiché",
+        "Score qualit\u00e9 Apex affich\u00e9",
         "Nombre d'erreurs/warnings",
-        "Couverture de test estimée"
+        "Couverture de test estim\u00e9e"
       ],
       "dependencies": [
         "BLD-02",
@@ -835,19 +835,19 @@
         "frontend/src/pages/QualityDashboardPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": "Complété le 11/12/2025: quality_dashboard.py avec analyse Apex/LWC/metadata. Endpoints: GET /api/quality/execution/{id}, /api/quality/rules, /api/quality/trends/{project_id}. Score A-F, détection credentials hardcodées."
+      "notes": "Compl\u00e9t\u00e9 le 11/12/2025: quality_dashboard.py avec analyse Apex/LWC/metadata. Endpoints: GET /api/quality/execution/{id}, /api/quality/rules, /api/quality/trends/{project_id}. Score A-F, d\u00e9tection credentials hardcod\u00e9es."
     },
     {
       "id": "BLD-08",
       "category": "WORKFLOW_BUILD",
       "title": "Boucle de correction automatique",
-      "description": "Si validation échoue, renvoyer automatiquement à l'agent pour correction",
+      "description": "Si validation \u00e9choue, renvoyer automatiquement \u00e0 l'agent pour correction",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Erreurs renvoyées à l'agent concerné",
+        "Erreurs renvoy\u00e9es \u00e0 l'agent concern\u00e9",
         "Max 3 tentatives de correction",
-        "Log des corrections tentées"
+        "Log des corrections tent\u00e9es"
       ],
       "dependencies": [
         "BLD-02",
@@ -869,8 +869,8 @@
       "status": "completed",
       "validation_criteria": [
         "OAuth flow fonctionnel",
-        "Token stocké de façon sécurisée",
-        "Test de connexion réussi"
+        "Token stock\u00e9 de fa\u00e7on s\u00e9curis\u00e9e",
+        "Test de connexion r\u00e9ussi"
       ],
       "dependencies": [],
       "files": [
@@ -878,19 +878,19 @@
         "frontend/src/pages/OrgConnectionPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": "Implémenté via sfdx_service.py: Connexion via SFDX - sfdx_service.check_connection() + org:display"
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: Connexion via SFDX - sfdx_service.check_connection() + org:display"
     },
     {
       "id": "DPL-02",
       "category": "WORKFLOW_DEPLOY",
-      "title": "Déploiement automatique via Metadata API",
-      "description": "Déployer automatiquement le package généré sur l'org connectée",
+      "title": "D\u00e9ploiement automatique via Metadata API",
+      "description": "D\u00e9ployer automatiquement le package g\u00e9n\u00e9r\u00e9 sur l'org connect\u00e9e",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Déploiement via simple_salesforce ou jsforce",
-        "Statut déploiement suivi en temps réel",
-        "Erreurs de déploiement affichées"
+        "D\u00e9ploiement via simple_salesforce ou jsforce",
+        "Statut d\u00e9ploiement suivi en temps r\u00e9el",
+        "Erreurs de d\u00e9ploiement affich\u00e9es"
       ],
       "dependencies": [
         "DPL-01",
@@ -900,19 +900,19 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 6,
-      "notes": "Implémenté via sfdx_service.py: deploy_source() et deploy_metadata() dans sfdx_service.py"
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: deploy_source() et deploy_metadata() dans sfdx_service.py"
     },
     {
       "id": "DPL-03",
       "category": "WORKFLOW_DEPLOY",
-      "title": "Validation pré-déploiement",
-      "description": "Lancer une validation (checkOnly) avant le déploiement réel",
+      "title": "Validation pr\u00e9-d\u00e9ploiement",
+      "description": "Lancer une validation (checkOnly) avant le d\u00e9ploiement r\u00e9el",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "Option checkOnly disponible",
-        "Résultats validation affichés",
-        "Blocage si validation échoue"
+        "R\u00e9sultats validation affich\u00e9s",
+        "Blocage si validation \u00e9choue"
       ],
       "dependencies": [
         "DPL-02"
@@ -921,17 +921,17 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté via sfdx_service.py: check_only=True dans deploy_source() = validation pré-déploiement"
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: check_only=True dans deploy_source() = validation pr\u00e9-d\u00e9ploiement"
     },
     {
       "id": "DPL-04",
       "category": "WORKFLOW_DEPLOY",
       "title": "Rollback automatique",
-      "description": "Possibilité de rollback un déploiement échoué ou problématique",
+      "description": "Possibilit\u00e9 de rollback un d\u00e9ploiement \u00e9chou\u00e9 ou probl\u00e9matique",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Snapshot pré-déploiement sauvegardé",
+        "Snapshot pr\u00e9-d\u00e9ploiement sauvegard\u00e9",
         "Bouton rollback fonctionnel",
         "Restauration effective"
       ],
@@ -942,18 +942,18 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 4,
-      "notes": "Complété le 11/12/2025: create_deployment_snapshot() et rollback_deployment() dans sfdx_service.py + endpoints POST /api/deployment/snapshot/create, POST /api/deployment/rollback, GET /api/deployment/snapshots."
+      "notes": "Compl\u00e9t\u00e9 le 11/12/2025: create_deployment_snapshot() et rollback_deployment() dans sfdx_service.py + endpoints POST /api/deployment/snapshot/create, POST /api/deployment/rollback, GET /api/deployment/snapshots."
     },
     {
       "id": "DPL-05",
       "category": "WORKFLOW_DEPLOY",
-      "title": "Génération release notes",
-      "description": "Générer automatiquement des release notes du déploiement",
+      "title": "G\u00e9n\u00e9ration release notes",
+      "description": "G\u00e9n\u00e9rer automatiquement des release notes du d\u00e9ploiement",
       "priority": 4,
       "status": "completed",
       "validation_criteria": [
-        "Liste des composants déployés",
-        "Changements par rapport à la version précédente",
+        "Liste des composants d\u00e9ploy\u00e9s",
+        "Changements par rapport \u00e0 la version pr\u00e9c\u00e9dente",
         "Format Markdown exportable"
       ],
       "dependencies": [
@@ -963,19 +963,19 @@
         "backend/app/services/release_notes_generator.py"
       ],
       "estimated_hours": 3,
-      "notes": "Complété le 11/12/2025: generate_release_notes() dans sfdx_service.py + endpoints POST /api/deployment/release-notes/generate, GET /api/deployment/release-notes/{execution_id}. Format Markdown."
+      "notes": "Compl\u00e9t\u00e9 le 11/12/2025: generate_release_notes() dans sfdx_service.py + endpoints POST /api/deployment/release-notes/generate, GET /api/deployment/release-notes/{execution_id}. Format Markdown."
     },
     {
       "id": "DPL-06",
       "category": "WORKFLOW_DEPLOY",
       "title": "Support multi-environnements",
-      "description": "Gérer plusieurs orgs (Dev, UAT, Prod) avec promotion entre elles",
+      "description": "G\u00e9rer plusieurs orgs (Dev, UAT, Prod) avec promotion entre elles",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
         "Liste des orgs configurables",
-        "Workflow de promotion défini",
-        "Traçabilité des déploiements par org"
+        "Workflow de promotion d\u00e9fini",
+        "Tra\u00e7abilit\u00e9 des d\u00e9ploiements par org"
       ],
       "dependencies": [
         "DPL-01"
@@ -985,18 +985,18 @@
         "frontend/src/pages/EnvironmentsPage.tsx"
       ],
       "estimated_hours": 5,
-      "notes": "Complété le 11/12/2025: get_environments() et promote_to_environment() dans sfdx_service.py + endpoints GET /api/deployment/environments, POST /api/deployment/promote, POST /api/deployment/validate."
+      "notes": "Compl\u00e9t\u00e9 le 11/12/2025: get_environments() et promote_to_environment() dans sfdx_service.py + endpoints GET /api/deployment/environments, POST /api/deployment/promote, POST /api/deployment/validate."
     },
     {
       "id": "DPL-07",
       "category": "WORKFLOW_DEPLOY",
-      "title": "Tests post-déploiement automatiques",
-      "description": "Lancer automatiquement les tests Apex après déploiement",
+      "title": "Tests post-d\u00e9ploiement automatiques",
+      "description": "Lancer automatiquement les tests Apex apr\u00e8s d\u00e9ploiement",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Tests lancés automatiquement",
-        "Résultats affichés dans l'UI",
+        "Tests lanc\u00e9s automatiquement",
+        "R\u00e9sultats affich\u00e9s dans l'UI",
         "Alerte si coverage < 75%"
       ],
       "dependencies": [
@@ -1006,19 +1006,19 @@
         "backend/app/services/salesforce_deployer.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté via sfdx_service.py: run_tests() dans sfdx_service.py + execute_single_task step 3"
+      "notes": "Impl\u00e9ment\u00e9 via sfdx_service.py: run_tests() dans sfdx_service.py + execute_single_task step 3"
     },
     {
       "id": "DPL-08",
       "category": "WORKFLOW_DEPLOY",
       "title": "Supports formation Lucas (mode Delivery)",
-      "description": "Générer les supports de formation concrets après déploiement",
+      "description": "G\u00e9n\u00e9rer les supports de formation concrets apr\u00e8s d\u00e9ploiement",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "Guides utilisateur générés",
-        "Scripts vidéo/démo créés",
-        "FAQ générée"
+        "Guides utilisateur g\u00e9n\u00e9r\u00e9s",
+        "Scripts vid\u00e9o/d\u00e9mo cr\u00e9\u00e9s",
+        "FAQ g\u00e9n\u00e9r\u00e9e"
       ],
       "dependencies": [
         "PRPT-07",
@@ -1035,7 +1035,7 @@
       "id": "WEB-01",
       "category": "WEBSITE",
       "title": "Refonte page d'accueil digital-humans.fr",
-      "description": "Nouvelle landing page moderne et orientée conversion",
+      "description": "Nouvelle landing page moderne et orient\u00e9e conversion",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
@@ -1048,19 +1048,19 @@
         "/var/www/digital-humans.fr/"
       ],
       "estimated_hours": 4,
-      "notes": "Refonte React complète: Hero, RealityCheck, HowItWorks, OurAgents, Manifesto, CTA, FAQ. Dark/Light toggle. FR/EN. Déployé 29/12/2025."
+      "notes": "Refonte React compl\u00e8te: Hero, RealityCheck, HowItWorks, OurAgents, Manifesto, CTA, FAQ. Dark/Light toggle. FR/EN. D\u00e9ploy\u00e9 29/12/2025."
     },
     {
       "id": "WEB-02",
       "category": "WEBSITE",
-      "title": "Page démo interactive",
-      "description": "Démo interactive montrant le workflow des agents",
+      "title": "Page d\u00e9mo interactive",
+      "description": "D\u00e9mo interactive montrant le workflow des agents",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
         "Animation du workflow agents",
         "Exemples de outputs",
-        "Témoignages/cas d'usage"
+        "T\u00e9moignages/cas d'usage"
       ],
       "dependencies": [
         "WEB-01"
@@ -1075,11 +1075,11 @@
       "id": "WEB-03",
       "category": "WEBSITE",
       "title": "Page pricing",
-      "description": "Page de tarification claire avec les différentes offres",
+      "description": "Page de tarification claire avec les diff\u00e9rentes offres",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "Offres clairement définies",
+        "Offres clairement d\u00e9finies",
         "Comparaison des features",
         "Boutons d'action"
       ],
@@ -1096,15 +1096,15 @@
       "id": "WEB-04",
       "category": "WEBSITE",
       "title": "Blog SEO",
-      "description": "Section blog pour le référencement et le contenu éducatif",
+      "description": "Section blog pour le r\u00e9f\u00e9rencement et le contenu \u00e9ducatif",
       "priority": 4,
       "status": "completed",
       "validation_criteria": [
         "Ghost CMS fonctionnel et accessible",
-        "Intégration React /blog complète",
-        "Script génération articles opérationnel",
-        "10 agents configurés avec personas",
-        "20+ articles générés",
+        "Int\u00e9gration React /blog compl\u00e8te",
+        "Script g\u00e9n\u00e9ration articles op\u00e9rationnel",
+        "10 agents configur\u00e9s avec personas",
+        "20+ articles g\u00e9n\u00e9r\u00e9s",
         "SEO basique (meta, slugs, excerpt)"
       ],
       "dependencies": [
@@ -1118,18 +1118,18 @@
         "n8n/workflows/blog-generate.json"
       ],
       "estimated_hours": 4,
-      "notes": "Implémenté session 04/01/2026:\nPhase 1: Ghost CMS installé (Docker, port 2368)\nPhase 2: Intégration React (BlogList, BlogArticle, AuthorCard)\nPhase 3: Générateur articles (blog_generator.py)\n- Claude Haiku (20s) ou Mistral Nemo (5min) pour le texte\n- Gemini Nano Banana Pro pour les images\n- 10 agents avec personas complètes\n- 20 articles créés (1 publié)\n- CSS custom (expert-tip, agent-signature)\n- BlogContent.tsx pour post-processing HTML Ghost\nURLs: digital-humans.fr/blog, blog-admin.digital-humans.fr\n\nAméliorations session 06/01/2026:\n- Service systemd blog-api.service (port 8765) pour génération articles\n- Workflow blog-veille-haiku.json (migration Mistral Nemo → Claude Haiku)\n- Workflow blog-topics-dashboard.json (interface validation topics)\n- Workflow blog-topics-api.json (approve/reject/generate via webhook)\n- Fix titre français dans blog_generator.py\n- Fix GEMINI_API_KEY dans service systemd pour images de couverture\n- Pipeline complet: veille RSS → validation → génération → publication Ghost"
+      "notes": "Impl\u00e9ment\u00e9 session 04/01/2026:\nPhase 1: Ghost CMS install\u00e9 (Docker, port 2368)\nPhase 2: Int\u00e9gration React (BlogList, BlogArticle, AuthorCard)\nPhase 3: G\u00e9n\u00e9rateur articles (blog_generator.py)\n- Claude Haiku (20s) ou Mistral Nemo (5min) pour le texte\n- Gemini Nano Banana Pro pour les images\n- 10 agents avec personas compl\u00e8tes\n- 20 articles cr\u00e9\u00e9s (1 publi\u00e9)\n- CSS custom (expert-tip, agent-signature)\n- BlogContent.tsx pour post-processing HTML Ghost\nURLs: digital-humans.fr/blog, blog-admin.digital-humans.fr\n\nAm\u00e9liorations session 06/01/2026:\n- Service systemd blog-api.service (port 8765) pour g\u00e9n\u00e9ration articles\n- Workflow blog-veille-haiku.json (migration Mistral Nemo \u2192 Claude Haiku)\n- Workflow blog-topics-dashboard.json (interface validation topics)\n- Workflow blog-topics-api.json (approve/reject/generate via webhook)\n- Fix titre fran\u00e7ais dans blog_generator.py\n- Fix GEMINI_API_KEY dans service systemd pour images de couverture\n- Pipeline complet: veille RSS \u2192 validation \u2192 g\u00e9n\u00e9ration \u2192 publication Ghost"
     },
     {
       "id": "WEB-05",
       "category": "WEBSITE",
-      "title": "Formulaire de contact / démo request",
-      "description": "Formulaire pour demander une démo ou un contact",
+      "title": "Formulaire de contact / d\u00e9mo request",
+      "description": "Formulaire pour demander une d\u00e9mo ou un contact",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "Formulaire fonctionnel",
-        "Notification email configurée",
+        "Notification email configur\u00e9e",
         "Stockage des leads"
       ],
       "dependencies": [
@@ -1139,7 +1139,7 @@
         "/var/www/digital-humans.fr/"
       ],
       "estimated_hours": 2,
-      "notes": "Double opt-in complet: table leads, backend /api/leads, N8N workflow, SMTP Hostinger (contact@digital-humans.fr), email template branded. Déployé 29/12/2025."
+      "notes": "Double opt-in complet: table leads, backend /api/leads, N8N workflow, SMTP Hostinger (contact@digital-humans.fr), email template branded. D\u00e9ploy\u00e9 29/12/2025."
     },
     {
       "id": "WEB-06",
@@ -1149,8 +1149,8 @@
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "Analytics installé",
-        "Events de conversion trackés",
+        "Analytics install\u00e9",
+        "Events de conversion track\u00e9s",
         "Dashboard accessible"
       ],
       "dependencies": [
@@ -1171,23 +1171,23 @@
       "status": "done",
       "validation_criteria": [
         "Workflow N8N fonctionnel",
-        "Extraction profils ciblés",
+        "Extraction profils cibl\u00e9s",
         "Stockage dans CRM/base"
       ],
       "dependencies": [],
       "files": [],
       "estimated_hours": 4,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-02",
       "category": "N8N_AGENTS",
-      "title": "Agent Email - Outreach automatisé",
-      "description": "Agent N8N pour envoyer des emails de prospection personnalisés",
+      "title": "Agent Email - Outreach automatis\u00e9",
+      "description": "Agent N8N pour envoyer des emails de prospection personnalis\u00e9s",
       "priority": 3,
       "status": "done",
       "validation_criteria": [
-        "Séquences email configurées",
+        "S\u00e9quences email configur\u00e9es",
         "Personnalisation via LLM",
         "Tracking ouvertures/clics"
       ],
@@ -1196,27 +1196,27 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-03",
       "category": "N8N_AGENTS",
-      "title": "Agent Content - Génération articles",
-      "description": "Agent N8N pour générer automatiquement des articles de blog",
+      "title": "Agent Content - G\u00e9n\u00e9ration articles",
+      "description": "Agent N8N pour g\u00e9n\u00e9rer automatiquement des articles de blog",
       "priority": 4,
       "status": "completed",
       "validation_criteria": [
-        "Articles générés par Claude Haiku ou Mistral Nemo",
-        "Images générées par Gemini Nano Banana Pro",
+        "Articles g\u00e9n\u00e9r\u00e9s par Claude Haiku ou Mistral Nemo",
+        "Images g\u00e9n\u00e9r\u00e9es par Gemini Nano Banana Pro",
         "Publication automatique Ghost CMS",
-        "SEO appliqué (excerpt, slugs)"
+        "SEO appliqu\u00e9 (excerpt, slugs)"
       ],
       "dependencies": [
         "WEB-04"
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": "Implémenté session 04/01/2026:\n- Script blog_generator.py avec support Haiku + Nemo\n- Workflow N8N prêt (blog-generate.json)\n- Publication via Ghost API (pas WordPress)\n- Endpoint: POST /webhook/generate-article\n\nAméliorations session 06/01/2026:\n- blog-api.py exposé via systemd (port 8765)\n- Workflows N8N: dashboard, API, veille (tous actifs)\n- Prompts optimisés pour titres français\n- Haiku pour la génération (plus rapide que Nemo)"
+      "notes": "Impl\u00e9ment\u00e9 session 04/01/2026:\n- Script blog_generator.py avec support Haiku + Nemo\n- Workflow N8N pr\u00eat (blog-generate.json)\n- Publication via Ghost API (pas WordPress)\n- Endpoint: POST /webhook/generate-article\n\nAm\u00e9liorations session 06/01/2026:\n- blog-api.py expos\u00e9 via systemd (port 8765)\n- Workflows N8N: dashboard, API, veille (tous actifs)\n- Prompts optimis\u00e9s pour titres fran\u00e7ais\n- Haiku pour la g\u00e9n\u00e9ration (plus rapide que Nemo)"
     },
     {
       "id": "N8N-04",
@@ -1226,14 +1226,14 @@
       "priority": 4,
       "status": "done",
       "validation_criteria": [
-        "Posts générés par LLM",
-        "Publication programmée",
+        "Posts g\u00e9n\u00e9r\u00e9s par LLM",
+        "Publication programm\u00e9e",
         "Variation du contenu"
       ],
       "dependencies": [],
       "files": [],
       "estimated_hours": 3,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-05",
@@ -1243,14 +1243,14 @@
       "priority": 4,
       "status": "done",
       "validation_criteria": [
-        "Sources de veille configurées",
+        "Sources de veille configur\u00e9es",
         "Alertes automatiques",
-        "Résumé hebdomadaire"
+        "R\u00e9sum\u00e9 hebdomadaire"
       ],
       "dependencies": [],
       "files": [],
       "estimated_hours": 3,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-06",
@@ -1260,8 +1260,8 @@
       "priority": 3,
       "status": "done",
       "validation_criteria": [
-        "Critères de scoring définis",
-        "Score calculé automatiquement",
+        "Crit\u00e8res de scoring d\u00e9finis",
+        "Score calcul\u00e9 automatiquement",
         "Notification pour leads chauds"
       ],
       "dependencies": [
@@ -1269,7 +1269,7 @@
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-07",
@@ -1279,16 +1279,16 @@
       "priority": 3,
       "status": "done",
       "validation_criteria": [
-        "Séquences de relance configurées",
+        "S\u00e9quences de relance configur\u00e9es",
         "Timing intelligent",
-        "Stop si réponse reçue"
+        "Stop si r\u00e9ponse re\u00e7ue"
       ],
       "dependencies": [
         "N8N-02"
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-08",
@@ -1298,8 +1298,8 @@
       "priority": 4,
       "status": "done",
       "validation_criteria": [
-        "Intégration Calendly ou Cal.com",
-        "Proposition créneaux automatique",
+        "Int\u00e9gration Calendly ou Cal.com",
+        "Proposition cr\u00e9neaux automatique",
         "Confirmation et rappels"
       ],
       "dependencies": [
@@ -1307,18 +1307,18 @@
       ],
       "files": [],
       "estimated_hours": 3,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "N8N-09",
       "category": "N8N_AGENTS",
       "title": "Dashboard acquisition",
-      "description": "Dashboard centralisant les métriques d'acquisition",
+      "description": "Dashboard centralisant les m\u00e9triques d'acquisition",
       "priority": 4,
       "status": "done",
       "validation_criteria": [
-        "Métriques clés affichées",
-        "Mise à jour automatique",
+        "M\u00e9triques cl\u00e9s affich\u00e9es",
+        "Mise \u00e0 jour automatique",
         "Export possible"
       ],
       "dependencies": [
@@ -1328,19 +1328,19 @@
       ],
       "files": [],
       "estimated_hours": 4,
-      "notes": "Workflow N8N créé et actif - Session 29/12/2025"
+      "notes": "Workflow N8N cr\u00e9\u00e9 et actif - Session 29/12/2025"
     },
     {
       "id": "GTM-01",
       "category": "GO_TO_MARKET",
-      "title": "Préparer listing AgentExchange",
-      "description": "Préparer tous les assets pour le listing sur Salesforce AgentExchange",
+      "title": "Pr\u00e9parer listing AgentExchange",
+      "description": "Pr\u00e9parer tous les assets pour le listing sur Salesforce AgentExchange",
       "priority": 2,
       "status": "not_started",
       "validation_criteria": [
-        "Description produit rédigée",
-        "Screenshots/vidéos préparés",
-        "Pricing défini"
+        "Description produit r\u00e9dig\u00e9e",
+        "Screenshots/vid\u00e9os pr\u00e9par\u00e9s",
+        "Pricing d\u00e9fini"
       ],
       "dependencies": [],
       "files": [],
@@ -1351,12 +1351,12 @@
       "id": "GTM-02",
       "category": "GO_TO_MARKET",
       "title": "Documentation utilisateur",
-      "description": "Documentation complète pour les utilisateurs",
+      "description": "Documentation compl\u00e8te pour les utilisateurs",
       "priority": 2,
       "status": "not_started",
       "validation_criteria": [
-        "Guide démarrage rapide",
-        "Documentation complète features",
+        "Guide d\u00e9marrage rapide",
+        "Documentation compl\u00e8te features",
         "FAQ"
       ],
       "dependencies": [],
@@ -1367,14 +1367,14 @@
     {
       "id": "GTM-03",
       "category": "GO_TO_MARKET",
-      "title": "Vidéo démo produit",
-      "description": "Vidéo de démonstration du produit (3-5 min)",
+      "title": "Vid\u00e9o d\u00e9mo produit",
+      "description": "Vid\u00e9o de d\u00e9monstration du produit (3-5 min)",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "Script rédigé",
-        "Vidéo enregistrée",
-        "Sous-titres ajoutés"
+        "Script r\u00e9dig\u00e9",
+        "Vid\u00e9o enregistr\u00e9e",
+        "Sous-titres ajout\u00e9s"
       ],
       "dependencies": [],
       "files": [],
@@ -1385,13 +1385,13 @@
       "id": "GTM-04",
       "category": "GO_TO_MARKET",
       "title": "Programme beta testeurs",
-      "description": "Recruter et gérer des beta testeurs",
+      "description": "Recruter et g\u00e9rer des beta testeurs",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "5-10 beta testeurs recrutés",
+        "5-10 beta testeurs recrut\u00e9s",
         "Process de feedback en place",
-        "Bugs/suggestions collectés"
+        "Bugs/suggestions collect\u00e9s"
       ],
       "dependencies": [],
       "files": [],
@@ -1402,12 +1402,12 @@
       "id": "GTM-05",
       "category": "GO_TO_MARKET",
       "title": "Partenariats Salesforce SI",
-      "description": "Identifier et contacter des partenaires intégrateurs Salesforce",
+      "description": "Identifier et contacter des partenaires int\u00e9grateurs Salesforce",
       "priority": 4,
       "status": "not_started",
       "validation_criteria": [
-        "Liste de 20 SI identifiés",
-        "5 premiers contacts initiés",
+        "Liste de 20 SI identifi\u00e9s",
+        "5 premiers contacts initi\u00e9s",
         "1 partenariat POC"
       ],
       "dependencies": [],
@@ -1419,12 +1419,12 @@
       "id": "INC-01",
       "category": "MODE_INCREMENTAL",
       "title": "Schema JSON WBS enrichi",
-      "description": "Définir le schéma JSON pour le WBS enrichi avec critères de validation",
+      "description": "D\u00e9finir le sch\u00e9ma JSON pour le WBS enrichi avec crit\u00e8res de validation",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Schéma JSON documenté",
-        "Validation Pydantic créée",
+        "Sch\u00e9ma JSON document\u00e9",
+        "Validation Pydantic cr\u00e9\u00e9e",
         "Exemple de WBS conforme"
       ],
       "dependencies": [],
@@ -1432,19 +1432,19 @@
         "backend/app/schemas/wbs_schema.py"
       ],
       "estimated_hours": 2,
-      "notes": "08/12/2025: Schéma Pydantic complet pour WBS. Validé avec WBS réel (52 tasks, 7 phases, 10 risks). Flexible pour accepter variations de Marcus."
+      "notes": "08/12/2025: Sch\u00e9ma Pydantic complet pour WBS. Valid\u00e9 avec WBS r\u00e9el (52 tasks, 7 phases, 10 risks). Flexible pour accepter variations de Marcus."
     },
     {
       "id": "INC-02",
       "category": "MODE_INCREMENTAL",
-      "title": "Mise à jour prompt Marcus pour WBS enrichi",
-      "description": "Modifier le prompt Marcus pour qu'il génère le WBS au nouveau format",
+      "title": "Mise \u00e0 jour prompt Marcus pour WBS enrichi",
+      "description": "Modifier le prompt Marcus pour qu'il g\u00e9n\u00e8re le WBS au nouveau format",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Marcus génère un WBS JSON valide",
-        "Chaque tâche a des critères de validation",
-        "Agents assignés correctement"
+        "Marcus g\u00e9n\u00e8re un WBS JSON valide",
+        "Chaque t\u00e2che a des crit\u00e8res de validation",
+        "Agents assign\u00e9s correctement"
       ],
       "dependencies": [
         "INC-01"
@@ -1453,19 +1453,19 @@
         "backend/app/services/prompts/marcus_prompt.py"
       ],
       "estimated_hours": 3,
-      "notes": "Prompt Marcus génère WBS JSON - déjà fait via PRPT-03"
+      "notes": "Prompt Marcus g\u00e9n\u00e8re WBS JSON - d\u00e9j\u00e0 fait via PRPT-03"
     },
     {
       "id": "INC-03",
       "category": "MODE_INCREMENTAL",
       "title": "Service de progression persistante",
-      "description": "Service pour sauvegarder et récupérer l'état de progression",
+      "description": "Service pour sauvegarder et r\u00e9cup\u00e9rer l'\u00e9tat de progression",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "État sauvé après chaque tâche",
-        "Récupération de l'état au redémarrage",
-        "Historique des états conservé"
+        "\u00c9tat sauv\u00e9 apr\u00e8s chaque t\u00e2che",
+        "R\u00e9cup\u00e9ration de l'\u00e9tat au red\u00e9marrage",
+        "Historique des \u00e9tats conserv\u00e9"
       ],
       "dependencies": [],
       "files": [
@@ -1477,14 +1477,14 @@
     {
       "id": "INC-04",
       "category": "MODE_INCREMENTAL",
-      "title": "Exécuteur de tâche unitaire",
-      "description": "Service qui exécute une seule tâche du WBS",
+      "title": "Ex\u00e9cuteur de t\u00e2che unitaire",
+      "description": "Service qui ex\u00e9cute une seule t\u00e2che du WBS",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Prend une tâche en entrée",
-        "Exécute l'agent approprié",
-        "Retourne le résultat + statut"
+        "Prend une t\u00e2che en entr\u00e9e",
+        "Ex\u00e9cute l'agent appropri\u00e9",
+        "Retourne le r\u00e9sultat + statut"
       ],
       "dependencies": [
         "INC-01",
@@ -1494,18 +1494,18 @@
         "backend/app/services/task_executor.py"
       ],
       "estimated_hours": 4,
-      "notes": "Exécuteur tâche unitaire - execute_single_task() via ORCH-03d"
+      "notes": "Ex\u00e9cuteur t\u00e2che unitaire - execute_single_task() via ORCH-03d"
     },
     {
       "id": "INC-05",
       "category": "MODE_INCREMENTAL",
-      "title": "Validation Elena par tâche",
-      "description": "Elena valide chaque tâche individuellement avant de passer à la suivante",
+      "title": "Validation Elena par t\u00e2che",
+      "description": "Elena valide chaque t\u00e2che individuellement avant de passer \u00e0 la suivante",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Elena reçoit le livrable + critères",
-        "Retourne PASS/FAIL avec détails",
+        "Elena re\u00e7oit le livrable + crit\u00e8res",
+        "Retourne PASS/FAIL avec d\u00e9tails",
         "Blocage si FAIL"
       ],
       "dependencies": [
@@ -1516,19 +1516,19 @@
         "backend/app/services/task_validator.py"
       ],
       "estimated_hours": 4,
-      "notes": "Validation Elena par tâche - Elena mode=test via ORCH-03d"
+      "notes": "Validation Elena par t\u00e2che - Elena mode=test via ORCH-03d"
     },
     {
       "id": "INC-06",
       "category": "MODE_INCREMENTAL",
-      "title": "Orchestrateur mode incrémental",
-      "description": "Modifier l'orchestrateur pour supporter le mode incrémental",
+      "title": "Orchestrateur mode incr\u00e9mental",
+      "description": "Modifier l'orchestrateur pour supporter le mode incr\u00e9mental",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Option mode incrémental disponible",
-        "Exécution tâche par tâche",
-        "Pause entre les tâches si demandé"
+        "Option mode incr\u00e9mental disponible",
+        "Ex\u00e9cution t\u00e2che par t\u00e2che",
+        "Pause entre les t\u00e2ches si demand\u00e9"
       ],
       "dependencies": [
         "INC-03",
@@ -1539,19 +1539,19 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 5,
-      "notes": "Orchestrateur incrémental - execute_build_phase() via ORCH-03d"
+      "notes": "Orchestrateur incr\u00e9mental - execute_build_phase() via ORCH-03d"
     },
     {
       "id": "INC-07",
       "category": "MODE_INCREMENTAL",
-      "title": "UI progression tâche par tâche",
-      "description": "Interface affichant la progression tâche par tâche",
+      "title": "UI progression t\u00e2che par t\u00e2che",
+      "description": "Interface affichant la progression t\u00e2che par t\u00e2che",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Liste des tâches avec statuts",
-        "Tâche courante mise en évidence",
-        "Détails de chaque tâche accessibles"
+        "Liste des t\u00e2ches avec statuts",
+        "T\u00e2che courante mise en \u00e9vidence",
+        "D\u00e9tails de chaque t\u00e2che accessibles"
       ],
       "dependencies": [
         "INC-06"
@@ -1566,12 +1566,12 @@
       "id": "INC-08",
       "category": "MODE_INCREMENTAL",
       "title": "Bouton pause/reprise",
-      "description": "Permettre de mettre en pause et reprendre l'exécution",
+      "description": "Permettre de mettre en pause et reprendre l'ex\u00e9cution",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
         "Bouton pause fonctionnel",
-        "État sauvegardé à la pause",
+        "\u00c9tat sauvegard\u00e9 \u00e0 la pause",
         "Reprise effective"
       ],
       "dependencies": [
@@ -1583,18 +1583,18 @@
         "backend/app/api/routes/pm_orchestrator.py"
       ],
       "estimated_hours": 3,
-      "notes": "Pause/reprise - endpoints et UI ajoutés ce soir"
+      "notes": "Pause/reprise - endpoints et UI ajout\u00e9s ce soir"
     },
     {
       "id": "INC-09",
       "category": "MODE_INCREMENTAL",
-      "title": "Correction manuelle et ré-exécution",
+      "title": "Correction manuelle et r\u00e9-ex\u00e9cution",
       "description": "Permettre de corriger manuellement un livrable et relancer la validation",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
         "Edition du livrable possible",
-        "Ré-validation Elena",
+        "R\u00e9-validation Elena",
         "Historique des corrections"
       ],
       "dependencies": [
@@ -1611,12 +1611,12 @@
       "id": "INC-10",
       "category": "MODE_INCREMENTAL",
       "title": "Rapport de progression exportable",
-      "description": "Générer un rapport de progression exportable (PDF/DOCX)",
+      "description": "G\u00e9n\u00e9rer un rapport de progression exportable (PDF/DOCX)",
       "priority": 4,
       "status": "not_started",
       "validation_criteria": [
-        "Rapport généré automatiquement",
-        "Inclut toutes les tâches et statuts",
+        "Rapport g\u00e9n\u00e9r\u00e9 automatiquement",
+        "Inclut toutes les t\u00e2ches et statuts",
         "Export PDF et DOCX"
       ],
       "dependencies": [
@@ -1630,30 +1630,30 @@
     },
     {
       "id": "BUG-023",
-      "title": "Format SDS généré à améliorer",
-      "description": "Le document SDS généré nécessite une amélioration du format et du contenu",
+      "title": "Format SDS g\u00e9n\u00e9r\u00e9 \u00e0 am\u00e9liorer",
+      "description": "Le document SDS g\u00e9n\u00e9r\u00e9 n\u00e9cessite une am\u00e9lioration du format et du contenu",
       "status": "completed",
       "priority": 3,
       "category": "WORKFLOW_SDS",
-      "notes": "Résolu par Emma write_sds - format professionnel. Améliorations futures possibles mais acceptable pour MVP."
+      "notes": "R\u00e9solu par Emma write_sds - format professionnel. Am\u00e9liorations futures possibles mais acceptable pour MVP."
     },
     {
       "id": "BUG-024",
-      "title": "XML CustomObject mal formaté par agent admin",
-      "description": "L'agent admin génère du XML metadata Salesforce invalide:\n1. Propriétés invalides (enableChangeDataCapture) \n2. Structure incorrecte (CustomFields dans CustomObject au lieu de fichiers séparés)\nLe prompt seul ne suffit pas - besoin de validation XML ou templates.",
+      "title": "XML CustomObject mal format\u00e9 par agent admin",
+      "description": "L'agent admin g\u00e9n\u00e8re du XML metadata Salesforce invalide:\n1. Propri\u00e9t\u00e9s invalides (enableChangeDataCapture) \n2. Structure incorrecte (CustomFields dans CustomObject au lieu de fichiers s\u00e9par\u00e9s)\nLe prompt seul ne suffit pas - besoin de validation XML ou templates.",
       "status": "completed",
       "priority": 1,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - Prompt admin amélioré avec templates XML + sanitize_salesforce_xml()"
+      "notes": "CORRIG\u00c9 2025-12-09 - Prompt admin am\u00e9lior\u00e9 avec templates XML + sanitize_salesforce_xml()"
     },
     {
       "id": "BUG-025",
-      "title": "Experts SDS échouent (Elena, Jordan, Aisha)",
-      "description": "3 experts SDS échouent avec 'Unknown error' après initialisation Anthropic client",
+      "title": "Experts SDS \u00e9chouent (Elena, Jordan, Aisha)",
+      "description": "3 experts SDS \u00e9chouent avec 'Unknown error' apr\u00e8s initialisation Anthropic client",
       "status": "completed",
       "priority": 4,
       "category": "WORKFLOW_SDS",
-      "notes": "Résolu - experts SDS fonctionnent (constaté 10/12/2025 exec #111)"
+      "notes": "R\u00e9solu - experts SDS fonctionnent (constat\u00e9 10/12/2025 exec #111)"
     },
     {
       "id": "BUG-026",
@@ -1662,16 +1662,16 @@
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - pm_orchestrator.py"
+      "notes": "CORRIG\u00c9 2025-12-09 - pm_orchestrator.py"
     },
     {
       "id": "BUG-027",
-      "title": "Logger non défini dans agent_executor.py",
+      "title": "Logger non d\u00e9fini dans agent_executor.py",
       "description": "name 'logger' is not defined",
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - ajouté import logging et logger"
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 import logging et logger"
     },
     {
       "id": "BUG-028",
@@ -1680,7 +1680,7 @@
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - mapping model -> model_override dans generate_llm_response"
+      "notes": "CORRIG\u00c9 2025-12-09 - mapping model -> model_override dans generate_llm_response"
     },
     {
       "id": "BUG-029",
@@ -1689,7 +1689,7 @@
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - ajouté aliases dans AGENT_CONFIGS"
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 aliases dans AGENT_CONFIGS"
     },
     {
       "id": "BUG-030",
@@ -1698,16 +1698,16 @@
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - ajouté cwd=temp_dir dans deploy_metadata"
+      "notes": "CORRIG\u00c9 2025-12-09 - ajout\u00e9 cwd=temp_dir dans deploy_metadata"
     },
     {
       "id": "BUG-031",
-      "title": "Tasks dupliquées à chaque start-build",
-      "description": "prepare_build_phase recrée les tasks même si elles existent",
+      "title": "Tasks dupliqu\u00e9es \u00e0 chaque start-build",
+      "description": "prepare_build_phase recr\u00e9e les tasks m\u00eame si elles existent",
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - vérification existing_tasks avant création"
+      "notes": "CORRIG\u00c9 2025-12-09 - v\u00e9rification existing_tasks avant cr\u00e9ation"
     },
     {
       "id": "BUG-032",
@@ -1716,52 +1716,52 @@
       "status": "completed",
       "priority": 3,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - incremental_executor.py ligne 536"
+      "notes": "CORRIG\u00c9 2025-12-09 - incremental_executor.py ligne 536"
     },
     {
       "id": "BUG-033",
-      "title": "Elena doit valider AVANT le déploiement SFDX",
-      "description": "Le flux actuel: Generate → Deploy → Elena. Mais si le XML est invalide, le deploy échoue et Elena ne voit jamais le code. Le flux correct: Generate → Elena valide → Deploy",
+      "title": "Elena doit valider AVANT le d\u00e9ploiement SFDX",
+      "description": "Le flux actuel: Generate \u2192 Deploy \u2192 Elena. Mais si le XML est invalide, le deploy \u00e9choue et Elena ne voit jamais le code. Le flux correct: Generate \u2192 Elena valide \u2192 Deploy",
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - Elena review en Step 2 AVANT déploiement SFDX"
+      "notes": "CORRIG\u00c9 2025-12-09 - Elena review en Step 2 AVANT d\u00e9ploiement SFDX"
     },
     {
       "id": "BUG-034",
-      "title": "Fichiers -meta.xml déployés comme code Apex",
-      "description": "Les fichiers SharingHandler.cls-meta.xml sont traités comme ApexClass au lieu d'être ignorés. SFDX génère automatiquement les meta.xml.",
+      "title": "Fichiers -meta.xml d\u00e9ploy\u00e9s comme code Apex",
+      "description": "Les fichiers SharingHandler.cls-meta.xml sont trait\u00e9s comme ApexClass au lieu d'\u00eatre ignor\u00e9s. SFDX g\u00e9n\u00e8re automatiquement les meta.xml.",
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - Skip les fichiers -meta.xml dans la boucle de déploiement"
+      "notes": "CORRIG\u00c9 2025-12-09 - Skip les fichiers -meta.xml dans la boucle de d\u00e9ploiement"
     },
     {
       "id": "BUG-035",
-      "title": "Agent apex génère du code avec dépendances manquantes",
-      "description": "Diego génère du code qui référence des classes non créées (ex: SharingException). Le code compile localement mais échoue au déploiement car les dépendances n'existent pas.",
+      "title": "Agent apex g\u00e9n\u00e8re du code avec d\u00e9pendances manquantes",
+      "description": "Diego g\u00e9n\u00e8re du code qui r\u00e9f\u00e9rence des classes non cr\u00e9\u00e9es (ex: SharingException). Le code compile localement mais \u00e9choue au d\u00e9ploiement car les d\u00e9pendances n'existent pas.",
       "status": "completed",
       "priority": 3,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - Prompt Diego amélioré: no external dependencies, use AuraHandledException"
+      "notes": "CORRIG\u00c9 2025-12-09 - Prompt Diego am\u00e9lior\u00e9: no external dependencies, use AuraHandledException"
     },
     {
       "id": "BUG-036",
-      "title": "Déploiement LWC ne crée pas la structure bundle",
-      "description": "Les LWC doivent être déployés comme bundle (dossier avec tous les fichiers), pas fichier par fichier. sfdx_service.deploy_metadata ne gère pas ce cas - génère 'No local changes to deploy'",
+      "title": "D\u00e9ploiement LWC ne cr\u00e9e pas la structure bundle",
+      "description": "Les LWC doivent \u00eatre d\u00e9ploy\u00e9s comme bundle (dossier avec tous les fichiers), pas fichier par fichier. sfdx_service.deploy_metadata ne g\u00e8re pas ce cas - g\u00e9n\u00e8re 'No local changes to deploy'",
       "status": "completed",
       "priority": 2,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - deploy_lwc_bundle() crée la structure bundle correcte"
+      "notes": "CORRIG\u00c9 2025-12-09 - deploy_lwc_bundle() cr\u00e9e la structure bundle correcte"
     },
     {
       "id": "BUG-037",
-      "title": "Feedback Elena non passé aux agents lors du retry",
-      "description": "correction_context créé avec le feedback d'Elena mais jamais ajouté au prompt. Les agents ne voyaient pas les corrections demandées.",
+      "title": "Feedback Elena non pass\u00e9 aux agents lors du retry",
+      "description": "correction_context cr\u00e9\u00e9 avec le feedback d'Elena mais jamais ajout\u00e9 au prompt. Les agents ne voyaient pas les corrections demand\u00e9es.",
       "status": "completed",
       "priority": 1,
       "category": "WORKFLOW_BUILD",
-      "notes": "CORRIGÉ 2025-12-09 - Ajout prompt += correction_context dans lwc et admin"
+      "notes": "CORRIG\u00c9 2025-12-09 - Ajout prompt += correction_context dans lwc et admin"
     },
     {
       "id": "BUG-038",
@@ -1777,7 +1777,7 @@
         "Elena receives full code content for review"
       ],
       "dependencies": [],
-      "notes": "TESTÉ 10/12/2025: Elena reçoit 35k chars (6 fichiers complets). Review RÉELLE avec issues légitimes. Root cause: content[:3000] par fichier."
+      "notes": "TEST\u00c9 10/12/2025: Elena re\u00e7oit 35k chars (6 fichiers complets). Review R\u00c9ELLE avec issues l\u00e9gitimes. Root cause: content[:3000] par fichier."
     },
     {
       "id": "INFRA-001",
@@ -1801,7 +1801,7 @@
       "id": "INFRA-002",
       "category": "INFRASTRUCTURE",
       "title": "LLM Logging pour tous les agents",
-      "description": "Ajouter le logging LLM (llm_logger) à tous les agents BUILD: Diego, Raj, Aisha, et agents SDS: Sophie, Olivia, Marcus, Jordan, Lucas",
+      "description": "Ajouter le logging LLM (llm_logger) \u00e0 tous les agents BUILD: Diego, Raj, Aisha, et agents SDS: Sophie, Olivia, Marcus, Jordan, Lucas",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
@@ -1829,21 +1829,21 @@
         "backend/agents/roles/salesforce_trainer.py"
       ],
       "estimated_hours": 3,
-      "notes": "Implémenté le 11/12/2025: LLM logging ajouté à tous les 10 agents (5 BUILD + 5 SDS). Pattern uniforme avec log_llm_interaction() appelé après chaque appel LLM."
+      "notes": "Impl\u00e9ment\u00e9 le 11/12/2025: LLM logging ajout\u00e9 \u00e0 tous les 10 agents (5 BUILD + 5 SDS). Pattern uniforme avec log_llm_interaction() appel\u00e9 apr\u00e8s chaque appel LLM."
     },
     {
       "id": "FRONT-006",
       "category": "FRONTEND",
-      "title": "AgentThoughtModal - Enrichir avec données LLM réelles",
-      "description": "Améliorer le modal au clic sur un agent pour afficher les vraies données: prompt (tronqué), tokens utilisés, temps d'exécution, résumé réel de l'output. Utiliser la table llm_interactions.",
+      "title": "AgentThoughtModal - Enrichir avec donn\u00e9es LLM r\u00e9elles",
+      "description": "Am\u00e9liorer le modal au clic sur un agent pour afficher les vraies donn\u00e9es: prompt (tronqu\u00e9), tokens utilis\u00e9s, temps d'ex\u00e9cution, r\u00e9sum\u00e9 r\u00e9el de l'output. Utiliser la table llm_interactions.",
       "priority": 3,
       "status": "not_started",
       "validation_criteria": [
-        "Modal affiche le prompt envoyé (premiers 500 chars)",
+        "Modal affiche le prompt envoy\u00e9 (premiers 500 chars)",
         "Modal affiche tokens input/output",
-        "Modal affiche temps d'exécution",
-        "Modal affiche un vrai résumé de l'output (pas juste 'message')",
-        "Données viennent de llm_interactions en temps réel"
+        "Modal affiche temps d'ex\u00e9cution",
+        "Modal affiche un vrai r\u00e9sum\u00e9 de l'output (pas juste 'message')",
+        "Donn\u00e9es viennent de llm_interactions en temps r\u00e9el"
       ],
       "dependencies": [
         "INFRA-001"
@@ -1853,13 +1853,13 @@
         "backend/app/api/routes/pm_orchestrator.py"
       ],
       "estimated_hours": 3,
-      "notes": "Dépend du LLM logging (INFRA-001). Endpoint à créer: GET /agent/{id}/thought"
+      "notes": "D\u00e9pend du LLM logging (INFRA-001). Endpoint \u00e0 cr\u00e9er: GET /agent/{id}/thought"
     },
     {
       "id": "BUG-039",
       "category": "BUGS",
-      "title": "Aisha generate_spec référence correction_context non définie",
-      "description": "La fonction generate_spec d'Aisha référençait correction_context qui n'existe que dans generate_build. Causait NameError et message d'erreur trompeur ('LLM Logger loaded').",
+      "title": "Aisha generate_spec r\u00e9f\u00e9rence correction_context non d\u00e9finie",
+      "description": "La fonction generate_spec d'Aisha r\u00e9f\u00e9ren\u00e7ait correction_context qui n'existe que dans generate_build. Causait NameError et message d'erreur trompeur ('LLM Logger loaded').",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
@@ -1870,68 +1870,68 @@
         "backend/agents/roles/salesforce_data_migration.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Corrigé 10/12/2025 - supprimé lignes 129-130"
+      "notes": "Corrig\u00e9 10/12/2025 - supprim\u00e9 lignes 129-130"
     },
     {
       "id": "BUG-040",
       "category": "BUGS",
-      "title": "Raj parser ne gère pas XML sans backticks",
-      "description": "Le LLM générait des fichiers XML avec <!-- FILE: path --> mais sans les blocs ```xml. Le parser regex ne matchait pas. Corrigé pour accepter les deux formats.",
+      "title": "Raj parser ne g\u00e8re pas XML sans backticks",
+      "description": "Le LLM g\u00e9n\u00e9rait des fichiers XML avec <!-- FILE: path --> mais sans les blocs ```xml. Le parser regex ne matchait pas. Corrig\u00e9 pour accepter les deux formats.",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Raj génère des fichiers XML correctement parsés"
+        "Raj g\u00e9n\u00e8re des fichiers XML correctement pars\u00e9s"
       ],
       "dependencies": [],
       "files": [
         "backend/agents/roles/salesforce_admin.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Corrigé 10/12/2025 - parser accepte maintenant 2 formats"
+      "notes": "Corrig\u00e9 10/12/2025 - parser accepte maintenant 2 formats"
     },
     {
       "id": "BUG-041",
       "category": "BUGS",
-      "title": "test_result non défini dans executor",
-      "description": "Variable test_result utilisée sans être définie dans _execute_single_task(). Corrigé en task.test_result",
+      "title": "test_result non d\u00e9fini dans executor",
+      "description": "Variable test_result utilis\u00e9e sans \u00eatre d\u00e9finie dans _execute_single_task(). Corrig\u00e9 en task.test_result",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Tâches BUILD peuvent se terminer sans NameError"
+        "T\u00e2ches BUILD peuvent se terminer sans NameError"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 0.25,
-      "notes": "Corrigé 10/12/2025"
+      "notes": "Corrig\u00e9 10/12/2025"
     },
     {
       "id": "BUG-042",
       "category": "BUGS",
-      "title": "Raj génère credentials hardcodées",
-      "description": "Raj met des passwords, tokens OAuth et consumer keys dans les fichiers XML. Faille de sécurité majeure.",
+      "title": "Raj g\u00e9n\u00e8re credentials hardcod\u00e9es",
+      "description": "Raj met des passwords, tokens OAuth et consumer keys dans les fichiers XML. Faille de s\u00e9curit\u00e9 majeure.",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Raj ne génère jamais de credentials dans le code"
+        "Raj ne g\u00e9n\u00e8re jamais de credentials dans le code"
       ],
       "dependencies": [],
       "files": [
         "backend/agents/roles/salesforce_admin.py"
       ],
       "estimated_hours": 1,
-      "notes": "Corrigé le 11/12/2025: Ajout RULE 4 (SECURITY) dans BUILD_PROMPT et SPEC_PROMPT de Raj - interdit credentials, API keys, tokens. Recommande Named Credentials et placeholders."
+      "notes": "Corrig\u00e9 le 11/12/2025: Ajout RULE 4 (SECURITY) dans BUILD_PROMPT et SPEC_PROMPT de Raj - interdit credentials, API keys, tokens. Recommande Named Credentials et placeholders."
     },
     {
       "id": "BUG-043",
       "category": "BUGS",
-      "title": "Asymétrie connaissances Raj vs Elena",
-      "description": "Elena connaît les règles Salesforce (Master-Detail pour Rollup) mais Raj non. Investiguer pourquoi.",
+      "title": "Asym\u00e9trie connaissances Raj vs Elena",
+      "description": "Elena conna\u00eet les r\u00e8gles Salesforce (Master-Detail pour Rollup) mais Raj non. Investiguer pourquoi.",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Raj et Elena ont le même niveau de connaissance SF"
+        "Raj et Elena ont le m\u00eame niveau de connaissance SF"
       ],
       "dependencies": [],
       "files": [
@@ -1939,19 +1939,19 @@
         "backend/agents/roles/salesforce_qa_tester.py"
       ],
       "estimated_hours": 2,
-      "notes": "Corrigé le 11/12/2025: (1) Ajout qa_tester dans AGENT_COLLECTIONS, (2) Query RAG de Raj améliorée avec termes Master-Detail/Lookup/Rollup/standard objects, (3) n_results augmenté à 5."
+      "notes": "Corrig\u00e9 le 11/12/2025: (1) Ajout qa_tester dans AGENT_COLLECTIONS, (2) Query RAG de Raj am\u00e9lior\u00e9e avec termes Master-Detail/Lookup/Rollup/standard objects, (3) n_results augment\u00e9 \u00e0 5."
     },
     {
       "id": "BUG-044",
       "category": "BUGS",
-      "title": "WBS détails non transmis aux agents BUILD",
-      "description": "Le WBS de Marcus contient description, validation_criteria, deliverables, gap_refs mais ces infos ne sont pas stockées dans task_executions ni transmises aux agents. Raj reçoit seulement task_name comme description.",
+      "title": "WBS d\u00e9tails non transmis aux agents BUILD",
+      "description": "Le WBS de Marcus contient description, validation_criteria, deliverables, gap_refs mais ces infos ne sont pas stock\u00e9es dans task_executions ni transmises aux agents. Raj re\u00e7oit seulement task_name comme description.",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
         "task_executions contient colonnes: description, validation_criteria, deliverables, gap_refs",
         "load_tasks_from_wbs() extrait tous ces champs",
-        "_generate_code_for_task() transmet ces infos à l'agent"
+        "_generate_code_for_task() transmet ces infos \u00e0 l'agent"
       ],
       "dependencies": [],
       "files": [
@@ -1965,11 +1965,11 @@
       "id": "BUG-045",
       "category": "BUGS",
       "title": "Gap Analysis non transmise aux agents BUILD",
-      "description": "Les gap_refs du WBS référencent des GAPs détaillés (current_state, target_state, gap_description) mais ces infos ne sont jamais chargées ni transmises aux agents BUILD.",
+      "description": "Les gap_refs du WBS r\u00e9f\u00e9rencent des GAPs d\u00e9taill\u00e9s (current_state, target_state, gap_description) mais ces infos ne sont jamais charg\u00e9es ni transmises aux agents BUILD.",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "L'executor charge les GAPs référencés par gap_refs",
+        "L'executor charge les GAPs r\u00e9f\u00e9renc\u00e9s par gap_refs",
         "Le contexte GAP est inclus dans le prompt de l'agent"
       ],
       "dependencies": [
@@ -1979,18 +1979,18 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 2,
-      "notes": "Phase 1 (11/12 AM): _get_gap_context() charge les GAPs. Phase 2 (11/12 PM): Tous agents BUILD (Raj, Diego, Zara, Aisha) intègrent gap_context dans leurs prompts."
+      "notes": "Phase 1 (11/12 AM): _get_gap_context() charge les GAPs. Phase 2 (11/12 PM): Tous agents BUILD (Raj, Diego, Zara, Aisha) int\u00e8grent gap_context dans leurs prompts."
     },
     {
       "id": "BUG-046",
       "category": "BUGS",
       "title": "Solution Design non transmis aux agents BUILD",
-      "description": "Le Solution Design de Marcus (data_model, security_model, etc.) n'est pas transmis aux agents BUILD. Raj crée des objets inventés au lieu de suivre le design de Marcus.",
+      "description": "Le Solution Design de Marcus (data_model, security_model, etc.) n'est pas transmis aux agents BUILD. Raj cr\u00e9e des objets invent\u00e9s au lieu de suivre le design de Marcus.",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "Le data_model du Solution Design est transmis à Raj pour les tâches data model",
-        "L'agent génère du code conforme au design"
+        "Le data_model du Solution Design est transmis \u00e0 Raj pour les t\u00e2ches data model",
+        "L'agent g\u00e9n\u00e8re du code conforme au design"
       ],
       "dependencies": [
         "BUG-044"
@@ -1999,18 +1999,18 @@
         "backend/app/services/incremental_executor.py"
       ],
       "estimated_hours": 2,
-      "notes": "Phase 1 (11/12 AM): _get_solution_design_context() charge le design. Phase 2 (11/12 PM): Tous agents BUILD intègrent solution_design (data_model, process_flows, apex_classes, lwc_components) dans leurs prompts."
+      "notes": "Phase 1 (11/12 AM): _get_solution_design_context() charge le design. Phase 2 (11/12 PM): Tous agents BUILD int\u00e8grent solution_design (data_model, process_flows, apex_classes, lwc_components) dans leurs prompts."
     },
     {
       "id": "BUG-047",
       "category": "BUGS",
-      "title": "Marcus ne connaît pas les champs standard Salesforce",
-      "description": "Marcus crée des champs custom redondants (Contact_Request_Name__c, Contact_Request_Email__c) alors que Case a déjà ContactId lookup et SuppliedName/Email/Phone. Le RAG ne lui fournit pas la structure des objets standard.",
+      "title": "Marcus ne conna\u00eet pas les champs standard Salesforce",
+      "description": "Marcus cr\u00e9e des champs custom redondants (Contact_Request_Name__c, Contact_Request_Email__c) alors que Case a d\u00e9j\u00e0 ContactId lookup et SuppliedName/Email/Phone. Le RAG ne lui fournit pas la structure des objets standard.",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "RAG contient la structure des objets standard SF (Case, Account, Contact, etc.)",
-        "Marcus vérifie les champs existants avant de proposer des custom fields"
+        "Marcus v\u00e9rifie les champs existants avant de proposer des custom fields"
       ],
       "dependencies": [],
       "files": [
@@ -2018,17 +2018,17 @@
         "data/rag_documents/"
       ],
       "estimated_hours": 4,
-      "notes": "Corrigé le 15/12/2025 (commit 67ac644): RAG query dynamique + sf sobject describe pour Case/Contact/Account/Lead/Opportunity. Le RAG contenait déjà 6017 chunks du PDF - le problème était la query statique."
+      "notes": "Corrig\u00e9 le 15/12/2025 (commit 67ac644): RAG query dynamique + sf sobject describe pour Case/Contact/Account/Lead/Opportunity. Le RAG contenait d\u00e9j\u00e0 6017 chunks du PDF - le probl\u00e8me \u00e9tait la query statique."
     },
     {
       "id": "BUG-048",
       "category": "BUGS",
-      "title": "LLM interactions non loggées pour phase SDS",
-      "description": "Les interactions LLM de Sophie, Olivia, Marcus ne sont pas loggées dans llm_interactions. Impossible de débugger ce qu'ils reçoivent comme contexte.",
+      "title": "LLM interactions non logg\u00e9es pour phase SDS",
+      "description": "Les interactions LLM de Sophie, Olivia, Marcus ne sont pas logg\u00e9es dans llm_interactions. Impossible de d\u00e9bugger ce qu'ils re\u00e7oivent comme contexte.",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Toutes les interactions LLM (SDS + BUILD) sont loggées",
+        "Toutes les interactions LLM (SDS + BUILD) sont logg\u00e9es",
         "On peut voir le prompt et RAG context de chaque agent"
       ],
       "dependencies": [],
@@ -2037,7 +2037,7 @@
         "backend/agents/roles/solution_architect.py"
       ],
       "estimated_hours": 2,
-      "notes": "Implémenté le 11/12/2025 (INFRA-002): LLM logging ajouté à Sophie, Olivia, Marcus, Jordan, Lucas. Tous les agents SDS et BUILD loggent maintenant leurs appels LLM dans llm_interactions."
+      "notes": "Impl\u00e9ment\u00e9 le 11/12/2025 (INFRA-002): LLM logging ajout\u00e9 \u00e0 Sophie, Olivia, Marcus, Jordan, Lucas. Tous les agents SDS et BUILD loggent maintenant leurs appels LLM dans llm_interactions."
     },
     {
       "id": "BUG-051",
@@ -2054,22 +2054,22 @@
     {
       "id": "EMMA-P1-001",
       "category": "EMMA_WORKFLOW_V2",
-      "title": "Fix mapping priorités BRs",
+      "title": "Fix mapping priorit\u00e9s BRs",
       "description": "Ajouter variantes au priority_map dans _save_extracted_brs (must_have, should_have, nice_to_have, etc.)",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
-        "Test avec BR 'must_have' → stocké comme MUST",
-        "Test avec BR 'should_have' → stocké comme SHOULD",
-        "Test avec BR 'nice_to_have' → stocké comme COULD",
-        "Exécution réelle avec priorités correctes"
+        "Test avec BR 'must_have' \u2192 stock\u00e9 comme MUST",
+        "Test avec BR 'should_have' \u2192 stock\u00e9 comme SHOULD",
+        "Test avec BR 'nice_to_have' \u2192 stock\u00e9 comme COULD",
+        "Ex\u00e9cution r\u00e9elle avec priorit\u00e9s correctes"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Implémenté 12/12/2025. priority_map étendu avec 16 variantes (must_have, should_have, nice_to_have, critical, high, etc.). Normalisation des tirets/espaces. Tests unitaires OK."
+      "notes": "Impl\u00e9ment\u00e9 12/12/2025. priority_map \u00e9tendu avec 16 variantes (must_have, should_have, nice_to_have, critical, high, etc.). Normalisation des tirets/espaces. Tests unitaires OK."
     },
     {
       "id": "EMMA-P1-002",
@@ -2079,45 +2079,45 @@
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
-        "Document SDS contient descriptions complètes des BRs",
-        "Pas de régression sur le formatage"
+        "Document SDS contient descriptions compl\u00e8tes des BRs",
+        "Pas de r\u00e9gression sur le formatage"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/document_generator.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Analysé 12/12/2025. NON APPLICABLE - Le code actuel utilise déjà correctement br.get('description') ligne 491. Le bug BUG-003 n'existe pas."
+      "notes": "Analys\u00e9 12/12/2025. NON APPLICABLE - Le code actuel utilise d\u00e9j\u00e0 correctement br.get('description') ligne 491. Le bug BUG-003 n'existe pas."
     },
     {
       "id": "EMMA-P1-003",
       "category": "EMMA_WORKFLOW_V2",
       "title": "Migration DB - Champs Project",
-      "description": "Ajouter 14 champs à la table projects (client_name, project_type, project_goal, sf_edition, etc.)",
+      "description": "Ajouter 14 champs \u00e0 la table projects (client_name, project_type, project_goal, sf_edition, etc.)",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
-        "Migration exécutée sans erreur",
+        "Migration ex\u00e9cut\u00e9e sans erreur",
         "14 colonnes visibles dans DB",
-        "Valeurs par défaut correctes"
+        "Valeurs par d\u00e9faut correctes"
       ],
       "dependencies": [],
       "files": [
         "backend/alembic/versions/xxx_add_project_config_fields.py"
       ],
       "estimated_hours": 1,
-      "notes": "Implémenté 12/12/2025. Migration 004_project_config:\n- 13 colonnes ajoutées (client_name, client_contact_name/email, client_logo_url, project_type, project_goal, sf_edition, sf_org_id, sf_instance_url, language, sds_template_id, wizard_completed_at, wizard_current_step)\n- 3 index créés (client_name, project_type, project_goal)\n- Valeurs par défaut: project_type='greenfield', project_goal='sds_only', language='fr', sds_template_id='default', wizard_current_step=1"
+      "notes": "Impl\u00e9ment\u00e9 12/12/2025. Migration 004_project_config:\n- 13 colonnes ajout\u00e9es (client_name, client_contact_name/email, client_logo_url, project_type, project_goal, sf_edition, sf_org_id, sf_instance_url, language, sds_template_id, wizard_completed_at, wizard_current_step)\n- 3 index cr\u00e9\u00e9s (client_name, project_type, project_goal)\n- Valeurs par d\u00e9faut: project_type='greenfield', project_goal='sds_only', language='fr', sds_template_id='default', wizard_current_step=1"
     },
     {
       "id": "EMMA-P1-004",
       "category": "EMMA_WORKFLOW_V2",
       "title": "Migration DB - Tables Environnements & Git",
-      "description": "Créer tables project_environments et project_git_config",
+      "description": "Cr\u00e9er tables project_environments et project_git_config",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
-        "Tables créées avec contraintes FK",
-        "Index créés",
+        "Tables cr\u00e9\u00e9es avec contraintes FK",
+        "Index cr\u00e9\u00e9s",
         "Test insert/select OK"
       ],
       "dependencies": [
@@ -2127,13 +2127,13 @@
         "backend/alembic/versions/xxx_add_environments_git.py"
       ],
       "estimated_hours": 1,
-      "notes": "Implémenté 12/12/2025. Migration 005_environments_git:\n- Table project_environments (21 colonnes): environnements SFDX avec credentials chiffrés\n- Table project_git_config (17 colonnes): config Git avec tokens chiffrés\n- FK vers projects(id) ON DELETE CASCADE\n- Index et contraintes d'unicité créés"
+      "notes": "Impl\u00e9ment\u00e9 12/12/2025. Migration 005_environments_git:\n- Table project_environments (21 colonnes): environnements SFDX avec credentials chiffr\u00e9s\n- Table project_git_config (17 colonnes): config Git avec tokens chiffr\u00e9s\n- FK vers projects(id) ON DELETE CASCADE\n- Index et contraintes d'unicit\u00e9 cr\u00e9\u00e9s"
     },
     {
       "id": "EMMA-P1-005",
       "category": "EMMA_WORKFLOW_V2",
       "title": "Tests unitaires Phase 1",
-      "description": "Écrire tests pour P1-001 et P1-002",
+      "description": "\u00c9crire tests pour P1-001 et P1-002",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
@@ -2149,7 +2149,7 @@
         "backend/tests/test_orchestrator_fixes.py"
       ],
       "estimated_hours": 1,
-      "notes": "Implémenté 12/12/2025. Tests inline validant: (1) priority_map avec toutes variantes, (2) colonnes projects ajoutées, (3) tables project_environments et project_git_config créées. ALL TESTS PASSED."
+      "notes": "Impl\u00e9ment\u00e9 12/12/2025. Tests inline validant: (1) priority_map avec toutes variantes, (2) colonnes projects ajout\u00e9es, (3) tables project_environments et project_git_config cr\u00e9\u00e9es. ALL TESTS PASSED."
     },
     {
       "id": "EMMA-P2-001",
@@ -2189,7 +2189,7 @@
       "status": "completed",
       "category": "emma-workflow",
       "priority": "high",
-      "notes": "Emma intégrée dans orchestrateur V2: Phase 2.5 entre Olivia et Marcus, uc_digest passé à Marcus"
+      "notes": "Emma int\u00e9gr\u00e9e dans orchestrateur V2: Phase 2.5 entre Olivia et Marcus, uc_digest pass\u00e9 \u00e0 Marcus"
     },
     {
       "id": "EMMA-P2-006",
@@ -2197,7 +2197,7 @@
       "status": "completed",
       "category": "emma-workflow",
       "priority": "high",
-      "notes": "Marcus modifié pour consommer uc_digest: design et gap modes mis à jour"
+      "notes": "Marcus modifi\u00e9 pour consommer uc_digest: design et gap modes mis \u00e0 jour"
     },
     {
       "id": "EMMA-P2-007",
@@ -2205,20 +2205,20 @@
       "status": "completed",
       "category": "emma-workflow",
       "priority": "medium",
-      "notes": "Test intégration 78 UCs: Emma analyse, Marcus design. Résultat: +1 objet, +2 flows détectés"
+      "notes": "Test int\u00e9gration 78 UCs: Emma analyse, Marcus design. R\u00e9sultat: +1 objet, +2 flows d\u00e9tect\u00e9s"
     },
     {
       "id": "EMMA-P3-001",
       "name": "Add Emma validate call after Marcus solution_design",
       "status": "completed",
-      "description": "Dans l'orchestrateur, appeler Emma mode validate après que Marcus génère le solution_design",
-      "notes": "Emma validate appelé après solution_design avec mode=validate"
+      "description": "Dans l'orchestrateur, appeler Emma mode validate apr\u00e8s que Marcus g\u00e9n\u00e8re le solution_design",
+      "notes": "Emma validate appel\u00e9 apr\u00e8s solution_design avec mode=validate"
     },
     {
       "id": "EMMA-P3-002",
       "name": "Implement coverage loop logic",
       "status": "completed",
-      "description": "Si couverture < 95%, Marcus reçoit gaps et revise. Max 2 iterations.",
+      "description": "Si couverture < 95%, Marcus re\u00e7oit gaps et revise. Max 2 iterations.",
       "notes": "Boucle de couverture: si <95%, Marcus revise avec coverage_gaps"
     },
     {
@@ -2226,13 +2226,13 @@
       "name": "Save coverage report to agent_deliverables",
       "status": "completed",
       "description": "Persister le rapport de couverture Emma dans agent_deliverables",
-      "notes": "Coverage report sauvegardé via _save_deliverable"
+      "notes": "Coverage report sauvegard\u00e9 via _save_deliverable"
     },
     {
       "id": "EMMA-P3-004",
       "name": "End-to-end test with coverage loop",
       "status": "completed",
-      "description": "Test complet: Emma analyze → Marcus design → Emma validate → (loop si gaps)",
+      "description": "Test complet: Emma analyze \u2192 Marcus design \u2192 Emma validate \u2192 (loop si gaps)",
       "notes": "E2E test OK. Bug connu: JSON parse fail pour >50 UCs (continuation). Workflow fonctionne."
     },
     {
@@ -2240,25 +2240,25 @@
       "name": "Fix JSON continuation parsing for large UC sets",
       "status": "completed",
       "description": "Le mapping de >50 UCs cause une erreur JSON parse lors de la continuation. Solution: batching par 20 UCs.",
-      "notes": "Fix batching par 5 UCs. Test: 73/78 mappés, 73.2% coverage, 42 gaps identifiés."
+      "notes": "Fix batching par 5 UCs. Test: 73/78 mapp\u00e9s, 73.2% coverage, 42 gaps identifi\u00e9s."
     },
     {
       "id": "EMMA-P3-005",
       "name": "Test Marcus revision with Emma gaps",
       "status": "completed",
-      "description": "Test complet: Emma 73.2% coverage → Marcus révise avec 15 gaps → +7 fields, +1 integration",
+      "description": "Test complet: Emma 73.2% coverage \u2192 Marcus r\u00e9vise avec 15 gaps \u2192 +7 fields, +1 integration",
       "notes": "Original: 15 fields, 0 integrations. Revised: 22 fields, Einstein API, Case object"
     },
     {
       "id": "EMMA-P3-006",
-      "name": "P3-006: WBS après validation Emma",
+      "name": "P3-006: WBS apr\u00e8s validation Emma",
       "status": "completed",
-      "description": "WBS déplacé dans le bloc de succès de Emma validate",
-      "notes": "Workflow: Design → Validate → (Revision) → WBS"
+      "description": "WBS d\u00e9plac\u00e9 dans le bloc de succ\u00e8s de Emma validate",
+      "notes": "Workflow: Design \u2192 Validate \u2192 (Revision) \u2192 WBS"
     },
     {
       "id": "EMMA-P3-007",
-      "name": "P3-007: Tests intégration Phase 3",
+      "name": "P3-007: Tests int\u00e9gration Phase 3",
       "status": "completed",
       "description": "Tests pour fix_gaps, WBS position, coverage threshold",
       "notes": "4/4 tests passent"
@@ -2358,34 +2358,34 @@
       "id": "SEC-001",
       "category": "SECURITY",
       "title": "Supprimer CORS wildcard",
-      "description": "Retirer '*' de allow_origins car combiné avec allow_credentials=True crée une vulnérabilité CSRF",
+      "description": "Retirer '*' de allow_origins car combin\u00e9 avec allow_credentials=True cr\u00e9e une vuln\u00e9rabilit\u00e9 CSRF",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
-        "Wildcard '*' retiré de CORS allow_origins",
-        "Seuls les domaines explicites sont autorisés",
-        "Test: requête depuis domaine non listé bloquée"
+        "Wildcard '*' retir\u00e9 de CORS allow_origins",
+        "Seuls les domaines explicites sont autoris\u00e9s",
+        "Test: requ\u00eate depuis domaine non list\u00e9 bloqu\u00e9e"
       ],
       "dependencies": [],
       "files": [
         "backend/app/main.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Complété 15/12/2025 (commit 731ebc6). Domaines autorisés: VPS IPs, localhost variants."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit 731ebc6). Domaines autoris\u00e9s: VPS IPs, localhost variants."
     },
     {
       "id": "SEC-002",
       "category": "SECURITY",
-      "title": "Implémenter rate limiting API",
-      "description": "Ajouter slowapi pour limiter les requêtes et prévenir brute force, DoS, et abus des appels LLM",
+      "title": "Impl\u00e9menter rate limiting API",
+      "description": "Ajouter slowapi pour limiter les requ\u00eates et pr\u00e9venir brute force, DoS, et abus des appels LLM",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
         "Login/Register: 5/minute par IP",
-        "API authentifiée: 100/minute par user",
-        "Exécutions LLM: 10/hour par user",
-        "Headers X-RateLimit-* présents",
-        "Retourne 429 si dépassement"
+        "API authentifi\u00e9e: 100/minute par user",
+        "Ex\u00e9cutions LLM: 10/hour par user",
+        "Headers X-RateLimit-* pr\u00e9sents",
+        "Retourne 429 si d\u00e9passement"
       ],
       "dependencies": [],
       "files": [
@@ -2394,38 +2394,38 @@
         "backend/app/api/routes/auth.py"
       ],
       "estimated_hours": 2,
-      "notes": "Complété 15/12/2025 (commit f8e3625). Utilise slowapi avec fixed-window strategy."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit f8e3625). Utilise slowapi avec fixed-window strategy."
     },
     {
       "id": "SEC-003",
       "category": "SECURITY",
-      "title": "SECRET_KEY auto-génération dev mode",
-      "description": "En mode dev (DEBUG=True), auto-générer SECRET_KEY si non défini. En production (DEBUG=False), exiger explicitement la clé.",
+      "title": "SECRET_KEY auto-g\u00e9n\u00e9ration dev mode",
+      "description": "En mode dev (DEBUG=True), auto-g\u00e9n\u00e9rer SECRET_KEY si non d\u00e9fini. En production (DEBUG=False), exiger explicitement la cl\u00e9.",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Production sans SECRET_KEY → crash avec message explicite",
-        "Development sans SECRET_KEY → auto-génère avec warning",
-        "SECRET_KEY défini → utilisé dans tous les modes"
+        "Production sans SECRET_KEY \u2192 crash avec message explicite",
+        "Development sans SECRET_KEY \u2192 auto-g\u00e9n\u00e8re avec warning",
+        "SECRET_KEY d\u00e9fini \u2192 utilis\u00e9 dans tous les modes"
       ],
       "dependencies": [],
       "files": [
         "backend/app/config.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Complété 15/12/2025 (commit 9ef7ee5). Utilise model_validator Pydantic v2."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit 9ef7ee5). Utilise model_validator Pydantic v2."
     },
     {
       "id": "BUG-010",
       "category": "BUGFIX",
-      "title": "Fix import SDS_PHASES cassé dans route resume",
-      "description": "La route /execute/{id}/resume importe SDS_PHASES qui a été supprimé le 15/12/2025 lors du nettoyage",
+      "title": "Fix import SDS_PHASES cass\u00e9 dans route resume",
+      "description": "La route /execute/{id}/resume importe SDS_PHASES qui a \u00e9t\u00e9 supprim\u00e9 le 15/12/2025 lors du nettoyage",
       "priority": 0,
       "status": "completed",
       "validation_criteria": [
         "Import sans erreur",
         "Resume WAITING_BR_VALIDATION fonctionne",
-        "Resume FAILED avec BRs validés fonctionne",
+        "Resume FAILED avec BRs valid\u00e9s fonctionne",
         "Resume FAILED sans BRs retourne erreur 400"
       ],
       "dependencies": [],
@@ -2433,37 +2433,37 @@
         "backend/app/api/routes/pm_orchestrator.py"
       ],
       "estimated_hours": 1,
-      "notes": "Complété 15/12/2025 (commit b5cd38d). Remplacé par vérification des BRs validés en DB."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit b5cd38d). Remplac\u00e9 par v\u00e9rification des BRs valid\u00e9s en DB."
     },
     {
       "id": "CLEAN-001",
       "category": "CLEANUP",
       "title": "Supprimer fichiers .bak du repo",
-      "description": "7 fichiers .bak encombrent le repo et doivent être retirés",
+      "description": "7 fichiers .bak encombrent le repo et doivent \u00eatre retir\u00e9s",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Tous les fichiers .bak supprimés",
-        "*.bak* ajouté à .gitignore",
-        "find . -name '*.bak*' retourne 0 résultats"
+        "Tous les fichiers .bak supprim\u00e9s",
+        "*.bak* ajout\u00e9 \u00e0 .gitignore",
+        "find . -name '*.bak*' retourne 0 r\u00e9sultats"
       ],
       "dependencies": [],
       "files": [
         ".gitignore"
       ],
       "estimated_hours": 0.5,
-      "notes": "Complété 15/12/2025 (commit 43a3583). 7 fichiers supprimés, pattern *.bak* dans .gitignore."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit 43a3583). 7 fichiers supprim\u00e9s, pattern *.bak* dans .gitignore."
     },
     {
       "id": "CLEAN-002",
       "category": "CLEANUP",
-      "title": "Supprimer mot de passe par défaut docker-compose",
+      "title": "Supprimer mot de passe par d\u00e9faut docker-compose",
       "description": "Retirer le fallback 'changeme' de DB_PASSWORD dans docker-compose.yml",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "Pas de valeur par défaut pour DB_PASSWORD",
-        "Documentation mise à jour",
+        "Pas de valeur par d\u00e9faut pour DB_PASSWORD",
+        "Documentation mise \u00e0 jour",
         "docker-compose config valide"
       ],
       "dependencies": [],
@@ -2472,19 +2472,19 @@
         "README.md"
       ],
       "estimated_hours": 0.5,
-      "notes": "Complété 15/12/2025 (commit cbdb014). README mis à jour avec table des variables requises."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit cbdb014). README mis \u00e0 jour avec table des variables requises."
     },
     {
       "id": "PERF-001",
       "category": "PERFORMANCE",
       "title": "Remplacer polling par PostgreSQL NOTIFY",
-      "description": "Implémenter PostgreSQL LISTEN/NOTIFY pour les mises à jour temps réel au lieu du polling constant",
+      "description": "Impl\u00e9menter PostgreSQL LISTEN/NOTIFY pour les mises \u00e0 jour temps r\u00e9el au lieu du polling constant",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "notification_service.py créé avec LISTEN/NOTIFY",
+        "notification_service.py cr\u00e9\u00e9 avec LISTEN/NOTIFY",
         "SSE endpoint utilise notifications avec fallback polling",
-        "WebSocket polling réduit de 3s à 5s",
+        "WebSocket polling r\u00e9duit de 3s \u00e0 5s",
         "_update_progress envoie des notifications",
         "Startup/shutdown hooks pour le service"
       ],
@@ -2496,19 +2496,19 @@
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 6,
-      "notes": "Complété 15/12/2025 (commit 9b96715). Utilise asyncpg pour NOTIFY async. Fallback gracieux si notifications échouent."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit 9b96715). Utilise asyncpg pour NOTIFY async. Fallback gracieux si notifications \u00e9chouent."
     },
     {
       "id": "DOC-001",
       "category": "DOCUMENTATION",
-      "title": "Compléter README setup",
-      "description": "Ajouter génération SECRET_KEY, format DATABASE_URL, checklist pré-déploiement, et troubleshooting",
+      "title": "Compl\u00e9ter README setup",
+      "description": "Ajouter g\u00e9n\u00e9ration SECRET_KEY, format DATABASE_URL, checklist pr\u00e9-d\u00e9ploiement, et troubleshooting",
       "priority": 3,
       "status": "completed",
       "validation_criteria": [
-        "Commande génération SECRET_KEY documentée",
-        "Format DATABASE_URL documenté",
-        "Checklist pré-déploiement ajoutée",
+        "Commande g\u00e9n\u00e9ration SECRET_KEY document\u00e9e",
+        "Format DATABASE_URL document\u00e9",
+        "Checklist pr\u00e9-d\u00e9ploiement ajout\u00e9e",
         "Section troubleshooting avec solutions"
       ],
       "dependencies": [],
@@ -2516,16 +2516,16 @@
         "README.md"
       ],
       "estimated_hours": 1,
-      "notes": "Complété 15/12/2025 (commit dcad974). 8 points checklist + 5 problèmes troubleshooting."
+      "notes": "Compl\u00e9t\u00e9 15/12/2025 (commit dcad974). 8 points checklist + 5 probl\u00e8mes troubleshooting."
     },
     {
       "id": "FIX-001",
       "category": "FIXES",
-      "title": "Timeout Emma/Marcus augmenté à 15 minutes",
-      "description": "Timeout passé de 5min à 15min pour Emma (tous modes) et Marcus",
+      "title": "Timeout Emma/Marcus augment\u00e9 \u00e0 15 minutes",
+      "description": "Timeout pass\u00e9 de 5min \u00e0 15min pour Emma (tous modes) et Marcus",
       "priority": 1,
       "status": "completed",
-      "notes": "Corrigé le 15/12/2025 - évite les timeouts sur gros projets (200+ UCs)"
+      "notes": "Corrig\u00e9 le 15/12/2025 - \u00e9vite les timeouts sur gros projets (200+ UCs)"
     },
     {
       "id": "FIX-002",
@@ -2534,58 +2534,58 @@
       "description": "Ajout de research_analyst au mapping agent_names dans pm_orchestrator.py",
       "priority": 1,
       "status": "completed",
-      "notes": "Corrigé le 15/12/2025"
+      "notes": "Corrig\u00e9 le 15/12/2025"
     },
     {
       "id": "FIX-003",
       "category": "FIXES",
-      "title": "Suppression fallback ancien générateur SDS",
-      "description": "Si Emma write_sds échoue, pas de fallback vers l'ancien générateur",
+      "title": "Suppression fallback ancien g\u00e9n\u00e9rateur SDS",
+      "description": "Si Emma write_sds \u00e9choue, pas de fallback vers l'ancien g\u00e9n\u00e9rateur",
       "priority": 1,
       "status": "completed",
-      "notes": "Corrigé le 15/12/2025"
+      "notes": "Corrig\u00e9 le 15/12/2025"
     },
     {
       "id": "FIX-004",
       "category": "FIXES",
-      "title": "Nettoyage code resume cassé",
+      "title": "Nettoyage code resume cass\u00e9",
       "description": "Suppression de SDS_PHASES, start_idx et autre code de resume non fonctionnel",
       "priority": 1,
       "status": "completed",
-      "notes": "Corrigé le 15/12/2025 - 94 lignes de code mort supprimées"
+      "notes": "Corrig\u00e9 le 15/12/2025 - 94 lignes de code mort supprim\u00e9es"
     },
     {
       "id": "FIX-005",
       "category": "FIXES",
       "title": "Frontend status 'cancelled' reconnu",
-      "description": "Le frontend reconnaît maintenant le statut cancelled et arrête le polling",
+      "description": "Le frontend reconna\u00eet maintenant le statut cancelled et arr\u00eate le polling",
       "priority": 1,
       "status": "completed",
-      "notes": "Corrigé le 15/12/2025"
+      "notes": "Corrig\u00e9 le 15/12/2025"
     },
     {
       "id": "EMMA-SDS-001",
       "name": "Emma SDS Document Quality",
       "status": "completed",
       "priority": "high",
-      "notes": "Micro-analyse + synthèse complètes. Pipeline SDS v3 fonctionnel."
+      "notes": "Micro-analyse + synth\u00e8se compl\u00e8tes. Pipeline SDS v3 fonctionnel."
     },
     {
       "id": "MARCUS-GAP-001",
       "name": "Marcus Gap Analysis UC Traceability",
       "status": "done",
       "priority": "high",
-      "notes": "UC context enrichi, table agents ajoutée, uc_refs dans format"
+      "notes": "UC context enrichi, table agents ajout\u00e9e, uc_refs dans format"
     },
     {
       "id": "EMMA-SDS-002",
       "category": "EMMA",
-      "title": "Fix troncatures données SDS (8x plus de données)",
-      "description": "Supprimer les troncatures agressives dans Emma write_sds qui causaient la perte de 80% des données",
+      "title": "Fix troncatures donn\u00e9es SDS (8x plus de donn\u00e9es)",
+      "description": "Supprimer les troncatures agressives dans Emma write_sds qui causaient la perte de 80% des donn\u00e9es",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "business_requirements: pas de limite [:15], jusqu'à 30KB",
+        "business_requirements: pas de limite [:15], jusqu'\u00e0 30KB",
         "uc_digest: 8KB -> 50KB",
         "solution_design: 10KB -> 60KB",
         "wbs: 5KB -> 60KB",
@@ -2597,20 +2597,20 @@
         "backend/agents/roles/salesforce_research_analyst.py"
       ],
       "estimated_hours": 1,
-      "notes": "Corrigé le 17/12/2025 (commit dd16fd5). Emma recevait ~28KB au lieu de ~135KB nécessaires."
+      "notes": "Corrig\u00e9 le 17/12/2025 (commit dd16fd5). Emma recevait ~28KB au lieu de ~135KB n\u00e9cessaires."
     },
     {
       "id": "EMMA-SDS-003",
       "category": "EMMA",
       "title": "ERD Mermaid en images PNG (mmdc dans Docker)",
-      "description": "Installer mmdc dans le container Docker pour générer des images PNG à partir des diagrammes Mermaid",
+      "description": "Installer mmdc dans le container Docker pour g\u00e9n\u00e9rer des images PNG \u00e0 partir des diagrammes Mermaid",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
-        "mmdc installé dans le container backend",
+        "mmdc install\u00e9 dans le container backend",
         "Puppeteer config avec --no-sandbox",
-        "convert_mermaid_to_image() génère des PNG",
-        "Fallback tableaux avec emojis supprimé"
+        "convert_mermaid_to_image() g\u00e9n\u00e8re des PNG",
+        "Fallback tableaux avec emojis supprim\u00e9"
       ],
       "dependencies": [],
       "files": [
@@ -2618,19 +2618,19 @@
         "backend/app/services/markdown_to_docx.py"
       ],
       "estimated_hours": 2,
-      "notes": "Corrigé le 17/12/2025. Rebuild Docker image avec mmdc + Chromium. Test: PNG 7.7KB généré avec succès."
+      "notes": "Corrig\u00e9 le 17/12/2025. Rebuild Docker image avec mmdc + Chromium. Test: PNG 7.7KB g\u00e9n\u00e9r\u00e9 avec succ\u00e8s."
     },
     {
       "id": "EMMA-SDS-004",
       "category": "EMMA",
-      "title": "Règles anti-hallucination pour SDS",
-      "description": "Ajouter des instructions explicites pour éviter que Emma invente du contenu (LWCs, ateliers, dates fictifs)",
+      "title": "R\u00e8gles anti-hallucination pour SDS",
+      "description": "Ajouter des instructions explicites pour \u00e9viter que Emma invente du contenu (LWCs, ateliers, dates fictifs)",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
         "CRITICAL: ANTI-HALLUCINATION RULES dans system prompt",
-        "Instruction 'Information non disponible' si données manquantes",
-        "Checklist qualité mise à jour",
+        "Instruction 'Information non disponible' si donn\u00e9es manquantes",
+        "Checklist qualit\u00e9 mise \u00e0 jour",
         "NEVER invent component names, workshops, dates"
       ],
       "dependencies": [],
@@ -2638,17 +2638,17 @@
         "backend/agents/roles/salesforce_research_analyst.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Corrigé le 17/12/2025 (commit 226618d). Problème: 5 LWCs hallucinés, 12+ ateliers inventés."
+      "notes": "Corrig\u00e9 le 17/12/2025 (commit 226618d). Probl\u00e8me: 5 LWCs hallucin\u00e9s, 12+ ateliers invent\u00e9s."
     },
     {
       "id": "EMMA-SDS-005",
       "category": "EMMA",
       "title": "Use Cases complets dans Annexe SDS",
-      "description": "Inclure tous les UCs détaillés dans l'Annexe A.1 du SDS (était 8/127 = 6%)",
+      "description": "Inclure tous les UCs d\u00e9taill\u00e9s dans l'Annexe A.1 du SDS (\u00e9tait 8/127 = 6%)",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
-        "use_cases_json ajouté au prompt WRITE_FULL_SDS_PROMPT",
+        "use_cases_json ajout\u00e9 au prompt WRITE_FULL_SDS_PROMPT",
         "Limite 80KB pour use_cases",
         "Section 'Use Cases Complets (pour Annexe A.1)' dans le prompt"
       ],
@@ -2659,26 +2659,26 @@
         "backend/agents/roles/salesforce_research_analyst.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Corrigé le 17/12/2025 (commit 74ee226). Les UCs manquaient complètement du prompt."
+      "notes": "Corrig\u00e9 le 17/12/2025 (commit 74ee226). Les UCs manquaient compl\u00e8tement du prompt."
     },
     {
       "id": "BUG-049",
       "category": "BUG",
       "title": "Fix _save_extracted_brs duplicate check par execution_id",
-      "description": "Le check de duplicate utilisait project_id au lieu de execution_id, empêchant les re-exécutions",
+      "description": "Le check de duplicate utilisait project_id au lieu de execution_id, emp\u00eachant les re-ex\u00e9cutions",
       "priority": 2,
       "status": "completed",
       "validation_criteria": [
         "Check duplicate avec execution_id au lieu de project_id",
-        "Re-exécution SDS sur même projet fonctionne",
-        "BRs sauvés pour chaque exécution"
+        "Re-ex\u00e9cution SDS sur m\u00eame projet fonctionne",
+        "BRs sauv\u00e9s pour chaque ex\u00e9cution"
       ],
       "dependencies": [],
       "files": [
         "backend/app/services/pm_orchestrator_service_v2.py"
       ],
       "estimated_hours": 0.5,
-      "notes": "Corrigé le 17/12/2025 (commit 3145669). Causait table business_requirements vide sur re-run."
+      "notes": "Corrig\u00e9 le 17/12/2025 (commit 3145669). Causait table business_requirements vide sur re-run."
     },
     {
       "id": "F-078",
@@ -2686,15 +2686,15 @@
       "category": "SDS Quality",
       "status": "done",
       "priority": "high",
-      "notes": "Ajouté 19/12/2025 (71172c5). is_digest_valid() vérifie by_requirement, fallback raw UCs si corrompu."
+      "notes": "Ajout\u00e9 19/12/2025 (71172c5). is_digest_valid() v\u00e9rifie by_requirement, fallback raw UCs si corrompu."
     },
     {
       "id": "F-079",
-      "title": "Réordonnancement phases Marcus",
+      "title": "R\u00e9ordonnancement phases Marcus",
       "category": "SDS Quality",
       "status": "done",
       "priority": "critical",
-      "notes": "Ajouté 19/12/2025 (71172c5). Ordre: As-Is → Design → Validate → Gap → WBS."
+      "notes": "Ajout\u00e9 19/12/2025 (71172c5). Ordre: As-Is \u2192 Design \u2192 Validate \u2192 Gap \u2192 WBS."
     },
     {
       "id": "F-080",
@@ -2702,7 +2702,7 @@
       "category": "SDS Quality",
       "status": "done",
       "priority": "critical",
-      "notes": "Ajouté 19/12/2025 (71172c5). Gap reçoit solution_design pour comparer As-Is vs Target."
+      "notes": "Ajout\u00e9 19/12/2025 (71172c5). Gap re\u00e7oit solution_design pour comparer As-Is vs Target."
     },
     {
       "id": "F-081",
@@ -2713,12 +2713,12 @@
       "category": "optimization",
       "added": "2025-12-19",
       "completed_date": "2025-12-22",
-      "notes": "Implémenté le 22/12/2025: get_uc_generation_prompt_batch(), parsing batch response, orchestrateur BATCH_SIZE=2. Réduit les appels API Phase 2 de ~50%."
+      "notes": "Impl\u00e9ment\u00e9 le 22/12/2025: get_uc_generation_prompt_batch(), parsing batch response, orchestrateur BATCH_SIZE=2. R\u00e9duit les appels API Phase 2 de ~50%."
     },
     {
       "id": "BUG-053",
-      "name": "JSON Cleaner - Réparation JSON tronqués",
-      "description": "Les réponses LLM sont parfois tronquées (max_tokens atteint), causant des parse errors. Ajout de repair_truncated_json() qui ferme automatiquement les structures ouvertes.",
+      "name": "JSON Cleaner - R\u00e9paration JSON tronqu\u00e9s",
+      "description": "Les r\u00e9ponses LLM sont parfois tronqu\u00e9es (max_tokens atteint), causant des parse errors. Ajout de repair_truncated_json() qui ferme automatiquement les structures ouvertes.",
       "status": "completed",
       "priority": "high",
       "category": "bug",
@@ -2728,11 +2728,11 @@
       "files": [
         "backend/app/utils/json_cleaner.py"
       ],
-      "notes": "Fonction repair_truncated_json() ajoutée. Testé avec succès sur le WBS exec 126 (68KB tronqué → parsé correctement)."
+      "notes": "Fonction repair_truncated_json() ajout\u00e9e. Test\u00e9 avec succ\u00e8s sur le WBS exec 126 (68KB tronqu\u00e9 \u2192 pars\u00e9 correctement)."
     },
     {
       "id": "BUG-054",
-      "name": "LLM Logger - input_tokens non capturés",
+      "name": "LLM Logger - input_tokens non captur\u00e9s",
       "description": "Les agents passaient tokens_input=None au lieu de response.get('input_tokens', 0). La colonne tokens_input restait vide dans llm_interactions.",
       "status": "completed",
       "priority": "medium",
@@ -2750,12 +2750,12 @@
         "backend/agents/roles/salesforce_qa_tester.py",
         "backend/agents/roles/salesforce_trainer.py"
       ],
-      "notes": "Tous les agents corrigés pour capturer input_tokens = response.get('input_tokens', 0) et le passer au logger."
+      "notes": "Tous les agents corrig\u00e9s pour capturer input_tokens = response.get('input_tokens', 0) et le passer au logger."
     },
     {
       "id": "BUG-055",
-      "name": "Emma Coverage - Parsing batches échoué silencieusement",
-      "description": "Emma validate_batch retournait 9 batches mais seulement 19 mappings au total car le parsing JSON échouait silencieusement sur certains batches. Intégration du json_cleaner résout le problème.",
+      "name": "Emma Coverage - Parsing batches \u00e9chou\u00e9 silencieusement",
+      "description": "Emma validate_batch retournait 9 batches mais seulement 19 mappings au total car le parsing JSON \u00e9chouait silencieusement sur certains batches. Int\u00e9gration du json_cleaner r\u00e9sout le probl\u00e8me.",
       "status": "completed",
       "priority": "high",
       "category": "bug",
@@ -2765,7 +2765,7 @@
       "files": [
         "backend/agents/roles/salesforce_research_analyst.py"
       ],
-      "notes": "Emma utilise maintenant clean_llm_json_response() pour parser les réponses. Tous les batches devraient être correctement combinés."
+      "notes": "Emma utilise maintenant clean_llm_json_response() pour parser les r\u00e9ponses. Tous les batches devraient \u00eatre correctement combin\u00e9s."
     },
     {
       "id": "BUG-056",
@@ -2799,24 +2799,24 @@
     },
     {
       "id": "SDS-V3-001",
-      "name": "Pipeline SDS v3 - Intégration complète",
+      "name": "Pipeline SDS v3 - Int\u00e9gration compl\u00e8te",
       "status": "pending",
       "priority": "high",
-      "notes": "Intégrer micro-analyse dans workflow SDS:\n1. pm_orchestrator_service_v3.py\n2. Appeler microanalyze après Phase 2 (Olivia)\n3. Prompt synthèse Claude (fiches → SDS)\n4. Validation cohérence Emma (objets SF)\n5. Test sur projet 120+ UCs"
+      "notes": "Int\u00e9grer micro-analyse dans workflow SDS:\n1. pm_orchestrator_service_v3.py\n2. Appeler microanalyze apr\u00e8s Phase 2 (Olivia)\n3. Prompt synth\u00e8se Claude (fiches \u2192 SDS)\n4. Validation coh\u00e9rence Emma (objets SF)\n5. Test sur projet 120+ UCs"
     },
     {
       "id": "SDS-V3-002",
-      "name": "Prompt synthèse Claude (fiches → SDS)",
+      "name": "Prompt synth\u00e8se Claude (fiches \u2192 SDS)",
       "status": "completed",
       "priority": "high",
-      "notes": "Synthèse Claude implémentée. Test: 8 UCs, 3 domaines, $0.11, 53s. Commit 2026-01-26"
+      "notes": "Synth\u00e8se Claude impl\u00e9ment\u00e9e. Test: 8 UCs, 3 domaines, $0.11, 53s. Commit 2026-01-26"
     },
     {
       "id": "SDS-V3-003",
-      "name": "Validation cohérence Emma (objets SF)",
+      "name": "Validation coh\u00e9rence Emma (objets SF)",
       "status": "pending",
       "priority": "medium",
-      "notes": "Détecter incohérences type Case vs Service_Request__c pour même concept"
+      "notes": "D\u00e9tecter incoh\u00e9rences type Case vs Service_Request__c pour m\u00eame concept"
     },
     {
       "id": "B2B-001",
@@ -2830,50 +2830,50 @@
       "name": "Multi-utilisateurs par entreprise",
       "status": "pending",
       "priority": "medium",
-      "notes": "Gestion équipes avec rôles (admin, user, viewer)"
+      "notes": "Gestion \u00e9quipes avec r\u00f4les (admin, user, viewer)"
     },
     {
       "id": "PAY-001",
-      "name": "Intégration Stripe (paiement)",
+      "name": "Int\u00e9gration Stripe (paiement)",
       "status": "pending",
       "priority": "high",
-      "notes": "Système de paiement pour abonnements"
+      "notes": "Syst\u00e8me de paiement pour abonnements"
     },
     {
       "id": "PAY-002",
       "name": "Facturation automatique",
       "status": "pending",
       "priority": "high",
-      "notes": "Génération factures PDF, envoi email"
+      "notes": "G\u00e9n\u00e9ration factures PDF, envoi email"
     },
     {
       "id": "PAY-003",
-      "name": "Système tokens/crédits LLM",
+      "name": "Syst\u00e8me tokens/cr\u00e9dits LLM",
       "status": "pending",
       "priority": "medium",
-      "notes": "Suivi consommation temps réel, alertes seuils"
+      "notes": "Suivi consommation temps r\u00e9el, alertes seuils"
     },
     {
       "id": "BUILD-VALID-001",
-      "name": "Validation BUILD sur org Salesforce réelle",
+      "name": "Validation BUILD sur org Salesforce r\u00e9elle",
       "status": "pending",
       "priority": "high",
-      "notes": "Test end-to-end: génération code → déploiement → tests Elena"
+      "notes": "Test end-to-end: g\u00e9n\u00e9ration code \u2192 d\u00e9ploiement \u2192 tests Elena"
     },
     {
       "id": "SDS-07",
       "category": "WORKFLOW_SDS",
       "title": "Export SDS en DOCX - Sortie principale payante",
-      "description": "Générer le SDS au format Word (.docx) professionnel avec mise en forme, styles, table des matières. C'est le livrable principal pour les clients payants (PDF = version gratuite contrôlée).",
+      "description": "G\u00e9n\u00e9rer le SDS au format Word (.docx) professionnel avec mise en forme, styles, table des mati\u00e8res. C'est le livrable principal pour les clients payants (PDF = version gratuite contr\u00f4l\u00e9e).",
       "priority": 1,
       "status": "completed",
       "validation_criteria": [
         "Template DOCX professionnel avec styles Salesforce/consulting",
-        "Table des matières automatique",
-        "Sections bien formatées: Executive Summary, Data Model, Business Rules, Automations, etc.",
-        "Diagrammes Mermaid convertis en images intégrées",
-        "Téléchargeable depuis l'interface utilisateur",
-        "Métadonnées document (auteur, date, version)"
+        "Table des mati\u00e8res automatique",
+        "Sections bien format\u00e9es: Executive Summary, Data Model, Business Rules, Automations, etc.",
+        "Diagrammes Mermaid convertis en images int\u00e9gr\u00e9es",
+        "T\u00e9l\u00e9chargeable depuis l'interface utilisateur",
+        "M\u00e9tadonn\u00e9es document (auteur, date, version)"
       ],
       "dependencies": [
         "SDS-V3-003"
@@ -2883,18 +2883,18 @@
         "backend/app/templates/sds_template.docx"
       ],
       "estimated_hours": 8,
-      "notes": "Implémenté le 27/01/2026 (commit 99806a6):\n- sds_docx_generator_v3.py créé avec style LVMH/Shiseido\n- Page titre, TOC automatique, styles Calibri\n- Tableaux colorés, conversion Mermaid via Kroki\n- Routes API: /generate-docx, /download-sds-v3\n- Test: 8 UCs → 3 domaines → 45.6KB, $0.11"
+      "notes": "Impl\u00e9ment\u00e9 le 27/01/2026 (commit 99806a6):\n- sds_docx_generator_v3.py cr\u00e9\u00e9 avec style LVMH/Shiseido\n- Page titre, TOC automatique, styles Calibri\n- Tableaux color\u00e9s, conversion Mermaid via Kroki\n- Routes API: /generate-docx, /download-sds-v3\n- Test: 8 UCs \u2192 3 domaines \u2192 45.6KB, $0.11"
     },
     {
       "id": "BILLING-001",
       "category": "BILLING",
-      "title": "Système de tokens utilisateur",
-      "description": "Implémenter un système de tokens pour gérer la consommation LLM. Chaque utilisateur a un solde de tokens qui diminue à chaque appel LLM. Permet de gérer la variabilité de complexité des projets (4 projets/mois mais périmètre imprévisible).",
+      "title": "Syst\u00e8me de tokens utilisateur",
+      "description": "Impl\u00e9menter un syst\u00e8me de tokens pour g\u00e9rer la consommation LLM. Chaque utilisateur a un solde de tokens qui diminue \u00e0 chaque appel LLM. Permet de g\u00e9rer la variabilit\u00e9 de complexit\u00e9 des projets (4 projets/mois mais p\u00e9rim\u00e8tre impr\u00e9visible).",
       "priority": 1,
       "status": "not_started",
       "validation_criteria": [
         "Table user_tokens: user_id, balance, allocated_monthly, used_this_month, last_reset",
-        "Déduction automatique des tokens après chaque appel LLM",
+        "D\u00e9duction automatique des tokens apr\u00e8s chaque appel LLM",
         "Blocage si solde insuffisant (avec message explicite)",
         "Reset mensuel automatique du quota inclus dans l'abonnement",
         "Historique des consommations par projet/agent/date",
@@ -2909,21 +2909,21 @@
         "backend/app/api/routes/billing.py"
       ],
       "estimated_hours": 8,
-      "notes": "1 token ≈ 1 token LLM ou ratio configurable. Le système doit être transparent pour l'utilisateur."
+      "notes": "1 token \u2248 1 token LLM ou ratio configurable. Le syst\u00e8me doit \u00eatre transparent pour l'utilisateur."
     },
     {
       "id": "BILLING-002",
       "category": "BILLING",
-      "title": "Tracking coût LLM par projet détaillé",
-      "description": "Tracker précisément le coût de chaque appel LLM par projet, agent, phase. Permet d'analyser la rentabilité et d'optimiser les prompts/modèles.",
+      "title": "Tracking co\u00fbt LLM par projet d\u00e9taill\u00e9",
+      "description": "Tracker pr\u00e9cis\u00e9ment le co\u00fbt de chaque appel LLM par projet, agent, phase. Permet d'analyser la rentabilit\u00e9 et d'optimiser les prompts/mod\u00e8les.",
       "priority": 1,
       "status": "not_started",
       "validation_criteria": [
         "Table llm_usage: project_id, agent_name, phase, model, input_tokens, output_tokens, cost_usd, timestamp",
-        "Calcul automatique du coût selon le modèle (Claude Sonnet, Haiku, Mistral Nemo local=0)",
-        "Dashboard coût par projet avec breakdown par agent",
-        "Alertes si un projet dépasse un seuil configurable",
-        "Export CSV des données de consommation"
+        "Calcul automatique du co\u00fbt selon le mod\u00e8le (Claude Sonnet, Haiku, Mistral Nemo local=0)",
+        "Dashboard co\u00fbt par projet avec breakdown par agent",
+        "Alertes si un projet d\u00e9passe un seuil configurable",
+        "Export CSV des donn\u00e9es de consommation"
       ],
       "dependencies": [
         "BILLING-001"
@@ -2933,22 +2933,22 @@
         "backend/app/services/llm_cost_tracker.py"
       ],
       "estimated_hours": 6,
-      "notes": "Intégrer avec llm_service.py et llm_router_service.py existants. Prix: Claude Sonnet ~$3/1M in + $15/1M out, Haiku ~$0.25/$1.25, Nemo local = $0."
+      "notes": "Int\u00e9grer avec llm_service.py et llm_router_service.py existants. Prix: Claude Sonnet ~$3/1M in + $15/1M out, Haiku ~$0.25/$1.25, Nemo local = $0."
     },
     {
       "id": "BILLING-003",
       "category": "BILLING",
-      "title": "Achat de tokens supplémentaires",
-      "description": "Permettre aux utilisateurs d'acheter des tokens supplémentaires quand leur quota mensuel est épuisé. Intégration Stripe pour le paiement.",
+      "title": "Achat de tokens suppl\u00e9mentaires",
+      "description": "Permettre aux utilisateurs d'acheter des tokens suppl\u00e9mentaires quand leur quota mensuel est \u00e9puis\u00e9. Int\u00e9gration Stripe pour le paiement.",
       "priority": 2,
       "status": "not_started",
       "validation_criteria": [
-        "Page achat tokens avec différents packs (ex: 10K, 50K, 100K tokens)",
-        "Intégration Stripe Checkout",
-        "Webhook Stripe pour créditer automatiquement les tokens",
+        "Page achat tokens avec diff\u00e9rents packs (ex: 10K, 50K, 100K tokens)",
+        "Int\u00e9gration Stripe Checkout",
+        "Webhook Stripe pour cr\u00e9diter automatiquement les tokens",
         "Email de confirmation d'achat",
         "Historique des achats dans le profil utilisateur",
-        "Tokens achetés ne expirent pas (vs quota mensuel)"
+        "Tokens achet\u00e9s ne expirent pas (vs quota mensuel)"
       ],
       "dependencies": [
         "BILLING-001",
@@ -2960,21 +2960,21 @@
         "frontend/src/pages/BuyTokensPage.tsx"
       ],
       "estimated_hours": 12,
-      "notes": "Stripe pour simplicité. Tokens achetés = bonus permanent, quota mensuel = reset chaque mois."
+      "notes": "Stripe pour simplicit\u00e9. Tokens achet\u00e9s = bonus permanent, quota mensuel = reset chaque mois."
     },
     {
       "id": "BILLING-004",
       "category": "BILLING",
       "title": "Profil B2B - SIRET, facturation entreprise",
-      "description": "Permettre aux utilisateurs professionnels de renseigner leurs informations entreprise (SIRET, TVA, adresse facturation) pour générer des factures conformes.",
+      "description": "Permettre aux utilisateurs professionnels de renseigner leurs informations entreprise (SIRET, TVA, adresse facturation) pour g\u00e9n\u00e9rer des factures conformes.",
       "priority": 2,
       "status": "not_started",
       "validation_criteria": [
         "Champs profil: company_name, siret, vat_number, billing_address, billing_email",
         "Validation SIRET via API INSEE ou simple format",
-        "Validation numéro TVA intracommunautaire",
-        "Génération factures PDF automatiques",
-        "Historique factures téléchargeables",
+        "Validation num\u00e9ro TVA intracommunautaire",
+        "G\u00e9n\u00e9ration factures PDF automatiques",
+        "Historique factures t\u00e9l\u00e9chargeables",
         "Gestion TVA selon pays (France 20%, UE reverse charge, hors UE 0%)"
       ],
       "dependencies": [],
@@ -2984,22 +2984,22 @@
         "frontend/src/pages/CompanyProfilePage.tsx"
       ],
       "estimated_hours": 10,
-      "notes": "Obligatoire pour clients B2B français. Factures mensuelles ou à l'achat de tokens."
+      "notes": "Obligatoire pour clients B2B fran\u00e7ais. Factures mensuelles ou \u00e0 l'achat de tokens."
     },
     {
       "id": "BILLING-005",
       "category": "BILLING",
       "title": "Dashboard consommation utilisateur",
-      "description": "Interface utilisateur pour visualiser sa consommation de tokens, historique par projet, prévisions, et alertes.",
+      "description": "Interface utilisateur pour visualiser sa consommation de tokens, historique par projet, pr\u00e9visions, et alertes.",
       "priority": 2,
       "status": "not_started",
       "validation_criteria": [
         "Widget solde tokens dans header/sidebar",
-        "Page détaillée avec graphique consommation mensuelle",
+        "Page d\u00e9taill\u00e9e avec graphique consommation mensuelle",
         "Breakdown par projet et par agent",
         "Estimation tokens restants pour X projets similaires",
         "Alertes configurables (ex: 80% quota atteint)",
-        "Comparaison mois précédent"
+        "Comparaison mois pr\u00e9c\u00e9dent"
       ],
       "dependencies": [
         "BILLING-001",
@@ -3010,23 +3010,23 @@
         "frontend/src/components/TokenBalanceWidget.tsx"
       ],
       "estimated_hours": 8,
-      "notes": "UX importante pour la transparence et éviter les mauvaises surprises."
+      "notes": "UX importante pour la transparence et \u00e9viter les mauvaises surprises."
     },
     {
       "id": "BUILD-TEST-001",
       "category": "WORKFLOW_BUILD",
-      "title": "Test E2E déploiement Salesforce réel",
-      "description": "Valider le workflow BUILD complet sur un org Salesforce réel: génération code → SFDX deploy → tests Elena → commit Git.",
+      "title": "Test E2E d\u00e9ploiement Salesforce r\u00e9el",
+      "description": "Valider le workflow BUILD complet sur un org Salesforce r\u00e9el: g\u00e9n\u00e9ration code \u2192 SFDX deploy \u2192 tests Elena \u2192 commit Git.",
       "priority": 1,
       "status": "not_started",
       "validation_criteria": [
-        "Scratch org ou sandbox de test configuré",
-        "Déploiement SFDX réussi d'au moins 1 projet complet",
+        "Scratch org ou sandbox de test configur\u00e9",
+        "D\u00e9ploiement SFDX r\u00e9ussi d'au moins 1 projet complet",
         "Apex classes compilent sans erreur",
-        "LWC déployés et fonctionnels",
+        "LWC d\u00e9ploy\u00e9s et fonctionnels",
         "Tests Apex passent (coverage > 75%)",
-        "Metadata admin (flows, objects) déployée",
-        "Commit Git automatique post-déploiement"
+        "Metadata admin (flows, objects) d\u00e9ploy\u00e9e",
+        "Commit Git automatique post-d\u00e9ploiement"
       ],
       "dependencies": [
         "ORCH-03e"
@@ -3037,7 +3037,16 @@
         "docs/BUILD_TEST_REPORT.md"
       ],
       "estimated_hours": 16,
-      "notes": "Jamais testé en production réelle. Critique pour valider que le code généré est déployable. Prévoir debugging."
+      "notes": "Jamais test\u00e9 en production r\u00e9elle. Critique pour valider que le code g\u00e9n\u00e9r\u00e9 est d\u00e9ployable. Pr\u00e9voir debugging."
+    },
+    {
+      "id": 188,
+      "name": "Project Settings - Git & Salesforce Connections",
+      "status": "completed",
+      "category": "frontend",
+      "priority": "high",
+      "notes": "Modal avec dual auth SF (SFDX/OAuth), config Git, test connections. Routes backend ajout\u00e9es.",
+      "completed_date": "2025-01-28"
     }
   ],
   "stats": {

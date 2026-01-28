@@ -214,3 +214,66 @@
 - Configurer accès sandbox Salesforce
 - Relancer BUILD phase complet
 - Mesurer temps réel par tâche vs 244 j/h estimés
+
+## Session 2025-01-28 (après-midi) - Project Settings & Connexions
+
+### Objectif
+Implémenter l'interface de configuration Git et Salesforce pour permettre la phase BUILD
+
+### Réalisations
+
+#### 1. Analyse de l'exécution SDS #130 (projet 84)
+- Workflow V2 utilisé (pas V3), durée 43 min, ~$2.02
+- 15 phases avec Research Analyst pour UC digest, coverage report et SDS final
+- La connexion SF fonctionnait déjà via SFDX CLI pré-configuré sur le serveur
+
+#### 2. Modal ProjectSettingsModal.tsx (nouveau composant)
+- Deux onglets : Salesforce / Git Repository
+- **Double méthode d'auth Salesforce** :
+  - SFDX CLI : pour développeurs (username uniquement)
+  - OAuth Connected App : pour clients (consumer key/secret)
+- Configuration Git : repo URL, branch, Personal Access Token
+- Test de connexion pour chaque service
+- Indicateurs de statut visuels
+
+#### 3. Backend - Routes settings (projects.py)
+- GET /api/projects/{id}/settings
+- PUT /api/projects/{id}/settings
+- POST /api/projects/{id}/test-salesforce (SFDX ou OAuth)
+- POST /api/projects/{id}/test-git (GitHub API)
+
+#### 4. Service SFDX Auth (nouveau)
+- /backend/app/services/sfdx_auth_service.py
+- Utilise SFDX CLI pour obtenir access tokens
+- Fallback si OAuth non disponible
+
+#### 5. Schémas et API mis à jour
+- ProjectResponse : ajout sf_connected, git_connected, sf_instance_url, etc.
+- ProjectDetailResponse : construction mise à jour
+- project.py schemas : ajout champs connexion
+
+### Connexions établies (projet 84)
+- ✅ Salesforce : shatit715@agentforce.com via SFDX CLI
+- ✅ Git : https://github.com/SamHATIT/formapro-salesforce
+
+### Problèmes rencontrés
+- External Client App ≠ Connected App classique (OAuth client_credentials non supporté)
+- Session ID expire rapidement, SFDX plus fiable
+- Developer Edition utilise login.salesforce.com (pas test.salesforce.com)
+
+### Fichiers modifiés
+- frontend/src/components/ProjectSettingsModal.tsx (nouveau)
+- frontend/src/pages/ProjectDetailPage.tsx
+- backend/app/api/routes/projects.py (4 routes ajoutées)
+- backend/app/services/sfdx_auth_service.py (nouveau)
+- backend/app/schemas/project.py
+
+### Prochaine étape
+- Lancer BUILD phase sur projet 84
+- Surveiller TASK-001 (manuelle) et TASK-037 (UAT manuelle)
+- 42 tâches automatiques, 2 manuelles dans le WBS
+
+### Notes importantes
+- Les clients sans SFDX devront créer une Connected App (pas External Client App)
+- Chaque client doit avoir son propre repo Git (sécurité)
+- SFDX déjà authentifié sur le serveur : `sfdx auth:list`

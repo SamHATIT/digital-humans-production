@@ -65,6 +65,19 @@ class ProjectInDB(ProjectBase):
     status: ProjectStatus
     created_at: datetime
     updated_at: datetime
+    
+    # Salesforce connection
+    sf_instance_url: Optional[str] = None
+    sf_username: Optional[str] = None
+    sf_connected: Optional[bool] = False
+    sf_connection_date: Optional[datetime] = None
+    sf_org_id: Optional[str] = None
+    
+    # Git connection
+    git_repo_url: Optional[str] = None
+    git_branch: Optional[str] = None
+    git_connected: Optional[bool] = False
+    git_connection_date: Optional[datetime] = None
 
     class Config:
         from_attributes = True
