@@ -276,3 +276,43 @@ Implémenter l'interface de configuration Git et Salesforce pour permettre la ph
 ### Prochaine session
 1. Finaliser BUILD (déploiement SF sur org réelle)
 2. Tester le skill dans une nouvelle conversation DH
+
+## 2026-02-02 - BUILD v2 Session 1 — Fondations
+
+### Réalisations
+- **A: phase_context_registry.py** (290 lignes)
+  - Registre contexte inter-lots et inter-phases
+  - 6 méthodes registration (une par phase)
+  - 6 méthodes context retrieval
+  - Extraction signatures Apex/LWC
+  - Serialization to_dict/from_dict
+  - Tests unitaires OK
+
+- **B: phase_aggregator.py** (270 lignes)
+  - Agrégateur outputs sous-lots par phase
+  - 6 méthodes aggregate (une par phase)
+  - Détection collisions (objets, champs, fichiers duplicates)
+  - Validation output agrégé
+  - Tests unitaires OK
+
+- **L: Migrations DB**
+  - Table `build_phase_executions` (21 colonnes)
+  - Table `project_data_sources` (11 colonnes)
+  - Colonne `task_executions.build_phase`
+
+- **K: Fix non_build_agents**
+  - Retiré: jordan, elena, devops, qa
+  - Conservé: trainer, lucas, architect, marcus, emma, research_analyst
+
+### Commit
+- 7941d32: feat(build-v2): Session 1 - Fondations
+
+### Critère DONE validé
+- PhaseContextRegistry unit tests passent ✅
+- PhaseAggregator unit tests passent ✅
+- Tables créées en DB ✅
+
+### Prochaine session (Session 2)
+- C: sf_admin_service.py (Tooling API pour Raj)
+- D: Prompts Raj JSON (Phase 1, 4, 5)
+- Test: créer objet + champs via Tooling API sur sandbox

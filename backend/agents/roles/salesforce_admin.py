@@ -448,3 +448,431 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ═══════════════════════════════════════════════════════════════
+# BUILD V2 - JSON OUTPUT (Tooling API)
+# ═══════════════════════════════════════════════════════════════
+
+BUILD_V2_PHASE1_PROMPT = """# ⚙️ RAJ - DATA MODEL GENERATION (BUILD v2 - Phase 1)
+
+You are Raj, generating a JSON plan for Salesforce data model creation via Tooling API.
+
+## TASK
+**Target Object:** {target_object}
+**Description:** {task_description}
+
+## EXISTING DATA MODEL (from previous batches)
+{existing_context}
+
+## SOLUTION DESIGN REFERENCE
+{solution_design}
+
+## OUTPUT FORMAT
+Generate a JSON plan with operations to execute. Each operation will be processed by Tooling API.
+
+```json
+{
+  "phase": 1,
+  "phase_name": "data_model",
+  "target_object": "{target_object}",
+  "operations": [
+    {
+      "order": 1,
+      "type": "create_object",
+      "api_name": "ObjectName__c",
+      "label": "Object Label",
+      "plural_label": "Object Labels",
+      "sharing_model": "ReadWrite",
+      "name_field_type": "Text",
+      "description": "Description"
+    },
+    {
+      "order": 2,
+      "type": "create_field",
+      "object": "ObjectName__c",
+      "api_name": "FieldName__c",
+      "label": "Field Label",
+      "field_type": "Text|Number|Date|DateTime|Checkbox|Picklist|Lookup|MasterDetail|Currency|Percent|Email|Phone|Url|LongTextArea|Formula|AutoNumber",
+      "length": 255,
+      "required": false,
+      "description": "Field description"
+    }
+  ]
+}
+```
+
+## FIELD TYPE SPECIFICATIONS
+
+### Text
+```json
+{"field_type": "Text", "length": 255, "required": false}
+```
+
+### LongTextArea
+```json
+{"field_type": "LongTextArea", "length": 32768, "visible_lines": 5}
+```
+
+### Number/Currency/Percent
+```json
+{"field_type": "Number", "precision": 18, "scale": 2}
+```
+
+### Picklist
+```json
+{
+  "field_type": "Picklist",
+  "values": [
+    {"api_name": "Value1", "label": "Value 1", "default": true},
+    {"api_name": "Value2", "label": "Value 2", "default": false}
+  ],
+  "restricted": true
+}
+```
+
+### Lookup
+```json
+{
+  "field_type": "Lookup",
+  "reference_to": "Account",
+  "relationship_name": "Formations",
+  "relationship_label": "Formations"
+}
+```
+
+### MasterDetail
+```json
+{
+  "field_type": "MasterDetail",
+  "reference_to": "ParentObject__c",
+  "relationship_name": "Children",
+  "relationship_label": "Child Records"
+}
+```
+
+### Formula
+```json
+{
+  "field_type": "Formula",
+  "formula": "IF(Status__c = 'Active', 1, 0)",
+  "return_type": "Number|Text|Date|Checkbox|Currency|Percent",
+  "precision": 18,
+  "scale": 0
+}
+```
+
+### Record Type
+```json
+{"type": "create_record_type", "object": "ObjectName__c", "api_name": "TypeName", "label": "Type Label"}
+```
+
+### List View
+```json
+{
+  "type": "create_list_view",
+  "object": "ObjectName__c",
+  "api_name": "All_Records",
+  "label": "All Records",
+  "columns": ["Name", "Field1__c", "Field2__c"],
+  "filter_scope": "Everything"
+}
+```
+
+### Simple Validation Rule (Phase 1 only - no cross-object references)
+```json
+{
+  "type": "create_validation_rule",
+  "object": "ObjectName__c",
+  "api_name": "Required_When_Active",
+  "active": true,
+  "formula": "AND(ISPICKVAL(Status__c, 'Active'), ISBLANK(Field__c))",
+  "error_message": "Field is required when status is Active",
+  "error_field": "Field__c"
+}
+```
+
+## RULES
+1. Generate ONLY the object specified in target_object
+2. Do NOT recreate objects/fields from existing_context
+3. Use EXACT API naming conventions (PascalCase__c for objects, PascalCase__c for fields)
+4. Order operations correctly: object first, then fields, then record types, then validation rules
+5. Simple validation rules only - no VLOOKUP or cross-object references
+
+## GENERATE THE JSON PLAN NOW:
+"""
+
+BUILD_V2_PHASE4_PROMPT = """# ⚙️ RAJ - AUTOMATION GENERATION (BUILD v2 - Phase 4)
+
+You are Raj, generating automation configurations.
+
+## TASK
+**Automation Type:** {automation_type}
+**Description:** {task_description}
+
+## AVAILABLE DATA MODEL
+{data_model_context}
+
+## AVAILABLE APEX CLASSES
+{apex_context}
+
+## OUTPUT FORMAT
+For Validation Rules (complex), generate JSON:
+```json
+{
+  "phase": 4,
+  "phase_name": "automation",
+  "operations": [
+    {
+      "order": 1,
+      "type": "complex_validation_rule",
+      "object": "ObjectName__c",
+      "api_name": "CrossObject_Validation",
+      "active": true,
+      "formula": "RelatedObject__r.Status__c != 'Active'",
+      "error_message": "Related object must be active",
+      "error_field": "RelatedObject__c"
+    }
+  ]
+}
+```
+
+For Flows, generate XML file with marker:
+```
+// FILE: force-app/main/default/flows/FlowName.flow-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+...
+</Flow>
+```
+
+## FLOW TYPES
+- Record-Triggered Flow: triggers on record create/update/delete
+- Screen Flow: user-facing wizard
+- Auto-Launched Flow: called from Apex or Process Builder
+- Scheduled Flow: runs on schedule
+
+## GENERATE NOW:
+"""
+
+BUILD_V2_PHASE5_PROMPT = """# ⚙️ RAJ - SECURITY CONFIGURATION (BUILD v2 - Phase 5)
+
+You are Raj, generating security configurations.
+
+## TASK
+**Security Type:** {security_type}
+**Description:** {task_description}
+
+## AVAILABLE DATA MODEL
+{data_model_context}
+
+## AVAILABLE COMPONENTS
+{components_context}
+
+## OUTPUT FORMAT
+
+### Permission Set (JSON)
+```json
+{
+  "phase": 5,
+  "phase_name": "security",
+  "operations": [
+    {
+      "order": 1,
+      "type": "create_permission_set",
+      "api_name": "Formation_Manager",
+      "label": "Formation Manager",
+      "description": "Full access to Formation management",
+      "object_permissions": [
+        {
+          "object": "Formation__c",
+          "allow_create": true,
+          "allow_read": true,
+          "allow_edit": true,
+          "allow_delete": false,
+          "view_all": true,
+          "modify_all": false
+        }
+      ],
+      "field_permissions": [
+        {"field": "Formation__c.Titre__c", "readable": true, "editable": true},
+        {"field": "Formation__c.Statut__c", "readable": true, "editable": true}
+      ]
+    }
+  ]
+}
+```
+
+### Page Layout (XML - use SFDX deploy)
+```
+// FILE: force-app/main/default/layouts/Formation__c-Formation Layout.layout-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Layout xmlns="http://soap.sforce.com/2006/04/metadata">
+...
+</Layout>
+```
+
+### Profile modifications (XML - use SFDX deploy)
+Profiles should be retrieved first, modified, then deployed.
+
+## RULES
+1. Permission Sets should cover all objects/fields from the data model
+2. Include both object-level and field-level permissions
+3. Follow least-privilege principle
+
+## GENERATE NOW:
+"""
+
+
+def generate_build_v2(
+    phase: int,
+    target: str,
+    task_description: str,
+    context: dict,
+    execution_id: str,
+    rag_context: str = ""
+) -> dict:
+    """
+    Generate BUILD v2 output (JSON plan for Tooling API).
+    
+    Args:
+        phase: 1 (data_model), 4 (automation), or 5 (security)
+        target: Target object/component name
+        task_description: What to generate
+        context: Dict with existing_context, data_model_context, apex_context, etc.
+        execution_id: Execution ID for logging
+        rag_context: RAG context if available
+    
+    Returns:
+        Dict with JSON plan or files
+    """
+    import time
+    
+    if phase == 1:
+        prompt = BUILD_V2_PHASE1_PROMPT.format(
+            target_object=target,
+            task_description=task_description,
+            existing_context=context.get("existing_context", "None"),
+            solution_design=context.get("solution_design", "Not provided")
+        )
+    elif phase == 4:
+        prompt = BUILD_V2_PHASE4_PROMPT.format(
+            automation_type=target,
+            task_description=task_description,
+            data_model_context=context.get("data_model_context", "Not provided"),
+            apex_context=context.get("apex_context", "Not provided")
+        )
+    elif phase == 5:
+        prompt = BUILD_V2_PHASE5_PROMPT.format(
+            security_type=target,
+            task_description=task_description,
+            data_model_context=context.get("data_model_context", "Not provided"),
+            components_context=context.get("components_context", "Not provided")
+        )
+    else:
+        return {"success": False, "error": f"Invalid phase for Raj: {phase}"}
+    
+    if rag_context:
+        prompt += f"\n\n## SALESFORCE BEST PRACTICES\n{rag_context[:2000]}\n"
+    
+    print(f"⚙️ Raj BUILD v2 Phase {phase} - {target}...", file=sys.stderr)
+    start_time = time.time()
+    
+    if LLM_SERVICE_AVAILABLE:
+        response = generate_llm_response(
+            prompt=prompt,
+            provider=LLMProvider.ANTHROPIC,
+            model="claude-sonnet-4-20250514",
+            max_tokens=8000,
+            temperature=0.2
+        )
+        content = response.get('content', '')
+        tokens_used = response.get('tokens_used', 0)
+    else:
+        from openai import OpenAI
+        client = OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=8000
+        )
+        content = resp.choices[0].message.content
+        tokens_used = resp.usage.total_tokens
+    
+    execution_time = round(time.time() - start_time, 2)
+    
+    # Parse JSON from response
+    result = _parse_build_v2_response(content, phase)
+    
+    # Log interaction
+    if LLM_LOGGER_AVAILABLE:
+        try:
+            log_llm_interaction(
+                agent_id="raj",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=target,
+                agent_mode=f"build_v2_phase{phase}",
+                tokens_output=tokens_used,
+                model="claude-sonnet-4-20250514",
+                provider="anthropic",
+                execution_time_seconds=execution_time,
+                success=result.get("success", False)
+            )
+        except Exception as e:
+            print(f"⚠️ [Raj BUILD v2] Failed to log: {e}", file=sys.stderr)
+    
+    result["agent_id"] = "raj"
+    result["agent_name"] = "Raj (Salesforce Admin)"
+    result["mode"] = f"build_v2_phase{phase}"
+    result["execution_id"] = str(execution_id)
+    result["target"] = target
+    result["metadata"] = {
+        "tokens_used": tokens_used,
+        "execution_time_seconds": execution_time
+    }
+    
+    return result
+
+
+def _parse_build_v2_response(content: str, phase: int) -> dict:
+    """Parse BUILD v2 response - extract JSON and/or XML files."""
+    import re
+    
+    result = {
+        "success": False,
+        "operations": [],
+        "files": {}
+    }
+    
+    # Try to extract JSON block
+    json_match = re.search(r'```json\s*\n(.*?)\n```', content, re.DOTALL)
+    if json_match:
+        try:
+            json_data = json.loads(json_match.group(1))
+            result["operations"] = json_data.get("operations", [])
+            result["phase"] = json_data.get("phase", phase)
+            result["phase_name"] = json_data.get("phase_name", "")
+            result["target_object"] = json_data.get("target_object", "")
+            result["success"] = len(result["operations"]) > 0
+        except json.JSONDecodeError as e:
+            print(f"⚠️ [Raj] JSON parse error: {e}", file=sys.stderr)
+    
+    # Also extract any XML files (for flows, layouts)
+    xml_files = _parse_xml_files(content)
+    if xml_files:
+        result["files"] = xml_files
+        result["success"] = True
+    
+    # If no JSON but we have the raw content, try to parse it directly
+    if not result["operations"] and not result["files"]:
+        try:
+            # Maybe the whole response is JSON
+            json_data = json.loads(content.strip())
+            result["operations"] = json_data.get("operations", [])
+            result["success"] = len(result["operations"]) > 0
+        except:
+            pass
+    
+    return result

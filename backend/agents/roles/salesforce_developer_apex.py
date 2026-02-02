@@ -276,6 +276,86 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     }
 
 
+
+# ============================================================================
+# BUILD V2 - SANITIZE FUNCTIONS
+# ============================================================================
+
+def sanitize_apex_code(content: str) -> str:
+    """
+    Corrige les erreurs LLM courantes dans le code Apex.
+    
+    Fixes:
+    - WITH SECURITY_ENFORCED mal placé (après GROUP BY au lieu d'avant)
+    - Double point-virgule
+    - Espaces excessifs
+    """
+    import re
+    
+    # Fix 1: WITH SECURITY_ENFORCED mal placé après GROUP BY
+    # Pattern: GROUP BY ... WITH SECURITY_ENFORCED → WITH SECURITY_ENFORCED GROUP BY ...
+    content = re.sub(
+        r'(GROUP\s+BY\s+[^\]]+?)\s+(WITH\s+SECURITY_ENFORCED)',
+        r'\2 \1', content, flags=re.IGNORECASE
+    )
+    
+    # Fix 2: WITH SECURITY_ENFORCED mal placé après ORDER BY
+    content = re.sub(
+        r'(ORDER\s+BY\s+[^\]]+?)\s+(WITH\s+SECURITY_ENFORCED)',
+        r'\2 \1', content, flags=re.IGNORECASE
+    )
+    
+    # Fix 3: Double point-virgule
+    content = re.sub(r';;', ';', content)
+    
+    # Fix 4: Espaces multiples → simple
+    content = re.sub(r' {2,}', ' ', content)
+    
+    return content
+
+
+def validate_apex_structure(content: str) -> dict:
+    """
+    Valide la structure du code Apex.
+    
+    Returns:
+        Dict avec valid=True/False et issues[]
+    """
+    issues = []
+    
+    # Check balanced braces
+    open_braces = content.count('{')
+    close_braces = content.count('}')
+    if open_braces != close_braces:
+        issues.append({
+            "severity": "critical",
+            "issue": f"Accolades déséquilibrées: {open_braces} ouvrantes vs {close_braces} fermantes"
+        })
+    
+    # Check starts with valid modifier
+    content_stripped = content.strip()
+    valid_starts = ['@isTest', '@IsTest', 'public', 'private', 'global', 'abstract', 'virtual', 'with sharing', 'without sharing']
+    has_valid_start = any(content_stripped.startswith(s) for s in valid_starts)
+    if not has_valid_start and content_stripped:
+        issues.append({
+            "severity": "warning",
+            "issue": "Ne commence pas par un modificateur d'accès valide"
+        })
+    
+    # Check for common custom exception references (should use standard ones)
+    custom_exceptions = ['SharingException', 'ValidationException', 'BusinessException', 'CustomException']
+    for exc in custom_exceptions:
+        if exc in content and f'class {exc}' not in content:
+            issues.append({
+                "severity": "warning",
+                "issue": f"Référence à {exc} sans définition - utiliser AuraHandledException"
+            })
+    
+    return {
+        "valid": len([i for i in issues if i["severity"] == "critical"]) == 0,
+        "issues": issues
+    }
+
 # ============================================================================
 # BUILD MODE FUNCTION
 # ============================================================================
@@ -364,6 +444,11 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
     # Parse generated files from response
     files = _parse_code_files(content)
     
+    
+    # BUILD V2: Sanitize Apex code
+    for path, code in files.items():
+        if path.endswith(".cls") or path.endswith(".trigger"):
+            files[path] = sanitize_apex_code(code)
     print(f"✅ Generated {len(files)} file(s) in {execution_time:.1f}s", file=sys.stderr)
     
     # Log LLM interaction

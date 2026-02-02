@@ -511,6 +511,185 @@ class GitService:
             logger.info(f"[Git] Cleaned up {self.work_dir}")
 
 
+    
+    # ═══════════════════════════════════════════════════════════════
+    # BUILD V2 EXTENSIONS
+    # ═══════════════════════════════════════════════════════════════
+    
+    async def create_branch(self, branch_name: str, from_branch: str = None) -> Dict[str, Any]:
+        """
+        Create a new branch.
+        
+        Args:
+            branch_name: Name of the new branch
+            from_branch: Base branch (defaults to self.branch)
+            
+        Returns:
+            Dict with success status and branch info
+        """
+        base = from_branch or self.branch
+        
+        # Fetch latest
+        await self._run_git(["fetch", "origin", base])
+        
+        # Create and checkout new branch
+        success, stdout, stderr = await self._run_git([
+            "checkout", "-b", branch_name, f"origin/{base}"
+        ])
+        
+        if success:
+            logger.info(f"[Git] Created branch: {branch_name} from {base}")
+            return {"success": True, "branch_name": branch_name, "base": base}
+        else:
+            # Branch might already exist, try to checkout
+            success2, _, _ = await self._run_git(["checkout", branch_name])
+            if success2:
+                return {"success": True, "branch_name": branch_name, "existed": True}
+            return {"success": False, "error": stderr}
+    
+    async def revert_merge(self, merge_sha: str) -> Dict[str, Any]:
+        """
+        Revert a merge commit.
+        
+        Args:
+            merge_sha: SHA of the merge commit to revert
+            
+        Returns:
+            Dict with success status
+        """
+        # Revert the merge commit
+        success, stdout, stderr = await self._run_git([
+            "revert", "-m", "1", merge_sha, "--no-edit"
+        ])
+        
+        if not success:
+            logger.error(f"[Git] Failed to revert merge {merge_sha}: {stderr}")
+            return {"success": False, "error": stderr}
+        
+        # Push the revert
+        push_result = await self.push()
+        
+        if push_result.get("success"):
+            logger.info(f"[Git] Reverted merge {merge_sha[:8]}")
+            return {"success": True, "reverted_sha": merge_sha}
+        else:
+            return {"success": False, "error": f"Revert succeeded but push failed: {push_result.get('error')}"}
+    
+    async def tag(self, tag_name: str, message: str) -> Dict[str, Any]:
+        """
+        Create and push a Git tag.
+        
+        Args:
+            tag_name: Name of the tag
+            message: Tag message
+            
+        Returns:
+            Dict with success status
+        """
+        # Create annotated tag
+        success, stdout, stderr = await self._run_git([
+            "tag", "-a", tag_name, "-m", message
+        ])
+        
+        if not success:
+            # Tag might already exist
+            if "already exists" in stderr:
+                logger.warning(f"[Git] Tag {tag_name} already exists")
+                return {"success": True, "tag_name": tag_name, "existed": True}
+            return {"success": False, "error": stderr}
+        
+        # Push the tag
+        success, stdout, stderr = await self._run_git([
+            "push", "origin", tag_name
+        ])
+        
+        if success:
+            logger.info(f"[Git] Created and pushed tag: {tag_name}")
+            return {"success": True, "tag_name": tag_name}
+        else:
+            return {"success": False, "error": f"Tag created but push failed: {stderr}"}
+    
+    async def commit_files(self, files: Dict[str, str], message: str) -> Dict[str, Any]:
+        """
+        Write files and commit them.
+        
+        Args:
+            files: Dict of {path: content}
+            message: Commit message
+            
+        Returns:
+            Dict with success status and commit SHA
+        """
+        if not self.repo_path:
+            return {"success": False, "error": "Repository not cloned"}
+        
+        # Write files
+        written_files = []
+        for path, content in files.items():
+            full_path = os.path.join(self.repo_path, path)
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            
+            with open(full_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            written_files.append(path)
+        
+        # Add files
+        for path in written_files:
+            await self._run_git(["add", path])
+        
+        # Commit
+        success, stdout, stderr = await self._run_git([
+            "commit", "-m", message
+        ])
+        
+        if not success:
+            if "nothing to commit" in stderr or "nothing to commit" in stdout:
+                return {"success": True, "message": "Nothing to commit", "files": written_files}
+            return {"success": False, "error": stderr}
+        
+        # Get commit SHA
+        sha_success, sha, _ = await self._run_git(["rev-parse", "HEAD"])
+        commit_sha = sha.strip() if sha_success else ""
+        
+        # Push
+        push_result = await self.push()
+        
+        if push_result.get("success"):
+            logger.info(f"[Git] Committed {len(written_files)} files: {commit_sha[:8]}")
+            return {"success": True, "commit_sha": commit_sha, "files": written_files}
+        else:
+            return {"success": False, "error": f"Commit succeeded but push failed: {push_result.get('error')}"}
+    
+    async def get_pr_files(self, pr_number: int) -> Dict[str, Any]:
+        """
+        Get list of files in a PR.
+        
+        Args:
+            pr_number: PR number
+            
+        Returns:
+            Dict with files list
+        """
+        if self.provider != "github":
+            return {"success": False, "error": "PR files only supported for GitHub"}
+        
+        url = f"{self.api_base}/repos/{self.repo_info['owner']}/{self.repo_info['repo']}/pulls/{pr_number}/files"
+        
+        headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "Authorization": f"token {self.token}" if self.token else ""
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                files_data = response.json()
+                files = [f["filename"] for f in files_data]
+                return {"success": True, "files": files, "count": len(files)}
+            else:
+                return {"success": False, "error": f"GitHub API error: {response.status_code}"}
+
 async def commit_and_pr(
     repo_url: str,
     token: str,

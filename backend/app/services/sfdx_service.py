@@ -750,6 +750,177 @@ class SFDXService:
             "rollback_available": snapshot is not None and not dry_run
         }
 
+    
+    # ═══════════════════════════════════════════════════════════════
+    # BUILD V2 EXTENSIONS
+    # ═══════════════════════════════════════════════════════════════
+    
+    async def retrieve_metadata(self, metadata_type: str, metadata_name: str) -> Dict[str, Any]:
+        """
+        Retrieve specific metadata from org.
+        
+        Args:
+            metadata_type: Type of metadata (CustomObject, ApexClass, etc.)
+            metadata_name: API name of the metadata
+            
+        Returns:
+            Dict with success status and retrieved files
+        """
+        import tempfile
+        import os
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create minimal sfdx-project.json
+            project_json = {
+                "packageDirectories": [{"path": "force-app", "default": True}],
+                "namespace": "",
+                "sfdcLoginUrl": "https://login.salesforce.com",
+                "sourceApiVersion": "59.0"
+            }
+            
+            with open(os.path.join(tmpdir, "sfdx-project.json"), 'w') as f:
+                json.dump(project_json, f)
+            
+            os.makedirs(os.path.join(tmpdir, "force-app", "main", "default"), exist_ok=True)
+            
+            # Run retrieve command
+            cmd = [
+                self.sfdx_path, "project", "retrieve", "start",
+                "--metadata", f"{metadata_type}:{metadata_name}",
+                "--output-dir", tmpdir
+            ]
+            
+            if self.target_org:
+                cmd.extend(["--target-org", self.target_org])
+            
+            start_time = time.time()
+            result = await self._run_command(cmd)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            if not result["success"]:
+                self._log_operation(
+                    "retrieve_metadata", metadata_type, metadata_name,
+                    success=False, error_message=result.get("error", ""), duration_ms=duration_ms
+                )
+                return result
+            
+            # Read retrieved files
+            files = {}
+            force_app_path = os.path.join(tmpdir, "force-app")
+            
+            if os.path.exists(force_app_path):
+                for root, _, filenames in os.walk(force_app_path):
+                    for filename in filenames:
+                        full_path = os.path.join(root, filename)
+                        rel_path = os.path.relpath(full_path, tmpdir)
+                        
+                        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            files[rel_path] = f.read()
+            
+            self._log_operation(
+                "retrieve_metadata", metadata_type, metadata_name,
+                success=True, duration_ms=duration_ms,
+                extra={"files_count": len(files)}
+            )
+            
+            return {
+                "success": True,
+                "files": files,
+                "metadata_type": metadata_type,
+                "metadata_name": metadata_name
+            }
+    
+    async def execute_anonymous(self, apex_code: str) -> Dict[str, Any]:
+        """
+        Execute anonymous Apex code.
+        
+        Args:
+            apex_code: Apex code to execute
+            
+        Returns:
+            Dict with success status and execution output
+        """
+        import tempfile
+        import os
+        
+        # Write code to temp file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.apex', delete=False) as f:
+            f.write(apex_code)
+            temp_file = f.name
+        
+        try:
+            cmd = [
+                self.sfdx_path, "apex", "run",
+                "--file", temp_file
+            ]
+            
+            if self.target_org:
+                cmd.extend(["--target-org", self.target_org])
+            
+            start_time = time.time()
+            result = await self._run_command(cmd)
+            duration_ms = int((time.time() - start_time) * 1000)
+            
+            self._log_operation(
+                "execute_anonymous", "ApexAnonymous", "anonymous_block",
+                success=result["success"],
+                error_message=result.get("error", "") if not result["success"] else None,
+                duration_ms=duration_ms
+            )
+            
+            return {
+                "success": result["success"],
+                "output": result.get("stdout", ""),
+                "logs": result.get("stderr", ""),
+                "execution_time_ms": duration_ms
+            }
+            
+        finally:
+            # Cleanup temp file
+            if os.path.exists(temp_file):
+                os.unlink(temp_file)
+    
+    async def deploy_with_manifest(self, manifest_path: str, source_dir: str = None) -> Dict[str, Any]:
+        """
+        Deploy using a package.xml manifest.
+        
+        Args:
+            manifest_path: Path to package.xml
+            source_dir: Source directory (optional)
+            
+        Returns:
+            Dict with deployment result
+        """
+        cmd = [
+            self.sfdx_path, "project", "deploy", "start",
+            "--manifest", manifest_path,
+            "--wait", "30"
+        ]
+        
+        if source_dir:
+            cmd.extend(["--source-dir", source_dir])
+        
+        if self.target_org:
+            cmd.extend(["--target-org", self.target_org])
+        
+        start_time = time.time()
+        result = await self._run_command(cmd)
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        self._log_operation(
+            "deploy_manifest", "Package", manifest_path,
+            success=result["success"],
+            error_message=result.get("error", "") if not result["success"] else None,
+            duration_ms=duration_ms
+        )
+        
+        return {
+            "success": result["success"],
+            "output": result.get("stdout", ""),
+            "error": result.get("error", ""),
+            "duration_ms": duration_ms
+        }
+    
 
 
 # Singleton instance for default org
