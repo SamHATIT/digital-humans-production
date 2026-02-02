@@ -495,7 +495,7 @@ class IncrementalExecutor:
             # ════════════════════════════════════════════════════════════════
             # SPECIAL: Non-build agents (devops, qa, trainer) - skip deploy/test cycle
             # ════════════════════════════════════════════════════════════════
-            non_build_agents = ["trainer", "lucas", "architect", "marcus", "emma", "research_analyst"]
+            non_build_agents = ["devops", "qa", "trainer", "jordan", "elena", "lucas", "architect", "marcus", "emma", "research_analyst"]
             if task.assigned_agent in non_build_agents:
                 logger.info(f"[Step 1] ℹ️ {task.assigned_agent} is non-build agent - marking complete")
                 self.update_task_status(task, TaskStatus.COMPLETED)

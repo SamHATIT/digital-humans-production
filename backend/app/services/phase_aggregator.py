@@ -104,10 +104,25 @@ class PhaseAggregator:
         logger.info(f"[Aggregator] Data model aggregated: {aggregated['metadata']}")
         return aggregated
     
-    def aggregate_source_code(self, batch_results: List[Dict[str, Any]], code_type: str) -> Dict[str, Any]:
+    def aggregate_source_code(self, batch_results: List[Dict[str, Any]], code_type: str = None) -> Dict[str, Any]:
         """
         Phase 2 (Apex) et Phase 3 (LWC): Fusionne les fichiers source.
         """
+        # Auto-detect code_type if not provided
+        if code_type is None:
+            for batch in batch_results:
+                files = batch.get("files", {})
+                for path in files.keys():
+                    if ".cls" in path or ".trigger" in path:
+                        code_type = "apex"
+                        break
+                    elif "/lwc/" in path:
+                        code_type = "lwc"
+                        break
+                if code_type:
+                    break
+            code_type = code_type or "apex"  # Default
+        
         phase = 2 if code_type == "apex" else 3
         phase_name = "business_logic" if code_type == "apex" else "ui_components"
         
