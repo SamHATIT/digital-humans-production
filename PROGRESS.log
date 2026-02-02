@@ -247,3 +247,32 @@ Implémenter l'interface de configuration Git et Salesforce pour permettre la ph
 - Les clients sans SFDX devront créer une Connected App (pas External Client App)
 - Chaque client doit avoir son propre repo Git (sécurité)
 - SFDX déjà authentifié sur le serveur : `sfdx auth:list`
+
+## 2026-02-02 - Skill Claude + Nettoyage mémoire + Réorganisation
+
+### Réalisations
+- **Skill Claude créé** : /mnt/skills/user/digital-humans/ (5 fichiers, 482 lignes)
+  - SKILL.md : protocole session, règle #1, vue d'ensemble
+  - references/architecture.md : agents, phases SDS/BUILD, endpoints, DB, services, features
+  - references/server-admin.md : ports, services auto/manuels, SFDX, Ollama, Nginx, .env
+  - references/troubleshooting.md : 10 problèmes courants
+  - scripts/health_check.py : vérifie 8 services
+- **Mémoire Claude nettoyée** : 22 → 6 entrées (19 supprimées, 3 mises à jour, 3 ajoutées)
+- **CONTEXT.md réécrit** : 79 → 29 lignes (renvoie vers le skill)
+- **PROGRESS.log archivé** : archives/PROGRESS_before_2026-02-02.log (279 lignes)
+- **Instructions projet mises à jour** : supprimé lecture features.json obligatoire, ajouté chargement skill
+- **Cron backup** quotidien CONTEXT.md à 2h installé
+
+### Fichiers modifiés
+- /mnt/skills/user/digital-humans/* (5 fichiers, nouveau)
+- CONTEXT.md (réécrit)
+- PROGRESS.log (archivé + réduit)
+- archives/ (nouveau répertoire)
+- Instructions projet Claude (mis à jour par Sam)
+
+### Commits
+- 8042ad7: chore: Skill Claude DH + archivage PROGRESS.log + CONTEXT.md allégé
+
+### Prochaine session
+1. Finaliser BUILD (déploiement SF sur org réelle)
+2. Tester le skill dans une nouvelle conversation DH
