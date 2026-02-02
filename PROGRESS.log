@@ -407,3 +407,9 @@ Prochaine étape: Test end-to-end sur projet Formapro.
 ### Commits
 - e6d2cce: fix: Complete BUILD v2 implementation - critical fixes
 - 8cb8a6c: fix: Correct remaining BUILD v2 issues
+
+- f508445: fix(sf_admin_service): Track all created components (6 méthodes manquaient self.created_components.append)
+
+### Fin session BUILD v2 corrections - 2026-02-03 ~00:15
+État final: Spec vérifiée ligne par ligne, tous les bugs critiques corrigés.
+Prochaine étape: Test end-to-end BUILD sur FormaPro (Session 6 de la spec)
