@@ -29,7 +29,7 @@ class PhaseDeployConfig:
 
 
 PHASE_CONFIGS = {
-    1: PhaseDeployConfig(1, "data_model", "raj", DeployMethod.TOOLING_API, requires_retrieve=True),
+    1: PhaseDeployConfig(1, "data_model", "raj", DeployMethod.TOOLING_API, requires_retrieve=True),  # Via sf_admin_service (JSON→XML→SFDX)
     2: PhaseDeployConfig(2, "business_logic", "diego", DeployMethod.SFDX_SOURCE),
     3: PhaseDeployConfig(3, "ui_components", "zara", DeployMethod.SFDX_SOURCE),
     4: PhaseDeployConfig(4, "automation", "raj", DeployMethod.TOOLING_API, requires_retrieve=True),  # Mix avec SFDX pour flows
@@ -65,8 +65,8 @@ class JordanDeployService:
     
     async def close(self):
         """Ferme les connexions."""
-        if self.sf_admin_service:
-            await self.sf_admin_service.close()
+        # sf_admin_service n'a plus de connexion persistante (utilise SFDX CLI)
+        pass
     
     # ═══════════════════════════════════════════════════════════════
     # MAIN DEPLOYMENT FLOW
@@ -255,7 +255,7 @@ class JordanDeployService:
     
     async def deploy_admin_config(self, aggregated_output: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Phase 1/4: Déploie via Tooling API (plans JSON de Raj).
+        Phase 1/4: Déploie via SFDX CLI (plans JSON de Raj → XML → deploy).
         """
         if not self.sf_admin_service:
             return {"success": False, "error": "SF Admin service not initialized"}
@@ -264,15 +264,23 @@ class JordanDeployService:
         if not operations:
             return {"success": False, "error": "No operations to deploy"}
         
-        logger.info(f"[Jordan] Deploying {len(operations)} operations via Tooling API")
+        logger.info(f"[Jordan] Deploying {len(operations)} operations via SFDX CLI")
         
         plan = {"operations": operations}
-        result = await self.sf_admin_service.execute_plan(plan)
         
-        if result.get("success"):
-            result["deployed_components"] = list(result.get("created_ids", {}).keys())
+        # execute_plan est synchrone, on l'appelle dans un thread
+        import asyncio
+        result = await asyncio.to_thread(self.sf_admin_service.execute_plan, plan)
         
-        return result
+        # Convertir DeployResult en dict
+        return {
+            "success": result.success,
+            "components_deployed": result.components_deployed,
+            "components_failed": result.components_failed,
+            "errors": result.errors,
+            "deployed_components": [c["name"] for c in result.created_components],
+            "deploy_id": result.deploy_id
+        }
     
     async def deploy_source_code(self, aggregated_output: Dict[str, Any]) -> Dict[str, Any]:
         """
