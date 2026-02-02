@@ -305,10 +305,14 @@ def sanitize_apex_code(content: str) -> str:
         r'\2 \1', content, flags=re.IGNORECASE
     )
     
-    # Fix 3: Double point-virgule
+    # Fix 3: Double WITH SECURITY_ENFORCED
+    while content.count('WITH SECURITY_ENFORCED') > 1:
+        content = re.sub(r'(WITH\s+SECURITY_ENFORCED.*?)WITH\s+SECURITY_ENFORCED', r'\1', content, count=1, flags=re.IGNORECASE)
+    
+    # Fix 4: Double point-virgule
     content = re.sub(r';;', ';', content)
     
-    # Fix 4: Espaces multiples → simple
+    # Fix 5: Espaces multiples → simple
     content = re.sub(r' {2,}', ' ', content)
     
     return content
