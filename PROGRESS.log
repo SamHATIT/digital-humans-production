@@ -348,3 +348,30 @@ Implémenter l'interface de configuration Git et Salesforce pour permettre la ph
 
 Toutes les tâches A→O sont implémentées.
 Prochaine étape: Test end-to-end sur projet Formapro.
+
+## 2026-02-02 - Correction sf_admin_service.py
+
+### Problème identifié
+- Tooling API ne peut PAS créer d'objets custom (tous les champs ont `createable: false`)
+- Seul CustomField est créable via Tooling API, pas CustomObject
+- La spec BUILD v2 était incorrecte sur ce point
+
+### Solution implémentée
+- sf_admin_service.py réécrit (654 → 432 lignes)
+- Nouvelle approche : JSON → XML → SFDX CLI
+  1. Reçoit plan JSON de Raj
+  2. Génère fichiers XML avec bonne structure SFDX
+  3. Appelle `sf project deploy start`
+
+### Test validé
+- Plan: 1 objet (TestAdminV2__c) + 3 champs
+- Résultat: 4 components deployed, 0 errors
+- Critère Session 2 DONE ✅
+
+### Commits
+- 5b8992f: fix(diego): Correct double WITH SECURITY_ENFORCED
+- bcd87c1: fix(sf_admin_service): Replace Tooling API with SFDX CLI
+
+### Prochaine session
+- Session 3: Tester Jordan merge PR + deploy + tag
+- Puis Session 5: Test Phase 1 complète sur FormaPro
