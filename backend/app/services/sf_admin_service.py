@@ -33,9 +33,24 @@ class SFAdminService:
     
     API_VERSION = "59.0"
     
+    
+    # Mapping operation type -> handler method name (spec §6.5)
+    OPERATION_HANDLERS = {
+        "create_object": "_create_custom_object",
+        "create_field": "_create_custom_field",
+        "create_record_type": "_create_record_type",
+        "create_list_view": "_create_list_view",
+        "create_validation_rule": "_create_validation_rule",
+        "create_flow": "_create_flow",
+        "create_permission_set": "_create_permission_set",
+        "create_page_layout": "_create_page_layout",
+        "create_sharing_rule": "_create_sharing_rule",
+        "create_approval_process": "_create_approval_process",
+    }
     # Mapping field_type vers Salesforce FieldType
     FIELD_TYPE_MAPPING = {
         "Text": "Text",
+        "TextArea": "TextArea",
         "LongTextArea": "LongTextArea",
         "Number": "Number",
         "Currency": "Currency",
@@ -53,6 +68,9 @@ class SFAdminService:
         "Formula": "Text",  # Formula fields need special handling
         "AutoNumber": "AutoNumber",
     }
+    
+    # Alias for spec compatibility (spec uses FIELD_TYPE_MAP)
+    FIELD_TYPE_MAP = FIELD_TYPE_MAPPING
     
     def __init__(self, instance_url: str, access_token: str):
         """
@@ -428,11 +446,209 @@ class SFAdminService:
             result_data = response.json()
             self.created_components.append({"type": "ValidationRule", "id": result_data.get("id"), "name": full_name})
             logger.info(f"[SFAdmin] Created validation rule: {full_name}")
-            return ToolingAPIResult(success=True, id=result_data.get("id"), operation="create_validation_rule", api_name=full_name)
-        else:
-            error_msg = self._parse_error(response)
-            return ToolingAPIResult(success=False, errors=[error_msg], operation="create_validation_rule", api_name=full_name)
     
     async def _create_flow(self, op: Dict[str, Any]) -> ToolingAPIResult:
         """
-        Note: Les Flows sont t
+        Note: Les Flows sont trop complexes pour Tooling API en JSON.
+        On génère un placeholder qui devra être déployé via SFDX.
+        """
+        api_name = op.get("api_name", "")
+        logger.warning(f"[SFAdmin] Flow {api_name} must be deployed via SFDX, not Tooling API")
+        return ToolingAPIResult(
+            success=True,
+            operation="create_flow",
+            api_name=api_name,
+            message="Flow requires SFDX deployment"
+        )
+    
+    async def _create_permission_set(self, op: Dict[str, Any]) -> ToolingAPIResult:
+        """Crée un Permission Set via Tooling API."""
+        api_name = op.get("api_name", "")
+        label = op.get("label", api_name)
+        description = op.get("description", "")
+        
+        payload = {
+            "Name": api_name,
+            "Label": label,
+            "Description": description
+        }
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self.tooling_url}/sobjects/PermissionSet/",
+                headers=self.headers,
+                json=payload
+            )
+        
+        if response.status_code in (200, 201):
+            result_data = response.json()
+            self.created_components.append({"type": "PermissionSet", "id": result_data.get("id"), "name": api_name})
+            logger.info(f"[SFAdmin] Created permission set: {api_name}")
+            return ToolingAPIResult(success=True, id=result_data.get("id"), operation="create_permission_set", api_name=api_name)
+        else:
+            error_msg = self._parse_error(response)
+            return ToolingAPIResult(success=False, errors=[error_msg], operation="create_permission_set", api_name=api_name)
+    
+    async def _create_page_layout(self, op: Dict[str, Any]) -> ToolingAPIResult:
+        """Page Layouts doivent être déployés via SFDX."""
+        api_name = op.get("api_name", "")
+        logger.warning(f"[SFAdmin] Page Layout {api_name} must be deployed via SFDX")
+        return ToolingAPIResult(
+            success=True,
+            operation="create_page_layout",
+            api_name=api_name,
+            message="Page Layout requires SFDX deployment"
+        )
+    
+    async def _create_sharing_rule(self, op: Dict[str, Any]) -> ToolingAPIResult:
+        """Sharing Rules doivent être déployés via SFDX."""
+        api_name = op.get("api_name", "")
+        logger.warning(f"[SFAdmin] Sharing Rule {api_name} must be deployed via SFDX")
+        return ToolingAPIResult(
+            success=True,
+            operation="create_sharing_rule",
+            api_name=api_name,
+            message="Sharing Rule requires SFDX deployment"
+        )
+    
+    async def _create_approval_process(self, op: Dict[str, Any]) -> ToolingAPIResult:
+        """Approval Processes doivent être déployés via SFDX."""
+        api_name = op.get("api_name", "")
+        logger.warning(f"[SFAdmin] Approval Process {api_name} must be deployed via SFDX")
+        return ToolingAPIResult(
+            success=True,
+            operation="create_approval_process",
+            api_name=api_name,
+            message="Approval Process requires SFDX deployment"
+        )
+    
+    
+    # ═══════════════════════════════════════════════════════════════
+    # TOOLING API HELPERS
+    # ═══════════════════════════════════════════════════════════════
+    
+    async def _tooling_api_create(self, sobject_type: str, payload: Dict[str, Any]) -> ToolingAPIResult:
+        """
+        Appel Tooling API générique pour création.
+        
+        Args:
+            sobject_type: Type d'objet Salesforce (CustomObject, CustomField, etc.)
+            payload: Données à créer
+            
+        Returns:
+            ToolingAPIResult avec id ou erreurs
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{self.tooling_url}/sobjects/{sobject_type}/",
+                headers=self.headers,
+                json=payload
+            )
+        
+        if response.status_code in (200, 201):
+            result_data = response.json()
+            return ToolingAPIResult(
+                success=True,
+                id=result_data.get("id"),
+                operation="tooling_api_create",
+                api_name=sobject_type
+            )
+        else:
+            error_msg = self._parse_error(response)
+            return ToolingAPIResult(
+                success=False,
+                errors=[error_msg],
+                operation="tooling_api_create",
+                api_name=sobject_type
+            )
+    
+    async def _tooling_api_delete(self, sobject_type: str, record_id: str) -> ToolingAPIResult:
+        """
+        Supprime un enregistrement via Tooling API (pour rollback).
+        
+        Args:
+            sobject_type: Type d'objet Salesforce
+            record_id: ID de l'enregistrement à supprimer
+            
+        Returns:
+            ToolingAPIResult
+        """
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.delete(
+                f"{self.tooling_url}/sobjects/{sobject_type}/{record_id}",
+                headers=self.headers
+            )
+        
+        if response.status_code in (200, 204):
+            logger.info(f"[SFAdmin] Deleted {sobject_type} {record_id}")
+            return ToolingAPIResult(
+                success=True,
+                id=record_id,
+                operation="tooling_api_delete",
+                api_name=sobject_type
+            )
+        else:
+            error_msg = self._parse_error(response)
+            logger.warning(f"[SFAdmin] Failed to delete {sobject_type} {record_id}: {error_msg}")
+            return ToolingAPIResult(
+                success=False,
+                errors=[error_msg],
+                operation="tooling_api_delete",
+                api_name=sobject_type
+            )
+    
+    def _parse_error(self, response) -> str:
+        """Parse erreur depuis réponse HTTP."""
+        try:
+            data = response.json()
+            if isinstance(data, list) and data:
+                return data[0].get("message", str(data))
+            elif isinstance(data, dict):
+                return data.get("message", data.get("errorCode", str(data)))
+            return str(data)
+        except:
+            return f"HTTP {response.status_code}: {response.text[:200]}"
+
+    # ═══════════════════════════════════════════════════════════════
+    # ROLLBACK
+    # ═══════════════════════════════════════════════════════════════
+    
+    async def rollback(self) -> Dict[str, Any]:
+        """Supprime tous les composants créés (rollback)."""
+        logger.info(f"[SFAdmin] Rolling back {len(self.created_components)} components")
+        
+        results = []
+        for component in reversed(self.created_components):
+            comp_type = component.get("type")
+            comp_id = component.get("id")
+            
+            if comp_id:
+                result = await self._tooling_api_delete(comp_type, comp_id)
+                results.append(result)
+        
+        self.created_components = []
+        return {"rolled_back": len(results), "results": results}
+
+
+# ═══════════════════════════════════════════════════════════════
+# FACTORY FUNCTION
+# ═══════════════════════════════════════════════════════════════
+
+async def create_sf_admin_service(project_id: int, db) -> SFAdminService:
+    """
+    Crée et initialise un SFAdminService avec l'auth du projet.
+    
+    Args:
+        project_id: ID du projet
+        db: Session SQLAlchemy
+        
+    Returns:
+        SFAdminService configuré
+    """
+    from app.services.sfdx_auth_service import SFDXAuthService
+    
+    auth_service = SFDXAuthService(project_id, db)
+    access_token = await auth_service.get_access_token()
+    instance_url = await auth_service.get_instance_url()
+    
+    return SFAdminService(instance_url, access_token)
