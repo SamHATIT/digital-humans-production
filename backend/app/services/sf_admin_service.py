@@ -147,6 +147,27 @@ class SFAdminService:
                 if "record_types" not in objects_data[obj_name]:
                     objects_data[obj_name]["record_types"] = []
                 objects_data[obj_name]["record_types"].append(op)
+            
+            # Phase 1: List Views
+            elif op_type == "create_list_view":
+                self._generate_list_view(op, temp_dir)
+            
+            # Phase 4: Automation
+            elif op_type == "create_flow":
+                self._generate_flow(op, temp_dir)
+            
+            elif op_type == "create_approval_process":
+                self._generate_approval_process(op, temp_dir)
+            
+            # Phase 5: Security
+            elif op_type == "create_permission_set":
+                self._generate_permission_set(op, temp_dir)
+            
+            elif op_type == "create_page_layout":
+                self._generate_page_layout(op, temp_dir)
+            
+            elif op_type == "create_sharing_rule":
+                self._generate_sharing_rule(op, temp_dir)
         
         # Générer les fichiers pour chaque objet
         for obj_name, data in objects_data.items():
@@ -404,6 +425,220 @@ class SFAdminService:
             return DeployResult(success=False, errors=["Deployment timeout (120s)"])
         except Exception as e:
             return DeployResult(success=False, errors=[str(e)])
+
+
+    # ═══════════════════════════════════════════════════════════════
+    # OPÉRATIONS PHASE 1 SUPPLÉMENTAIRES
+    # ═══════════════════════════════════════════════════════════════
+    
+    def _generate_list_view(self, op: Dict, temp_dir: str) -> None:
+        """Génère un ListView pour un objet."""
+        obj_name = op.get("object", "")
+        if not obj_name.endswith("__c"):
+            obj_name = f"{obj_name}__c"
+        
+        api_name = op.get("api_name", "All")
+        label = op.get("label", api_name)
+        columns = op.get("columns", [])
+        filter_scope = op.get("filter_scope", "Everything")
+        
+        list_views_dir = Path(temp_dir) / "force-app" / "main" / "default" / "objects" / obj_name / "listViews"
+        list_views_dir.mkdir(parents=True, exist_ok=True)
+        
+        columns_xml = "\n".join([f"    <columns>{col}</columns>" for col in columns])
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<ListView xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>{api_name}</fullName>
+    <label>{label}</label>
+{columns_xml}
+    <filterScope>{filter_scope}</filterScope>
+</ListView>'''
+        
+        filepath = list_views_dir / f"{api_name}.listView-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated ListView: {obj_name}.{api_name}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # OPÉRATIONS PHASE 4 (AUTOMATION)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def _generate_flow(self, op: Dict, temp_dir: str) -> None:
+        """Génère un Flow (structure de base)."""
+        api_name = op.get("api_name", "")
+        flow_type = op.get("flow_type", "AutoLaunchedFlow")
+        description = op.get("description", "")
+        
+        flows_dir = Path(temp_dir) / "force-app" / "main" / "default" / "flows"
+        flows_dir.mkdir(parents=True, exist_ok=True)
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <description>{description}</description>
+    <interviewLabel>{api_name}</interviewLabel>
+    <label>{op.get("label", api_name)}</label>
+    <processType>{flow_type}</processType>
+    <status>Draft</status>
+</Flow>'''
+        
+        filepath = flows_dir / f"{api_name}.flow-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated Flow: {api_name} ({flow_type})")
+
+    def _generate_approval_process(self, op: Dict, temp_dir: str) -> None:
+        """Génère un Approval Process."""
+        obj_name = op.get("object", "")
+        api_name = op.get("api_name", "")
+        entry_criteria = op.get("entry_criteria", "true")
+        
+        approvals_dir = Path(temp_dir) / "force-app" / "main" / "default" / "approvalProcesses"
+        approvals_dir.mkdir(parents=True, exist_ok=True)
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<ApprovalProcess xmlns="http://soap.sforce.com/2006/04/metadata">
+    <active>false</active>
+    <allowRecall>true</allowRecall>
+    <allowedSubmitters>
+        <type>owner</type>
+    </allowedSubmitters>
+    <description>{op.get("description", "")}</description>
+    <entryCriteria>
+        <formula>{entry_criteria}</formula>
+    </entryCriteria>
+    <finalApprovalRecordLock>true</finalApprovalRecordLock>
+    <finalRejectionRecordLock>false</finalRejectionRecordLock>
+    <label>{op.get("label", api_name)}</label>
+    <showApprovalHistory>true</showApprovalHistory>
+</ApprovalProcess>'''
+        
+        filepath = approvals_dir / f"{obj_name}.{api_name}.approvalProcess-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated ApprovalProcess: {obj_name}.{api_name}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # OPÉRATIONS PHASE 5 (SECURITY)
+    # ═══════════════════════════════════════════════════════════════
+    
+    def _generate_permission_set(self, op: Dict, temp_dir: str) -> None:
+        """Génère un Permission Set."""
+        api_name = op.get("api_name", "")
+        label = op.get("label", api_name)
+        description = op.get("description", "")
+        object_permissions = op.get("object_permissions", [])
+        field_permissions = op.get("field_permissions", [])
+        
+        perm_sets_dir = Path(temp_dir) / "force-app" / "main" / "default" / "permissionsets"
+        perm_sets_dir.mkdir(parents=True, exist_ok=True)
+        
+        obj_perms_xml = ""
+        for obj_perm in object_permissions:
+            obj_perms_xml += f'''
+    <objectPermissions>
+        <allowCreate>{str(obj_perm.get("allowCreate", True)).lower()}</allowCreate>
+        <allowDelete>{str(obj_perm.get("allowDelete", False)).lower()}</allowDelete>
+        <allowEdit>{str(obj_perm.get("allowEdit", True)).lower()}</allowEdit>
+        <allowRead>{str(obj_perm.get("allowRead", True)).lower()}</allowRead>
+        <modifyAllRecords>{str(obj_perm.get("modifyAllRecords", False)).lower()}</modifyAllRecords>
+        <object>{obj_perm.get("object", "")}</object>
+        <viewAllRecords>{str(obj_perm.get("viewAllRecords", False)).lower()}</viewAllRecords>
+    </objectPermissions>'''
+        
+        field_perms_xml = ""
+        for field_perm in field_permissions:
+            field_perms_xml += f'''
+    <fieldPermissions>
+        <editable>{str(field_perm.get("editable", True)).lower()}</editable>
+        <field>{field_perm.get("field", "")}</field>
+        <readable>{str(field_perm.get("readable", True)).lower()}</readable>
+    </fieldPermissions>'''
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>{description}</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>{label}</label>{obj_perms_xml}{field_perms_xml}
+</PermissionSet>'''
+        
+        filepath = perm_sets_dir / f"{api_name}.permissionset-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated PermissionSet: {api_name}")
+
+    def _generate_page_layout(self, op: Dict, temp_dir: str) -> None:
+        """Génère un Page Layout."""
+        obj_name = op.get("object", "")
+        if not obj_name.endswith("__c"):
+            obj_name = f"{obj_name}__c"
+        
+        api_name = op.get("api_name", f"{obj_name}-Layout")
+        sections = op.get("sections", [])
+        
+        layouts_dir = Path(temp_dir) / "force-app" / "main" / "default" / "layouts"
+        layouts_dir.mkdir(parents=True, exist_ok=True)
+        
+        sections_xml = ""
+        for section in sections:
+            section_label = section.get("label", "Information")
+            fields = section.get("fields", [])
+            
+            items_xml = ""
+            for field in fields:
+                items_xml += f'''
+            <layoutItems>
+                <behavior>Edit</behavior>
+                <field>{field}</field>
+            </layoutItems>'''
+            
+            sections_xml += f'''
+    <layoutSections>
+        <customLabel>true</customLabel>
+        <detailHeading>true</detailHeading>
+        <editHeading>true</editHeading>
+        <label>{section_label}</label>
+        <layoutColumns>{items_xml}
+        </layoutColumns>
+        <layoutColumns/>
+        <style>TwoColumnsLeftToRight</style>
+    </layoutSections>'''
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<Layout xmlns="http://soap.sforce.com/2006/04/metadata">{sections_xml}
+    <showEmailCheckbox>false</showEmailCheckbox>
+    <showRunAssignmentRulesCheckbox>false</showRunAssignmentRulesCheckbox>
+    <showSubmitAndAttachButton>false</showSubmitAndAttachButton>
+</Layout>'''
+        
+        filepath = layouts_dir / f"{obj_name}-{api_name}.layout-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated Layout: {obj_name}-{api_name}")
+
+    def _generate_sharing_rule(self, op: Dict, temp_dir: str) -> None:
+        """Génère une Sharing Rule."""
+        obj_name = op.get("object", "")
+        if not obj_name.endswith("__c"):
+            obj_name = f"{obj_name}__c"
+        
+        api_name = op.get("api_name", "")
+        access_level = op.get("access_level", "Read")
+        
+        sharing_dir = Path(temp_dir) / "force-app" / "main" / "default" / "sharingRules"
+        sharing_dir.mkdir(parents=True, exist_ok=True)
+        
+        xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
+<SharingRules xmlns="http://soap.sforce.com/2006/04/metadata">
+    <sharingCriteriaRules>
+        <fullName>{api_name}</fullName>
+        <accessLevel>{access_level}</accessLevel>
+        <label>{op.get("label", api_name)}</label>
+        <sharedTo>
+            <allInternalUsers></allInternalUsers>
+        </sharedTo>
+    </sharingCriteriaRules>
+</SharingRules>'''
+        
+        filepath = sharing_dir / f"{obj_name}.sharingRules-meta.xml"
+        filepath.write_text(xml_content)
+        logger.info(f"[SFAdmin] Generated SharingRule: {obj_name}.{api_name}")
 
 
 # Factory function pour créer le service depuis un project_id
