@@ -53,12 +53,61 @@ class JordanDeployService:
     
     async def initialize(self):
         """Initialise les services nécessaires."""
+        from sqlalchemy import text
         from app.services.git_service import GitService
         from app.services.sfdx_service import SFDXService
         from app.services.sf_admin_service import create_sf_admin_service
+        from app.utils.encryption import decrypt_credential
         
-        self.git_service = GitService(self.project_id, self.db)
-        self.sfdx_service = SFDXService(self.project_id, self.db)
+        # Récupérer les infos du projet
+        project_result = self.db.execute(
+            text("SELECT sf_username, git_repo_url, git_branch FROM projects WHERE id = :id"),
+            {"id": self.project_id}
+        ).fetchone()
+        
+        if not project_result:
+            raise ValueError(f"Project {self.project_id} not found")
+        
+        sf_username = project_result.sf_username
+        git_repo_url = project_result.git_repo_url
+        git_branch = project_result.git_branch or "main"
+        
+        # Récupérer le token Git depuis project_git_config
+        git_config = self.db.execute(
+            text("SELECT encrypted_access_token FROM project_git_config WHERE project_id = :id"),
+            {"id": self.project_id}
+        ).fetchone()
+        
+        git_token = None
+        if git_config and git_config.encrypted_access_token:
+            try:
+                git_token = decrypt_credential(git_config.encrypted_access_token)
+            except Exception as e:
+                logger.warning(f"[Jordan] Could not decrypt git token: {e}")
+        
+        # Créer GitService
+        if git_repo_url:
+            self.git_service = GitService(
+                repo_url=git_repo_url,
+                branch=git_branch,
+                token=git_token,
+                project_id=self.project_id
+            )
+            logger.info(f"[Jordan] GitService initialized for {git_repo_url}")
+        else:
+            logger.warning(f"[Jordan] No git_repo_url for project {self.project_id}")
+        
+        # Créer SFDXService
+        if sf_username:
+            self.sfdx_service = SFDXService(
+                target_org=sf_username,
+                project_id=self.project_id
+            )
+            logger.info(f"[Jordan] SFDXService initialized for {sf_username}")
+        else:
+            logger.warning(f"[Jordan] No sf_username for project {self.project_id}")
+        
+        # Créer SFAdminService
         self.sf_admin_service = await create_sf_admin_service(self.project_id, self.db)
         
         logger.info(f"[Jordan] Services initialized for project {self.project_id}")
