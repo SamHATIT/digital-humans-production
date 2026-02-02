@@ -316,3 +316,35 @@ Implémenter l'interface de configuration Git et Salesforce pour permettre la ph
 - C: sf_admin_service.py (Tooling API pour Raj)
 - D: Prompts Raj JSON (Phase 1, 4, 5)
 - Test: créer objet + champs via Tooling API sur sandbox
+
+## 2026-02-02 - BUILD v2 Sessions 2-5
+
+### Tâches complétées
+
+**Session 2 (C + D):**
+- C: sf_admin_service.py - Tooling API pour Raj (480 lignes)
+- D: Prompts Raj JSON (BUILD_V2_PHASE1/4/5_PROMPT + generate_build_v2)
+
+**Session 3 (H + I + J):**
+- H: jordan_deploy_service.py - Deploy service centralisé (420 lignes)
+- I: git_service.py extensions (create_branch, revert_merge, tag, commit_files, get_pr_files)
+- J: sfdx_service.py extensions (retrieve_metadata, execute_anonymous, deploy_with_manifest)
+
+**Session 4 (E + F + G):**
+- E: Diego sanitize_apex_code + validate_apex_structure
+- F: Zara validate_lwc_naming + validate_lwc_structure + parse_lwc_files_robust
+- G: Elena auto-FAIL fix + structural_validation + 6 prompts par phase
+
+**Session 5 (M + N + O):**
+- M: phased_build_executor.py - Orchestrateur principal 6 phases (620 lignes)
+- N: Aisha format_data_sources + get_project_data_sources
+- O: Frontend BuildPhasesPanel.tsx + endpoint /build-phases
+
+### Commits
+- d9b4c85: Sessions 2-4 - Services et corrections agents
+- 66bc8f3: Sessions 4-5 - Agents + Orchestrateur + Frontend
+
+### BUILD v2 IMPLEMENTATION STATUS: COMPLETE ✅
+
+Toutes les tâches A→O sont implémentées.
+Prochaine étape: Test end-to-end sur projet Formapro.
