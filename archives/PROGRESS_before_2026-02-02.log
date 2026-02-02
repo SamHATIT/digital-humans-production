@@ -2,6 +2,36 @@
 
 ---
 
+## 2026-01-26 - SDS v3 COMPLET ✅
+
+### Réalisations
+- **sds_synthesis_service.py** créé (agrégation par domaine + synthèse Claude)
+- **Routes API** ajoutées: /synthesize, /domains-summary, /sds-preview
+- **Test réussi**: 8 UCs → 3 domaines → $0.11 (vs $10-12 avant)
+- **Clé Anthropic** ajoutée dans backend/.env (était dans racine uniquement)
+- Script démarrage `/tmp/start_backend.sh` pour charger .env
+
+### Résultats test SDS v3
+- Case Management: 4 UCs, 3564 tokens, $0.036
+- Customer Management: 3 UCs, 4891 tokens, $0.055  
+- Communication: 1 UC, 2219 tokens, $0.023
+- **Total: 10,674 tokens, $0.11, 53s**
+
+### Fichiers modifiés
+- backend/app/services/sds_synthesis_service.py (nouveau)
+- backend/app/api/routes/pm_orchestrator.py (+routes)
+- backend/.env (+ANTHROPIC_API_KEY)
+
+### Commits
+- feat(sds-v3): Service synthèse par domaine + routes API
+
+### Prochaine session
+1. Génération DOCX (pas juste Markdown)
+2. Test sur 120+ UCs
+3. Validation cohérence Emma
+
+---
+
 ## 2026-01-27 - SDS-07 DOCX Generator ✅
 
 ### Réalisations

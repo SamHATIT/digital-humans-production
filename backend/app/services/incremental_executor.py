@@ -557,10 +557,14 @@ class IncrementalExecutor:
             regular_files = {}
             
             for file_path, file_content in generated_files.items():
-                # Skip meta.xml files for non-LWC - SFDX includes them automatically
+                # Skip meta.xml files ONLY for Apex classes/triggers - SFDX includes them automatically
+                # But DO NOT skip object/field/etc metadata files - they ARE the actual metadata!
                 if '-meta.xml' in file_path and '/lwc/' not in file_path:
-                    logger.info(f"[Step 3] Skipping meta file: {file_path}")
-                    continue
+                    # Only skip if it's an Apex class or trigger meta file
+                    if '/classes/' in file_path or '/triggers/' in file_path:
+                        logger.info(f"[Step 3] Skipping Apex meta file: {file_path}")
+                        continue
+                    # Keep all other meta files (objects, fields, profiles, etc.)
                 
                 # Sanitize XML content
                 if file_path.endswith('.xml'):
