@@ -442,10 +442,14 @@ class SFAdminService:
         columns = op.get("columns", [])
         filter_scope = op.get("filter_scope", "Everything")
         
+        # Filtrer "Name" - pour custom objects, utiliser OBJECT_NAME au lieu de Name
+        # Le champ Name standard n'est pas accessible directement dans les ListViews custom
+        filtered_columns = [col for col in columns if col.upper() != "NAME"]
+        
         list_views_dir = Path(temp_dir) / "force-app" / "main" / "default" / "objects" / obj_name / "listViews"
         list_views_dir.mkdir(parents=True, exist_ok=True)
         
-        columns_xml = "\n".join([f"    <columns>{col}</columns>" for col in columns])
+        columns_xml = "\n".join([f"    <columns>{col}</columns>" for col in filtered_columns])
         
         xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <ListView xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -583,9 +587,11 @@ class SFAdminService:
             
             items_xml = ""
             for field in fields:
+                # Name field doit être Readonly pour les custom objects
+                behavior = "Readonly" if field.upper() == "NAME" else "Edit"
                 items_xml += f'''
             <layoutItems>
-                <behavior>Edit</behavior>
+                <behavior>{behavior}</behavior>
                 <field>{field}</field>
             </layoutItems>'''
             

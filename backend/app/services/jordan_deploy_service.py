@@ -524,3 +524,28 @@ class JordanDeployService:
             "commit": commit_result,
             "tag": tag_result,
         }
+
+    async def rollback_phase(self, merge_sha: str) -> Dict[str, Any]:
+        """
+        Rollback une phase en revertant le merge.
+        
+        Args:
+            merge_sha: SHA du commit de merge à reverter
+            
+        Returns:
+            Dict avec résultat du rollback
+        """
+        if not self.git_service:
+            return {"success": False, "error": "Git service not initialized"}
+        
+        try:
+            result = await self.git_service.revert_merge(merge_sha)
+            if result.get("success"):
+                logger.info(f"[Jordan] Rollback successful for merge {merge_sha[:8]}")
+                return {"success": True, "reverted_sha": merge_sha}
+            else:
+                logger.error(f"[Jordan] Rollback failed: {result.get('error')}")
+                return {"success": False, "error": result.get("error")}
+        except Exception as e:
+            logger.error(f"[Jordan] Rollback exception: {e}")
+            return {"success": False, "error": str(e)}
