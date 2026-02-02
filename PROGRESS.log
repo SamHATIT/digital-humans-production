@@ -387,3 +387,23 @@ Prochaine étape: Test end-to-end sur projet Formapro.
 - 6ed5337: fix(jordan): Update deploy_admin_config for new sf_admin_service interface
 - d722489: fix(jordan): Correct initialize() to fetch project config from DB
 - c2f5c73: fix(jordan): Read Git token from project_credentials table
+
+### Corrections finales BUILD v2 (après vérification spec complète)
+- Fix K: incremental_executor.py - jordan et elena retirés de non_build_agents ✅
+- sf_admin_service.py - 6 opérations manquantes ajoutées:
+  - create_list_view (Phase 1) ✅
+  - create_flow (Phase 4) ✅
+  - create_approval_process (Phase 4) ✅
+  - create_permission_set (Phase 5) ✅
+  - create_page_layout (Phase 5) ✅
+  - create_sharing_rule (Phase 5) ✅
+- sf_admin_service.py - Bugs corrigés:
+  - ListView: filtre "Name" (non accessible pour custom objects) ✅
+  - Layout: Name field behavior = Readonly ✅
+- jordan_deploy_service.py - rollback_phase() méthode ajoutée ✅
+
+### Test final: 7/7 opérations déployées avec 0 erreurs
+
+### Commits
+- e6d2cce: fix: Complete BUILD v2 implementation - critical fixes
+- 8cb8a6c: fix: Correct remaining BUILD v2 issues
