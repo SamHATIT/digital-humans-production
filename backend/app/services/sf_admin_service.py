@@ -461,6 +461,7 @@ class SFAdminService:
         
         filepath = list_views_dir / f"{api_name}.listView-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "ListView", "name": f"{obj_name}.{api_name}"})
         logger.info(f"[SFAdmin] Generated ListView: {obj_name}.{api_name}")
 
     # ═══════════════════════════════════════════════════════════════
@@ -488,6 +489,7 @@ class SFAdminService:
         
         filepath = flows_dir / f"{api_name}.flow-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "Flow", "name": api_name})
         logger.info(f"[SFAdmin] Generated Flow: {api_name} ({flow_type})")
 
     def _generate_approval_process(self, op: Dict, temp_dir: str) -> None:
@@ -518,6 +520,7 @@ class SFAdminService:
         
         filepath = approvals_dir / f"{obj_name}.{api_name}.approvalProcess-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "ApprovalProcess", "name": f"{obj_name}.{api_name}"})
         logger.info(f"[SFAdmin] Generated ApprovalProcess: {obj_name}.{api_name}")
 
     # ═══════════════════════════════════════════════════════════════
@@ -566,6 +569,7 @@ class SFAdminService:
         
         filepath = perm_sets_dir / f"{api_name}.permissionset-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "PermissionSet", "name": api_name})
         logger.info(f"[SFAdmin] Generated PermissionSet: {api_name}")
 
     def _generate_page_layout(self, op: Dict, temp_dir: str) -> None:
@@ -616,6 +620,7 @@ class SFAdminService:
         
         filepath = layouts_dir / f"{obj_name}-{api_name}.layout-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "Layout", "name": f"{obj_name}-{api_name}"})
         logger.info(f"[SFAdmin] Generated Layout: {obj_name}-{api_name}")
 
     def _generate_sharing_rule(self, op: Dict, temp_dir: str) -> None:
@@ -644,6 +649,7 @@ class SFAdminService:
         
         filepath = sharing_dir / f"{obj_name}.sharingRules-meta.xml"
         filepath.write_text(xml_content)
+        self.created_components.append({"type": "SharingRule", "name": f"{obj_name}.{api_name}"})
         logger.info(f"[SFAdmin] Generated SharingRule: {obj_name}.{api_name}")
 
 
