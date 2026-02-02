@@ -375,3 +375,15 @@ Prochaine étape: Test end-to-end sur projet Formapro.
 ### Prochaine session
 - Session 3: Tester Jordan merge PR + deploy + tag
 - Puis Session 5: Test Phase 1 complète sur FormaPro
+
+### Tests Session 3 validés (suite correction sf_admin_service)
+- jordan_deploy_service.initialize() : charge config depuis DB ✅
+- deploy_admin_config() : 2 components déployés sur Salesforce ✅  
+- GitService.clone() : clone formapro-salesforce ✅
+- GitService.create_branch() : crée branche locale ✅
+- GitService.tag() : crée tag local ✅
+
+### Commits supplémentaires
+- 6ed5337: fix(jordan): Update deploy_admin_config for new sf_admin_service interface
+- d722489: fix(jordan): Correct initialize() to fetch project config from DB
+- c2f5c73: fix(jordan): Read Git token from project_credentials table
