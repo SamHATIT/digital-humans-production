@@ -175,7 +175,98 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     }
 
 
-def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "") -> dict:
+
+# ============================================================================
+# BUILD V2 - DATA SOURCES INTEGRATION
+# ============================================================================
+
+def format_data_sources(data_sources: list) -> str:
+    """
+    Formate les sources de données configurées pour le prompt.
+    
+    Args:
+        data_sources: Liste des configurations de sources de données
+        
+    Returns:
+        Texte formaté pour injection dans le prompt
+    """
+    if not data_sources:
+        return "Aucune source de données configurée. Générez des templates génériques."
+    
+    lines = ["## SOURCES DE DONNÉES CONFIGURÉES\n"]
+    
+    for i, source in enumerate(data_sources, 1):
+        lines.append(f"### Source {i}: \"{source.get('name', 'Unknown')}\"")
+        lines.append(f"  - **Objet cible**: {source.get('target_object', 'N/A')}")
+        lines.append(f"  - **Format**: {source.get('source_type', 'csv').upper()}")
+        
+        config = source.get('config', {})
+        if config.get('file_path'):
+            lines.append(f"  - **Fichier**: {config.get('file_path')}")
+        if config.get('columns'):
+            lines.append(f"  - **Colonnes**: {', '.join(config.get('columns', []))}")
+        
+        mapping = source.get('column_mapping', {})
+        if mapping:
+            lines.append("  - **Mapping prédéfini**:")
+            for src_col, sf_field in list(mapping.items())[:5]:
+                lines.append(f"      {src_col} → {sf_field}")
+        
+        lines.append("")
+    
+    lines.append("""
+## INSTRUCTIONS SPÉCIFIQUES
+1. Générez un fichier SDL pour CHAQUE source configurée
+2. Le mapping doit correspondre aux colonnes indiquées
+3. Respectez l'ordre d'import (import_order) - parents avant enfants
+4. Incluez des requêtes SOQL de validation pour chaque objet
+""")
+    
+    return "\n".join(lines)
+
+
+async def get_project_data_sources(project_id: int, db) -> list:
+    """
+    Récupère les sources de données configurées pour un projet.
+    
+    Args:
+        project_id: ID du projet
+        db: Session SQLAlchemy
+        
+    Returns:
+        Liste des configurations de sources de données
+    """
+    try:
+        from sqlalchemy import text
+        
+        result = db.execute(
+            text("""
+                SELECT name, target_object, source_type, config, column_mapping, import_order
+                FROM project_data_sources
+                WHERE project_id = :project_id AND is_active = true
+                ORDER BY import_order ASC
+            """),
+            {"project_id": project_id}
+        )
+        
+        sources = []
+        for row in result:
+            sources.append({
+                "name": row.name,
+                "target_object": row.target_object,
+                "source_type": row.source_type,
+                "config": row.config or {},
+                "column_mapping": row.column_mapping or {},
+                "import_order": row.import_order or 0
+            })
+        
+        return sources
+        
+    except Exception as e:
+        print(f"⚠️ [Aisha] Failed to get data sources: {e}", file=sys.stderr)
+        return []
+
+def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "", data_sources: list = None) -> dict:
     task_id = task.get('task_id', 'UNKNOWN')
     task_name = task.get('name', task.get('title', 'Unnamed Task'))
     task_description = task.get('description', '')
@@ -196,6 +287,10 @@ FIX THESE ISSUES.
     if rag_context:
         prompt += f"\n\n## MIGRATION BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
     
+    
+    # BUILD V2: Include data sources configuration
+    if data_sources:
+        prompt += "\n\n" + format_data_sources(data_sources)
     # Add correction context if retry
     if correction_context:
         prompt += correction_context

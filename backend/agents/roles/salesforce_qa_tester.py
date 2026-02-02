@@ -83,6 +83,298 @@ Respond with ONLY valid JSON, no markdown.
 """
 
 
+
+# ============================================================================
+# BUILD V2 - ELENA STRUCTURAL VALIDATION
+# ============================================================================
+
+def structural_validation(files: dict, phase: int) -> dict:
+    """
+    Validation structurelle pré-LLM.
+    Vérifie la syntaxe et la structure avant de soumettre au LLM.
+    
+    Args:
+        files: Dict {path: content}
+        phase: Numéro de phase (1-6)
+        
+    Returns:
+        Dict avec valid=True/False et issues[]
+    """
+    import xml.etree.ElementTree as ET
+    import json as json_module
+    
+    issues = []
+    
+    # Vérifications communes - XML valide
+    for path, content in files.items():
+        if path.endswith('.xml'):
+            try:
+                ET.fromstring(content)
+            except ET.ParseError as e:
+                issues.append({
+                    "file": path,
+                    "severity": "critical",
+                    "issue": f"XML invalide: {str(e)[:100]}"
+                })
+    
+    # Phase 1: Data Model (JSON)
+    if phase == 1:
+        for path, content in files.items():
+            if path.endswith('.json') or content.strip().startswith('{'):
+                try:
+                    plan = json_module.loads(content)
+                    objects_seen = set()
+                    for op in plan.get("operations", []):
+                        if op.get("type") == "create_object":
+                            api_name = op.get("api_name", "")
+                            if api_name in objects_seen:
+                                issues.append({
+                                    "severity": "warning",
+                                    "issue": f"Objet dupliqué: {api_name}"
+                                })
+                            objects_seen.add(api_name)
+                        if op.get("type") == "create_field":
+                            obj = op.get("object", "")
+                            if obj not in objects_seen and not obj.endswith("__c"):
+                                # Standard object, ok
+                                pass
+                            elif obj not in objects_seen:
+                                issues.append({
+                                    "severity": "critical",
+                                    "issue": f"Champ référence objet inexistant: {obj}"
+                                })
+                except json_module.JSONDecodeError:
+                    pass  # Not JSON, skip
+    
+    # Phase 2: Apex
+    if phase == 2:
+        for path, content in files.items():
+            if path.endswith('.cls') or path.endswith('.trigger'):
+                # Check balanced braces
+                open_b = content.count('{')
+                close_b = content.count('}')
+                if open_b != close_b:
+                    issues.append({
+                        "file": path,
+                        "severity": "critical",
+                        "issue": f"Accolades déséquilibrées: {open_b} ouvrantes vs {close_b} fermantes"
+                    })
+                
+                # Check starts with valid modifier
+                content_stripped = content.strip()
+                valid_starts = ['@isTest', '@IsTest', 'public', 'private', 'global', 'abstract', 'virtual']
+                has_valid = any(content_stripped.startswith(s) for s in valid_starts)
+                if not has_valid and content_stripped:
+                    issues.append({
+                        "file": path,
+                        "severity": "warning",
+                        "issue": "Ne commence pas par un modificateur d'accès valide"
+                    })
+    
+    # Phase 3: LWC
+    if phase == 3:
+        for path, content in files.items():
+            if path.endswith('.js') and '/lwc/' in path and not path.endswith('.js-meta.xml'):
+                if 'export default class' not in content:
+                    issues.append({
+                        "file": path,
+                        "severity": "critical",
+                        "issue": "Manque 'export default class'"
+                    })
+                if 'LightningElement' not in content:
+                    issues.append({
+                        "file": path,
+                        "severity": "warning",
+                        "issue": "Ne référence pas LightningElement"
+                    })
+    
+    has_critical = any(i.get('severity') == 'critical' for i in issues)
+    return {
+        "valid": not has_critical,
+        "issues": issues,
+        "phase": phase
+    }
+
+
+# Prompts de review par phase
+PHASE_REVIEW_PROMPTS = {
+    1: """## REVIEW PHASE 1: DATA MODEL
+
+Revois ce modèle de données Salesforce. Vérifie :
+- Cohérence avec le SDS (tous les objets/champs du SDS sont présents)
+- Relations correctes (Lookup vs Master-Detail selon la cardinalité)
+- Naming conventions (API names en PascalCase + __c)
+- Pas de champs en doublon entre objets
+- Record Types pertinents
+- Validation rules avec des formules syntaxiquement correctes
+
+PLAN JSON À REVOIR:
+{code_content}
+""",
+    
+    2: """## REVIEW PHASE 2: BUSINESS LOGIC (APEX)
+
+Revois cet ensemble de classes Apex. Vérifie :
+- Chaque classe est self-contained (pas de référence à une classe non incluse ni non standard)
+- Bulkification correcte (pas de SOQL/DML dans les boucles)
+- Tests avec couverture suffisante (classes @isTest présentes)
+- Gestion d'erreur avec AuraHandledException
+- Les objets/champs référencés existent dans le modèle de données
+
+MODÈLE DE DONNÉES DISPONIBLE:
+{data_model_context}
+
+CODE APEX À REVOIR:
+{code_content}
+""",
+    
+    3: """## REVIEW PHASE 3: UI COMPONENTS (LWC)
+
+Revois ces composants Lightning Web Components. Vérifie :
+- Nommage camelCase des composants
+- Fichiers requis présents (html, js, js-meta.xml)
+- Import correct de LightningElement
+- Décorateurs @api, @wire, @track utilisés correctement
+- Appels Apex avec @wire ou import imperatif
+- Pas de dépendances circulaires
+
+CLASSES APEX DISPONIBLES:
+{apex_context}
+
+COMPOSANTS LWC À REVOIR:
+{code_content}
+""",
+    
+    4: """## REVIEW PHASE 4: AUTOMATION
+
+Revois ces automatisations Salesforce. Vérifie :
+- Flows : structure correcte, pas de boucles infinies possibles
+- Validation Rules complexes : formules syntaxiquement correctes
+- Pas de conflits entre automatisations
+- Ordre d'exécution respecté
+
+MODÈLE DE DONNÉES:
+{data_model_context}
+
+AUTOMATISATIONS À REVOIR:
+{code_content}
+""",
+    
+    5: """## REVIEW PHASE 5: SECURITY & ACCESS
+
+Revois ces configurations de sécurité. Vérifie :
+- Permission Sets couvrent tous les objets/champs nécessaires
+- Principe du moindre privilège respecté
+- Sharing Rules cohérentes avec le modèle
+- Page Layouts appropriés par profil/record type
+
+MODÈLE DE DONNÉES:
+{data_model_context}
+
+CONFIGURATION SÉCURITÉ À REVOIR:
+{code_content}
+""",
+    
+    6: """## REVIEW PHASE 6: DATA MIGRATION
+
+Revois ces scripts de migration de données. Vérifie :
+- Mappings SDL corrects (colonnes source → champs cible)
+- Scripts Apex anonymous sécurisés (pas d'injection)
+- Ordre d'import respecte les dépendances (parents avant enfants)
+- Requêtes SOQL de validation pertinentes
+
+MODÈLE DE DONNÉES:
+{data_model_context}
+
+SCRIPTS MIGRATION À REVOIR:
+{code_content}
+"""
+}
+
+
+def get_phase_review_prompt(phase: int, code_content: str, context: dict = None) -> str:
+    """
+    Retourne le prompt de review adapté à la phase.
+    
+    Args:
+        phase: Numéro de phase (1-6)
+        code_content: Contenu à revoir
+        context: Contexte additionnel (data_model_context, apex_context, etc.)
+        
+    Returns:
+        Prompt formaté
+    """
+    context = context or {}
+    
+    template = PHASE_REVIEW_PROMPTS.get(phase, PHASE_REVIEW_PROMPTS[2])
+    
+    return template.format(
+        code_content=code_content[:30000],  # Limite pour éviter overflow
+        data_model_context=context.get("data_model_context", "Non fourni"),
+        apex_context=context.get("apex_context", "Non fourni")
+    )
+
+
+async def review_phase_output(
+    phase: int,
+    aggregated_output: dict,
+    context: dict = None,
+    execution_id: str = "0"
+) -> dict:
+    """
+    Review BUILD v2: validation structurelle puis LLM review.
+    
+    Args:
+        phase: Numéro de phase (1-6)
+        aggregated_output: Output agrégé de la phase
+        context: Contexte (data model, apex classes, etc.)
+        execution_id: ID d'exécution
+        
+    Returns:
+        Dict avec verdict, issues, feedback
+    """
+    files = aggregated_output.get("files", {})
+    operations = aggregated_output.get("operations", [])
+    
+    # Step 1: Validation structurelle
+    if files:
+        struct_validation = structural_validation(files, phase)
+        if not struct_validation["valid"]:
+            return {
+                "verdict": "FAIL",
+                "phase": phase,
+                "validation_type": "structural",
+                "issues": struct_validation["issues"],
+                "feedback_for_developer": "Erreurs structurelles détectées avant review LLM. Corrigez ces problèmes d'abord.",
+                "requires_llm_review": False
+            }
+    
+    # Step 2: Préparer le contenu pour review LLM
+    if phase == 1 and operations:
+        # Phase 1: JSON plan
+        import json
+        code_content = json.dumps({"operations": operations}, indent=2, ensure_ascii=False)
+    elif files:
+        # Autres phases: fichiers
+        code_content = "\n\n".join([
+            f"=== {path} ===\n{content}"
+            for path, content in list(files.items())[:20]  # Limite 20 fichiers
+        ])
+    else:
+        code_content = "Aucun contenu à revoir"
+    
+    # Step 3: Générer le prompt adapté à la phase
+    prompt = get_phase_review_prompt(phase, code_content, context)
+    
+    # Note: L'appel LLM sera fait par le PhasedBuildExecutor qui appelle cette fonction
+    return {
+        "phase": phase,
+        "prompt": prompt,
+        "validation_type": "llm",
+        "structural_validation": {"valid": True, "issues": []},
+        "requires_llm_review": True
+    }
+
 def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
     prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
     if rag_context:
@@ -213,7 +505,7 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     except Exception as parse_err:
         print(f"  ⚠️ Failed to parse review JSON: {parse_err}", file=sys.stderr)
         print(f"  Raw response (first 500 chars): {review_text[:500]}", file=sys.stderr)
-        review_data = {"verdict": "PASS", "summary": "Auto-pass (parse error)", "issues": [], "feedback_for_developer": ""}
+        review_data = {"verdict": "FAIL", "summary": "Review impossible - format de réponse invalide", "issues": [{"severity": "critical", "description": "Parse error on review output"}], "feedback_for_developer": "Elena n'a pas pu produire un avis structuré. Resoumettez sans modification."}
     
     verdict = review_data.get("verdict", "PASS").upper()
     print(f"  {'✅' if verdict == 'PASS' else '❌'} Verdict: {verdict}", file=sys.stderr)

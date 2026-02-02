@@ -236,8 +236,23 @@ FIX THESE ISSUES.
         tokens_used = resp.usage.total_tokens
         model_used = "gpt-4o-mini"
     
-    files = _parse_code_files(content)
+    files = parse_lwc_files_robust(content)
     execution_time = round(time.time() - start_time, 2)
+    
+    # BUILD V2: Validate and fix LWC naming
+    fixed_files = {}
+    for path, code in files.items():
+        if "/lwc/" in path:
+            import re
+            match = re.search(r"/lwc/([^/]+)/", path)
+            if match:
+                old_name = match.group(1)
+                new_name = validate_lwc_naming(old_name)
+                if old_name != new_name:
+                    path = path.replace(f"/lwc/{old_name}/", f"/lwc/{new_name}/")
+                    print(f"⚠️ Fixed LWC name: {old_name} → {new_name}", file=sys.stderr)
+        fixed_files[path] = code
+    files = fixed_files
     print(f"✅ Generated {len(files)} file(s) in {execution_time}s", file=sys.stderr)
     
     # Log LLM interaction for debugging
@@ -273,6 +288,176 @@ FIX THESE ISSUES.
                     "execution_time_seconds": execution_time}
     }
 
+
+
+# ============================================================================
+# BUILD V2 - LWC VALIDATION AND PARSING
+# ============================================================================
+
+def validate_lwc_naming(component_name: str) -> str:
+    """
+    Force le nommage camelCase pour les composants LWC.
+    
+    Args:
+        component_name: Nom du composant (peut contenir _ ou -)
+        
+    Returns:
+        Nom en camelCase valide pour LWC
+    """
+    import re
+    
+    # Si déjà en camelCase sans _ ou -, retourner tel quel
+    if '_' not in component_name and '-' not in component_name:
+        # Assurer que la première lettre est minuscule
+        return component_name[0].lower() + component_name[1:] if component_name else component_name
+    
+    # Split sur _ et -
+    parts = re.split(r'[_-]', component_name)
+    
+    # Premier mot en minuscules, suivants avec majuscule initiale
+    result = parts[0].lower()
+    for part in parts[1:]:
+        if part:
+            result += part.capitalize()
+    
+    return result
+
+
+def validate_lwc_structure(files: dict) -> dict:
+    """
+    Valide la structure des fichiers LWC.
+    
+    Args:
+        files: Dict {path: content}
+        
+    Returns:
+        Dict avec valid=True/False et issues[]
+    """
+    issues = []
+    components = {}
+    
+    # Grouper les fichiers par composant
+    for path in files.keys():
+        if '/lwc/' in path:
+            import re
+            match = re.search(r'/lwc/([^/]+)/', path)
+            if match:
+                comp_name = match.group(1)
+                if comp_name not in components:
+                    components[comp_name] = []
+                components[comp_name].append(path)
+    
+    for comp_name, comp_files in components.items():
+        # Vérifier nommage camelCase
+        if '_' in comp_name or '-' in comp_name:
+            issues.append({
+                "severity": "critical",
+                "component": comp_name,
+                "issue": f"Nom invalide '{comp_name}' - doit être en camelCase"
+            })
+        
+        # Vérifier fichiers requis
+        has_js = any(f.endswith('.js') and not f.endswith('.js-meta.xml') for f in comp_files)
+        has_meta = any(f.endswith('.js-meta.xml') for f in comp_files)
+        has_html = any(f.endswith('.html') for f in comp_files)
+        
+        if not has_js:
+            issues.append({
+                "severity": "critical",
+                "component": comp_name,
+                "issue": "Fichier .js manquant"
+            })
+        
+        if not has_meta:
+            issues.append({
+                "severity": "critical",
+                "component": comp_name,
+                "issue": "Fichier .js-meta.xml manquant"
+            })
+    
+    # Vérifier contenu des fichiers JS
+    for path, content in files.items():
+        if path.endswith('.js') and '/lwc/' in path and not path.endswith('.js-meta.xml'):
+            if 'export default class' not in content:
+                issues.append({
+                    "severity": "critical",
+                    "file": path,
+                    "issue": "Manque 'export default class'"
+                })
+            
+            if 'LightningElement' not in content:
+                issues.append({
+                    "severity": "warning",
+                    "file": path,
+                    "issue": "Ne référence pas LightningElement"
+                })
+    
+    return {
+        "valid": len([i for i in issues if i["severity"] == "critical"]) == 0,
+        "issues": issues,
+        "components": list(components.keys())
+    }
+
+
+def parse_lwc_files_robust(content: str) -> dict:
+    """
+    Parse les fichiers LWC avec fallback progressif.
+    
+    Stratégies:
+    1. Regex avec backticks et FILE markers
+    2. Markers textuels sans backticks
+    3. Extraction par blocs de code
+    
+    Returns:
+        Dict {path: content}
+    """
+    import re
+    files = {}
+    
+    # Stratégie 1: Regex avec backticks (format standard)
+    patterns = [
+        r'```(?:html)?\s*\n<!--\s*FILE:\s*(force-app/[^\s]+)\s*-->\s*\n(.*?)```',
+        r'```(?:javascript|js)?\s*\n//\s*FILE:\s*(force-app/[^\s]+)\s*\n(.*?)```',
+        r'```(?:css)?\s*\n/\*\s*FILE:\s*(force-app/[^\s]+)\s*\*/\s*\n(.*?)```',
+        r'```(?:xml)?\s*\n<!--\s*FILE:\s*(force-app/[^\s]+)\s*-->\s*\n(.*?)```',
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+        for filepath, code in matches:
+            if filepath.strip() and code.strip():
+                files[filepath.strip()] = code.strip()
+    
+    if files:
+        return files
+    
+    # Stratégie 2: Markers sans backticks
+    pattern2 = r'(?://|<!--)\s*FILE:\s*(force-app/[^\s]+?)(?:\s*-->)?\s*\n(.*?)(?=(?://|<!--)\s*FILE:|$)'
+    matches = re.findall(pattern2, content, re.DOTALL)
+    for filepath, code in matches:
+        if filepath.strip() and code.strip():
+            # Nettoyer le code des backticks résiduels
+            cleaned = re.sub(r'^```\w*\n?', '', code.strip())
+            cleaned = re.sub(r'\n?```$', '', cleaned)
+            files[filepath.strip()] = cleaned.strip()
+    
+    if files:
+        return files
+    
+    # Stratégie 3: Blocs de code avec détection de type
+    code_blocks = re.findall(r'```(\w*)\n(.*?)```', content, re.DOTALL)
+    
+    for lang, code in code_blocks:
+        # Essayer de trouver un FILE marker dans le code
+        file_match = re.search(r'(?://|<!--)\s*FILE:\s*(force-app/[^\s]+)', code)
+        if file_match:
+            filepath = file_match.group(1)
+            # Retirer la ligne FILE du code
+            clean_code = re.sub(r'(?://|<!--)\s*FILE:[^\n]+\n?', '', code).strip()
+            if filepath and clean_code:
+                files[filepath] = clean_code
+    
+    return files
 
 def _parse_code_files(content: str) -> dict:
     import re

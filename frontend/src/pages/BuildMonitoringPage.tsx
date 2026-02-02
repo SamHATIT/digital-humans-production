@@ -8,6 +8,7 @@ import {
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import { api } from '../services/api';
+import BuildPhasesPanel, { PhaseExecution } from '../components/BuildPhasesPanel';
 
 interface TaskInfo {
   task_id: string;
@@ -74,11 +75,14 @@ export default function BuildMonitoringPage() {
   const [selectedTask, setSelectedTask] = useState<TaskInfo | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [phases, setPhases] = useState<PhaseExecution[]>([]);
+  const [currentPhase, setCurrentPhase] = useState<number | undefined>();
   
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchBuildTasks();
+    fetchPhases();
     
     // Poll every 3 seconds
     pollingRef.current = setInterval(fetchBuildTasks, 3000);
@@ -105,6 +109,17 @@ export default function BuildMonitoringPage() {
     } catch (err: any) {
       if (!data) setError(err.message || 'Failed to load build tasks');
       setIsLoading(false);
+    }
+  };
+  
+  // BUILD v2: Fetch phase status
+  const fetchPhases = async () => {
+    try {
+      const response = await api.get(`/api/pm-orchestrator/execute/${executionId}/build-phases`);
+      setPhases(response.phases || []);
+      setCurrentPhase(response.current_phase);
+    } catch (err) {
+      console.warn("Failed to fetch phases (BUILD v2 not active):", err);
     }
   };
 
@@ -266,6 +281,13 @@ export default function BuildMonitoringPage() {
                 <div className="text-xs text-slate-400">Pending</div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* BUILD v2 Phases Panel */}
+        {phases.length > 0 && (
+          <div className="mb-8">
+            <BuildPhasesPanel phases={phases} currentPhase={currentPhase} />
           </div>
         )}
 

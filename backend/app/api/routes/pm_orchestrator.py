@@ -982,6 +982,87 @@ async def get_build_tasks(
 
 
 
+# ==================== BUILD V2 PHASES MONITORING ====================
+
+@router.get("/execute/{execution_id}/build-phases")
+async def get_build_phases(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header)
+):
+    """
+    Get BUILD v2 phase execution status.
+    Used by BuildPhasesPanel to display phase progress.
+    """
+    from sqlalchemy import text
+    
+    # Verify execution access
+    execution = db.query(Execution).join(Project).filter(
+        Execution.id == execution_id,
+        Project.user_id == current_user.id
+    ).first()
+    
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+    
+    # Get phase executions
+    result = db.execute(
+        text("""
+            SELECT 
+                phase_number, phase_name, status, agent_id,
+                total_batches, completed_batches,
+                elena_verdict, elena_feedback, elena_review_count,
+                deploy_method, branch_name, pr_url, pr_number, merge_sha,
+                started_at, completed_at, last_error, attempt_count
+            FROM build_phase_executions
+            WHERE execution_id = :exec_id
+            ORDER BY phase_number
+        """),
+        {"exec_id": execution_id}
+    )
+    
+    phases = []
+    current_phase = None
+    
+    for row in result:
+        phase_data = {
+            "phase_number": row.phase_number,
+            "phase_name": row.phase_name,
+            "status": row.status,
+            "agent_id": row.agent_id,
+            "total_batches": row.total_batches or 0,
+            "completed_batches": row.completed_batches or 0,
+            "elena_verdict": row.elena_verdict,
+            "elena_feedback": row.elena_feedback,
+            "elena_review_count": row.elena_review_count or 0,
+            "deploy_method": row.deploy_method,
+            "branch_name": row.branch_name,
+            "pr_url": row.pr_url,
+            "pr_number": row.pr_number,
+            "merge_sha": row.merge_sha,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+            "last_error": row.last_error,
+            "attempt_count": row.attempt_count or 0,
+        }
+        phases.append(phase_data)
+        
+        # Track current phase (first non-completed, non-failed)
+        if row.status not in ('completed', 'failed') and current_phase is None:
+            current_phase = row.phase_number
+    
+    return {
+        "execution_id": execution_id,
+        "execution_status": execution.status.value if hasattr(execution.status, 'value') else str(execution.status),
+        "phases": phases,
+        "current_phase": current_phase,
+        "total_phases": 6,
+        "completed_phases": len([p for p in phases if p["status"] == "completed"]),
+    }
+
+
+
+
 # ==================== START BUILD PHASE ====================
 
 @router.post("/projects/{project_id}/start-build")
