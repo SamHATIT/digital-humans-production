@@ -72,18 +72,17 @@ class JordanDeployService:
         git_repo_url = project_result.git_repo_url
         git_branch = project_result.git_branch or "main"
         
-        # Récupérer le token Git depuis project_git_config
-        git_config = self.db.execute(
-            text("SELECT encrypted_access_token FROM project_git_config WHERE project_id = :id"),
+        # Récupérer le token Git depuis project_credentials
+        git_cred = self.db.execute(
+            text("SELECT encrypted_value FROM project_credentials WHERE project_id = :id AND credential_type = 'GIT_TOKEN'"),
             {"id": self.project_id}
         ).fetchone()
         
         git_token = None
-        if git_config and git_config.encrypted_access_token:
-            try:
-                git_token = decrypt_credential(git_config.encrypted_access_token)
-            except Exception as e:
-                logger.warning(f"[Jordan] Could not decrypt git token: {e}")
+        if git_cred and git_cred.encrypted_value:
+            # Le token Git n'est pas encrypté dans cette table (stocké en clair)
+            git_token = git_cred.encrypted_value
+            logger.info(f"[Jordan] Git token loaded from project_credentials")
         
         # Créer GitService
         if git_repo_url:
