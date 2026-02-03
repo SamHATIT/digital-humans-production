@@ -749,25 +749,34 @@ def generate_build_v2(
     import time
     
     if phase == 1:
-        prompt = BUILD_V2_PHASE1_PROMPT.format(
-            target_object=target,
-            task_description=task_description,
-            existing_context=context.get("existing_context", "None"),
-            solution_design=context.get("solution_design", "Not provided")
+        prompt = BUILD_V2_PHASE1_PROMPT.replace(
+            "{target_object}", target
+        ).replace(
+            "{task_description}", task_description
+        ).replace(
+            "{existing_context}", context.get("existing_context", "None")
+        ).replace(
+            "{solution_design}", context.get("solution_design", "Not provided")
         )
     elif phase == 4:
-        prompt = BUILD_V2_PHASE4_PROMPT.format(
-            automation_type=target,
-            task_description=task_description,
-            data_model_context=context.get("data_model_context", "Not provided"),
-            apex_context=context.get("apex_context", "Not provided")
+        prompt = BUILD_V2_PHASE4_PROMPT.replace(
+            "{automation_type}", target
+        ).replace(
+            "{task_description}", task_description
+        ).replace(
+            "{data_model_context}", context.get("data_model_context", "Not provided")
+        ).replace(
+            "{apex_context}", context.get("apex_context", "Not provided")
         )
     elif phase == 5:
-        prompt = BUILD_V2_PHASE5_PROMPT.format(
-            security_type=target,
-            task_description=task_description,
-            data_model_context=context.get("data_model_context", "Not provided"),
-            components_context=context.get("components_context", "Not provided")
+        prompt = BUILD_V2_PHASE5_PROMPT.replace(
+            "{security_type}", target
+        ).replace(
+            "{task_description}", task_description
+        ).replace(
+            "{data_model_context}", context.get("data_model_context", "Not provided")
+        ).replace(
+            "{components_context}", context.get("components_context", "Not provided")
         )
     else:
         return {"success": False, "error": f"Invalid phase for Raj: {phase}"}
