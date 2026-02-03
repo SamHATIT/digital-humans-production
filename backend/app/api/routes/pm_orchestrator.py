@@ -1088,7 +1088,7 @@ async def start_build_phase(
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
     # Start BUILD execution in background
-    asyncio.create_task(safe_execute_build_phase(result["execution_id"]))
+    asyncio.create_task(execute_build_v2(project_id, result["execution_id"]))
     
     return {
         "message": f"BUILD phase started with {result['tasks_created']} tasks",
@@ -2584,3 +2584,31 @@ async def generate_sds_v3_full_pipeline(
     except Exception as e:
         logger.error(f"[SDS v3] DOCX generation failed: {e}")
         raise HTTPException(status_code=500, detail=f"DOCX generation failed: {str(e)}")
+
+
+# ════════════════════════════════════════════════════════════════════════════════
+# BUILD V2 - PHASED EXECUTOR
+# ════════════════════════════════════════════════════════════════════════════════
+
+async def execute_build_v2(project_id: int, execution_id: int):
+    """Execute BUILD v2 with PhasedBuildExecutor"""
+    from app.services.phased_build_executor import PhasedBuildExecutor
+    from app.database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        logger.info(f"[BUILD v2] Starting PhasedBuildExecutor for project {project_id}, execution {execution_id}")
+        
+        executor = PhasedBuildExecutor(project_id, execution_id, db)
+        result = await executor.execute_all_phases()
+        
+        logger.info(f"[BUILD v2] Execution completed: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"[BUILD v2] Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise
+    finally:
+        db.close()
