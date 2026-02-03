@@ -2593,14 +2593,34 @@ async def generate_sds_v3_full_pipeline(
 async def execute_build_v2(project_id: int, execution_id: int):
     """Execute BUILD v2 with PhasedBuildExecutor"""
     from app.services.phased_build_executor import PhasedBuildExecutor
+    from app.models.task_execution import TaskExecution
     from app.database import SessionLocal
     
     db = SessionLocal()
     try:
         logger.info(f"[BUILD v2] Starting PhasedBuildExecutor for project {project_id}, execution {execution_id}")
         
+        # Récupérer les tâches de la DB
+        tasks = db.query(TaskExecution).filter(
+            TaskExecution.execution_id == execution_id
+        ).all()
+        
+        # Convertir en format dict pour PhasedBuildExecutor
+        wbs_tasks = []
+        for task in tasks:
+            wbs_tasks.append({
+                "task_id": task.task_id,
+                "task_name": task.task_name,
+                "task_type": task.task_type,
+                "assigned_agent": task.assigned_agent,
+                "description": task.description,
+                "phase_name": task.phase_name,
+            })
+        
+        logger.info(f"[BUILD v2] Found {len(wbs_tasks)} tasks")
+        
         executor = PhasedBuildExecutor(project_id, execution_id, db)
-        result = await executor.execute_all_phases()
+        result = await executor.execute_build(wbs_tasks)
         
         logger.info(f"[BUILD v2] Execution completed: {result}")
         return result
