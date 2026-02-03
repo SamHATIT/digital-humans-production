@@ -1555,7 +1555,12 @@ async def execute_build_phase(execution_id: int):
         
         summary = executor.get_task_summary()
         
-        if summary["failed"] == 0 and summary["completed"] == summary["total"]:
+        # Extract counts from by_status dict (keys are uppercase: COMPLETED, FAILED, etc.)
+        failed_count = summary.get("by_status", {}).get("FAILED", 0)
+        completed_count = summary.get("by_status", {}).get("COMPLETED", 0)
+        total_count = summary.get("total", 0)
+        
+        if failed_count == 0 and completed_count == total_count:
             # All tasks passed - finalize
             finalize_result = await executor.finalize_build()
             
@@ -1566,14 +1571,14 @@ async def execute_build_phase(execution_id: int):
             execution.status = ExecutionStatus.COMPLETED
             
             logger.info(f"[BUILD] ✅ BUILD phase COMPLETED successfully")
-            logger.info(f"[BUILD]    - Tasks completed: {summary['completed']}")
+            logger.info(f"[BUILD]    - Tasks completed: {completed_count}")
             logger.info(f"[BUILD]    - Package: {finalize_result.get('package_path', 'N/A')}")
         else:
             # Some failures
             execution.status = ExecutionStatus.FAILED
             logger.warning(f"[BUILD] ⚠️ BUILD phase finished with issues")
-            logger.warning(f"[BUILD]    - Completed: {summary['completed']}/{summary['total']}")
-            logger.warning(f"[BUILD]    - Failed: {summary['failed']}")
+            logger.warning(f"[BUILD]    - Completed: {completed_count}/{total_count}")
+            logger.warning(f"[BUILD]    - Failed: {failed_count}")
         
         db.commit()
         
