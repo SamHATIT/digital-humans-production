@@ -2611,9 +2611,11 @@ async def execute_build_v2(project_id: int, execution_id: int):
             wbs_tasks.append({
                 "task_id": task.task_id,
                 "task_name": task.task_name,
+                "name": task.task_name,  # Alias for target lookup
+                "target_object": task.task_name,  # For data model tasks
                 "task_type": task.task_type,
                 "assigned_agent": task.assigned_agent,
-                "description": task.description,
+                "description": task.description or task.task_name,  # Fallback to task_name if no description
                 "phase_name": task.phase_name,
             })
         
