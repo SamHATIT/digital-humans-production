@@ -478,7 +478,7 @@ class PhasedBuildExecutor:
                 from agents.roles.salesforce_admin import generate_build_v2
                 
                 target = tasks[0].get("target_object") or tasks[0].get("name", "unknown")
-                description = "\n".join([t.get("description", "") for t in tasks])
+                description = "\n".join([(t.get("description") or "") for t in tasks])
                 
                 result = generate_build_v2(
                     phase=phase,
