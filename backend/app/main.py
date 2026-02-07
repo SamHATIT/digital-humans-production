@@ -172,7 +172,7 @@ import os
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    filepath = f"/app/outputs/{filename}"
+    filepath = str(settings.OUTPUT_DIR / filename)
     if os.path.exists(filepath):
         return FileResponse(filepath, filename=filename, media_type="application/octet-stream")
     return {"error": "File not found"}

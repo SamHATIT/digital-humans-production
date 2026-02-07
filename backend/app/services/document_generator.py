@@ -27,6 +27,7 @@ from docx.oxml.ns import qn, nsdecls
 from docx.oxml import parse_xml
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -423,13 +424,15 @@ def generate_professional_sds(
     project: Any,
     agent_outputs: Dict[str, Any],
     execution_id: int,
-    output_dir: str = "/app/outputs"
+    output_dir: str = None
 ) -> str:
     """
     Generate a professional SDS document
     
     FIXED: Now properly fetches data from database
     """
+    if output_dir is None:
+        output_dir = str(settings.OUTPUT_DIR)
     generator = ProfessionalDocumentGenerator()
     generator.create_document()
     

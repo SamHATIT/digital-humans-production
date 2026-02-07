@@ -16,6 +16,7 @@ import json
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional
+from app.config import settings
 
 # Import metadata services
 from .metadata_fetcher import MetadataFetcher
@@ -45,7 +46,7 @@ def fetch_and_preprocess_metadata(
     if output_dir:
         out_path = output_dir
     elif project_id:
-        out_path = f"/app/metadata/{project_id}"
+        out_path = str(settings.METADATA_DIR / str(project_id))
     else:
         out_path = tempfile.mkdtemp(prefix="metadata_")
     

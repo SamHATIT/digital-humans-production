@@ -1,23 +1,26 @@
 """
 Salesforce Configuration for Digital Humans Agents
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict
+
+from app.config import settings
+
 
 @dataclass
 class SalesforceConfig:
     """Salesforce connection configuration"""
-    
+
     # Org Details
     org_alias: str = "digital-humans-dev"
     username: str = "shatit715@agentforce.com"
     org_id: str = "00DgL00000FzQzTUAV"
     instance_url: str = "https://orgfarm-8de2d5ba1d-dev-ed.develop.my.salesforce.com"
     api_version: str = "65.0"
-    
-    # Paths
-    sfdx_project_path: str = "/root/workspace/salesforce-workspace/digital-humans-sf"
-    force_app_path: str = "/root/workspace/salesforce-workspace/digital-humans-sf/force-app/main/default"
+
+    # Paths (centralized via config.py settings)
+    sfdx_project_path: str = field(default_factory=lambda: str(settings.SFDX_PROJECT_PATH))
+    force_app_path: str = field(default_factory=lambda: str(settings.FORCE_APP_PATH))
 
 # Singleton instance
 salesforce_config = SalesforceConfig()

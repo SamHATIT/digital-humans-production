@@ -8,6 +8,7 @@ import subprocess
 import os
 import asyncio
 from datetime import datetime
+from app.config import settings
 
 router = APIRouter(prefix="/blog", tags=["blog"])
 
@@ -36,7 +37,7 @@ async def get_db_connection():
 
 async def generate_single_article(topic: TopicRequest) -> GenerationResult:
     """Generate a single article using blog_generator.py"""
-    script_path = "/root/workspace/digital-humans-production/scripts/blog_generator.py"
+    script_path = str(settings.PROJECT_ROOT / "scripts" / "blog_generator.py")
     
     try:
         # Run the generator script
@@ -44,7 +45,7 @@ async def generate_single_article(topic: TopicRequest) -> GenerationResult:
             "python3", script_path,
             topic.title,
             "--agent", topic.agent,
-            cwd="/root/workspace/digital-humans-production/scripts",
+            cwd=str(settings.PROJECT_ROOT / "scripts"),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env={**os.environ}

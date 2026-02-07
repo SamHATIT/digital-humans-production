@@ -36,7 +36,7 @@ router = APIRouter(tags=["PM Orchestrator"])
 # ==================== PROJECT DEFINITION ROUTES ====================
 
 @router.post("/projects", response_model=ProjectSchema, status_code=status.HTTP_201_CREATED)
-async def create_project(
+def create_project(
     project_data: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -75,7 +75,7 @@ async def create_project(
 
 
 @router.get("/projects", response_model=List[ProjectSchema])
-async def list_projects(
+def list_projects(
     skip: int = 0,
     limit: int = 50,
     status: ProjectStatus = None,
@@ -100,7 +100,7 @@ async def list_projects(
 
 
 @router.get("/dashboard/stats")
-async def get_dashboard_stats(
+def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -173,7 +173,7 @@ async def get_dashboard_stats(
 
 
 @router.get("/projects/{project_id}", response_model=ProjectSchema)
-async def get_project(
+def get_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -196,7 +196,7 @@ async def get_project(
 
 
 @router.put("/projects/{project_id}", response_model=ProjectSchema)
-async def update_project(
+def update_project(
     project_id: int,
     project_data: ProjectUpdate,
     db: Session = Depends(get_db),
@@ -229,7 +229,7 @@ async def update_project(
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
+def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -419,7 +419,7 @@ async def resume_execution(
     )
 
 @router.get("/execute/{execution_id}/progress")
-async def get_execution_progress(
+def get_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -686,7 +686,7 @@ async def stream_execution_progress(
 
 
 @router.get("/execute/{execution_id}/result", response_model=ExecutionResultResponse)
-async def get_execution_result(
+def get_execution_result(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -725,7 +725,7 @@ async def get_execution_result(
 
 
 @router.get("/execute/{execution_id}/download")
-async def download_sds_document(
+def download_sds_document(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -762,7 +762,7 @@ async def download_sds_document(
 
 
 @router.get("/executions", response_model=List[ExecutionSchema])
-async def list_executions(
+def list_executions(
     project_id: int = None,
     skip: int = 0,
     limit: int = 50,
@@ -799,7 +799,7 @@ async def list_executions(
 # ==================== AGENTS LIST ENDPOINT ====================
 
 @router.get("/agents")
-async def list_available_agents(
+def list_available_agents(
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -826,7 +826,7 @@ async def list_available_agents(
 # ==================== DETAILED PROGRESS ENDPOINT ====================
 
 @router.get("/execute/{execution_id}/detailed-progress")
-async def get_detailed_execution_progress(
+def get_detailed_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -905,7 +905,7 @@ async def get_detailed_execution_progress(
 # ==================== BUILD TASKS MONITORING ====================
 
 @router.get("/execute/{execution_id}/build-tasks")
-async def get_build_tasks(
+def get_build_tasks(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -985,7 +985,7 @@ async def get_build_tasks(
 # ==================== BUILD V2 PHASES MONITORING ====================
 
 @router.get("/execute/{execution_id}/build-phases")
-async def get_build_phases(
+def get_build_phases(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -1106,8 +1106,6 @@ async def start_build_phase(
 # - TaskExecution creation
 # - Status updates
 # All this logic is now in BuildPhaseService.prepare_build_phase()
-
-_OLD_START_BUILD_REMOVED = True  # Marker for refactoring
 
 
 # ==================== CHAT WITH PM ENDPOINT ====================
@@ -1397,7 +1395,7 @@ async def retry_failed_execution(
 
 # ORCH-04: Get retry status and options
 @router.get("/execute/{execution_id}/retry-info")
-async def get_retry_info(
+def get_retry_info(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1461,150 +1459,13 @@ async def get_retry_info(
     }
 
 
-# ==================== BUILD PHASE EXECUTION ====================
-
-
-async def safe_execute_build_phase(execution_id: int):
-    """Wrapper to catch and log any errors in background BUILD execution"""
-    try:
-        logger.info(f"[BUILD] 🚀 Background task starting for execution {execution_id}")
-        await execute_build_phase(execution_id)
-    except Exception as e:
-        logger.error(f"[BUILD] 💥 Background task crashed: {type(e).__name__}: {str(e)}")
-        import traceback
-        logger.error(f"[BUILD] Traceback: {traceback.format_exc()}")
-
-async def execute_build_phase(execution_id: int):
-    """
-    Background task to execute all BUILD phase tasks.
-    Uses IncrementalExecutor to run each task through the full cycle:
-    Agent → SFDX Deploy → Elena Tests → Git Commit
-    """
-    from app.database import SessionLocal
-    from app.services.incremental_executor import IncrementalExecutor
-    from app.models.execution import Execution, ExecutionStatus
-    from app.models.project import Project, ProjectStatus
-    
-    logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-    logger.info(f"[BUILD] Starting BUILD phase for execution {execution_id}")
-    
-    db = SessionLocal()
-    
-    try:
-        # Get execution
-        execution = db.query(Execution).filter(Execution.id == execution_id).first()
-        if not execution:
-            logger.error(f"[BUILD] Execution {execution_id} not found")
-            return
-        
-        # Update execution status
-        execution.status = ExecutionStatus.RUNNING
-        db.commit()
-        
-        # Initialize IncrementalExecutor
-        executor = IncrementalExecutor(db, execution_id)
-        
-        # Execute tasks one by one
-        tasks_completed = 0
-        tasks_failed = 0
-        
-        while True:
-            # Get next available task
-            next_task = executor.get_next_task()
-            
-            if next_task is None:
-                # No more tasks or all blocked
-                if executor.is_build_complete():
-                    logger.info(f"[BUILD] ✅ All tasks completed!")
-                    break
-                else:
-                    # Check if we have blocked tasks only
-                    summary = executor.get_task_summary()
-                    if summary["by_status"].get("BLOCKED", 0) > 0 and summary["by_status"].get("PENDING", 0) == 0:
-                        logger.warning(f"[BUILD] ⚠️ {summary['by_status'].get('BLOCKED', 0)} tasks blocked - cannot continue")
-                        break
-                    logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['by_status'].get('COMPLETED', 0)}, blocked: {summary['by_status'].get('BLOCKED', 0)})")
-                    # PERF-001: Intentional delay while waiting for dependencies
-                    await asyncio.sleep(2)
-                    continue
-            
-            # Execute task
-            logger.info(f"[BUILD] ────────────────────────────────────────────")
-            logger.info(f"[BUILD] Processing task {tasks_completed + 1}: {next_task.task_id}")
-            
-            result = await executor.execute_single_task(next_task)
-            
-            if result.get("success"):
-                tasks_completed += 1
-                logger.info(f"[BUILD] ✅ Task {next_task.task_id} completed ({tasks_completed} done)")
-            else:
-                tasks_failed += 1
-                logger.error(f"[BUILD] ❌ Task {next_task.task_id} failed: {result.get('error')}")
-                
-                # Check if we should continue despite failure
-                if tasks_failed > 5:
-                    logger.error(f"[BUILD] Too many failures ({tasks_failed}), stopping BUILD")
-                    break
-            
-            # PERF-001: Small intentional delay between BUILD tasks
-            await asyncio.sleep(1)
-        
-        # Finalize build
-        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-        logger.info(f"[BUILD] Finalizing BUILD phase...")
-        
-        summary = executor.get_task_summary()
-        
-        # Extract counts from by_status dict (keys are uppercase: COMPLETED, FAILED, etc.)
-        failed_count = summary.get("by_status", {}).get("FAILED", 0)
-        completed_count = summary.get("by_status", {}).get("COMPLETED", 0)
-        total_count = summary.get("total", 0)
-        
-        if failed_count == 0 and completed_count == total_count:
-            # All tasks passed - finalize
-            finalize_result = await executor.finalize_build()
-            
-            # Update project and execution status
-            project = db.query(Project).filter(Project.id == execution.project_id).first()
-            if project:
-                project.status = ProjectStatus.BUILD_COMPLETED
-            execution.status = ExecutionStatus.COMPLETED
-            
-            logger.info(f"[BUILD] ✅ BUILD phase COMPLETED successfully")
-            logger.info(f"[BUILD]    - Tasks completed: {completed_count}")
-            logger.info(f"[BUILD]    - Package: {finalize_result.get('package_path', 'N/A')}")
-        else:
-            # Some failures
-            execution.status = ExecutionStatus.FAILED
-            logger.warning(f"[BUILD] ⚠️ BUILD phase finished with issues")
-            logger.warning(f"[BUILD]    - Completed: {completed_count}/{total_count}")
-            logger.warning(f"[BUILD]    - Failed: {failed_count}")
-        
-        db.commit()
-        
-    except Exception as e:
-        logger.error(f"[BUILD] ❌ BUILD phase exception: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        try:
-            execution = db.query(Execution).filter(Execution.id == execution_id).first()
-            if execution:
-                execution.status = ExecutionStatus.FAILED
-                db.commit()
-        except:
-            pass
-    finally:
-        db.close()
-        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-
 
 # ════════════════════════════════════════════════════════════════════════════════
 # PAUSE / RESUME BUILD
 # ════════════════════════════════════════════════════════════════════════════════
 
 @router.post("/execute/{execution_id}/pause-build")
-async def pause_build(
+def pause_build(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1645,9 +1506,11 @@ async def resume_build(
     if not result.get("success"):
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
-    # Restart the build phase in background
-    asyncio.create_task(safe_execute_build_phase(execution_id))
-    
+    # Restart the build phase in background using V2 PhasedBuildExecutor
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if execution:
+        asyncio.create_task(execute_build_v2(execution.project_id, execution_id))
+
     return {
         "status": result["status"],
         "message": "BUILD resumed. Execution continuing from next pending task.",
@@ -1819,7 +1682,7 @@ async def microanalyze_ucs(
 
 
 @router.get("/execute/{execution_id}/requirement-sheets")
-async def get_requirement_sheets(
+def get_requirement_sheets(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1990,7 +1853,7 @@ async def synthesize_sds_v3(
 
 
 @router.get("/execute/{execution_id}/sds-preview")
-async def preview_sds_v3(
+def preview_sds_v3(
     execution_id: int,
     format: str = Query("markdown", enum=["markdown", "html"]),
     db: Session = Depends(get_db),
@@ -2097,7 +1960,7 @@ async def preview_sds_v3(
 
 
 @router.get("/execute/{execution_id}/domains-summary")
-async def get_domains_summary(
+def get_domains_summary(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -2327,7 +2190,7 @@ async def download_sds_v3(
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Chercher le fichier existant
-    output_dir = f"/app/outputs/sds_v3"
+    output_dir = str(settings.OUTPUT_DIR / "sds_v3")
     pattern = f"{output_dir}/SDS_*_{execution_id}.docx"
     existing_files = glob.glob(pattern)
     
@@ -2533,7 +2396,7 @@ async def generate_sds_v3_full_pipeline(
         }
         
         # Créer le répertoire de sortie
-        output_dir = f"/app/outputs/sds_v3"
+        output_dir = str(settings.OUTPUT_DIR / "sds_v3")
         os.makedirs(output_dir, exist_ok=True)
         
         safe_name = "".join(c if c.isalnum() or c in "- _" else "_" for c in project.name)

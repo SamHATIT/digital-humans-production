@@ -67,7 +67,7 @@ def test_01_imports():
     # Services
     try:
         from app.services.pm_orchestrator_service_v2 import PMOrchestratorService
-        from app.services.incremental_executor import IncrementalExecutor
+        from app.services.phased_build_executor import PhasedBuildExecutor
         from app.services.sfdx_service import SFDXService
         from app.services.git_service import GitService
         from app.services.llm_service import LLMService
@@ -251,24 +251,16 @@ def test_07_orchestrator_init():
         return False
 
 # ============================================================
-# TEST 8: Incremental Executor peut charger des tâches
+# TEST 8: Phased Build Executor peut s'importer
 # ============================================================
-def test_08_incremental_executor():
-    """Vérifie que l'executor incrémental fonctionne"""
+def test_08_phased_build_executor():
+    """Verifie que le PhasedBuildExecutor (V2) est importable"""
     try:
-        from app.services.incremental_executor import IncrementalExecutor
-        from app.database import SessionLocal
-        
-        db = SessionLocal()
-        try:
-            # Test avec une execution fictive
-            # On ne peut pas vraiment tester sans DB mais on vérifie l'import
-            log_result("test_08_incremental_executor", True, "Classe IncrementalExecutor importable")
-            return True
-        finally:
-            db.close()
+        from app.services.phased_build_executor import PhasedBuildExecutor
+        log_result("test_08_phased_build_executor", True, "Classe PhasedBuildExecutor importable")
+        return True
     except Exception as e:
-        log_result("test_08_incremental_executor", False, str(e))
+        log_result("test_08_phased_build_executor", False, str(e))
         return False
 
 # ============================================================
@@ -289,7 +281,7 @@ def run_all_tests():
         test_05_llm_service,
         test_06_db_tables,
         test_07_orchestrator_init,
-        test_08_incremental_executor,
+        test_08_phased_build_executor,
     ]
     
     passed = 0

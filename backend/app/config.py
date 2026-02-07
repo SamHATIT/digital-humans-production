@@ -4,6 +4,7 @@ Application configuration using Pydantic settings.
 import os
 import secrets
 import logging
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings
 from pydantic import field_validator, model_validator
@@ -41,6 +42,17 @@ class Settings(BaseSettings):
 
     # Agents
     AGENTS_DIR: str = "/opt/digital-humans/salesforce-agents"
+
+    # Centralized paths (P2: eliminate hardcoded absolute paths)
+    PROJECT_ROOT: Path = Path("/root/workspace/digital-humans-production")
+    BACKEND_ROOT: Path = Path("/root/workspace/digital-humans-production/backend")
+    OUTPUT_DIR: Path = Path("/app/outputs")
+    METADATA_DIR: Path = Path("/app/metadata")
+    CHROMA_PATH: Path = Path("/opt/digital-humans/rag/chromadb_data")
+    RAG_ENV_PATH: Path = Path("/opt/digital-humans/rag/.env")
+    LLM_CONFIG_PATH: Path = Path("/root/workspace/digital-humans-production/backend/config/llm_routing.yaml")
+    SFDX_PROJECT_PATH: Path = Path("/root/workspace/salesforce-workspace/digital-humans-sf")
+    FORCE_APP_PATH: Path = Path("/root/workspace/salesforce-workspace/digital-humans-sf/force-app/main/default")
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
