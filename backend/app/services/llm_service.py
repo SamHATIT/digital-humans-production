@@ -462,6 +462,39 @@ def get_llm_service() -> LLMService:
     return _llm_service
 
 
+# ============================================================================
+# P6: LLM Router V3 Bridge
+# Routes through llm_router_service.py when available, falls back to V1.
+# Transparent to callers -- same function signature and return type.
+# ============================================================================
+_router_v3 = None  # type: ignore
+_router_v3_init_attempted = False
+
+
+def _get_router_v3():
+    """
+    Lazily initialise the LLM Router V3 singleton.
+
+    Returns the router instance or None if initialisation fails
+    (missing config file, import error, etc.).  Initialisation is
+    attempted only once to avoid repeated failures.
+    """
+    global _router_v3, _router_v3_init_attempted
+    if _router_v3 is not None:
+        return _router_v3
+    if _router_v3_init_attempted:
+        return None
+    _router_v3_init_attempted = True
+    try:
+        from app.services.llm_router_service import LLMRouterService
+        _router_v3 = LLMRouterService()
+        logger.info("LLM Router V3 bridge active")
+        return _router_v3
+    except Exception as exc:
+        logger.info("LLM Router V3 unavailable, using V1 fallback: %s", exc)
+        return None
+
+
 # Convenience function for direct usage
 def generate_llm_response(
     prompt: str,
@@ -471,7 +504,10 @@ def generate_llm_response(
 ) -> Dict[str, Any]:
     """
     Convenience function to generate LLM response.
-    
+
+    P6: tries LLM Router V3 first (cost tracking, YAML routing),
+    falls back transparently to V1 LLMService if V3 is unavailable.
+
     Example:
         response = generate_llm_response(
             prompt="Analyze these requirements...",
@@ -480,10 +516,44 @@ def generate_llm_response(
         )
         content = response["content"]
     """
+    # --- P6: try Router V3 bridge first ---
+    router = _get_router_v3()
+    if router is not None:
+        try:
+            # Map 'model' → 'force_provider' if caller supplied a specific model
+            force_provider = None
+            kw = dict(kwargs)
+            kw.pop('model_override', None)
+            if 'model' in kw:
+                kw.pop('model')
+            if 'provider' in kw:
+                provider_val = kw.pop('provider')
+                # Accept LLMProvider enum or plain string
+                provider_str = provider_val.value if hasattr(provider_val, 'value') else str(provider_val)
+                model_override = kwargs.get('model') or kwargs.get('model_override')
+                if model_override:
+                    force_provider = f"{provider_str}/{model_override}"
+
+            response = router.generate(
+                prompt=prompt,
+                agent_type=agent_type,
+                system_prompt=system_prompt,
+                max_tokens=kw.pop('max_tokens', 16000),
+                temperature=kw.pop('temperature', 0.7),
+                **{k: v for k, v in kw.items() if k in ('project_id', 'execution_id')},
+            )
+            # If the router reports success=False (e.g. provider down), fall through
+            if response.get("success") is not False:
+                return response
+            logger.warning("Router V3 returned success=False, falling back to V1")
+        except Exception as exc:
+            logger.warning("Router V3 call failed, falling back to V1: %s", exc)
+
+    # --- V1 fallback ---
     # Map 'model' to 'model_override' for backward compatibility with agents
     if 'model' in kwargs:
         kwargs['model_override'] = kwargs.pop('model')
-    
+
     return get_llm_service().generate(
         prompt=prompt,
         agent_type=agent_type,
