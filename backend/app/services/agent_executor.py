@@ -53,11 +53,29 @@ except ImportError:
     _PM_AGENT_AVAILABLE = False
     logger.warning("PMAgent not available for direct import, will use subprocess fallback")
 
+try:
+    from agents.roles.salesforce_trainer import TrainerAgent
+    _TRAINER_AGENT_AVAILABLE = True
+except ImportError:
+    _TRAINER_AGENT_AVAILABLE = False
+    logger.warning("TrainerAgent not available for direct import, will use subprocess fallback")
+
 # Registry mapping agent_id -> class for migrated agents
 # Agents not in this dict fall back to subprocess execution
 MIGRATED_AGENTS: Dict[str, type] = {}
 if _PM_AGENT_AVAILABLE:
     MIGRATED_AGENTS["sophie"] = PMAgent
+if _TRAINER_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["lucas"] = TrainerAgent
+    MIGRATED_AGENTS["trainer"] = TrainerAgent
+
+# Default modes when called from agent tester (execute_agent flow).
+# Each agent's most common/default mode for testing.
+AGENT_DEFAULT_MODES: Dict[str, str] = {
+    "sophie": "extract_br",
+    "lucas": "sds_strategy",
+    "trainer": "sds_strategy",
+}
 
 
 class LogLevel(str, Enum):
@@ -299,9 +317,8 @@ class AgentExecutor:
                 agent_instance = agent_class()
 
                 # Build task_data matching agent class interface
-                # For sophie: always extract_br in tester context
                 task_data = {
-                    "mode": "extract_br",
+                    "mode": AGENT_DEFAULT_MODES.get(agent_id, "spec"),
                     "input_content": task,
                     "execution_id": execution.id,
                     "project_id": project_id,
