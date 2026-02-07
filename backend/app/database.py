@@ -24,10 +24,17 @@ Base = declarative_base()
 def get_db():
     """
     Dependency function to get database session.
-    Yields a database session and ensures it's closed after use.
+
+    P7: Added explicit rollback on unhandled exceptions to prevent
+    partial commits from corrupting data. On success, the session
+    closes normally (routes handle their own commits).
+    On exception, any uncommitted changes are rolled back before close.
     """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         db.close()
