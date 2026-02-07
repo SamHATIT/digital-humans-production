@@ -5,6 +5,10 @@ Main FastAPI application entry point.
 from dotenv import load_dotenv
 load_dotenv()
 
+# P5: Initialize structured JSON logging before any app imports
+from app.logging_config import setup_logging
+setup_logging()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

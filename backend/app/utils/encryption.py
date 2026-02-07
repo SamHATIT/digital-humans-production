@@ -2,6 +2,27 @@
 Credential Encryption Service
 Uses Fernet (AES-128-CBC) for symmetric encryption.
 Based on SPEC Section 7.1
+
+SECRET KEY ROTATION PROCEDURE
+==============================
+
+1. Generate a new Fernet key:
+       python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+2. Set CREDENTIALS_ENCRYPTION_KEY in .env to the new key.
+
+3. Run a migration script to re-encrypt all existing credentials stored
+   in the database using the new key.  (TODO: create migration script
+   ``scripts/rotate_encryption_key.py``.)
+
+4. Verify decryption works with the new key, then remove the old key.
+
+IMPORTANT:
+- Changing SECRET_KEY (in .env) invalidates ALL existing JWT tokens.
+  All users will need to re-authenticate.
+- Changing CREDENTIALS_ENCRYPTION_KEY invalidates ALL encrypted
+  credentials in the database.  They MUST be re-encrypted before the
+  old key is discarded.
 """
 from cryptography.fernet import Fernet, InvalidToken
 from functools import lru_cache

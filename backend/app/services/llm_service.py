@@ -14,9 +14,12 @@ Date: November 27, 2025
 
 import os
 import sys
+import logging
 from typing import Optional, Dict, Any, Literal
 from enum import Enum
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 # Provider imports - handled gracefully
 try:
@@ -58,7 +61,7 @@ def _log_llm_debug(step: str, data: dict):
         with open(log_path, "w") as f:
             _json.dump(existing, f, indent=2, ensure_ascii=False)
     except Exception as e:
-        print(f"LLM debug log error: {e}", file=sys.stderr)
+        logger.warning("LLM debug log error: %s", e)
 
 
 class LLMProvider(str, Enum):
@@ -178,18 +181,18 @@ class LLMService:
             api_key = os.environ.get('ANTHROPIC_API_KEY')
             if api_key:
                 self._anthropic_client = Anthropic(api_key=api_key, timeout=600.0)  # 10 min timeout for large requests
-                print("✅ Anthropic client initialized", file=sys.stderr)
+                logger.info("Anthropic client initialized")
             else:
-                print("⚠️ ANTHROPIC_API_KEY not set", file=sys.stderr)
+                logger.warning("ANTHROPIC_API_KEY not set")
         else:
-            print("⚠️ anthropic package not installed", file=sys.stderr)
+            logger.warning("anthropic package not installed")
         
         # OpenAI client (fallback)
         if OPENAI_AVAILABLE:
             api_key = os.environ.get('OPENAI_API_KEY')
             if api_key:
                 self._openai_client = OpenAI(api_key=api_key)
-                print("✅ OpenAI client initialized (fallback)", file=sys.stderr)
+                logger.info("OpenAI client initialized (fallback)")
     
     def get_tier_for_agent(self, agent_type: str) -> AgentTier:
         """Get the tier for a given agent type"""
@@ -239,7 +242,7 @@ class LLMService:
         model = model_override or self.get_model_for_agent(agent_type, provider)
         tier = self.get_tier_for_agent(agent_type)
         
-        print(f"🤖 LLM Request: agent={agent_type}, tier={tier.value}, provider={provider.value}, model={model}", file=sys.stderr)
+        logger.info("LLM Request: agent=%s, tier=%s, provider=%s, model=%s", agent_type, tier.value, provider.value, model)
         
         # Try primary provider
         try:
@@ -251,11 +254,11 @@ class LLMService:
                 raise ValueError(f"Provider {provider.value} not available")
                 
         except Exception as e:
-            print(f"❌ {provider.value} failed: {e}", file=sys.stderr)
-            
+            logger.error("%s failed: %s", provider.value, e)
+
             # Fallback to OpenAI if enabled
             if self.fallback_to_openai and provider != LLMProvider.OPENAI and self._openai_client:
-                print("🔄 Falling back to OpenAI...", file=sys.stderr)
+                logger.warning("Falling back to OpenAI...")
                 fallback_model = self.get_model_for_agent(agent_type, LLMProvider.OPENAI)
                 return self._call_openai(prompt, system_prompt, fallback_model, max_tokens, temperature)
             
@@ -270,7 +273,7 @@ class LLMService:
         temperature: float
     ) -> Dict[str, Any]:
         """Call Anthropic Claude API"""
-        print(f"📤 Calling Anthropic API ({model})...", file=sys.stderr)
+        logger.info("Calling Anthropic API (%s)...", model)
         
         kwargs = {
             "model": model,
@@ -303,7 +306,7 @@ class LLMService:
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         stop_reason = response.stop_reason
         
-        print(f"✅ Anthropic response: {len(content)} chars, {tokens_used} tokens, stop={stop_reason}", file=sys.stderr)
+        logger.info("Anthropic response: %d chars, %d tokens, stop=%s", len(content), tokens_used, stop_reason)
         
         # CRIT-02 FIX: Auto-continue if truncated (max_tokens reached)
         continuation_count = 0
@@ -311,7 +314,7 @@ class LLMService:
         
         while stop_reason == "max_tokens" and continuation_count < max_continuations:
             continuation_count += 1
-            print(f"⚠️ Response truncated! Continuing generation ({continuation_count}/{max_continuations})...", file=sys.stderr)
+            logger.warning("Response truncated! Continuing generation (%d/%d)...", continuation_count, max_continuations)
             
             # Build continuation messages
             continuation_kwargs = {
@@ -337,13 +340,13 @@ class LLMService:
                 content += "\n" + continuation_content
                 tokens_used += continuation_response.usage.input_tokens + continuation_response.usage.output_tokens
                 
-                print(f"✅ Continuation {continuation_count}: +{len(continuation_content)} chars, stop={stop_reason}", file=sys.stderr)
+                logger.info("Continuation %d: +%d chars, stop=%s", continuation_count, len(continuation_content), stop_reason)
             except Exception as e:
-                print(f"❌ Continuation failed: {e}", file=sys.stderr)
+                logger.error("Continuation failed: %s", e)
                 break
         
         if continuation_count > 0:
-            print(f"📝 Total after {continuation_count} continuation(s): {len(content)} chars", file=sys.stderr)
+            logger.info("Total after %d continuation(s): %d chars", continuation_count, len(content))
         
         # Log LLM response for debugging
         _log_llm_debug("llm_response", {
@@ -377,7 +380,7 @@ class LLMService:
         temperature: float
     ) -> Dict[str, Any]:
         """Call OpenAI GPT API"""
-        print(f"📤 Calling OpenAI API ({model})...", file=sys.stderr)
+        logger.info("Calling OpenAI API (%s)...", model)
         
         messages = []
         if system_prompt:
@@ -405,7 +408,7 @@ class LLMService:
         content = response.choices[0].message.content
         tokens_used = response.usage.total_tokens
         
-        print(f"✅ OpenAI response: {len(content)} chars, {tokens_used} tokens", file=sys.stderr)
+        logger.info("OpenAI response: %d chars, %d tokens", len(content), tokens_used)
         
         # Log LLM response for debugging
         _log_llm_debug("llm_response", {
@@ -459,6 +462,39 @@ def get_llm_service() -> LLMService:
     return _llm_service
 
 
+# ============================================================================
+# P6: LLM Router V3 Bridge
+# Routes through llm_router_service.py when available, falls back to V1.
+# Transparent to callers -- same function signature and return type.
+# ============================================================================
+_router_v3 = None  # type: ignore
+_router_v3_init_attempted = False
+
+
+def _get_router_v3():
+    """
+    Lazily initialise the LLM Router V3 singleton.
+
+    Returns the router instance or None if initialisation fails
+    (missing config file, import error, etc.).  Initialisation is
+    attempted only once to avoid repeated failures.
+    """
+    global _router_v3, _router_v3_init_attempted
+    if _router_v3 is not None:
+        return _router_v3
+    if _router_v3_init_attempted:
+        return None
+    _router_v3_init_attempted = True
+    try:
+        from app.services.llm_router_service import LLMRouterService
+        _router_v3 = LLMRouterService()
+        logger.info("LLM Router V3 bridge active")
+        return _router_v3
+    except Exception as exc:
+        logger.info("LLM Router V3 unavailable, using V1 fallback: %s", exc)
+        return None
+
+
 # Convenience function for direct usage
 def generate_llm_response(
     prompt: str,
@@ -468,7 +504,10 @@ def generate_llm_response(
 ) -> Dict[str, Any]:
     """
     Convenience function to generate LLM response.
-    
+
+    P6: tries LLM Router V3 first (cost tracking, YAML routing),
+    falls back transparently to V1 LLMService if V3 is unavailable.
+
     Example:
         response = generate_llm_response(
             prompt="Analyze these requirements...",
@@ -477,10 +516,44 @@ def generate_llm_response(
         )
         content = response["content"]
     """
+    # --- P6: try Router V3 bridge first ---
+    router = _get_router_v3()
+    if router is not None:
+        try:
+            # Map 'model' → 'force_provider' if caller supplied a specific model
+            force_provider = None
+            kw = dict(kwargs)
+            kw.pop('model_override', None)
+            if 'model' in kw:
+                kw.pop('model')
+            if 'provider' in kw:
+                provider_val = kw.pop('provider')
+                # Accept LLMProvider enum or plain string
+                provider_str = provider_val.value if hasattr(provider_val, 'value') else str(provider_val)
+                model_override = kwargs.get('model') or kwargs.get('model_override')
+                if model_override:
+                    force_provider = f"{provider_str}/{model_override}"
+
+            response = router.generate(
+                prompt=prompt,
+                agent_type=agent_type,
+                system_prompt=system_prompt,
+                max_tokens=kw.pop('max_tokens', 16000),
+                temperature=kw.pop('temperature', 0.7),
+                **{k: v for k, v in kw.items() if k in ('project_id', 'execution_id')},
+            )
+            # If the router reports success=False (e.g. provider down), fall through
+            if response.get("success") is not False:
+                return response
+            logger.warning("Router V3 returned success=False, falling back to V1")
+        except Exception as exc:
+            logger.warning("Router V3 call failed, falling back to V1: %s", exc)
+
+    # --- V1 fallback ---
     # Map 'model' to 'model_override' for backward compatibility with agents
     if 'model' in kwargs:
         kwargs['model_override'] = kwargs.pop('model')
-    
+
     return get_llm_service().generate(
         prompt=prompt,
         agent_type=agent_type,
@@ -491,18 +564,19 @@ def generate_llm_response(
 
 if __name__ == "__main__":
     # Test the service
-    print("🧪 Testing LLM Service...")
-    
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Testing LLM Service...")
+
     service = LLMService()
-    print(f"\n📊 Service Status: {service.get_status()}")
-    
+    logger.info("Service Status: %s", service.get_status())
+
     # Test tier mapping
     test_agents = ["pm", "ba", "architect", "apex", "qa", "trainer"]
-    print("\n📋 Agent Tier Mapping:")
+    logger.info("Agent Tier Mapping:")
     for agent in test_agents:
         tier = service.get_tier_for_agent(agent)
         model = service.get_model_for_agent(agent)
-        print(f"  {agent}: tier={tier.value}, model={model}")
+        logger.info("  %s: tier=%s, model=%s", agent, tier.value, model)
 
 
 # === JSON RESPONSE HELPER (added 2025-12-22) ===

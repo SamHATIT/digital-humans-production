@@ -11,12 +11,14 @@ Usage:
     )
 """
 
-import sys
 import json
+import logging
 import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Import metadata services
 from .metadata_fetcher import MetadataFetcher
@@ -52,23 +54,23 @@ def fetch_and_preprocess_metadata(
     
     try:
         # Step 1: Fetch metadata
-        print(f"Fetching metadata from org: {org_alias}...", file=sys.stderr)
+        logger.info("Fetching metadata from org: %s...", org_alias)
         fetcher = MetadataFetcher(org_alias)
         fetch_result = fetcher.fetch_all_metadata(out_path)
         
         if not fetch_result.get("success"):
             return {"success": False, "error": fetch_result.get("error", "Fetch failed")}
         
-        print(f"Fetched: {fetch_result.get('metadata_counts', {})}", file=sys.stderr)
+        logger.info("Fetched: %s", fetch_result.get('metadata_counts', {}))
         
         # Step 2: Preprocess and analyze
-        print(f"Analyzing metadata...", file=sys.stderr)
+        logger.info("Analyzing metadata...")
         preprocessor = MetadataPreprocessor(fetch_result["raw_data_path"])
         summary = preprocessor.generate_summary(f"{out_path}/metadata_summary.json")
         
         debt_score = summary.get('technical_debt_score', 0)
         flag_count = summary.get('red_flags', {}).get('total_count', 0)
-        print(f"Analysis complete. Technical Debt: {debt_score}/100, Red Flags: {flag_count}", file=sys.stderr)
+        logger.info("Analysis complete. Technical Debt: %d/100, Red Flags: %d", debt_score, flag_count)
         
         return {
             "success": True,
