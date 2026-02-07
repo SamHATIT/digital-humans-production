@@ -1107,8 +1107,6 @@ async def start_build_phase(
 # - Status updates
 # All this logic is now in BuildPhaseService.prepare_build_phase()
 
-_OLD_START_BUILD_REMOVED = True  # Marker for refactoring
-
 
 # ==================== CHAT WITH PM ENDPOINT ====================
 
@@ -1461,143 +1459,6 @@ def get_retry_info(
     }
 
 
-# ==================== BUILD PHASE EXECUTION ====================
-
-
-async def safe_execute_build_phase(execution_id: int):
-    """Wrapper to catch and log any errors in background BUILD execution"""
-    try:
-        logger.info(f"[BUILD] 🚀 Background task starting for execution {execution_id}")
-        await execute_build_phase(execution_id)
-    except Exception as e:
-        logger.error(f"[BUILD] 💥 Background task crashed: {type(e).__name__}: {str(e)}")
-        import traceback
-        logger.error(f"[BUILD] Traceback: {traceback.format_exc()}")
-
-async def execute_build_phase(execution_id: int):
-    """
-    Background task to execute all BUILD phase tasks.
-    Uses IncrementalExecutor to run each task through the full cycle:
-    Agent → SFDX Deploy → Elena Tests → Git Commit
-    """
-    from app.database import SessionLocal
-    from app.services.incremental_executor import IncrementalExecutor
-    from app.models.execution import Execution, ExecutionStatus
-    from app.models.project import Project, ProjectStatus
-    
-    logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-    logger.info(f"[BUILD] Starting BUILD phase for execution {execution_id}")
-    
-    db = SessionLocal()
-    
-    try:
-        # Get execution
-        execution = db.query(Execution).filter(Execution.id == execution_id).first()
-        if not execution:
-            logger.error(f"[BUILD] Execution {execution_id} not found")
-            return
-        
-        # Update execution status
-        execution.status = ExecutionStatus.RUNNING
-        db.commit()
-        
-        # Initialize IncrementalExecutor
-        executor = IncrementalExecutor(db, execution_id)
-        
-        # Execute tasks one by one
-        tasks_completed = 0
-        tasks_failed = 0
-        
-        while True:
-            # Get next available task
-            next_task = executor.get_next_task()
-            
-            if next_task is None:
-                # No more tasks or all blocked
-                if executor.is_build_complete():
-                    logger.info(f"[BUILD] ✅ All tasks completed!")
-                    break
-                else:
-                    # Check if we have blocked tasks only
-                    summary = executor.get_task_summary()
-                    if summary["by_status"].get("BLOCKED", 0) > 0 and summary["by_status"].get("PENDING", 0) == 0:
-                        logger.warning(f"[BUILD] ⚠️ {summary['by_status'].get('BLOCKED', 0)} tasks blocked - cannot continue")
-                        break
-                    logger.info(f"[BUILD] Waiting for dependencies... (completed: {summary['by_status'].get('COMPLETED', 0)}, blocked: {summary['by_status'].get('BLOCKED', 0)})")
-                    # PERF-001: Intentional delay while waiting for dependencies
-                    await asyncio.sleep(2)
-                    continue
-            
-            # Execute task
-            logger.info(f"[BUILD] ────────────────────────────────────────────")
-            logger.info(f"[BUILD] Processing task {tasks_completed + 1}: {next_task.task_id}")
-            
-            result = await executor.execute_single_task(next_task)
-            
-            if result.get("success"):
-                tasks_completed += 1
-                logger.info(f"[BUILD] ✅ Task {next_task.task_id} completed ({tasks_completed} done)")
-            else:
-                tasks_failed += 1
-                logger.error(f"[BUILD] ❌ Task {next_task.task_id} failed: {result.get('error')}")
-                
-                # Check if we should continue despite failure
-                if tasks_failed > 5:
-                    logger.error(f"[BUILD] Too many failures ({tasks_failed}), stopping BUILD")
-                    break
-            
-            # PERF-001: Small intentional delay between BUILD tasks
-            await asyncio.sleep(1)
-        
-        # Finalize build
-        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-        logger.info(f"[BUILD] Finalizing BUILD phase...")
-        
-        summary = executor.get_task_summary()
-        
-        # Extract counts from by_status dict (keys are uppercase: COMPLETED, FAILED, etc.)
-        failed_count = summary.get("by_status", {}).get("FAILED", 0)
-        completed_count = summary.get("by_status", {}).get("COMPLETED", 0)
-        total_count = summary.get("total", 0)
-        
-        if failed_count == 0 and completed_count == total_count:
-            # All tasks passed - finalize
-            finalize_result = await executor.finalize_build()
-            
-            # Update project and execution status
-            project = db.query(Project).filter(Project.id == execution.project_id).first()
-            if project:
-                project.status = ProjectStatus.BUILD_COMPLETED
-            execution.status = ExecutionStatus.COMPLETED
-            
-            logger.info(f"[BUILD] ✅ BUILD phase COMPLETED successfully")
-            logger.info(f"[BUILD]    - Tasks completed: {completed_count}")
-            logger.info(f"[BUILD]    - Package: {finalize_result.get('package_path', 'N/A')}")
-        else:
-            # Some failures
-            execution.status = ExecutionStatus.FAILED
-            logger.warning(f"[BUILD] ⚠️ BUILD phase finished with issues")
-            logger.warning(f"[BUILD]    - Completed: {completed_count}/{total_count}")
-            logger.warning(f"[BUILD]    - Failed: {failed_count}")
-        
-        db.commit()
-        
-    except Exception as e:
-        logger.error(f"[BUILD] ❌ BUILD phase exception: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        try:
-            execution = db.query(Execution).filter(Execution.id == execution_id).first()
-            if execution:
-                execution.status = ExecutionStatus.FAILED
-                db.commit()
-        except:
-            pass
-    finally:
-        db.close()
-        logger.info(f"[BUILD] ══════════════════════════════════════════════════════")
-
 
 # ════════════════════════════════════════════════════════════════════════════════
 # PAUSE / RESUME BUILD
@@ -1645,9 +1506,11 @@ async def resume_build(
     if not result.get("success"):
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
     
-    # Restart the build phase in background
-    asyncio.create_task(safe_execute_build_phase(execution_id))
-    
+    # Restart the build phase in background using V2 PhasedBuildExecutor
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if execution:
+        asyncio.create_task(execute_build_v2(execution.project_id, execution_id))
+
     return {
         "status": result["status"],
         "message": "BUILD resumed. Execution continuing from next pending task.",
