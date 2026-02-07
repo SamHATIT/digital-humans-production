@@ -42,6 +42,149 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# ============================================================================
+# P3: Direct import agents (migrated from subprocess)
+# As agents are migrated, add their class here.
+# ============================================================================
+try:
+    from agents.roles.salesforce_pm import PMAgent
+    _PM_AGENT_AVAILABLE = True
+except ImportError:
+    _PM_AGENT_AVAILABLE = False
+    logger.warning("PMAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_trainer import TrainerAgent
+    _TRAINER_AGENT_AVAILABLE = True
+except ImportError:
+    _TRAINER_AGENT_AVAILABLE = False
+    logger.warning("TrainerAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_devops import DevOpsAgent
+    _DEVOPS_AGENT_AVAILABLE = True
+except ImportError:
+    _DEVOPS_AGENT_AVAILABLE = False
+    logger.warning("DevOpsAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_business_analyst import BusinessAnalystAgent
+    _BA_AGENT_AVAILABLE = True
+except ImportError:
+    _BA_AGENT_AVAILABLE = False
+    logger.warning("BusinessAnalystAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_data_migration import DataMigrationAgent
+    _DATA_AGENT_AVAILABLE = True
+except ImportError:
+    _DATA_AGENT_AVAILABLE = False
+    logger.warning("DataMigrationAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_qa_tester import QATesterAgent
+    _QA_AGENT_AVAILABLE = True
+except ImportError:
+    _QA_AGENT_AVAILABLE = False
+    logger.warning("QATesterAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_developer_lwc import LWCDeveloperAgent
+    _LWC_AGENT_AVAILABLE = True
+except ImportError:
+    _LWC_AGENT_AVAILABLE = False
+    logger.warning("LWCDeveloperAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_developer_apex import ApexDeveloperAgent
+    _APEX_AGENT_AVAILABLE = True
+except ImportError:
+    _APEX_AGENT_AVAILABLE = False
+    logger.warning("ApexDeveloperAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_admin import AdminAgent
+    _ADMIN_AGENT_AVAILABLE = True
+except ImportError:
+    _ADMIN_AGENT_AVAILABLE = False
+    logger.warning("AdminAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_solution_architect import SolutionArchitectAgent
+    _ARCHITECT_AGENT_AVAILABLE = True
+except ImportError:
+    _ARCHITECT_AGENT_AVAILABLE = False
+    logger.warning("SolutionArchitectAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_research_analyst import ResearchAnalystAgent
+    _RESEARCH_AGENT_AVAILABLE = True
+except ImportError:
+    _RESEARCH_AGENT_AVAILABLE = False
+    logger.warning("ResearchAnalystAgent not available for direct import, will use subprocess fallback")
+
+# Registry mapping agent_id -> class for migrated agents
+# Agents not in this dict fall back to subprocess execution
+MIGRATED_AGENTS: Dict[str, type] = {}
+if _PM_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["sophie"] = PMAgent
+if _TRAINER_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["lucas"] = TrainerAgent
+    MIGRATED_AGENTS["trainer"] = TrainerAgent
+if _DEVOPS_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["jordan"] = DevOpsAgent
+    MIGRATED_AGENTS["devops"] = DevOpsAgent
+if _BA_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["olivia"] = BusinessAnalystAgent
+    MIGRATED_AGENTS["ba"] = BusinessAnalystAgent
+if _DATA_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["aisha"] = DataMigrationAgent
+    MIGRATED_AGENTS["data"] = DataMigrationAgent
+if _QA_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["elena"] = QATesterAgent
+    MIGRATED_AGENTS["qa"] = QATesterAgent
+if _LWC_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["zara"] = LWCDeveloperAgent
+    MIGRATED_AGENTS["lwc"] = LWCDeveloperAgent
+if _APEX_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["diego"] = ApexDeveloperAgent
+    MIGRATED_AGENTS["apex"] = ApexDeveloperAgent
+if _ADMIN_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["raj"] = AdminAgent
+    MIGRATED_AGENTS["admin"] = AdminAgent
+if _ARCHITECT_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["marcus"] = SolutionArchitectAgent
+    MIGRATED_AGENTS["architect"] = SolutionArchitectAgent
+if _RESEARCH_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["emma"] = ResearchAnalystAgent
+    MIGRATED_AGENTS["research_analyst"] = ResearchAnalystAgent
+
+# Default modes when called from agent tester (execute_agent flow).
+# Each agent's most common/default mode for testing.
+AGENT_DEFAULT_MODES: Dict[str, str] = {
+    "sophie": "extract_br",
+    "lucas": "sds_strategy",
+    "trainer": "sds_strategy",
+    "jordan": "spec",
+    "devops": "spec",
+    "olivia": "generate_uc",
+    "ba": "generate_uc",
+    "aisha": "sds_strategy",
+    "data": "sds_strategy",
+    "elena": "sds_strategy",
+    "qa": "sds_strategy",
+    "zara": "spec",
+    "lwc": "spec",
+    "diego": "spec",
+    "apex": "spec",
+    "raj": "spec",
+    "admin": "spec",
+    "marcus": "design",
+    "architect": "design",
+    "emma": "analyze",
+    "research_analyst": "analyze",
+}
+
 
 class LogLevel(str, Enum):
     INFO = "INFO"
@@ -274,19 +417,103 @@ class AgentExecutor:
             else:
                 yield self.log(LogLevel.WARNING, f"⚠️ Connexion SF non vérifiée (non bloquant)").to_sse()
             
-            # === STEP 3: Prepare input file for agent ===
+            # === P3: DIRECT IMPORT PATH for migrated agents ===
+            if agent_id in MIGRATED_AGENTS:
+                yield self.log(LogLevel.LLM, f"🤖 Running {agent_name} via direct import (P3)...").to_sse()
+
+                agent_class = MIGRATED_AGENTS[agent_id]
+                agent_instance = agent_class()
+
+                # Build task_data matching agent class interface
+                task_data = {
+                    "mode": AGENT_DEFAULT_MODES.get(agent_id, "spec"),
+                    "input_content": task,
+                    "execution_id": execution.id,
+                    "project_id": project_id,
+                }
+
+                # Run agent in thread pool (LLM calls are blocking)
+                output_data = await asyncio.to_thread(agent_instance.run, task_data)
+
+                if not output_data.get("success"):
+                    error_msg = output_data.get("error", "Unknown error")
+                    yield self.log(LogLevel.ERROR, f"❌ Agent {agent_id} failed: {error_msg}").to_sse()
+                    self._update_execution(ExecutionStatus.FAILED)
+                    yield self._sse_event("end", success=False, error=error_msg)
+                    return
+
+                output_size = len(json.dumps(output_data))
+                yield self.log(LogLevel.SUCCESS, f"✅ Agent {agent_name} completed ({output_size} chars)").to_sse()
+
+                # Persist output as artifact
+                yield self.log(LogLevel.DB, "💾 Sauvegarde de l'artifact en base...").to_sse()
+                artifact = self._save_artifact(
+                    artifact_type="output",
+                    content=output_data,
+                    title=f"{agent_name} - Output",
+                    agent=agent_id
+                )
+                yield self.log(LogLevel.CODE, f"📄 Artifact {artifact.artifact_code} créé").to_sse()
+
+                # Extract code files (PM doesn't generate code, but keep for future agents)
+                code_files = self._extract_code_from_output(output_data, agent_id)
+                if code_files:
+                    yield self.log(LogLevel.INFO, f"🔍 {len(code_files)} fichier(s) code extrait(s)").to_sse()
+                    for filename, code in code_files.items():
+                        art_type = "test" if "Test" in filename else "code"
+                        code_artifact = self._save_artifact(
+                            artifact_type=art_type,
+                            content={"filename": filename, "code": code, "lines": len(str(code).split('\n'))},
+                            title=filename,
+                            agent=agent_id
+                        )
+                        yield self.log(LogLevel.CODE, f"📄 {filename} → {code_artifact.artifact_code}").to_sse()
+                    saved = self._save_to_workspace(code_files, agent_id)
+                    if saved:
+                        yield self.log(LogLevel.SUCCESS, f"📁 {len(saved)} fichier(s) sauvegardé(s) dans workspace SFDX").to_sse()
+
+                # Deploy if requested
+                if deploy and code_files:
+                    yield self.log(LogLevel.SFDX, "🚀 Déploiement vers Salesforce...").to_sse()
+                    deploy_result = await self._deploy_to_salesforce()
+                    if deploy_result["success"]:
+                        yield self.log(LogLevel.SUCCESS, "✅ Déploiement réussi!").to_sse()
+                    else:
+                        yield self.log(LogLevel.ERROR, f"❌ Échec: {deploy_result.get('error', 'Unknown')}").to_sse()
+
+                # Finalize
+                self._update_execution(ExecutionStatus.COMPLETED)
+                yield self.log(LogLevel.DB, f"✅ Exécution #{execution.id} terminée").to_sse()
+
+                # Finalize debug log
+                if TEST_LOGGER_AVAILABLE and test_log:
+                    try:
+                        AgentTestLogger.complete_test("success", output=output_data)
+                    except Exception as e:
+                        logger.warning(f"Debug log finalization error: {e}")
+
+                yield self._sse_event(
+                    "end",
+                    success=True,
+                    execution_id=execution.id,
+                    agent=agent_name,
+                    artifacts_count=len(code_files) if code_files else 1
+                )
+                return
+
+            # === STEP 3: Prepare input file for agent (subprocess fallback) ===
             yield self.log(LogLevel.INFO, "📝 Préparation de l'input pour l'agent...").to_sse()
-            
+
             input_file = self.temp_dir / f"input_{agent_id}_{execution.id}.json"
             output_file = self.temp_dir / f"output_{agent_id}_{execution.id}.json"
-            
+
             with open(input_file, "w") as f:
                 f.write(task)
-            
+
             # === STEP 4: RAG info ===
             if use_rag:
                 yield self.log(LogLevel.INFO, "📚 RAG activé pour contexte expert Salesforce").to_sse()
-            
+
             # === STEP 5: Build command ===
             cmd = [
                 "python3",
@@ -296,16 +523,16 @@ class AgentExecutor:
                 "--execution-id", str(execution.id),
                 "--project-id", str(project_id)
             ]
-            
+
             # Sophie (PM) requires --mode argument
             if agent_id == "sophie":
                 cmd.extend(["--mode", "extract_br"])
-            
+
             if use_rag and agent_id != "sophie":
                 cmd.append("--use-rag")
-            
+
             yield self.log(LogLevel.LLM, f"🤖 Exécution du script {config['script']}...").to_sse()
-            
+
             # === STEP 6: Execute with STREAMING stderr + HEARTBEAT ===
             # Prepare env with debug log file if available
             agent_env = {**os.environ}
@@ -649,7 +876,28 @@ async def run_agent_task(
         return {"success": False, "error": f"Script not found: {script_path}"}
     
     logger.info(f"[run_agent_task] Running {agent_id} in {mode} mode")
-    
+
+    # P3: Direct import for migrated agents (no subprocess overhead)
+    if agent_id in MIGRATED_AGENTS:
+        logger.info(f"[run_agent_task] Using direct import for {agent_id} (P3)")
+        try:
+            agent_class = MIGRATED_AGENTS[agent_id]
+            agent_instance = agent_class()
+            task_data = {
+                "mode": mode,
+                "input_content": json.dumps(input_data, ensure_ascii=False),
+                "execution_id": execution_id,
+                "project_id": project_id,
+            }
+            result = agent_instance.run(task_data)
+            result["success"] = result.get("success", True)
+            logger.info(f"[run_agent_task] {agent_id} completed via direct import: {result.get('success')}")
+            return result
+        except Exception as e:
+            logger.error(f"[run_agent_task] Direct import error for {agent_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    # Subprocess fallback for non-migrated agents
     try:
         # Create temp files for input/output
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:

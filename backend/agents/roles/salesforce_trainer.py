@@ -3,14 +3,21 @@
 Salesforce Trainer (Lucas) Agent - Two Modes
 Mode 1: sds_strategy - Training Strategy for SDS document
 Mode 2: delivery - Concrete training materials (guides, video scripts)
-"""
-import os, sys, argparse, json
-from pathlib import Path
-from datetime import datetime
-import time
 
-# LLM imports
-sys.path.insert(0, "/app")
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (TrainerAgent.run()) or CLI (python salesforce_trainer.py --mode ...).
+"""
+
+import os
+import time
+import json
+import logging
+from datetime import datetime
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
+
+# LLM imports - clean imports for direct import mode
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
@@ -28,10 +35,8 @@ except ImportError:
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 LLM Logger loaded for Lucas", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
 
@@ -231,10 +236,10 @@ Generate **detailed, ready-to-use training materials** including user guides and
       "title": "Lead Conversion Checklist",
       "format": "One-page PDF",
       "content": [
-        "□ Verify contact information",
-        "□ Confirm budget range",
-        "□ Identify decision maker",
-        "□ Set next steps"
+        "[] Verify contact information",
+        "[] Confirm budget range",
+        "[] Identify decision maker",
+        "[] Set next steps"
       ]
     }}
   ],
@@ -270,40 +275,86 @@ Generate **detailed, ready-to-use training materials** including user guides and
 
 
 # ============================================================================
-# MAIN EXECUTION
+# TRAINER AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-def main():
-    parser = argparse.ArgumentParser(description='Lucas Trainer Agent - Two Modes')
-    parser.add_argument('--mode', required=True, choices=['sds_strategy', 'delivery'],
-                        help='sds_strategy: Training strategy for SDS | delivery: Concrete materials')
-    parser.add_argument('--input', required=True, help='Input JSON file')
-    parser.add_argument('--output', required=True, help='Output JSON file')
-    parser.add_argument('--execution-id', type=int, default=0)
-    parser.add_argument('--project-id', type=int, default=0)
-    parser.add_argument('--use-rag', action='store_true', default=True)
-    
-    args = parser.parse_args()
-    
-    try:
+class TrainerAgent:
+    """
+    Lucas (Trainer) Agent - Training Strategy + Delivery Materials.
+
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - sds_strategy: Training & Adoption Strategy for SDS document
+        - delivery: Concrete training materials (guides, video scripts)
+
+    Usage (import):
+        agent = TrainerAgent()
+        result = agent.run({"mode": "sds_strategy", "input_content": "..."})
+
+    Usage (CLI):
+        python salesforce_trainer.py --mode sds_strategy --input input.json --output output.json
+    """
+
+    VALID_MODES = ("sds_strategy", "delivery")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: "sds_strategy" or "delivery"
+                - input_content: string content (JSON string or raw text)
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+            On success: full output dict with agent_id, content, metadata, etc.
+            On failure: {"success": False, "error": "..."}
+        """
+        mode = task_data.get("mode", "sds_strategy")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            return self._execute(mode, input_content, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"TrainerAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _execute(
+        self,
+        mode: str,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Core execution logic shared by all modes."""
         start_time = time.time()
-        
-        # Read input
-        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
-        with open(args.input, 'r', encoding='utf-8') as f:
-            input_data = json.load(f)
-        
+
+        # Parse input content as JSON (from run_agent_task) or use as raw text
+        try:
+            input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+        except (json.JSONDecodeError, TypeError):
+            input_data = {"context": input_content}
+
         # Get RAG context
-        rag_context = ""
-        if args.use_rag and RAG_AVAILABLE:
-            try:
-                query = f"Salesforce training best practices user adoption"
-                rag_context = get_salesforce_context(query, n_results=3, agent_type="trainer")
-                print(f"📚 RAG context loaded ({len(rag_context)} chars)", file=sys.stderr)
-            except Exception as e:
-                print(f"⚠️ RAG unavailable: {e}", file=sys.stderr)
-        
-        # Select prompt based on mode
-        if args.mode == 'sds_strategy':
+        rag_context = self._get_rag_context()
+
+        # Select prompt and artifact type based on mode
+        if mode == "sds_strategy":
             solution_design = input_data.get('solution_design', input_data.get('context', ''))
             use_cases = input_data.get('use_cases', '')
             prompt = get_sds_strategy_prompt(solution_design, use_cases)
@@ -313,77 +364,211 @@ def main():
             training_strategy = input_data.get('training_strategy', '')
             prompt = get_delivery_prompt(solution_design, training_strategy)
             artifact_type = "trainer_delivery_materials"
-        
+
         if rag_context:
             prompt += f"\n\n## SALESFORCE TRAINING BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
-        
-        print(f"🤖 Generating {args.mode} output...", file=sys.stderr)
-        
-        # Generate
+
+        logger.info(f"TrainerAgent mode={mode}, prompt_size={len(prompt)} chars")
+
+        # Call LLM
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(prompt)
+
+        execution_time = time.time() - start_time
+        logger.info(
+            f"TrainerAgent generated {len(content)} chars in {execution_time:.1f}s, "
+            f"tokens={tokens_used}, model={model_used}"
+        )
+
+        # Log LLM interaction (INFRA-002)
+        self._log_interaction(
+            mode=mode,
+            prompt=prompt,
+            content=content,
+            execution_id=execution_id,
+            input_tokens=input_tokens,
+            tokens_used=tokens_used,
+            model_used=model_used,
+            provider_used=provider_used,
+            execution_time=execution_time,
+        )
+
+        # Parse JSON response
+        parsed_content = self._parse_response(content)
+
+        # Build output
+        output_data = {
+            "success": True,
+            "agent_id": "trainer",
+            "agent_name": "Lucas (Trainer)",
+            "mode": mode,
+            "artifact_type": artifact_type,
+            "deliverable_type": artifact_type,
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "content": parsed_content,
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "generated_at": datetime.now().isoformat(),
+            },
+        }
+
+        return output_data
+
+    def _get_rag_context(self) -> str:
+        """Fetch RAG context for training best practices."""
+        if not RAG_AVAILABLE:
+            return ""
+        try:
+            query = "Salesforce training best practices user adoption"
+            rag_context = get_salesforce_context(query, n_results=3, agent_type="trainer")
+            logger.info(f"RAG context loaded ({len(rag_context)} chars)")
+            return rag_context
+        except Exception as e:
+            logger.warning(f"RAG unavailable: {e}")
+            return ""
+
+    def _call_llm(self, prompt: str) -> tuple:
+        """
+        Call LLM via llm_service.
+
+        Returns:
+            tuple of (content, tokens_used, input_tokens, model_used, provider_used)
+        """
         if LLM_SERVICE_AVAILABLE:
+            logger.debug("Calling LLM via llm_service")
             response = generate_llm_response(prompt, max_tokens=8000, temperature=0.3)
-            content = response.get('content', '')
-            tokens_used = response.get('tokens_used', 0)
+            return (
+                response.get('content', ''),
+                response.get('tokens_used', 0),
+                response.get('input_tokens', 0),
+                response.get('model', 'unknown'),
+                response.get('provider', 'unknown'),
+            )
         else:
-            content = '{"error": "LLM service not available"}'
-            tokens_used = 0
-        
-        # Parse JSON
+            logger.error("LLM service not available")
+            return ('{"error": "LLM service not available"}', 0, 0, "none", "none")
+
+    def _parse_response(self, content: str) -> Any:
+        """Parse JSON from LLM response, stripping code fences if present."""
         try:
             if '```json' in content:
                 content = content.split('```json')[1].split('```')[0]
             elif '```' in content:
                 content = content.split('```')[1].split('```')[0]
-            parsed = json.loads(content.strip())
+            return json.loads(content.strip())
         except json.JSONDecodeError:
-            parsed = {"raw_content": content, "parse_error": True}
-        
-        # Build output
-        execution_time = time.time() - start_time
-        output = {
-            "agent": "trainer",
+            return {"raw_content": content, "parse_error": True}
+
+    def _log_interaction(
+        self,
+        mode: str,
+        prompt: str,
+        content: str,
+        execution_id: int,
+        input_tokens: int,
+        tokens_used: int,
+        model_used: str,
+        provider_used: str,
+        execution_time: float,
+    ) -> None:
+        """Log LLM interaction for debugging (INFRA-002)."""
+        if not LLM_LOGGER_AVAILABLE:
+            return
+        try:
+            log_llm_interaction(
+                agent_id="lucas",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode=mode,
+                rag_context=None,
+                previous_feedback=None,
+                parsed_files=None,
+                tokens_input=input_tokens,
+                tokens_output=tokens_used,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=round(execution_time, 2),
+                success=True,
+                error_message=None,
+            )
+            logger.debug("LLM interaction logged (INFRA-002)")
+        except Exception as e:
+            logger.warning(f"Failed to log LLM interaction: {e}")
+
+
+# ============================================================================
+# CLI MODE -- Backward compatibility for subprocess invocation
+# ============================================================================
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Ensure backend is on sys.path for CLI mode
+    _backend_dir = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_dir not in sys.path:
+        sys.path.insert(0, _backend_dir)
+
+    # Re-import after sys.path fix (module-level imports may have failed in CLI mode)
+    if not LLM_SERVICE_AVAILABLE:
+        try:
+            from app.services.llm_service import generate_llm_response, LLMProvider
+            LLM_SERVICE_AVAILABLE = True
+        except ImportError:
+            pass
+
+    if not RAG_AVAILABLE:
+        try:
+            from app.services.rag_service import get_salesforce_context
+            RAG_AVAILABLE = True
+        except ImportError:
+            pass
+
+    parser = argparse.ArgumentParser(description='Lucas Trainer Agent - Two Modes')
+    parser.add_argument('--mode', required=True, choices=['sds_strategy', 'delivery'],
+                        help='sds_strategy: Training strategy for SDS | delivery: Concrete materials')
+    parser.add_argument('--input', required=True, help='Input JSON file')
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', type=int, default=0)
+    parser.add_argument('--project-id', type=int, default=0)
+    parser.add_argument('--use-rag', action='store_true', default=True)
+
+    args = parser.parse_args()
+
+    try:
+        print(f"Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_content = f.read()
+        print(f"Read {len(input_content)} characters", file=sys.stderr)
+
+        agent = TrainerAgent()
+        result = agent.run({
             "mode": args.mode,
-            "artifact_type": artifact_type,
+            "input_content": input_content,
             "execution_id": args.execution_id,
             "project_id": args.project_id,
-            "timestamp": datetime.now().isoformat(),
-            "tokens_used": tokens_used,
-            "execution_time_seconds": round(execution_time, 2),
-            "content": parsed
-        }
-        
-        # Write output
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(output, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ Output written to {args.output}", file=sys.stderr)
-        print(f"📊 Tokens: {tokens_used}, Time: {execution_time:.2f}s", file=sys.stderr)
-        
-        # Log LLM interaction (INFRA-002)
-        if LLM_LOGGER_AVAILABLE:
-            try:
-                log_llm_interaction(
-                    agent_id="lucas", prompt=prompt, response=content,
-                    execution_id=args.execution_id, task_id=None, agent_mode=args.mode,
-                    rag_context=None, previous_feedback=None, parsed_files=None,
-                    tokens_input=input_tokens, tokens_output=tokens_used, model="claude-sonnet-4",
-                    provider="anthropic", execution_time_seconds=round(execution_time, 2),
-                    success=True, error_message=None
-                )
-            except Exception as e:
-                print(f"⚠️ LLM log failed: {e}", file=sys.stderr)
-        
-        return output
-        
+        })
+
+        if result.get("success"):
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            with open(args.output, 'w', encoding='utf-8') as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+
+            print(f"SUCCESS: Output saved to {args.output}", file=sys.stderr)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            sys.exit(0)
+        else:
+            print(f"ERROR: {result.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        print(f"ERROR: {str(e)}", file=sys.stderr)
         import traceback
-        traceback.print_exc()
-        error_output = {"error": str(e), "agent": "trainer", "mode": args.mode}
-        with open(args.output, 'w') as f:
-            json.dump(error_output, f, indent=2)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()

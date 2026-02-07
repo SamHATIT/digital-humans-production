@@ -2,27 +2,34 @@
 """
 Salesforce Solution Architect (Marcus) Agent - Refactored Version
 4 distinct modes:
-1. design: UC/UC Digest → Architecture globale (ARCH-001)
-2. as_is: SFDX metadata → Résumé structuré (ASIS-001)  
-3. gap: ARCH + ASIS + UC context → Deltas (GAP-001)
-4. wbs: GAP → Tâches + Planning (WBS-001)
+1. design: UC/UC Digest -> Architecture globale (ARCH-001)
+2. as_is: SFDX metadata -> Resume structure (ASIS-001)
+3. gap: ARCH + ASIS + UC context -> Deltas (GAP-001)
+4. wbs: GAP -> Taches + Planning (WBS-001)
 
 EMMA INTEGRATION (v2.5):
 - design mode: Accepts uc_digest from Emma for richer context
 - gap mode: Uses UC context from digest or raw UCs
 - Fallback: If no uc_digest, uses raw UCs (old behavior)
+
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (SolutionArchitectAgent.run()) or CLI.
+
+Module-level prompt functions (get_design_prompt, get_as_is_prompt, get_gap_prompt,
+get_wbs_prompt, get_fix_gaps_prompt) are preserved for direct import by tests.
 """
 
 import os
+import re
 import time
-import sys
 import json
-import argparse
-from pathlib import Path
+import logging
 from datetime import datetime
+from typing import Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # LLM imports
-sys.path.insert(0, "/app")
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
@@ -40,10 +47,8 @@ except ImportError:
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 LLM Logger loaded for Marcus", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
 # JSON Cleaner for robust parsing (added 2025-12-22)
@@ -56,21 +61,21 @@ except ImportError:
 
 
 # ============================================================================
-# PROMPT 1: SOLUTION DESIGN (UC → Architecture)
+# PROMPT 1: SOLUTION DESIGN (UC -> Architecture)
 # ============================================================================
 def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None) -> str:
     """
     Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
     UC Digest provides pre-analyzed, structured information about ALL use cases.
-    
+
     Revision mode: If coverage_gaps provided, this is a revision request to address gaps.
     """
-    
+
     # REVISION MODE: Add coverage gaps context if this is a revision request
     revision_context = ""
     if revision_request and coverage_gaps:
         revision_context = f"""
-## ⚠️ REVISION REQUEST
+## REVISION REQUEST
 
 {revision_request}
 
@@ -83,7 +88,7 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
                 revision_context += f"{i}. **{gap.get('category', 'Gap')}**: {gap.get('description', str(gap))}\n"
             else:
                 revision_context += f"{i}. {gap}\n"
-        
+
         if uncovered_use_cases:
             revision_context += f"\n### Uncovered Use Cases ({len(uncovered_use_cases)})\n"
             for uc in uncovered_use_cases[:5]:
@@ -93,49 +98,49 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
                     revision_context += f"- {uc}\n"
             if len(uncovered_use_cases) > 5:
                 revision_context += f"- ... and {len(uncovered_use_cases) - 5} more\n"
-        
+
         revision_context += "\n**Instructions**: Update your solution design to ensure ALL above gaps are addressed.\n\n"
-    
+
     # EMMA INTEGRATION: Use UC Digest if available (preferred)
     if uc_digest and uc_digest.get('by_requirement'):
         uc_text = "\n## ANALYZED USE CASE DIGEST (from Emma)\n"
         uc_text += "This digest contains pre-analyzed information from ALL Use Cases, grouped by Business Requirement.\n"
-        
+
         for br_id, br_data in uc_digest.get('by_requirement', {}).items():
             uc_text += f"\n### {br_id}: {br_data.get('title', 'Untitled')}\n"
             uc_text += f"- **UC Count**: {br_data.get('uc_count', 0)}\n"
-            
+
             # SF Objects
             sf_objects = br_data.get('sf_objects', [])
             if sf_objects:
                 uc_text += f"- **Salesforce Objects**: {', '.join(sf_objects)}\n"
-            
+
             # SF Fields by Object
             sf_fields = br_data.get('sf_fields', {})
             if sf_fields:
                 uc_text += "- **Fields by Object**:\n"
                 for obj, fields in sf_fields.items():
                     uc_text += f"  - {obj}: {', '.join(fields[:10])}{'...' if len(fields) > 10 else ''}\n"
-            
+
             # Automations
             automations = br_data.get('automations', [])
             if automations:
                 uc_text += "- **Automations**:\n"
                 for auto in automations[:5]:
                     uc_text += f"  - {auto.get('type', 'Unknown')}: {auto.get('purpose', '')}\n"
-            
+
             # UI Components
             ui_components = br_data.get('ui_components', [])
             if ui_components:
                 uc_text += f"- **UI Components**: {', '.join(ui_components[:5])}\n"
-            
+
             # Key Acceptance Criteria
             criteria = br_data.get('key_acceptance_criteria', [])
             if criteria:
                 uc_text += "- **Key Acceptance Criteria**:\n"
                 for c in criteria[:3]:
                     uc_text += f"  - {c}\n"
-        
+
         # Cross-cutting concerns
         cross_cutting = uc_digest.get('cross_cutting_concerns', {})
         if cross_cutting:
@@ -157,7 +162,7 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
                     uc_text += f"- **Integration Points**: {', '.join(int_names)}\n"
                 else:
                     uc_text += f"- **Integration Points**: {', '.join(integrations)}\n"
-        
+
         # Recommendations from Emma
         recommendations = uc_digest.get('recommendations', [])
         if recommendations:
@@ -174,10 +179,10 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
             if sf:
                 uc_text += f"- Objects: {', '.join(sf.get('objects', []))}\n"
                 uc_text += f"- Automation: {', '.join(sf.get('automation', []))}\n"
-    
+
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
-    
-    return f'''{revision_context}# 🏗️ SOLUTION DESIGN SPECIFICATION
+
+    return f'''{revision_context}# SOLUTION DESIGN SPECIFICATION
 
 You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
 
@@ -235,11 +240,11 @@ Generate a solution design with:
 '''
 
 # ============================================================================
-# PROMPT 2: AS-IS ANALYSIS (SFDX → Summary)
+# PROMPT 2: AS-IS ANALYSIS (SFDX -> Summary)
 # ============================================================================
 def get_as_is_prompt(sfdx_metadata: str) -> str:
     sfdx_metadata_truncated = sfdx_metadata[:15000] if len(sfdx_metadata) > 15000 else sfdx_metadata
-    return f'''# 📊 AS-IS ANALYSIS
+    return f'''# AS-IS ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
@@ -288,7 +293,7 @@ Generate an As-Is analysis with:
 '''
 
 # ============================================================================
-# PROMPT 3: GAP ANALYSIS (SOLUTION DESIGN + ASIS → Implementation Gaps)
+# PROMPT 3: GAP ANALYSIS (SOLUTION DESIGN + ASIS -> Implementation Gaps)
 # ============================================================================
 def get_gap_prompt(solution_design: str, asis_summary: str, uc_context: str = "") -> str:
     """
@@ -302,7 +307,7 @@ def get_gap_prompt(solution_design: str, asis_summary: str, uc_context: str = ""
 {uc_context}
 
 """
-    
+
     # ADDED (19/12/2025): Include Solution Design as the TARGET architecture
     design_section = ""
     if solution_design and solution_design.strip() != "{{}}":
@@ -315,8 +320,8 @@ Use the EXACT object and component names from this design.
 {solution_design}
 
 """
-    
-    return f'''# 🔍 GAP ANALYSIS
+
+    return f'''# GAP ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
@@ -348,15 +353,15 @@ Each gap represents work needed to transform the current org into the target arc
 
 ## AGENT ASSIGNMENT RULES (STRICT)
 
-- **Lightning Web Components (LWC)** → **Zara** (NOT Raj, NOT Diego)
-- **Aura components** → **Zara**
-- **Custom UI with JavaScript** → **Zara**
-- **Screen Flows** → **Raj** (declarative, no code)
-- **Record-Triggered Flows** → **Raj**
-- **Validation Rules** → **Raj**
-- **Objects, Fields, Layouts** → **Raj**
-- **Apex classes/triggers** → **Diego**
-- **Apex integration code** → **Diego**
+- **Lightning Web Components (LWC)** -> **Zara** (NOT Raj, NOT Diego)
+- **Aura components** -> **Zara**
+- **Custom UI with JavaScript** -> **Zara**
+- **Screen Flows** -> **Raj** (declarative, no code)
+- **Record-Triggered Flows** -> **Raj**
+- **Validation Rules** -> **Raj**
+- **Objects, Fields, Layouts** -> **Raj**
+- **Apex classes/triggers** -> **Diego**
+- **Apex integration code** -> **Diego**
 
 ## OUTPUT FORMAT (JSON)
 
@@ -407,10 +412,10 @@ Each gap represents work needed to transform the current org into the target arc
 '''
 
 # ============================================================================
-# PROMPT 4: WBS (GAP → Tasks + Planning)
+# PROMPT 4: WBS (GAP -> Tasks + Planning)
 # ============================================================================
 def get_wbs_prompt(gap_analysis: str, project_constraints: str = "") -> str:
-    return f'''# 📅 WORK BREAKDOWN STRUCTURE - ENRICHED
+    return f'''# WORK BREAKDOWN STRUCTURE - ENRICHED
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
@@ -505,14 +510,14 @@ Each task MUST have validation criteria and clear agent assignment.
 
 ## TASK ASSIGNMENT RULES (STRICT)
 
-- **Config (no code)** → Raj: objects, fields, page layouts, flows, validation rules, profiles, permission sets
-- **Apex code** → Diego: classes, triggers, batch, schedulable, REST/SOAP
-- **UI code** → Zara: LWC, Aura, Lightning pages
-- **Testing** → Elena: ALL test tasks (unit, integration, UAT)
-- **Deploy** → Jordan: ALL deployment/pipeline tasks
-- **Data** → Aisha: ALL data migration tasks
-- **Docs** → Lucas: ALL training/documentation tasks
-- **Review** → Marcus: architecture reviews only
+- **Config (no code)** -> Raj: objects, fields, page layouts, flows, validation rules, profiles, permission sets
+- **Apex code** -> Diego: classes, triggers, batch, schedulable, REST/SOAP
+- **UI code** -> Zara: LWC, Aura, Lightning pages
+- **Testing** -> Elena: ALL test tasks (unit, integration, UAT)
+- **Deploy** -> Jordan: ALL deployment/pipeline tasks
+- **Data** -> Aisha: ALL data migration tasks
+- **Docs** -> Lucas: ALL training/documentation tasks
+- **Review** -> Marcus: architecture reviews only
 
 ## VALIDATION CRITERIA FORMAT (REQUIRED for each task)
 
@@ -527,8 +532,8 @@ Each task MUST have 1-3 validation_criteria using this format:
 - "VERIFIED BY: Deploy to scratch org, run apex:test:run"
 
 **Bad examples (avoid):**
-- "DONE WHEN: Task is complete" ❌ (too vague)
-- "VERIFIED BY: Check it works" ❌ (not specific)
+- "DONE WHEN: Task is complete" (too vague)
+- "VERIFIED BY: Check it works" (not specific)
 
 ## GENERAL RULES
 
@@ -546,326 +551,22 @@ Each task MUST have 1-3 validation_criteria using this format:
 **Generate the WBS now. Output ONLY valid JSON, no markdown fences.**
 '''
 
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
-def main():
-    parser = argparse.ArgumentParser(description='Marcus Architect Agent')
-    parser.add_argument('--mode', required=False, default='design', 
-                        choices=['design', 'as_is', 'gap', 'wbs', 'fix_gaps'],
-                        help='Operation mode: design, as_is, gap, wbs, or fix_gaps')
-    parser.add_argument('--input', required=True, help='Input JSON file')
-    parser.add_argument('--output', required=True, help='Output JSON file')
-    parser.add_argument('--execution-id', type=int, default=0)
-    parser.add_argument('--project-id', type=int, default=0)
-    parser.add_argument('--use-rag', action='store_true', default=True)
-    
-    args = parser.parse_args()
-    
-    try:
-        start_time = time.time()
-        
-        # Read input
-        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
-        with open(args.input, 'r', encoding='utf-8') as f:
-            input_data = json.load(f)
-        print(f"✅ Input loaded", file=sys.stderr)
-        
-        # Get RAG context for design mode (BUG-047: Dynamic query based on project objects)
-        rag_context = ""
-        if args.mode == 'design' and args.use_rag and RAG_AVAILABLE:
-            try:
-                # Extract objects mentioned in use cases and project summary
-                use_cases_text = json.dumps(input_data.get('use_cases', []))
-                project_summary = input_data.get('project_summary', '')
-                combined_text = f"{use_cases_text} {project_summary}".lower()
-                
-                # Detect standard Salesforce objects mentioned
-                standard_objects = [
-                    'case', 'contact', 'account', 'lead', 'opportunity', 'campaign',
-                    'task', 'event', 'user', 'product', 'pricebook', 'quote', 'order',
-                    'contract', 'asset', 'entitlement', 'knowledge', 'solution'
-                ]
-                detected_objects = [obj for obj in standard_objects if obj in combined_text]
-                
-                # Build dynamic query
-                if detected_objects:
-                    objects_str = ' '.join([obj.capitalize() for obj in detected_objects[:5]])
-                    query = f"Salesforce {objects_str} object standard fields relationships best practices"
-                    print(f"🔍 RAG query (detected objects: {detected_objects[:5]}): {query}", file=sys.stderr)
-                else:
-                    query = "Salesforce architecture design patterns data model best practices"
-                    print(f"🔍 RAG query (generic): {query}", file=sys.stderr)
-                
-                rag_context = get_salesforce_context(query, n_results=8, agent_type="solution_architect")
-                print(f"✅ RAG context: {len(rag_context)} chars", file=sys.stderr)
-            except Exception as e:
-                print(f"⚠️ RAG error: {e}", file=sys.stderr)
-        
-        # Build prompt based on mode
-        if args.mode == 'design':
-            use_cases = input_data.get('use_cases', [])
-            project_summary = input_data.get('project_summary', '')
-            # EMMA: Use UC Digest if available (from Emma's analyze mode)
-            uc_digest = input_data.get('uc_digest', None)
-            
-            # REVISION MODE: Check for coverage gaps from Emma validate
-            coverage_gaps = input_data.get('coverage_gaps', None)
-            uncovered_use_cases = input_data.get('uncovered_use_cases', None)
-            revision_request = input_data.get('revision_request', None)
-            
-            if revision_request:
-                print(f"🔄 REVISION MODE: Addressing {len(coverage_gaps or [])} coverage gaps", file=sys.stderr)
-            elif uc_digest:
-                print(f"✅ Using UC Digest from Emma (structured analysis)", file=sys.stderr)
-            else:
-                print(f"⚠️ No UC Digest, using raw UCs ({len(use_cases)} UCs)", file=sys.stderr)
-            
-            prompt = get_design_prompt(
-                use_cases, project_summary, rag_context, uc_digest,
-                coverage_gaps=coverage_gaps,
-                uncovered_use_cases=uncovered_use_cases,
-                revision_request=revision_request
-            )
-            deliverable_type = "solution_design"
-            artifact_prefix = "ARCH"
-            
-        elif args.mode == 'as_is':
-            sfdx_metadata = input_data.get('sfdx_metadata', json.dumps(input_data))
-            prompt = get_as_is_prompt(sfdx_metadata)
-            deliverable_type = "as_is_analysis"
-            artifact_prefix = "ASIS"
-            
-        elif args.mode == 'gap':  # FIXED 19/12/2025
-            # FIXED: Use solution_design (target) instead of architecture
-            solution_design_data = input_data.get('solution_design', input_data.get('architecture', {}))
-            solution_design_str = json.dumps(solution_design_data, indent=2)
-            asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
-            # EMMA: Build ENRICHED UC context from digest
-            uc_context = ""
-            uc_digest = input_data.get('uc_digest', None)
-            if uc_digest and uc_digest.get('by_requirement'):
-                print(f"✅ Using ENRICHED UC Digest for gap context", file=sys.stderr)
-                # Build DETAILED UC context from digest - include UI components!
-                uc_lines = []
-                for br_id, br_data in uc_digest.get('by_requirement', {}).items():
-                    title = br_data.get('title', br_id)
-                    uc_count = br_data.get('uc_count', 0)
-                    objects = br_data.get('sf_objects', [])
-                    
-                    # Get UI components (CRITICAL for Zara's work)
-                    ui_components = br_data.get('ui_components', [])
-                    
-                    # Get automations with PURPOSE (not just type)
-                    automations = br_data.get('automations', [])
-                    auto_details = []
-                    for a in automations:
-                        a_type = a.get('type', '') if isinstance(a, dict) else str(a)
-                        a_purpose = a.get('purpose', '')[:80] if isinstance(a, dict) else ''
-                        if a_purpose:
-                            auto_details.append(f"{a_type}: {a_purpose}")
-                        else:
-                            auto_details.append(a_type)
-                    
-                    # Get key acceptance criteria
-                    criteria = br_data.get('key_acceptance_criteria', [])
-                    
-                    # Build rich context line
-                    line = f"\n### {br_id}: {title} ({uc_count} UCs)"
-                    line += f"\n- **Objects**: {', '.join(objects)}"
-                    if ui_components:
-                        line += f"\n- **UI Components**: {', '.join(ui_components)}"
-                    if auto_details:
-                        line += f"\n- **Automations**:"
-                        for ad in auto_details[:4]:
-                            line += f"\n  - {ad}"
-                    if criteria:
-                        line += f"\n- **Key Criteria**: {criteria[0][:100]}..."
-                    
-                    uc_lines.append(line)
-                
-                uc_context = "\n".join(uc_lines)
-                print(f"  → Generated {len(uc_lines)} BR contexts with UI details", file=sys.stderr)
-            else:
-                # Fallback: Use raw UCs
-                use_cases = input_data.get('use_cases', [])
-                if use_cases:
-                    print(f"⚠️ Using raw UCs for gap context ({len(use_cases)} UCs)", file=sys.stderr)
-                    uc_lines = []
-                    for uc in use_cases[:10]:
-                        sf = uc.get('salesforce_components', {})
-                        objects = sf.get('objects', [])
-                        uc_lines.append(f"- {uc.get('id', 'UC')}: {uc.get('title', '')[:50]} (Objects: {', '.join(objects[:3])})")
-                    uc_context = "\n".join(uc_lines)
-            prompt = get_gap_prompt(solution_design_str, asis_summary, uc_context)
-            deliverable_type = "gap_analysis"
-            artifact_prefix = "GAP"
-            
-        elif args.mode == 'wbs':
-            gap_analysis = json.dumps(input_data.get('gaps', input_data), indent=2)
-            constraints = input_data.get('constraints', '')
-            prompt = get_wbs_prompt(gap_analysis, constraints)
-            deliverable_type = "work_breakdown_structure"
-            artifact_prefix = "WBS"
-        
-        elif args.mode == 'fix_gaps':
-            current_solution = input_data.get('current_solution', input_data.get('solution_design', {}))
-            coverage_gaps = input_data.get('coverage_gaps', [])
-            uncovered_use_cases = input_data.get('uncovered_use_cases', [])
-            iteration = input_data.get('iteration', 1)
-            prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration)
-            deliverable_type = f"solution_design_v{iteration + 1}"
-            artifact_prefix = "ARCH"
-        
-        system_prompt = f"You are Marcus, a Salesforce CTA. Generate {deliverable_type}. Output ONLY valid JSON."
-        
-        print(f"📝 Mode: {args.mode}", file=sys.stderr)
-        print(f"📝 Prompt size: {len(prompt)} characters", file=sys.stderr)
-        
-        # Call LLM
-        if LLM_SERVICE_AVAILABLE:
-            print(f"🤖 Calling Claude API (Architect tier)...", file=sys.stderr)
-            response = generate_llm_response(
-                prompt=prompt,
-                agent_type="architect",
-                system_prompt=system_prompt,
-                max_tokens=16000,
-                temperature=0.4
-            )
-            content = response["content"]
-            tokens_used = response["tokens_used"]
-            input_tokens = response.get("input_tokens", 0)
-            model_used = response["model"]
-            provider_used = response["provider"]
-        else:
-            # Fallback to direct Anthropic
-            print(f"🤖 Calling Anthropic API directly...", file=sys.stderr)
-            from anthropic import Anthropic
-            api_key = os.environ.get('ANTHROPIC_API_KEY')
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY not set")
-            
-            client = Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=16000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            content = response.content[0].text
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens
-            model_used = "claude-sonnet-4-20250514"
-            provider_used = "anthropic"
-        
-        print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
-        
-        execution_time = time.time() - start_time
-        print(f"✅ Generated {len(content)} chars in {execution_time:.1f}s", file=sys.stderr)
-        print(f"📊 Tokens used: {tokens_used}", file=sys.stderr)
-        
-        # Log LLM interaction for debugging (INFRA-002)
-        if LLM_LOGGER_AVAILABLE:
-            try:
-                log_llm_interaction(
-                    agent_id="marcus",
-                    prompt=prompt,
-                    response=content,
-                    execution_id=args.execution_id,
-                    task_id=None,  # SDS phase has no task_id
-                    agent_mode=args.mode,
-                    rag_context=rag_context if rag_context else None,
-                    previous_feedback=None,
-                    parsed_files=None,
-                    tokens_input=input_tokens,
-                    tokens_output=tokens_used,
-                    model=model_used,
-                    provider=provider_used,
-                    execution_time_seconds=execution_time,
-                    success=True,
-                    error_message=None
-                )
-                print(f"📝 LLM interaction logged", file=sys.stderr)
-            except Exception as e:
-                print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
-        
-        # Parse JSON output using robust cleaner (updated 2025-12-22)
-        if JSON_CLEANER_AVAILABLE:
-            parsed_content, parse_error = clean_llm_json_response(content)
-            if parsed_content is not None:
-                print(f"✅ JSON parsed successfully (via cleaner)", file=sys.stderr)
-            else:
-                print(f"⚠️ JSON parse error: {parse_error}", file=sys.stderr)
-                print(f"   Content preview: {content[:200]}...", file=sys.stderr)
-                parsed_content = {"raw": content, "parse_error": parse_error}
-        else:
-            # Fallback to basic parsing
-            try:
-                import re
-                clean_content = content.strip()
-                if clean_content.startswith('```'):
-                    clean_content = re.sub(r'^```(?:json)?\s*', '', clean_content)
-                    clean_content = re.sub(r'```\s*$', '', clean_content)
-                parsed_content = json.loads(clean_content.strip())
-                print(f"✅ JSON parsed successfully (basic)", file=sys.stderr)
-            except json.JSONDecodeError as e:
-                print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
-                parsed_content = {"raw": content, "parse_error": str(e)}
-        
-        # Build output
-        output_data = {
-            "agent_id": "architect",
-            "agent_name": "Marcus (Solution Architect)",
-            "mode": args.mode,
-            "execution_id": args.execution_id,
-            "project_id": args.project_id,
-            "deliverable_type": deliverable_type,
-            "artifact_id": f"{artifact_prefix}-001",
-            "content": parsed_content,
-            "metadata": {
-                "tokens_used": tokens_used,
-                "model": model_used,
-                "provider": provider_used,
-                "execution_time_seconds": round(execution_time, 2),
-                "content_length": len(content),
-                "rag_used": bool(rag_context),
-                "generated_at": datetime.now().isoformat()
-            }
-        }
-        
-        # Save output
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ SUCCESS: Output saved to {args.output}", file=sys.stderr)
-        print(json.dumps(output_data, indent=2, ensure_ascii=False))
-        
-        sys.exit(0)
-        
-    except Exception as e:
-        print(f"❌ ERROR: {str(e)}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
 
 # ============================================================================
-# MODE FIX_GAPS - Révision de solution pour corriger les gaps de couverture
+# MODE FIX_GAPS - Revision de solution pour corriger les gaps de couverture
 # ============================================================================
 
 def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_use_cases: list = None, iteration: int = 1) -> str:
     """
     Generate prompt for fix_gaps mode.
-    
+
     This mode receives the current solution and coverage gaps from Emma validate,
     and produces an improved solution that addresses the gaps.
     """
-    
+
     # Format current solution
     solution_json = json.dumps(current_solution, indent=2, ensure_ascii=False)
-    
+
     # Format gaps
     gaps_text = ""
     for i, gap in enumerate(coverage_gaps[:20], 1):
@@ -876,10 +577,10 @@ def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_u
             gaps_text += f"{i}. [{severity.upper()}] {element_type}: {element_value}\n"
         else:
             gaps_text += f"{i}. {gap}\n"
-    
+
     if len(coverage_gaps) > 20:
         gaps_text += f"\n... and {len(coverage_gaps) - 20} more gaps\n"
-    
+
     # Format uncovered UCs
     uncovered_text = ""
     if uncovered_use_cases:
@@ -890,8 +591,8 @@ def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_u
                 uncovered_text += f"- {uc}\n"
         if len(uncovered_use_cases) > 10:
             uncovered_text += f"... and {len(uncovered_use_cases) - 10} more\n"
-    
-    return f'''# 🔄 SOLUTION DESIGN REVISION (Iteration {iteration})
+
+    return f'''# SOLUTION DESIGN REVISION (Iteration {iteration})
 
 ## CONTEXT
 Emma (Research Analyst) has analyzed your solution design and found coverage gaps.
@@ -944,9 +645,459 @@ Return the COMPLETE revised solution design in the same JSON structure:
     "risks": [...]
 }}
 
-**IMPORTANT**: 
+**IMPORTANT**:
 - Address ALL gaps listed above
 - Output ONLY valid JSON, no markdown fences
 - Include revision_notes explaining what was changed
 '''
 
+
+# ============================================================================
+# JSON PARSING HELPER
+# ============================================================================
+def _parse_json_content(content: str) -> dict:
+    """Parse JSON from LLM response using robust cleaner with fallback."""
+    if JSON_CLEANER_AVAILABLE:
+        parsed_content, parse_error = clean_llm_json_response(content)
+        if parsed_content is not None:
+            logger.info("JSON parsed successfully (via cleaner)")
+            return parsed_content
+        else:
+            logger.warning(f"JSON parse error: {parse_error}")
+            logger.debug(f"Content preview: {content[:200]}...")
+
+    # Fallback to basic parsing
+    try:
+        clean_content = content.strip()
+        if clean_content.startswith('```'):
+            clean_content = re.sub(r'^```(?:json)?\s*', '', clean_content)
+            clean_content = re.sub(r'```\s*$', '', clean_content)
+        parsed = json.loads(clean_content.strip())
+        logger.info("JSON parsed successfully (basic)")
+        return parsed
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON parse error (basic): {e}")
+        return {"raw": content, "parse_error": str(e)}
+
+
+# ============================================================================
+# SOLUTION ARCHITECT AGENT CLASS -- Importable + CLI compatible
+# ============================================================================
+class SolutionArchitectAgent:
+    """
+    Marcus (Solution Architect) Agent - 5 modes.
+
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - design: UC/UC Digest -> Architecture globale (ARCH-001)
+        - as_is: SFDX metadata -> Resume structure (ASIS-001)
+        - gap: ARCH + ASIS + UC context -> Deltas (GAP-001)
+        - wbs: GAP -> Taches + Planning (WBS-001)
+        - fix_gaps: Revise solution to address coverage gaps
+
+    Usage (import):
+        agent = SolutionArchitectAgent()
+        result = agent.run({"mode": "design", "input_content": '{"use_cases": [...], "project_summary": "..."}'})
+
+    Usage (CLI):
+        python salesforce_solution_architect.py --mode design --input input.json --output output.json
+
+    Note: Module-level prompt functions (get_design_prompt, get_as_is_prompt,
+    get_gap_prompt, get_wbs_prompt, get_fix_gaps_prompt) are preserved for
+    direct import by tests.
+    """
+
+    VALID_MODES = ("design", "as_is", "gap", "wbs", "fix_gaps")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: one of VALID_MODES
+                - input_content: JSON string with mode-specific data
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+        """
+        mode = task_data.get("mode", "design")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            # Parse input JSON
+            try:
+                input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+            except (json.JSONDecodeError, TypeError):
+                input_data = {"raw_input": str(input_content)}
+
+            return self._execute(mode, input_data, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"SolutionArchitectAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _execute(
+        self,
+        mode: str,
+        input_data: dict,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Core execution logic for all modes."""
+        start_time = time.time()
+
+        # Get RAG context for design mode
+        rag_context = ""
+        if mode == 'design' and RAG_AVAILABLE:
+            rag_context = self._get_rag_context(input_data)
+
+        # Build prompt based on mode
+        prompt, deliverable_type, artifact_prefix = self._build_prompt(mode, input_data, rag_context)
+
+        system_prompt = f"You are Marcus, a Salesforce CTA. Generate {deliverable_type}. Output ONLY valid JSON."
+
+        logger.info(f"Mode: {mode}, prompt size: {len(prompt)} characters")
+
+        # Call LLM
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, system_prompt, max_tokens=16000, temperature=0.4
+        )
+
+        execution_time = time.time() - start_time
+        logger.info(f"Generated {len(content)} chars in {execution_time:.1f}s, tokens={tokens_used}")
+
+        # Log LLM interaction
+        self._log_interaction(
+            mode=mode,
+            prompt=prompt,
+            content=content,
+            execution_id=execution_id,
+            input_tokens=input_tokens,
+            tokens_used=tokens_used,
+            model_used=model_used,
+            provider_used=provider_used,
+            execution_time=execution_time,
+            rag_context=rag_context,
+        )
+
+        # Parse JSON output
+        parsed_content = _parse_json_content(content)
+
+        return {
+            "success": True,
+            "agent_id": "architect",
+            "agent_name": "Marcus (Solution Architect)",
+            "mode": mode,
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "deliverable_type": deliverable_type,
+            "artifact_id": f"{artifact_prefix}-001",
+            "content": parsed_content,
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "rag_used": bool(rag_context),
+                "generated_at": datetime.now().isoformat()
+            }
+        }
+
+    def _build_prompt(self, mode: str, input_data: dict, rag_context: str) -> tuple:
+        """Build the prompt based on mode. Returns (prompt, deliverable_type, artifact_prefix)."""
+        if mode == 'design':
+            use_cases = input_data.get('use_cases', [])
+            project_summary = input_data.get('project_summary', '')
+            uc_digest = input_data.get('uc_digest', None)
+            coverage_gaps = input_data.get('coverage_gaps', None)
+            uncovered_use_cases = input_data.get('uncovered_use_cases', None)
+            revision_request = input_data.get('revision_request', None)
+
+            if revision_request:
+                logger.info(f"REVISION MODE: Addressing {len(coverage_gaps or [])} coverage gaps")
+            elif uc_digest:
+                logger.info("Using UC Digest from Emma (structured analysis)")
+            else:
+                logger.info(f"No UC Digest, using raw UCs ({len(use_cases)} UCs)")
+
+            prompt = get_design_prompt(
+                use_cases, project_summary, rag_context, uc_digest,
+                coverage_gaps=coverage_gaps,
+                uncovered_use_cases=uncovered_use_cases,
+                revision_request=revision_request
+            )
+            return prompt, "solution_design", "ARCH"
+
+        elif mode == 'as_is':
+            sfdx_metadata = input_data.get('sfdx_metadata', json.dumps(input_data))
+            prompt = get_as_is_prompt(sfdx_metadata)
+            return prompt, "as_is_analysis", "ASIS"
+
+        elif mode == 'gap':
+            solution_design_data = input_data.get('solution_design', input_data.get('architecture', {}))
+            solution_design_str = json.dumps(solution_design_data, indent=2)
+            asis_summary = json.dumps(input_data.get('as_is', {}), indent=2)
+
+            uc_context = self._build_uc_context(input_data)
+            prompt = get_gap_prompt(solution_design_str, asis_summary, uc_context)
+            return prompt, "gap_analysis", "GAP"
+
+        elif mode == 'wbs':
+            gap_analysis = json.dumps(input_data.get('gaps', input_data), indent=2)
+            constraints = input_data.get('constraints', '')
+            prompt = get_wbs_prompt(gap_analysis, constraints)
+            return prompt, "work_breakdown_structure", "WBS"
+
+        elif mode == 'fix_gaps':
+            current_solution = input_data.get('current_solution', input_data.get('solution_design', {}))
+            coverage_gaps = input_data.get('coverage_gaps', [])
+            uncovered_use_cases = input_data.get('uncovered_use_cases', [])
+            iteration = input_data.get('iteration', 1)
+            prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration)
+            return prompt, f"solution_design_v{iteration + 1}", "ARCH"
+
+        raise ValueError(f"Unknown mode: {mode}")
+
+    def _build_uc_context(self, input_data: dict) -> str:
+        """Build enriched UC context for gap mode."""
+        uc_digest = input_data.get('uc_digest', None)
+        if uc_digest and uc_digest.get('by_requirement'):
+            logger.info("Using ENRICHED UC Digest for gap context")
+            uc_lines = []
+            for br_id, br_data in uc_digest.get('by_requirement', {}).items():
+                title = br_data.get('title', br_id)
+                uc_count = br_data.get('uc_count', 0)
+                objects = br_data.get('sf_objects', [])
+                ui_components = br_data.get('ui_components', [])
+                automations = br_data.get('automations', [])
+                auto_details = []
+                for a in automations:
+                    a_type = a.get('type', '') if isinstance(a, dict) else str(a)
+                    a_purpose = a.get('purpose', '')[:80] if isinstance(a, dict) else ''
+                    if a_purpose:
+                        auto_details.append(f"{a_type}: {a_purpose}")
+                    else:
+                        auto_details.append(a_type)
+                criteria = br_data.get('key_acceptance_criteria', [])
+                line = f"\n### {br_id}: {title} ({uc_count} UCs)"
+                line += f"\n- **Objects**: {', '.join(objects)}"
+                if ui_components:
+                    line += f"\n- **UI Components**: {', '.join(ui_components)}"
+                if auto_details:
+                    line += f"\n- **Automations**:"
+                    for ad in auto_details[:4]:
+                        line += f"\n  - {ad}"
+                if criteria:
+                    line += f"\n- **Key Criteria**: {criteria[0][:100]}..."
+                uc_lines.append(line)
+            logger.info(f"Generated {len(uc_lines)} BR contexts with UI details")
+            return "\n".join(uc_lines)
+        else:
+            # Fallback: Use raw UCs
+            use_cases = input_data.get('use_cases', [])
+            if use_cases:
+                logger.info(f"Using raw UCs for gap context ({len(use_cases)} UCs)")
+                uc_lines = []
+                for uc in use_cases[:10]:
+                    sf = uc.get('salesforce_components', {})
+                    objects = sf.get('objects', [])
+                    uc_lines.append(f"- {uc.get('id', 'UC')}: {uc.get('title', '')[:50]} (Objects: {', '.join(objects[:3])})")
+                return "\n".join(uc_lines)
+            return ""
+
+    # ------------------------------------------------------------------
+    # LLM / RAG / Logger helpers
+    # ------------------------------------------------------------------
+    def _call_llm(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        max_tokens: int = 16000,
+        temperature: float = 0.4,
+    ) -> tuple:
+        """
+        Call LLM service with fallback to direct Anthropic API.
+
+        Returns:
+            (content, tokens_used, input_tokens, model_used, provider_used)
+        """
+        if LLM_SERVICE_AVAILABLE:
+            logger.info("Calling Claude API (Architect tier)...")
+            response = generate_llm_response(
+                prompt=prompt,
+                agent_type="architect",
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            content = response["content"]
+            tokens_used = response["tokens_used"]
+            input_tokens = response.get("input_tokens", 0)
+            model_used = response["model"]
+            provider_used = response["provider"]
+            logger.info(f"Using {provider_used} / {model_used}")
+            return content, tokens_used, input_tokens, model_used, provider_used
+
+        # Fallback to direct Anthropic
+        logger.info("Calling Anthropic API directly...")
+        from anthropic import Anthropic
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
+
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = response.content[0].text
+        tokens_used = response.usage.input_tokens + response.usage.output_tokens
+        input_tokens = response.usage.input_tokens
+        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+
+    def _get_rag_context(self, input_data: dict) -> str:
+        """Fetch RAG context for design mode with dynamic query based on project objects."""
+        if not RAG_AVAILABLE:
+            return ""
+        try:
+            use_cases_text = json.dumps(input_data.get('use_cases', []))
+            project_summary = input_data.get('project_summary', '')
+            combined_text = f"{use_cases_text} {project_summary}".lower()
+
+            standard_objects = [
+                'case', 'contact', 'account', 'lead', 'opportunity', 'campaign',
+                'task', 'event', 'user', 'product', 'pricebook', 'quote', 'order',
+                'contract', 'asset', 'entitlement', 'knowledge', 'solution'
+            ]
+            detected_objects = [obj for obj in standard_objects if obj in combined_text]
+
+            if detected_objects:
+                objects_str = ' '.join([obj.capitalize() for obj in detected_objects[:5]])
+                query = f"Salesforce {objects_str} object standard fields relationships best practices"
+                logger.info(f"RAG query (detected objects: {detected_objects[:5]}): {query}")
+            else:
+                query = "Salesforce architecture design patterns data model best practices"
+                logger.info(f"RAG query (generic): {query}")
+
+            rag_context = get_salesforce_context(query, n_results=8, agent_type="solution_architect")
+            logger.info(f"RAG context: {len(rag_context)} chars")
+            return rag_context
+        except Exception as e:
+            logger.warning(f"RAG error: {e}")
+            return ""
+
+    def _log_interaction(
+        self,
+        mode: str,
+        prompt: str,
+        content: str,
+        execution_id: int,
+        input_tokens: int = 0,
+        tokens_used: int = 0,
+        model_used: str = "",
+        provider_used: str = "",
+        execution_time: float = 0.0,
+        rag_context: str = "",
+    ) -> None:
+        """Log LLM interaction for debugging (INFRA-002)."""
+        if not LLM_LOGGER_AVAILABLE:
+            return
+        try:
+            log_llm_interaction(
+                agent_id="marcus",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode=mode,
+                rag_context=rag_context if rag_context else None,
+                previous_feedback=None,
+                parsed_files=None,
+                tokens_input=input_tokens,
+                tokens_output=tokens_used,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=execution_time,
+                success=True,
+                error_message=None
+            )
+            logger.info("LLM interaction logged")
+        except Exception as e:
+            logger.warning(f"Failed to log LLM interaction: {e}")
+
+
+# ============================================================================
+# CLI MODE - Backward compatible subprocess entry point
+# ============================================================================
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Add backend root to sys.path for CLI mode
+    _backend_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_root not in sys.path:
+        sys.path.insert(0, _backend_root)
+
+    parser = argparse.ArgumentParser(description='Marcus Architect Agent')
+    parser.add_argument('--mode', required=False, default='design',
+                        choices=['design', 'as_is', 'gap', 'wbs', 'fix_gaps'],
+                        help='Operation mode: design, as_is, gap, wbs, or fix_gaps')
+    parser.add_argument('--input', required=True, help='Input JSON file')
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', type=int, default=0)
+    parser.add_argument('--project-id', type=int, default=0)
+    parser.add_argument('--use-rag', action='store_true', default=True)
+
+    args = parser.parse_args()
+
+    try:
+        # Read input
+        print(f"Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_content = f.read()
+
+        # Use agent class
+        agent = SolutionArchitectAgent()
+        task_data = {
+            "mode": args.mode,
+            "input_content": input_content,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+        }
+        result = agent.run(task_data)
+
+        # Save output
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+
+        print(f"SUCCESS: Output saved to {args.output}", file=sys.stderr)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        sys.exit(0)
+
+    except Exception as e:
+        print(f"ERROR: {str(e)}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)

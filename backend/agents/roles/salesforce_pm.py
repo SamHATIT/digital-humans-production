@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
 Salesforce Project Manager (Sophie) Agent
+
 Two distinct roles:
 1. extract_br: Extract atomic Business Requirements from raw input
 2. consolidate_sds: Consolidate all artifacts into final SDS document
+
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (PMAgent.run()) or CLI (python salesforce_pm.py --mode ...).
 """
 
 import os
 import time
-import sys
 import json
-import argparse
-from pathlib import Path
+import logging
 from datetime import datetime
+from typing import Dict, Any, Optional
 
-# LLM imports
-sys.path.insert(0, "/app")
+logger = logging.getLogger(__name__)
+
+# LLM imports - clean imports for direct import mode
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
@@ -26,17 +30,16 @@ except ImportError:
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 LLM Logger loaded for Sophie", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
+
 
 # ============================================================================
 # PROMPT 1: EXTRACT BUSINESS REQUIREMENTS
 # ============================================================================
 def get_extract_br_prompt(requirements: str) -> str:
-    return f'''# 📋 BUSINESS REQUIREMENTS EXTRACTION
+    return f'''# BUSINESS REQUIREMENTS EXTRACTION
 
 You are **Sophie**, a Senior Project Manager specialized in requirements analysis.
 
@@ -99,7 +102,7 @@ Output should include:
 '''
 
 def get_consolidate_sds_prompt(artifacts: str) -> str:
-    return f'''# 📄 SOLUTION DESIGN SPECIFICATION - FINAL DOCUMENT
+    return f'''# SOLUTION DESIGN SPECIFICATION - FINAL DOCUMENT
 
 You are **Sophie**, a Senior Project Manager creating the final SDS document.
 
@@ -245,148 +248,140 @@ gantt
 **Generate the complete SDS document now in Markdown format.**
 '''
 
+
 # ============================================================================
-# MAIN EXECUTION
+# PM AGENT CLASS — Importable + CLI compatible
 # ============================================================================
-def main():
-    parser = argparse.ArgumentParser(description='Sophie PM Agent')
-    parser.add_argument('--mode', required=True, choices=['extract_br', 'consolidate_sds'],
-                        help='Operation mode')
-    parser.add_argument('--input', required=True, help='Input file path')
-    parser.add_argument('--output', required=True, help='Output JSON file path')
-    parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
-    parser.add_argument('--project-id', type=int, default=0, help='Project ID')
-    
-    args = parser.parse_args()
-    
-    try:
+class PMAgent:
+    """
+    Sophie (PM) Agent - Extract BR + Consolidate SDS.
+
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - extract_br: Extract atomic Business Requirements from raw input
+        - consolidate_sds: Consolidate all artifacts into final SDS document
+
+    Usage (import):
+        agent = PMAgent()
+        result = agent.run({"mode": "extract_br", "input_content": "..."})
+
+    Usage (CLI):
+        python salesforce_pm.py --mode extract_br --input input.json --output output.json
+    """
+
+    VALID_MODES = ("extract_br", "consolidate_sds")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: "extract_br" or "consolidate_sds"
+                - input_content: string content for the prompt
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+            On success: full output dict with agent_id, content, metadata, etc.
+            On failure: {"success": False, "error": "..."}
+        """
+        mode = task_data.get("mode", "extract_br")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            return self._execute(mode, input_content, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"PMAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    def _execute(
+        self,
+        mode: str,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Core execution logic shared by all modes."""
         start_time = time.time()
-        
-        # Read input
-        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
-        with open(args.input, 'r', encoding='utf-8') as f:
-            input_content = f.read()
-        print(f"✅ Read {len(input_content)} characters", file=sys.stderr)
-        
-        # Select prompt based on mode
-        if args.mode == 'extract_br':
+
+        # Select prompt and parameters based on mode
+        if mode == "extract_br":
             prompt = get_extract_br_prompt(input_content)
-            system_prompt = "You are Sophie, a Senior Project Manager. Extract atomic business requirements from the input. Output ONLY valid JSON, no markdown code fences."
+            system_prompt = (
+                "You are Sophie, a Senior Project Manager. "
+                "Extract atomic business requirements from the input. "
+                "Output ONLY valid JSON, no markdown code fences."
+            )
             deliverable_type = "business_requirements_extraction"
             agent_role = "PM - BR Extraction"
             max_tokens = 8000
             temperature = 0.3
         else:  # consolidate_sds
             prompt = get_consolidate_sds_prompt(input_content)
-            system_prompt = "You are Sophie, a Senior Project Manager. Create a professional SDS document in clean Markdown format with properly formatted Mermaid diagrams."
+            system_prompt = (
+                "You are Sophie, a Senior Project Manager. "
+                "Create a professional SDS document in clean Markdown format "
+                "with properly formatted Mermaid diagrams."
+            )
             deliverable_type = "solution_design_specification"
             agent_role = "PM - SDS Consolidation"
             max_tokens = 16000
             temperature = 0.4
-        
-        print(f"📝 Mode: {args.mode}", file=sys.stderr)
-        print(f"📝 Prompt size: {len(prompt)} characters", file=sys.stderr)
-        
+
+        logger.info(f"PMAgent mode={mode}, prompt_size={len(prompt)} chars")
+
         # Call LLM
-        if LLM_SERVICE_AVAILABLE:
-            print(f"🤖 Calling Claude API (PM tier)...", file=sys.stderr)
-            response = generate_llm_response(
-                prompt=prompt,
-                agent_type="pm",
-                system_prompt=system_prompt,
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            content = response["content"]
-            tokens_used = response["tokens_used"]
-            input_tokens = response.get("input_tokens", 0)
-            model_used = response["model"]
-            provider_used = response["provider"]
-        else:
-            # Fallback to direct Anthropic
-            print(f"🤖 Calling Anthropic API directly...", file=sys.stderr)
-            from anthropic import Anthropic
-            api_key = os.environ.get('ANTHROPIC_API_KEY')
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY not set")
-            
-            client = Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=max_tokens,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            content = response.content[0].text
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens
-            input_tokens = response.usage.input_tokens
-            model_used = "claude-sonnet-4-20250514"
-            provider_used = "anthropic"
-        
-        print(f"✅ Using {provider_used} / {model_used}", file=sys.stderr)
-        
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, system_prompt, max_tokens, temperature
+        )
+
         execution_time = time.time() - start_time
-        print(f"✅ Generated {len(content)} characters in {execution_time:.1f}s", file=sys.stderr)
-        print(f"📊 Tokens used: {tokens_used}", file=sys.stderr)
-        
-        # Log LLM interaction for debugging (INFRA-002)
-        if LLM_LOGGER_AVAILABLE:
-            try:
-                log_llm_interaction(
-                    agent_id="sophie",
-                    prompt=prompt,
-                    response=content,
-                    execution_id=args.execution_id,
-                    task_id=None,
-                    agent_mode=args.mode,
-                    rag_context=None,
-                    previous_feedback=None,
-                    parsed_files=None,
-                    tokens_input=input_tokens,
-                    tokens_output=tokens_used,
-                    model=model_used,
-                    provider=provider_used,
-                    execution_time_seconds=execution_time,
-                    success=True,
-                    error_message=None
-                )
-                print(f"📝 LLM interaction logged", file=sys.stderr)
-            except Exception as e:
-                print(f"⚠️ Failed to log LLM interaction: {e}", file=sys.stderr)
-        
+        logger.info(
+            f"PMAgent generated {len(content)} chars in {execution_time:.1f}s, "
+            f"tokens={tokens_used}, model={model_used}"
+        )
+
+        # Log LLM interaction (INFRA-002)
+        self._log_interaction(
+            mode=mode,
+            prompt=prompt,
+            content=content,
+            execution_id=execution_id,
+            input_tokens=input_tokens,
+            tokens_used=tokens_used,
+            model_used=model_used,
+            provider_used=provider_used,
+            execution_time=execution_time,
+        )
+
         # Parse content based on mode
-        if args.mode == 'extract_br':
-            # Parse JSON output
-            try:
-                clean_content = content.strip()
-                if clean_content.startswith('```'):
-                    clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
-                if clean_content.endswith('```'):
-                    clean_content = clean_content[:-3]
-                clean_content = clean_content.strip()
-                
-                parsed_content = json.loads(clean_content)
-                br_count = len(parsed_content.get('business_requirements', []))
-                print(f"✅ Extracted {br_count} Business Requirements", file=sys.stderr)
-            except json.JSONDecodeError as e:
-                print(f"⚠️ JSON parse error: {e}", file=sys.stderr)
-                parsed_content = {"raw": content, "parse_error": str(e)}
-        else:
-            # For SDS, content is markdown - store as-is
-            parsed_content = {"markdown": content}
-            # Count Mermaid diagrams
-            mermaid_count = content.count('```mermaid')
-            print(f"✅ SDS generated with {mermaid_count} Mermaid diagrams", file=sys.stderr)
-        
+        parsed_content = self._parse_response(mode, content)
+
         # Build output
         output_data = {
+            "success": True,
             "agent_id": "pm",
             "agent_name": "Sophie (Project Manager)",
             "agent_role": agent_role,
-            "execution_id": args.execution_id,
-            "project_id": args.project_id,
+            "execution_id": execution_id,
+            "project_id": project_id,
             "deliverable_type": deliverable_type,
-            "mode": args.mode,
+            "mode": mode,
             "content": parsed_content,
             "metadata": {
                 "tokens_used": tokens_used,
@@ -394,36 +389,198 @@ def main():
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
                 "content_length": len(content),
-                "generated_at": datetime.now().isoformat()
-            }
+                "generated_at": datetime.now().isoformat(),
+            },
         }
-        
+
         # Add mode-specific metadata
-        if args.mode == 'extract_br' and isinstance(parsed_content, dict) and 'business_requirements' in parsed_content:
-            output_data["metadata"]["br_count"] = len(parsed_content['business_requirements'])
+        if mode == "extract_br" and isinstance(parsed_content, dict) and "business_requirements" in parsed_content:
+            output_data["metadata"]["br_count"] = len(parsed_content["business_requirements"])
             output_data["metadata"]["categories"] = list(set(
-                br.get('category', 'OTHER') 
-                for br in parsed_content['business_requirements']
+                br.get("category", "OTHER")
+                for br in parsed_content["business_requirements"]
             ))
-        elif args.mode == 'consolidate_sds':
-            output_data["metadata"]["mermaid_diagrams_count"] = content.count('```mermaid')
-            output_data["metadata"]["tables_count"] = content.count('|---|')
-        
-        # Save output
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(output_data, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ SUCCESS: Output saved to {args.output}", file=sys.stderr)
-        print(json.dumps(output_data, indent=2, ensure_ascii=False))
-        
-        sys.exit(0)
-        
+        elif mode == "consolidate_sds":
+            output_data["metadata"]["mermaid_diagrams_count"] = content.count("```mermaid")
+            output_data["metadata"]["tables_count"] = content.count("|---|")
+
+        return output_data
+
+    def _call_llm(
+        self,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+    ) -> tuple:
+        """
+        Call LLM via llm_service or direct Anthropic fallback.
+
+        Returns:
+            tuple of (content, tokens_used, input_tokens, model_used, provider_used)
+        """
+        if LLM_SERVICE_AVAILABLE:
+            logger.debug("Calling LLM via llm_service (PM tier)")
+            response = generate_llm_response(
+                prompt=prompt,
+                agent_type="pm",
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return (
+                response["content"],
+                response["tokens_used"],
+                response.get("input_tokens", 0),
+                response["model"],
+                response["provider"],
+            )
+        else:
+            # Fallback to direct Anthropic API
+            logger.warning("llm_service unavailable, falling back to direct Anthropic API")
+            from anthropic import Anthropic
+
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("ANTHROPIC_API_KEY not set and llm_service unavailable")
+
+            client = Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=max_tokens,
+                system=system_prompt,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = response.content[0].text
+            tokens_used = response.usage.input_tokens + response.usage.output_tokens
+            input_tokens = response.usage.input_tokens
+            return (content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic")
+
+    def _parse_response(self, mode: str, content: str) -> Any:
+        """Parse LLM response based on mode."""
+        if mode == "extract_br":
+            try:
+                clean_content = content.strip()
+                if clean_content.startswith("```"):
+                    clean_content = clean_content.split("\n", 1)[1] if "\n" in clean_content else clean_content[3:]
+                if clean_content.endswith("```"):
+                    clean_content = clean_content[:-3]
+                clean_content = clean_content.strip()
+
+                parsed = json.loads(clean_content)
+                br_count = len(parsed.get("business_requirements", []))
+                logger.info(f"Extracted {br_count} Business Requirements")
+                return parsed
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON parse error in extract_br response: {e}")
+                return {"raw": content, "parse_error": str(e)}
+        else:
+            # For SDS, content is markdown - store as-is
+            mermaid_count = content.count("```mermaid")
+            logger.info(f"SDS generated with {mermaid_count} Mermaid diagrams")
+            return {"markdown": content}
+
+    def _log_interaction(
+        self,
+        mode: str,
+        prompt: str,
+        content: str,
+        execution_id: int,
+        input_tokens: int,
+        tokens_used: int,
+        model_used: str,
+        provider_used: str,
+        execution_time: float,
+    ) -> None:
+        """Log LLM interaction for debugging (INFRA-002)."""
+        if not LLM_LOGGER_AVAILABLE:
+            return
+        try:
+            log_llm_interaction(
+                agent_id="sophie",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode=mode,
+                rag_context=None,
+                previous_feedback=None,
+                parsed_files=None,
+                tokens_input=input_tokens,
+                tokens_output=tokens_used,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=execution_time,
+                success=True,
+                error_message=None,
+            )
+            logger.debug("LLM interaction logged (INFRA-002)")
+        except Exception as e:
+            logger.warning(f"Failed to log LLM interaction: {e}")
+
+
+# ============================================================================
+# CLI MODE — Backward compatibility for subprocess invocation
+# ============================================================================
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Ensure backend is on sys.path for CLI mode
+    _backend_dir = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_dir not in sys.path:
+        sys.path.insert(0, _backend_dir)
+
+    # Re-import after sys.path fix (module-level imports may have failed in CLI mode)
+    if not LLM_SERVICE_AVAILABLE:
+        try:
+            from app.services.llm_service import generate_llm_response, LLMProvider
+            LLM_SERVICE_AVAILABLE = True
+        except ImportError:
+            pass
+
+    parser = argparse.ArgumentParser(description="Sophie PM Agent")
+    parser.add_argument("--mode", required=True, choices=["extract_br", "consolidate_sds"],
+                        help="Operation mode")
+    parser.add_argument("--input", required=True, help="Input file path")
+    parser.add_argument("--output", required=True, help="Output JSON file path")
+    parser.add_argument("--execution-id", type=int, default=0, help="Execution ID")
+    parser.add_argument("--project-id", type=int, default=0, help="Project ID")
+
+    args = parser.parse_args()
+
+    try:
+        # Read input file
+        print(f"Reading input from {args.input}...", file=sys.stderr)
+        with open(args.input, "r", encoding="utf-8") as f:
+            input_content = f.read()
+        print(f"Read {len(input_content)} characters", file=sys.stderr)
+
+        # Run agent
+        agent = PMAgent()
+        result = agent.run({
+            "mode": args.mode,
+            "input_content": input_content,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+        })
+
+        if result.get("success"):
+            # Save output file
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            with open(args.output, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+
+            print(f"SUCCESS: Output saved to {args.output}", file=sys.stderr)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            sys.exit(0)
+        else:
+            print(f"ERROR: {result.get('error')}", file=sys.stderr)
+            sys.exit(1)
+
     except Exception as e:
-        print(f"❌ ERROR: {str(e)}", file=sys.stderr)
+        print(f"ERROR: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
-
-if __name__ == "__main__":
-    main()
