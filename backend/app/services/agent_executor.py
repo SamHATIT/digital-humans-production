@@ -81,6 +81,13 @@ except ImportError:
     _DATA_AGENT_AVAILABLE = False
     logger.warning("DataMigrationAgent not available for direct import, will use subprocess fallback")
 
+try:
+    from agents.roles.salesforce_qa_tester import QATesterAgent
+    _QA_AGENT_AVAILABLE = True
+except ImportError:
+    _QA_AGENT_AVAILABLE = False
+    logger.warning("QATesterAgent not available for direct import, will use subprocess fallback")
+
 # Registry mapping agent_id -> class for migrated agents
 # Agents not in this dict fall back to subprocess execution
 MIGRATED_AGENTS: Dict[str, type] = {}
@@ -98,6 +105,9 @@ if _BA_AGENT_AVAILABLE:
 if _DATA_AGENT_AVAILABLE:
     MIGRATED_AGENTS["aisha"] = DataMigrationAgent
     MIGRATED_AGENTS["data"] = DataMigrationAgent
+if _QA_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["elena"] = QATesterAgent
+    MIGRATED_AGENTS["qa"] = QATesterAgent
 
 # Default modes when called from agent tester (execute_agent flow).
 # Each agent's most common/default mode for testing.
@@ -111,6 +121,8 @@ AGENT_DEFAULT_MODES: Dict[str, str] = {
     "ba": "generate_uc",
     "aisha": "sds_strategy",
     "data": "sds_strategy",
+    "elena": "sds_strategy",
+    "qa": "sds_strategy",
 }
 
 
