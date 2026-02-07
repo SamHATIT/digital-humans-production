@@ -2,7 +2,8 @@
 name: refactorer
 description: >
   Transformation des 11 agents de subprocess.run() vers import direct (P3).
-  Chantier XL, procède agent par agent du plus simple au plus complexe.
+  Chantier XL, procède agent par agent. Sophie (PM) en pilote car point
+  d'entrée de toute exécution, puis par complexité croissante.
   Sprint 1 de la refonte.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: opus
@@ -28,43 +29,44 @@ Lire EN PREMIER :
 - .claude/skills/digital-humans-context/DEPENDENCY-GRAPH.md
 - .claude/skills/digital-humans-context/REFACTOR-ASSIGNMENTS.md
 
-## Ordre de migration (du plus simple au plus complexe)
+## Ordre de migration
+
+Sophie (PM) est l'agent pilote car elle est le point d'entrée de toute
+exécution SDS et BUILD. Valider le pattern d'import sur elle garantit
+que l'orchestration fonctionne avant de migrer les agents spécialisés.
 
 | # | Agent | Fichier | Complexité |
 |---|-------|---------|-----------|
-| 1 | Trainer (Lucas) | salesforce_trainer.py | Faible — agent pilote |
-| 2 | DevOps (Aisha) | salesforce_devops.py | Faible |
-| 3 | PM (Sophie) | salesforce_pm.py | Moyen |
-| 4 | Business Analyst (Marcus) | salesforce_business_analyst.py | Moyen |
-| 5 | Data Migration | salesforce_data_migration.py | Moyen |
+| 1 | PM (Sophie) | salesforce_pm.py | Moyen — AGENT PILOTE (point d'entrée) |
+| 2 | Trainer (Lucas) | salesforce_trainer.py | Faible |
+| 3 | DevOps (Jordan) | salesforce_devops.py | Faible |
+| 4 | Business Analyst (Olivia) | salesforce_business_analyst.py | Moyen |
+| 5 | Data Migration (Aisha) | salesforce_data_migration.py | Moyen |
 | 6 | QA Tester (Elena) | salesforce_qa_tester.py | Élevé |
 | 7 | LWC Dev (Zara) | salesforce_developer_lwc.py | Élevé |
 | 8 | Apex Dev (Diego) | salesforce_developer_apex.py | Élevé |
-| 9 | Admin (Jordan) | salesforce_admin.py | Très élevé |
-| 10 | Solution Architect (Olivia) | salesforce_solution_architect.py | Très élevé |
-| 11 | Research Analyst | salesforce_research_analyst.py | Très élevé |
+| 9 | Admin (Raj) | salesforce_admin.py | Très élevé |
+| 10 | Solution Architect (Marcus) | salesforce_solution_architect.py | Très élevé |
+| 11 | Research Analyst (Emma) | salesforce_research_analyst.py | Très élevé |
 
 ## Pattern de transformation (identique pour chaque agent)
 
 ### Étape A — Créer la classe AgentRunner
 ```python
-class SalesforceTrainerAgent:
-    """Agent Trainer - mode import direct."""
+class SalesforcePMAgent:
+    """Agent PM - mode import direct."""
     
     def __init__(self, config: dict = None):
         self.config = config or {}
-        # Initialisation partagée (connexions, RAG, etc.)
     
     def run(self, task_data: dict) -> dict:
         """Point d'entrée principal. Retourne le résultat structuré."""
-        # Logique existante refactorée ici
         return {"status": "success", "output": result}
 
 # Garder le mode CLI pour tests manuels
 if __name__ == "__main__":
     import argparse
-    # ... parsing args existant ...
-    agent = SalesforceTrainerAgent()
+    agent = SalesforcePMAgent()
     result = agent.run(task_data_from_args)
 ```
 
@@ -77,10 +79,9 @@ Remplacer subprocess.run() par l'import direct et l'appel de .run().
 
 ### Étape D — Tester les deux modes
 - Mode import : depuis l'executor
-- Mode CLI : python agents/roles/salesforce_trainer.py --args
+- Mode CLI : python agents/roles/salesforce_pm.py --args
 
 ### Étape E — Smoke test complet + mini-build
 
 ## Branche git
-Une branche par agent : refactor/P3-import-{agent_name}
-Ou une branche globale avec sous-commits : refactor/P3-subprocess-to-import
+refactor/P3-subprocess-to-import (une sous-branche par agent possible)

@@ -179,13 +179,13 @@ LLM_CONFIG_PATH: Path = ...  # env var
 
 ## Sprint 1 — Refactorer (P3 — subprocess→import)
 
-### Ordre de migration (plus simple → plus complexe)
+### Ordre de migration (Sophie PM en pilote, puis par complexité)
 
 | # | Agent | Fichier | Taille | Modes | Complexité | Raison |
 |---|-------|---------|--------|-------|------------|--------|
-| 1 | Lucas (Trainer) | `salesforce_trainer.py` | 389L | 2 (sds_strategy, delivery) | Faible | Plus petit, 2 modes simples |
-| 2 | Jordan (DevOps) | `salesforce_devops.py` | 280L | 2 (sds_strategy, deploy) | Faible | Petit, logique simple |
-| 3 | Sophie (PM) | `salesforce_pm.py` | 429L | 2 (extract_br, consolidate) | Moyen | Core SDS Phase 1 |
+| 1 | Sophie (PM) | `salesforce_pm.py` | 429L | 2 (extract_br, consolidate) | Moyen | AGENT PILOTE — point d'entrée de toute exécution SDS/BUILD |
+| 2 | Lucas (Trainer) | `salesforce_trainer.py` | 389L | 2 (sds_strategy, delivery) | Faible | Plus petit, 2 modes simples |
+| 3 | Jordan (DevOps) | `salesforce_devops.py` | 280L | 2 (sds_strategy, deploy) | Faible | Petit, logique simple |
 | 4 | Olivia (BA) | `salesforce_business_analyst.py` | 414L | 2 (generate_ucs, analyze) | Moyen | Core SDS Phase 2 |
 | 5 | Aisha (Data) | `salesforce_data_migration.py` | 435L | 2 (sds_strategy, migrate) | Moyen | SDS Phase 4 expert |
 | 6 | Elena (QA) | `salesforce_qa_tester.py` | 595L | 3 (sds_strategy, test, review) | Moyen | SDS Phase 4 + BUILD Quality |
