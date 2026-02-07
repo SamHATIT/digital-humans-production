@@ -36,7 +36,7 @@ router = APIRouter(tags=["PM Orchestrator"])
 # ==================== PROJECT DEFINITION ROUTES ====================
 
 @router.post("/projects", response_model=ProjectSchema, status_code=status.HTTP_201_CREATED)
-async def create_project(
+def create_project(
     project_data: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -75,7 +75,7 @@ async def create_project(
 
 
 @router.get("/projects", response_model=List[ProjectSchema])
-async def list_projects(
+def list_projects(
     skip: int = 0,
     limit: int = 50,
     status: ProjectStatus = None,
@@ -100,7 +100,7 @@ async def list_projects(
 
 
 @router.get("/dashboard/stats")
-async def get_dashboard_stats(
+def get_dashboard_stats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -173,7 +173,7 @@ async def get_dashboard_stats(
 
 
 @router.get("/projects/{project_id}", response_model=ProjectSchema)
-async def get_project(
+def get_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -196,7 +196,7 @@ async def get_project(
 
 
 @router.put("/projects/{project_id}", response_model=ProjectSchema)
-async def update_project(
+def update_project(
     project_id: int,
     project_data: ProjectUpdate,
     db: Session = Depends(get_db),
@@ -229,7 +229,7 @@ async def update_project(
 
 
 @router.delete("/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_project(
+def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -419,7 +419,7 @@ async def resume_execution(
     )
 
 @router.get("/execute/{execution_id}/progress")
-async def get_execution_progress(
+def get_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -686,7 +686,7 @@ async def stream_execution_progress(
 
 
 @router.get("/execute/{execution_id}/result", response_model=ExecutionResultResponse)
-async def get_execution_result(
+def get_execution_result(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -725,7 +725,7 @@ async def get_execution_result(
 
 
 @router.get("/execute/{execution_id}/download")
-async def download_sds_document(
+def download_sds_document(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -762,7 +762,7 @@ async def download_sds_document(
 
 
 @router.get("/executions", response_model=List[ExecutionSchema])
-async def list_executions(
+def list_executions(
     project_id: int = None,
     skip: int = 0,
     limit: int = 50,
@@ -799,7 +799,7 @@ async def list_executions(
 # ==================== AGENTS LIST ENDPOINT ====================
 
 @router.get("/agents")
-async def list_available_agents(
+def list_available_agents(
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -826,7 +826,7 @@ async def list_available_agents(
 # ==================== DETAILED PROGRESS ENDPOINT ====================
 
 @router.get("/execute/{execution_id}/detailed-progress")
-async def get_detailed_execution_progress(
+def get_detailed_execution_progress(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -905,7 +905,7 @@ async def get_detailed_execution_progress(
 # ==================== BUILD TASKS MONITORING ====================
 
 @router.get("/execute/{execution_id}/build-tasks")
-async def get_build_tasks(
+def get_build_tasks(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -985,7 +985,7 @@ async def get_build_tasks(
 # ==================== BUILD V2 PHASES MONITORING ====================
 
 @router.get("/execute/{execution_id}/build-phases")
-async def get_build_phases(
+def get_build_phases(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -1397,7 +1397,7 @@ async def retry_failed_execution(
 
 # ORCH-04: Get retry status and options
 @router.get("/execute/{execution_id}/retry-info")
-async def get_retry_info(
+def get_retry_info(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1604,7 +1604,7 @@ async def execute_build_phase(execution_id: int):
 # ════════════════════════════════════════════════════════════════════════════════
 
 @router.post("/execute/{execution_id}/pause-build")
-async def pause_build(
+def pause_build(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1819,7 +1819,7 @@ async def microanalyze_ucs(
 
 
 @router.get("/execute/{execution_id}/requirement-sheets")
-async def get_requirement_sheets(
+def get_requirement_sheets(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -1990,7 +1990,7 @@ async def synthesize_sds_v3(
 
 
 @router.get("/execute/{execution_id}/sds-preview")
-async def preview_sds_v3(
+def preview_sds_v3(
     execution_id: int,
     format: str = Query("markdown", enum=["markdown", "html"]),
     db: Session = Depends(get_db),
@@ -2097,7 +2097,7 @@ async def preview_sds_v3(
 
 
 @router.get("/execute/{execution_id}/domains-summary")
-async def get_domains_summary(
+def get_domains_summary(
     execution_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
