@@ -2,37 +2,48 @@
 """
 Salesforce Data Migration Agent - Aisha
 Dual Mode: spec (for SDS) | build (for real migration artifacts)
+
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (DataMigrationAgent.run()) or CLI (python salesforce_data_migration.py --mode ...).
 """
-import os, sys, argparse, json, time
-from pathlib import Path
+
+import json
+import re
+import time
+import logging
 from datetime import datetime
+from typing import Dict, Any, Optional, List
 
-sys.path.insert(0, "/app")
+logger = logging.getLogger(__name__)
 
+# LLM imports - clean imports for direct import mode
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
 
+# RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
 
-# LLM Logging for debugging
+# LLM Logger for debugging (INFRA-002)
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 [Aisha] LLM Logger loaded", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ [Aisha] LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
 
-SPEC_PROMPT = """# 📊 DATA MIGRATION - SPECIFICATION MODE
+# ============================================================================
+# PROMPTS
+# ============================================================================
+
+SPEC_PROMPT = """# DATA MIGRATION - SPECIFICATION MODE
 
 You are Aisha, an expert Salesforce Data Migration Specialist.
 Generate comprehensive data migration SPECIFICATIONS for the SDS document.
@@ -53,7 +64,7 @@ Use clear markdown with detailed specifications.
 """
 
 
-BUILD_PROMPT = """# 📊 DATA MIGRATION ARTIFACTS - BUILD MODE
+BUILD_PROMPT = """# DATA MIGRATION ARTIFACTS - BUILD MODE
 
 You are Aisha, generating REAL data migration artifacts.
 
@@ -124,121 +135,69 @@ insert records;
 """
 
 
-def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
-    prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
-    
-    if rag_context:
-        prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
-    
-    print(f"📊 Aisha SPEC mode...", file=sys.stderr)
-    start_time = time.time()
-    
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.3)
-        content = response.get('content', '')
-        tokens_used = response.get('tokens_used', 0)
-    else:
-        from openai import OpenAI
-        client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
-        content = resp.choices[0].message.content
-        tokens_used = resp.usage.total_tokens
-    
-
-    # Log LLM interaction
-    if LLM_LOGGER_AVAILABLE:
-        try:
-            log_llm_interaction(
-                agent_id="aisha",
-                prompt=prompt,
-                response=content,
-                execution_id=execution_id,
-                task_id=None,
-                agent_mode="spec",
-                rag_context=rag_context if rag_context else None,
-                tokens_output=tokens_used,
-                model="claude-sonnet-4-20250514" if LLM_SERVICE_AVAILABLE else "gpt-4o-mini",
-                provider="anthropic" if LLM_SERVICE_AVAILABLE else "openai",
-                execution_time_seconds=round(time.time() - start_time, 2),
-                success=True
-            )
-            print(f"📝 [Aisha SPEC] LLM interaction logged", file=sys.stderr)
-        except Exception as e:
-            print(f"⚠️ [Aisha SPEC] Failed to log: {e}", file=sys.stderr)
-
-    return {
-        "agent_id": "aisha", "agent_name": "Aisha (Data Migration)", "mode": "spec",
-        "execution_id": str(execution_id), "deliverable_type": "migration_specification",
-        "content": {"raw_markdown": content},
-        "metadata": {"tokens_used": tokens_used, "execution_time_seconds": round(time.time() - start_time, 2)}
-    }
-
-
-
 # ============================================================================
-# BUILD V2 - DATA SOURCES INTEGRATION
+# BUILD V2 - DATA SOURCES INTEGRATION (utility functions, kept module-level)
 # ============================================================================
 
 def format_data_sources(data_sources: list) -> str:
     """
-    Formate les sources de données configurées pour le prompt.
-    
+    Formate les sources de donnees configurees pour le prompt.
+
     Args:
-        data_sources: Liste des configurations de sources de données
-        
+        data_sources: Liste des configurations de sources de donnees
+
     Returns:
-        Texte formaté pour injection dans le prompt
+        Texte formate pour injection dans le prompt
     """
     if not data_sources:
-        return "Aucune source de données configurée. Générez des templates génériques."
-    
-    lines = ["## SOURCES DE DONNÉES CONFIGURÉES\n"]
-    
+        return "Aucune source de donnees configuree. Generez des templates generiques."
+
+    lines = ["## SOURCES DE DONNEES CONFIGUREES\n"]
+
     for i, source in enumerate(data_sources, 1):
         lines.append(f"### Source {i}: \"{source.get('name', 'Unknown')}\"")
         lines.append(f"  - **Objet cible**: {source.get('target_object', 'N/A')}")
         lines.append(f"  - **Format**: {source.get('source_type', 'csv').upper()}")
-        
+
         config = source.get('config', {})
         if config.get('file_path'):
             lines.append(f"  - **Fichier**: {config.get('file_path')}")
         if config.get('columns'):
             lines.append(f"  - **Colonnes**: {', '.join(config.get('columns', []))}")
-        
+
         mapping = source.get('column_mapping', {})
         if mapping:
-            lines.append("  - **Mapping prédéfini**:")
+            lines.append("  - **Mapping predefini**:")
             for src_col, sf_field in list(mapping.items())[:5]:
-                lines.append(f"      {src_col} → {sf_field}")
-        
+                lines.append(f"      {src_col} -> {sf_field}")
+
         lines.append("")
-    
+
     lines.append("""
-## INSTRUCTIONS SPÉCIFIQUES
-1. Générez un fichier SDL pour CHAQUE source configurée
-2. Le mapping doit correspondre aux colonnes indiquées
+## INSTRUCTIONS SPECIFIQUES
+1. Generez un fichier SDL pour CHAQUE source configuree
+2. Le mapping doit correspondre aux colonnes indiquees
 3. Respectez l'ordre d'import (import_order) - parents avant enfants
-4. Incluez des requêtes SOQL de validation pour chaque objet
+4. Incluez des requetes SOQL de validation pour chaque objet
 """)
-    
+
     return "\n".join(lines)
 
 
 async def get_project_data_sources(project_id: int, db) -> list:
     """
-    Récupère les sources de données configurées pour un projet.
-    
+    Recupere les sources de donnees configurees pour un projet.
+
     Args:
         project_id: ID du projet
         db: Session SQLAlchemy
-        
+
     Returns:
-        Liste des configurations de sources de données
+        Liste des configurations de sources de donnees
     """
     try:
         from sqlalchemy import text
-        
+
         result = db.execute(
             text("""
                 SELECT name, target_object, source_type, config, column_mapping, import_order
@@ -248,7 +207,7 @@ async def get_project_data_sources(project_id: int, db) -> list:
             """),
             {"project_id": project_id}
         )
-        
+
         sources = []
         for row in result:
             sources.append({
@@ -259,81 +218,349 @@ async def get_project_data_sources(project_id: int, db) -> list:
                 "column_mapping": row.column_mapping or {},
                 "import_order": row.import_order or 0
             })
-        
+
         return sources
-        
+
     except Exception as e:
-        print(f"⚠️ [Aisha] Failed to get data sources: {e}", file=sys.stderr)
+        logger.warning(f"Failed to get data sources: {e}")
         return []
 
-def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "", data_sources: list = None) -> dict:
-    task_id = task.get('task_id', 'UNKNOWN')
-    task_name = task.get('name', task.get('title', 'Unnamed Task'))
-    task_description = task.get('description', '')
-    
-    correction_context = ""
-    if previous_feedback:
-        correction_context = f"""
+
+# ============================================================================
+# DATA MIGRATION AGENT CLASS -- Importable + CLI compatible
+# ============================================================================
+class DataMigrationAgent:
+    """
+    Aisha (Data Migration) Agent - Spec + Build modes.
+
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - spec: Generate data migration specifications for SDS document
+        - build: Generate real migration artifacts (CSV, SDL, SQL, Apex)
+
+    Usage (import):
+        agent = DataMigrationAgent()
+        result = agent.run({"mode": "spec", "input_content": "..."})
+
+    Usage (CLI):
+        python salesforce_data_migration.py --mode spec --input input.json --output output.json
+    """
+
+    VALID_MODES = ("spec", "build")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: "spec" or "build"
+                - input_content: string content (raw text for spec, JSON string for build)
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+            On success: full output dict with agent_id, content, metadata, etc.
+            On failure: {"success": False, "error": "..."}
+        """
+        mode = task_data.get("mode", "spec")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        # Map sds_strategy alias to spec
+        if mode == "sds_strategy":
+            mode = "spec"
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            if mode == "spec":
+                return self._execute_spec(input_content, execution_id, project_id)
+            else:
+                return self._execute_build(input_content, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"DataMigrationAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # SPEC MODE
+    # ------------------------------------------------------------------
+    def _execute_spec(
+        self,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Execute spec mode: generate data migration specifications for SDS."""
+        start_time = time.time()
+
+        # Get RAG context
+        rag_context = self._get_rag_context()
+
+        # Build prompt
+        prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        if rag_context:
+            prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
+
+        logger.info(f"DataMigrationAgent mode=spec, prompt_size={len(prompt)} chars")
+
+        # Call LLM
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, max_tokens=8000, temperature=0.3
+        )
+
+        execution_time = time.time() - start_time
+        logger.info(
+            f"DataMigrationAgent spec generated {len(content)} chars in {execution_time:.1f}s, "
+            f"tokens={tokens_used}, model={model_used}"
+        )
+
+        # Log LLM interaction
+        self._log_interaction(
+            mode="spec",
+            prompt=prompt,
+            content=content,
+            execution_id=execution_id,
+            input_tokens=input_tokens,
+            tokens_used=tokens_used,
+            model_used=model_used,
+            provider_used=provider_used,
+            execution_time=execution_time,
+            rag_context=rag_context,
+        )
+
+        return {
+            "success": True,
+            "agent_id": "aisha",
+            "agent_name": "Aisha (Data Migration)",
+            "mode": "spec",
+            "execution_id": str(execution_id),
+            "deliverable_type": "migration_specification",
+            "content": {"raw_markdown": content},
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "generated_at": datetime.now().isoformat(),
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # BUILD MODE
+    # ------------------------------------------------------------------
+    def _execute_build(
+        self,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Execute build mode: generate real migration artifacts."""
+        start_time = time.time()
+
+        # Parse input data
+        try:
+            input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+        except (json.JSONDecodeError, TypeError):
+            input_data = {"task": {"name": "Task", "description": str(input_content)}}
+
+        task = input_data.get("task", input_data)
+        task_id = task.get("task_id", "UNKNOWN")
+        task_name = task.get("name", task.get("title", "Unnamed Task"))
+        task_description = task.get("description", "")
+        architecture_context = input_data.get("architecture_context", "")
+        previous_feedback = input_data.get("previous_feedback", "")
+        solution_design = input_data.get("solution_design")
+        gap_context = input_data.get("gap_context", "")
+        data_sources = input_data.get("data_sources")
+
+        # Get RAG context
+        rag_context = self._get_rag_context()
+
+        # Build correction context
+        correction_context = ""
+        if previous_feedback:
+            correction_context = f"""
 ## CORRECTION NEEDED - PREVIOUS ATTEMPT FAILED
 Elena (QA) found issues:
 {previous_feedback}
 
 FIX THESE ISSUES.
 """
-    
-    prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name,
-                                  task_description=task_description,
-                                  architecture_context=architecture_context[:10000])
-    if rag_context:
-        prompt += f"\n\n## MIGRATION BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
-    
-    
-    # BUILD V2: Include data sources configuration
-    if data_sources:
-        prompt += "\n\n" + format_data_sources(data_sources)
-    # Add correction context if retry
-    if correction_context:
-        prompt += correction_context
-    
-    # BUG-044/046: Include Solution Design from Marcus
-    if solution_design:
-        sd_text = ""
-        if solution_design.get("data_model"):
-            sd_text += f"### Data Model\n{solution_design['data_model']}\n\n"
-        if solution_design.get("data_migration"):
-            sd_text += f"### Data Migration Plan\n{solution_design['data_migration']}\n\n"
-        if solution_design.get("mappings"):
-            sd_text += f"### Field Mappings\n{solution_design['mappings']}\n\n"
-        if sd_text:
-            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
-    
-    # BUG-045: Include GAP context
-    if gap_context:
-        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
-    
-    print(f"📊 Aisha BUILD mode - generating artifacts for {task_id}...", file=sys.stderr)
-    start_time = time.time()
-    
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=8000, temperature=0.2)
-        content = response.get('content', '')
-        tokens_used = response.get('tokens_used', 0)
-        model_used = "claude-sonnet-4-20250514"
-    else:
-        from openai import OpenAI
-        client = OpenAI()
-        resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=8000)
-        content = resp.choices[0].message.content
-        tokens_used = resp.usage.total_tokens
-        model_used = "gpt-4o-mini"
-    
-    execution_time = round(time.time() - start_time, 2)
-    files = _parse_files(content)
-    print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
-    
-    # Log LLM interaction
-    if LLM_LOGGER_AVAILABLE:
+
+        # Build prompt
+        prompt = BUILD_PROMPT.format(
+            task_id=task_id,
+            task_name=task_name,
+            task_description=task_description,
+            architecture_context=architecture_context[:10000],
+        )
+        if rag_context:
+            prompt += f"\n\n## MIGRATION BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+
+        # BUILD V2: Include data sources configuration
+        if data_sources:
+            prompt += "\n\n" + format_data_sources(data_sources)
+
+        # Add correction context if retry
+        if correction_context:
+            prompt += correction_context
+
+        # BUG-044/046: Include Solution Design from Marcus
+        if solution_design:
+            sd_text = ""
+            if solution_design.get("data_model"):
+                sd_text += f"### Data Model\n{solution_design['data_model']}\n\n"
+            if solution_design.get("data_migration"):
+                sd_text += f"### Data Migration Plan\n{solution_design['data_migration']}\n\n"
+            if solution_design.get("mappings"):
+                sd_text += f"### Field Mappings\n{solution_design['mappings']}\n\n"
+            if sd_text:
+                prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+
+        # BUG-045: Include GAP context
+        if gap_context:
+            prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
+
+        logger.info(f"DataMigrationAgent mode=build, task={task_id}, prompt_size={len(prompt)} chars")
+
+        # Call LLM
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, max_tokens=8000, temperature=0.2
+        )
+
+        execution_time = time.time() - start_time
+        files = self._parse_files(content)
+        logger.info(
+            f"DataMigrationAgent build generated {len(files)} file(s) in {execution_time:.1f}s, "
+            f"tokens={tokens_used}, model={model_used}"
+        )
+
+        # Log LLM interaction
+        self._log_interaction(
+            mode="build",
+            prompt=prompt,
+            content=content,
+            execution_id=execution_id,
+            task_id=task_id,
+            input_tokens=input_tokens,
+            tokens_used=tokens_used,
+            model_used=model_used,
+            provider_used=provider_used,
+            execution_time=execution_time,
+            rag_context=rag_context,
+            previous_feedback=previous_feedback,
+            parsed_files={"files": list(files.keys()), "count": len(files)},
+            success=len(files) > 0,
+        )
+
+        return {
+            "success": len(files) > 0,
+            "agent_id": "aisha",
+            "agent_name": "Aisha (Data Migration)",
+            "mode": "build",
+            "task_id": task_id,
+            "execution_id": str(execution_id),
+            "deliverable_type": "migration_artifacts",
+            "content": {"raw_response": content, "files": files, "file_count": len(files)},
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "generated_at": datetime.now().isoformat(),
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # LLM / RAG / Logger helpers
+    # ------------------------------------------------------------------
+    def _call_llm(
+        self, prompt: str, max_tokens: int = 8000, temperature: float = 0.3
+    ) -> tuple:
+        """
+        Call LLM service with fallback to direct OpenAI.
+
+        Returns:
+            (content, tokens_used, input_tokens, model_used, provider_used)
+        """
+        if LLM_SERVICE_AVAILABLE:
+            response = generate_llm_response(
+                prompt=prompt,
+                provider=LLMProvider.ANTHROPIC,
+                model="claude-sonnet-4-20250514",
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            content = response.get("content", "")
+            tokens_used = response.get("tokens_used", 0)
+            input_tokens = response.get("input_tokens", 0)
+            return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+
+        # Fallback to OpenAI
+        try:
+            from openai import OpenAI
+            client = OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+            )
+            content = resp.choices[0].message.content
+            tokens_used = resp.usage.total_tokens
+            input_tokens = resp.usage.prompt_tokens
+            return content, tokens_used, input_tokens, "gpt-4o-mini", "openai"
+        except Exception as e:
+            logger.error(f"LLM call failed (no provider available): {e}")
+            raise
+
+    def _get_rag_context(self) -> str:
+        """Fetch RAG context for data migration best practices."""
+        if not RAG_AVAILABLE:
+            return ""
+        try:
+            return get_salesforce_context(
+                "Salesforce data migration data loader ETL",
+                n_results=3,
+                agent_type="data_migration",
+            )
+        except Exception as e:
+            logger.warning(f"RAG context retrieval failed: {e}")
+            return ""
+
+    def _log_interaction(
+        self,
+        mode: str,
+        prompt: str,
+        content: str,
+        execution_id: int,
+        input_tokens: int = 0,
+        tokens_used: int = 0,
+        model_used: str = "",
+        provider_used: str = "",
+        execution_time: float = 0.0,
+        rag_context: str = "",
+        task_id: Optional[str] = None,
+        previous_feedback: Optional[str] = None,
+        parsed_files: Optional[Dict] = None,
+        success: bool = True,
+    ) -> None:
+        """Log LLM interaction for debugging (INFRA-002)."""
+        if not LLM_LOGGER_AVAILABLE:
+            return
         try:
             log_llm_interaction(
                 agent_id="aisha",
@@ -341,49 +568,54 @@ FIX THESE ISSUES.
                 response=content,
                 execution_id=execution_id,
                 task_id=task_id,
-                agent_mode="build",
+                agent_mode=mode,
                 rag_context=rag_context if rag_context else None,
                 previous_feedback=previous_feedback if previous_feedback else None,
-                parsed_files={"files": list(files.keys()), "count": len(files)},
+                parsed_files=parsed_files,
+                tokens_input=input_tokens,
                 tokens_output=tokens_used,
                 model=model_used,
-                provider="anthropic" if "claude" in model_used else "openai",
-                execution_time_seconds=execution_time,
-                success=len(files) > 0,
-                error_message=None if len(files) > 0 else "No files parsed"
+                provider=provider_used,
+                execution_time_seconds=round(execution_time, 2),
+                success=success,
+                error_message=None if success else "No files parsed",
             )
-            print(f"📝 [Aisha BUILD] LLM interaction logged", file=sys.stderr)
         except Exception as e:
-            print(f"⚠️ [Aisha BUILD] Failed to log: {e}", file=sys.stderr)
+            logger.warning(f"Failed to log LLM interaction: {e}")
 
-    return {
-        "agent_id": "aisha", "agent_name": "Aisha (Data Migration)", "mode": "build",
-        "task_id": task_id, "execution_id": str(execution_id),
-        "deliverable_type": "migration_artifacts", "success": len(files) > 0,
-        "content": {"raw_response": content, "files": files, "file_count": len(files)},
-        "metadata": {"tokens_used": tokens_used, "execution_time_seconds": round(time.time() - start_time, 2)}
-    }
-
-
-def _parse_files(content: str) -> dict:
-    import re
-    files = {}
-    patterns = [
-        r'```(?:csv)\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
-        r'```(?:xml)\s*\n<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)```',
-        r'```(?:sql)\s*\n--\s*FILE:\s*(\S+)\s*\n(.*?)```',
-        r'```(?:apex)\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
-        r'```\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
-    ]
-    for pattern in patterns:
-        matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
-        for filepath, code in matches:
-            if filepath.strip() and code.strip():
-                files[filepath.strip()] = code.strip()
-    return files
+    @staticmethod
+    def _parse_files(content: str) -> Dict[str, str]:
+        """Parse migration artifact files from LLM response."""
+        files = {}
+        patterns = [
+            r'```(?:csv)\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
+            r'```(?:xml)\s*\n<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)```',
+            r'```(?:sql)\s*\n--\s*FILE:\s*(\S+)\s*\n(.*?)```',
+            r'```(?:apex)\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
+            r'```\s*\n//\s*FILE:\s*(\S+)\s*\n(.*?)```',
+        ]
+        for pattern in patterns:
+            matches = re.findall(pattern, content, re.DOTALL | re.IGNORECASE)
+            for filepath, code in matches:
+                if filepath.strip() and code.strip():
+                    files[filepath.strip()] = code.strip()
+        return files
 
 
-def main():
+# ============================================================================
+# CLI MODE - Backward compatible subprocess entry point
+# ============================================================================
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Add backend root to sys.path for CLI mode
+    _backend_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_root not in sys.path:
+        sys.path.insert(0, _backend_root)
+
     parser = argparse.ArgumentParser(description='Aisha - Data Migration (Dual Mode)')
     parser.add_argument('--mode', required=True, choices=['spec', 'build'])
     parser.add_argument('--input', required=True)
@@ -392,44 +624,26 @@ def main():
     parser.add_argument('--project-id', default='unknown')
     parser.add_argument('--use-rag', action='store_true', default=True)
     args = parser.parse_args()
-    
+
     try:
         with open(args.input, 'r', encoding='utf-8') as f:
             input_content = f.read()
-        
-        rag_context = ""
-        if args.use_rag and RAG_AVAILABLE:
-            try:
-                rag_context = get_salesforce_context("Salesforce data migration data loader ETL", n_results=3, agent_type="data_migration")
-            except: pass
-        
-        if args.mode == 'spec':
-            result = generate_spec(input_content, args.project_id, args.execution_id, rag_context)
-        else:
-            try:
-                input_data = json.loads(input_content)
-            except:
-                input_data = {"task": {"name": "Task", "description": input_content}}
-            result = generate_build(
-                input_data.get('task', input_data),
-                input_data.get('architecture_context', ''),
-                args.execution_id, 
-                rag_context,
-                input_data.get('previous_feedback', ''),
-                input_data.get('solution_design'),
-                input_data.get('gap_context', '')
-            )
-        
+
+        agent = DataMigrationAgent()
+        result = agent.run({
+            "mode": args.mode,
+            "input_content": input_content,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+        })
+
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
         print(json.dumps({"success": result.get("success", True), "mode": args.mode}))
-        
+
     except Exception as e:
+        error_result = {"agent_id": "aisha", "success": False, "error": str(e)}
         with open(args.output, 'w') as f:
-            json.dump({"agent_id": "aisha", "success": False, "error": str(e)}, f)
+            json.dump(error_result, f)
         print(json.dumps({"success": False, "error": str(e)}))
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
