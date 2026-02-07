@@ -67,6 +67,13 @@ except ImportError:
     _DEVOPS_AGENT_AVAILABLE = False
     logger.warning("DevOpsAgent not available for direct import, will use subprocess fallback")
 
+try:
+    from agents.roles.salesforce_business_analyst import BusinessAnalystAgent
+    _BA_AGENT_AVAILABLE = True
+except ImportError:
+    _BA_AGENT_AVAILABLE = False
+    logger.warning("BusinessAnalystAgent not available for direct import, will use subprocess fallback")
+
 # Registry mapping agent_id -> class for migrated agents
 # Agents not in this dict fall back to subprocess execution
 MIGRATED_AGENTS: Dict[str, type] = {}
@@ -78,6 +85,9 @@ if _TRAINER_AGENT_AVAILABLE:
 if _DEVOPS_AGENT_AVAILABLE:
     MIGRATED_AGENTS["jordan"] = DevOpsAgent
     MIGRATED_AGENTS["devops"] = DevOpsAgent
+if _BA_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["olivia"] = BusinessAnalystAgent
+    MIGRATED_AGENTS["ba"] = BusinessAnalystAgent
 
 # Default modes when called from agent tester (execute_agent flow).
 # Each agent's most common/default mode for testing.
@@ -87,6 +97,8 @@ AGENT_DEFAULT_MODES: Dict[str, str] = {
     "trainer": "sds_strategy",
     "jordan": "spec",
     "devops": "spec",
+    "olivia": "generate_uc",
+    "ba": "generate_uc",
 }
 
 
