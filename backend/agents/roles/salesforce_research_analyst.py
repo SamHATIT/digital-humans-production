@@ -1046,7 +1046,7 @@ if __name__ == "__main__":
 
     try:
         # Read input
-        print(f"Reading input from {args.input}...", file=sys.stderr)
+        logger.info("Reading input from %s...", args.input)
         with open(args.input, 'r', encoding='utf-8') as f:
             input_content = f.read()
 
@@ -1065,13 +1065,11 @@ if __name__ == "__main__":
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
 
-        print(f"SUCCESS: Output saved to {args.output}", file=sys.stderr)
+        logger.info("SUCCESS: Output saved to %s", args.output)
         print(json.dumps(result, indent=2, ensure_ascii=False))
 
         sys.exit(0)
 
     except Exception as e:
-        print(f"ERROR: {str(e)}", file=sys.stderr)
-        import traceback
-        traceback.print_exc(file=sys.stderr)
+        logger.error("ERROR: %s", str(e), exc_info=True)
         sys.exit(1)

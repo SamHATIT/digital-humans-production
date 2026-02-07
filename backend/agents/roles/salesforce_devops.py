@@ -497,10 +497,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        print(f"Reading input from {args.input}...", file=sys.stderr)
+        logger.info("Reading input from %s...", args.input)
         with open(args.input, 'r', encoding='utf-8') as f:
             input_content = f.read()
-        print(f"Read {len(input_content)} characters", file=sys.stderr)
+        logger.info("Read %d characters", len(input_content))
 
         agent = DevOpsAgent()
         result = agent.run({
@@ -518,7 +518,7 @@ if __name__ == "__main__":
         print(json.dumps({"success": result.get("success", True), "mode": args.mode}))
 
         if not result.get("success"):
-            print(f"ERROR: {result.get('error')}", file=sys.stderr)
+            logger.error("ERROR: %s", result.get('error'))
             sys.exit(1)
 
     except Exception as e:

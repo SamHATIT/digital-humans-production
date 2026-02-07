@@ -792,7 +792,7 @@ class AgentExecutor:
                         f.write(meta)
                 
             except Exception as e:
-                print(f"Error saving {filename}: {e}", file=sys.stderr)
+                logger.error("Error saving %s: %s", filename, e)
         
         return saved
     
