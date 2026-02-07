@@ -1,0 +1,1 @@
+Utilise l'agent modernizer pour traiter P4 (fat controller → services) et P7 (transactions atomiques). Branches: refactor/P4-split-fat-controller et fix/P7-atomic-transactions. Peut tourner en parallèle avec le refactorer après P0.

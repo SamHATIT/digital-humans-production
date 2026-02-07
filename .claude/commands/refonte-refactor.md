@@ -1,0 +1,1 @@
+Utilise l'agent refactorer pour traiter P3 (subprocess→import) en commençant par salesforce_trainer.py (agent pilote). Branche par agent: refactor/P3-import-{agent_name}. Lire les docs de référence dans .claude/skills/digital-humans-context/ avant de commencer. Le stabilizer doit avoir terminé P0 et P2 avant de commencer.

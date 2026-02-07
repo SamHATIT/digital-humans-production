@@ -1,0 +1,1 @@
+Utilise l'agent stabilizer pour traiter P0 (async→def), P1 (dead code/split brain), P2 (paths hardcodés). Branche: fix/sprint0-stabilization. Lire les docs de référence dans .claude/skills/digital-humans-context/ avant de commencer.

@@ -1,0 +1,1 @@
+Utilise l'agent integrator pour la validation finale post-refonte. Smoke tests complets, vérification contrats d'interface, résolution conflits inter-modules, tests de non-régression, rapport final + tag git.
