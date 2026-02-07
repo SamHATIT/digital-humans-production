@@ -88,6 +88,13 @@ except ImportError:
     _QA_AGENT_AVAILABLE = False
     logger.warning("QATesterAgent not available for direct import, will use subprocess fallback")
 
+try:
+    from agents.roles.salesforce_developer_lwc import LWCDeveloperAgent
+    _LWC_AGENT_AVAILABLE = True
+except ImportError:
+    _LWC_AGENT_AVAILABLE = False
+    logger.warning("LWCDeveloperAgent not available for direct import, will use subprocess fallback")
+
 # Registry mapping agent_id -> class for migrated agents
 # Agents not in this dict fall back to subprocess execution
 MIGRATED_AGENTS: Dict[str, type] = {}
@@ -108,6 +115,9 @@ if _DATA_AGENT_AVAILABLE:
 if _QA_AGENT_AVAILABLE:
     MIGRATED_AGENTS["elena"] = QATesterAgent
     MIGRATED_AGENTS["qa"] = QATesterAgent
+if _LWC_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["zara"] = LWCDeveloperAgent
+    MIGRATED_AGENTS["lwc"] = LWCDeveloperAgent
 
 # Default modes when called from agent tester (execute_agent flow).
 # Each agent's most common/default mode for testing.
@@ -123,6 +133,8 @@ AGENT_DEFAULT_MODES: Dict[str, str] = {
     "data": "sds_strategy",
     "elena": "sds_strategy",
     "qa": "sds_strategy",
+    "zara": "spec",
+    "lwc": "spec",
 }
 
 
