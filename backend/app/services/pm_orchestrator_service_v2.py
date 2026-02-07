@@ -898,10 +898,13 @@ class PMOrchestratorServiceV2:
             execution.completed_at = datetime.now(timezone.utc)
             execution.total_tokens_used = results["metrics"]["total_tokens"]
             
-            # Create SDS version and update project status
+            # P7: Atomic finalization — status + SDS version + project update in one commit
             self._create_sds_version(project, execution, results.get("sds_path"))
-            
-            self.db.commit()
+            try:
+                self.db.commit()
+            except Exception:
+                self.db.rollback()
+                raise
             
             logger.info(f"[Complete] Execution {execution_id} finished")
             logger.info(f"[Metrics] Total tokens: {results['metrics']['total_tokens']}")
@@ -946,20 +949,26 @@ class PMOrchestratorServiceV2:
                 error_message=str(e)
             )
             
-            execution.status = ExecutionStatus.FAILED
-            # error_message not in model, using logs instead
-            if execution.logs:
-                import json as json_module
-                try:
-                    log_list = json_module.loads(execution.logs)
-                except:
+            # P7: Error state commit — must not fail silently or leave dirty session
+            try:
+                execution.status = ExecutionStatus.FAILED
+                # error_message not in model, using logs instead
+                if execution.logs:
+                    import json as json_module
+                    try:
+                        log_list = json_module.loads(execution.logs)
+                    except Exception:
+                        log_list = []
+                else:
                     log_list = []
-            else:
-                log_list = []
-            log_list.append({"type": "error", "message": str(e), "timestamp": datetime.now(timezone.utc).isoformat()})
-            execution.logs = json_module.dumps(log_list)
-            execution.completed_at = datetime.now(timezone.utc)
-            self.db.commit()
+                    import json as json_module
+                log_list.append({"type": "error", "message": str(e), "timestamp": datetime.now(timezone.utc).isoformat()})
+                execution.logs = json_module.dumps(log_list)
+                execution.completed_at = datetime.now(timezone.utc)
+                self.db.commit()
+            except Exception as commit_err:
+                logger.error(f"Failed to commit FAILED status: {commit_err}")
+                self.db.rollback()
             
             return {
                 "success": False,
@@ -1289,8 +1298,13 @@ class PMOrchestratorServiceV2:
         
         # CRITICAL: Mark JSON column as modified for SQLAlchemy to detect changes
         flag_modified(execution, "agent_execution_status")
-        self.db.commit()
-        
+        # P7: Protect progress commit — rollback on failure to keep session usable
+        try:
+            self.db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to commit progress update for {agent_id}: {e}")
+            self.db.rollback()
+
         # PERF-001: Send real-time notification (fire-and-forget)
         self._send_progress_notification(execution.id, agent_id, state, progress, message)
     
