@@ -534,7 +534,10 @@ class AgentExecutor:
             yield self.log(LogLevel.LLM, f"🤖 Exécution du script {config['script']}...").to_sse()
 
             # === STEP 6: Execute with STREAMING stderr + HEARTBEAT ===
-            # Prepare env with debug log file if available
+            # Prepare env with debug log file if available.
+            # P8: No explicit secret injection here -- subprocess inherits
+            # parent env naturally. API keys are accessed by llm_service
+            # which agents import directly (P3).
             agent_env = {**os.environ}
             if debug_log_file:
                 agent_env["AGENT_TEST_LOG_FILE"] = str(debug_log_file)
@@ -920,7 +923,9 @@ async def run_agent_task(
         
         logger.info(f"[run_agent_task] Command: {' '.join(cmd)}")
         
-        # Run subprocess with environment variables
+        # Run subprocess with environment variables.
+        # P8: Only PYTHONPATH is explicitly set. API keys are inherited
+        # naturally from the parent process environment (not injected).
         import os as os_module
         env = os_module.environ.copy()
         env["PYTHONPATH"] = str(settings.BACKEND_ROOT)
