@@ -2,19 +2,33 @@
 """
 Salesforce Admin Agent - Raj
 Dual Mode: spec (for SDS) | build (for real metadata/config)
+
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (AdminAgent.run()) or CLI (python salesforce_admin.py --mode ...).
+
+Module-level utility functions (generate_spec, generate_build, generate_build_v2,
+_parse_xml_files, _parse_build_v2_response) and prompts (BUILD_V2_PHASE1_PROMPT,
+BUILD_V2_PHASE4_PROMPT, BUILD_V2_PHASE5_PROMPT) are preserved for direct import
+by phased_build_executor.py and tests.
 """
-import os, sys, argparse, json, time
-from pathlib import Path
+
+import re
+import json
+import time
+import logging
 from datetime import datetime
+from typing import Dict, Any, Optional
 
-sys.path.insert(0, "/app")
+logger = logging.getLogger(__name__)
 
+# LLM imports
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
 
+# RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
     RAG_AVAILABLE = True
@@ -25,10 +39,8 @@ except ImportError:
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 [Raj] LLM Logger loaded", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ [Raj] LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
 
@@ -80,7 +92,7 @@ You are Raj, generating REAL, DEPLOYABLE Salesforce metadata XML for API version
 ### RULE 2: FORBIDDEN PROPERTIES (API 59.0)
 These properties will cause deployment failure - NEVER use them:
 - enableChangeDataCapture
-- enableEnhancedLookup  
+- enableEnhancedLookup
 - enableHistory
 - enableBulkApi
 - enableReports
@@ -221,28 +233,32 @@ Before generating, ensure:
 
 
 def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
+    """Generate admin specifications for SDS document."""
     prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
-    if correction_context:
-        prompt += correction_context
-    
+
     if rag_context:
         prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
-    
-    print(f"⚙️ Raj SPEC mode...", file=sys.stderr)
+
+    logger.info("Raj SPEC mode...")
     start_time = time.time()
-    
+
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
                                          model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.3)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
+        input_tokens = response.get('input_tokens', 0)
+        model_used = response.get('model', 'claude-sonnet-4-20250514')
     else:
         from openai import OpenAI
         client = OpenAI()
         resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
-    
+        input_tokens = resp.usage.prompt_tokens
+        model_used = "gpt-4o-mini"
+
+    execution_time = round(time.time() - start_time, 2)
 
     # Log LLM interaction
     if LLM_LOGGER_AVAILABLE:
@@ -255,29 +271,32 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
                 task_id=None,
                 agent_mode="spec",
                 rag_context=rag_context if rag_context else None,
+                tokens_input=input_tokens,
                 tokens_output=tokens_used,
-                model=model_used if 'model_used' in dir() else "unknown",
+                model=model_used,
                 provider="anthropic" if LLM_SERVICE_AVAILABLE else "openai",
-                execution_time_seconds=round(time.time() - start_time, 2),
+                execution_time_seconds=execution_time,
                 success=True
             )
-            print(f"📝 [Raj SPEC] LLM interaction logged", file=sys.stderr)
+            logger.info("[Raj SPEC] LLM interaction logged")
         except Exception as e:
-            print(f"⚠️ [Raj SPEC] Failed to log: {e}", file=sys.stderr)
+            logger.warning(f"[Raj SPEC] Failed to log: {e}")
 
     return {
         "agent_id": "raj", "agent_name": "Raj (Salesforce Admin)", "mode": "spec",
         "execution_id": str(execution_id), "deliverable_type": "admin_specification",
         "content": {"raw_markdown": content},
-        "metadata": {"tokens_used": tokens_used, "execution_time_seconds": round(time.time() - start_time, 2)}
+        "metadata": {"tokens_used": tokens_used, "model": model_used,
+                     "execution_time_seconds": execution_time}
     }
 
 
 def generate_build(task: dict, architecture_context: str, execution_id: str, rag_context: str = "", previous_feedback: str = "", solution_design: dict = None, gap_context: str = "") -> dict:
+    """Generate real, deployable Salesforce metadata for a WBS task."""
     task_id = task.get('task_id', 'UNKNOWN')
     task_name = task.get('name', task.get('title', 'Unnamed Task'))
     task_description = task.get('description', '')
-    
+
     correction_context = ""
     if previous_feedback:
         correction_context = f"""
@@ -287,18 +306,18 @@ Elena (QA) found issues:
 
 FIX THESE ISSUES.
 """
-    
-    prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name, 
+
+    prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name,
                                   task_description=task_description,
                                   architecture_context=architecture_context[:10000])
-    
+
     # CRITICAL: Add Elena's feedback if this is a retry
     if correction_context:
         prompt += correction_context
-        
+
     if rag_context:
         prompt += f"\n\n## ADMIN BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
-    
+
     # BUG-044/046: Include Solution Design from Marcus
     if solution_design:
         sd_text = ""
@@ -310,19 +329,20 @@ FIX THESE ISSUES.
             sd_text += f"### Integrations\n{solution_design['integrations']}\n\n"
         if sd_text:
             prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
-    
+
     # BUG-045: Include GAP context
     if gap_context:
         prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
-    
-    print(f"⚙️ Raj BUILD mode - generating metadata for {task_id}...", file=sys.stderr)
+
+    logger.info(f"Raj BUILD mode - generating metadata for {task_id}...")
     start_time = time.time()
-    
+
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
                                          model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
+        input_tokens = response.get('input_tokens', 0)
         model_used = "claude-sonnet-4-20250514"
     else:
         from openai import OpenAI
@@ -330,12 +350,13 @@ FIX THESE ISSUES.
         resp = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}], max_tokens=16000)
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
+        input_tokens = resp.usage.prompt_tokens
         model_used = "gpt-4o-mini"
-    
+
     execution_time = round(time.time() - start_time, 2)
     files = _parse_xml_files(content)
-    print(f"✅ Generated {len(files)} file(s)", file=sys.stderr)
-    
+    logger.info(f"Generated {len(files)} file(s)")
+
     # Log LLM interaction
     if LLM_LOGGER_AVAILABLE:
         try:
@@ -349,6 +370,7 @@ FIX THESE ISSUES.
                 rag_context=rag_context if rag_context else None,
                 previous_feedback=previous_feedback if previous_feedback else None,
                 parsed_files={"files": list(files.keys()), "count": len(files)},
+                tokens_input=input_tokens,
                 tokens_output=tokens_used,
                 model=model_used,
                 provider="anthropic" if "claude" in model_used else "openai",
@@ -356,9 +378,9 @@ FIX THESE ISSUES.
                 success=len(files) > 0,
                 error_message=None if len(files) > 0 else "No files parsed"
             )
-            print(f"📝 [Raj BUILD] LLM interaction logged", file=sys.stderr)
+            logger.info("[Raj BUILD] LLM interaction logged")
         except Exception as e:
-            print(f"⚠️ [Raj BUILD] Failed to log: {e}", file=sys.stderr)
+            logger.warning(f"[Raj BUILD] Failed to log: {e}")
 
     return {
         "agent_id": "raj", "agent_name": "Raj (Salesforce Admin)", "mode": "build",
@@ -374,16 +396,15 @@ def _parse_xml_files(content: str) -> dict:
     1. With backticks: ```xml <!-- FILE: path --> code ```
     2. Without backticks: <!-- FILE: path --> code
     """
-    import re
     files = {}
-    
+
     # Pattern 1: With ```xml blocks
     pattern1 = r'```(?:xml)?\s*\n<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)```'
     matches = re.findall(pattern1, content, re.DOTALL | re.IGNORECASE)
     for filepath, code in matches:
         if filepath.strip() and code.strip():
             files[filepath.strip()] = code.strip()
-    
+
     # Pattern 2: Without backticks - match <!-- FILE: path --> followed by content until next FILE or end
     if not files:
         pattern2 = r'<!--\s*FILE:\s*(\S+)\s*-->\s*\n(.*?)(?=<!--\s*FILE:|$)'
@@ -393,61 +414,8 @@ def _parse_xml_files(content: str) -> dict:
                 # Remove trailing backticks or whitespace
                 cleaned = re.sub(r'\s*```\s*$', '', code.strip())
                 files[filepath.strip()] = cleaned
-    
+
     return files
-
-
-
-def main():
-    parser = argparse.ArgumentParser(description='Raj - Salesforce Admin (Dual Mode)')
-    parser.add_argument('--mode', required=True, choices=['spec', 'build'])
-    parser.add_argument('--input', required=True)
-    parser.add_argument('--output', required=True)
-    parser.add_argument('--execution-id', default='0')
-    parser.add_argument('--project-id', default='unknown')
-    parser.add_argument('--use-rag', action='store_true', default=True)
-    args = parser.parse_args()
-    
-    try:
-        with open(args.input, 'r', encoding='utf-8') as f:
-            input_content = f.read()
-        
-        rag_context = ""
-        if args.use_rag and RAG_AVAILABLE:
-            try:
-                rag_context = get_salesforce_context("Salesforce admin object relationships Master-Detail Lookup Rollup Summary field validation rules standard objects Case Account Contact", n_results=5, agent_type="admin")
-            except: pass
-        
-        if args.mode == 'spec':
-            result = generate_spec(input_content, args.project_id, args.execution_id, rag_context)
-        else:
-            try:
-                input_data = json.loads(input_content)
-            except:
-                input_data = {"task": {"name": "Task", "description": input_content}}
-            result = generate_build(
-                input_data.get('task', input_data), 
-                input_data.get('architecture_context', ''), 
-                args.execution_id, 
-                rag_context,
-                input_data.get('previous_feedback', ''),
-                input_data.get('solution_design'),
-                input_data.get('gap_context', '')
-            )
-        
-        with open(args.output, 'w', encoding='utf-8') as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-        print(json.dumps({"success": result.get("success", True), "mode": args.mode}))
-        
-    except Exception as e:
-        with open(args.output, 'w') as f:
-            json.dump({"agent_id": "raj", "success": False, "error": str(e)}, f)
-        print(json.dumps({"success": False, "error": str(e)}))
-        sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -734,7 +702,7 @@ def generate_build_v2(
 ) -> dict:
     """
     Generate BUILD v2 output (JSON plan for Tooling API).
-    
+
     Args:
         phase: 1 (data_model), 4 (automation), or 5 (security)
         target: Target object/component name
@@ -742,12 +710,10 @@ def generate_build_v2(
         context: Dict with existing_context, data_model_context, apex_context, etc.
         execution_id: Execution ID for logging
         rag_context: RAG context if available
-    
+
     Returns:
         Dict with JSON plan or files
     """
-    import time
-    
     if phase == 1:
         prompt = BUILD_V2_PHASE1_PROMPT.replace(
             "{target_object}", target
@@ -780,13 +746,13 @@ def generate_build_v2(
         )
     else:
         return {"success": False, "error": f"Invalid phase for Raj: {phase}"}
-    
+
     if rag_context:
         prompt += f"\n\n## SALESFORCE BEST PRACTICES\n{rag_context[:2000]}\n"
-    
-    print(f"⚙️ Raj BUILD v2 Phase {phase} - {target}...", file=sys.stderr)
+
+    logger.info(f"Raj BUILD v2 Phase {phase} - {target}...")
     start_time = time.time()
-    
+
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
@@ -807,12 +773,12 @@ def generate_build_v2(
         )
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
-    
+
     execution_time = round(time.time() - start_time, 2)
-    
+
     # Parse JSON from response
     result = _parse_build_v2_response(content, phase)
-    
+
     # Log interaction
     if LLM_LOGGER_AVAILABLE:
         try:
@@ -830,8 +796,8 @@ def generate_build_v2(
                 success=result.get("success", False)
             )
         except Exception as e:
-            print(f"⚠️ [Raj BUILD v2] Failed to log: {e}", file=sys.stderr)
-    
+            logger.warning(f"[Raj BUILD v2] Failed to log: {e}")
+
     result["agent_id"] = "raj"
     result["agent_name"] = "Raj (Salesforce Admin)"
     result["mode"] = f"build_v2_phase{phase}"
@@ -841,20 +807,18 @@ def generate_build_v2(
         "tokens_used": tokens_used,
         "execution_time_seconds": execution_time
     }
-    
+
     return result
 
 
 def _parse_build_v2_response(content: str, phase: int) -> dict:
     """Parse BUILD v2 response - extract JSON and/or XML files."""
-    import re
-    
     result = {
         "success": False,
         "operations": [],
         "files": {}
     }
-    
+
     # Try to extract JSON block
     json_match = re.search(r'```json\s*\n(.*?)\n```', content, re.DOTALL)
     if json_match:
@@ -866,14 +830,14 @@ def _parse_build_v2_response(content: str, phase: int) -> dict:
             result["target_object"] = json_data.get("target_object", "")
             result["success"] = len(result["operations"]) > 0
         except json.JSONDecodeError as e:
-            print(f"⚠️ [Raj] JSON parse error: {e}", file=sys.stderr)
-    
+            logger.warning(f"[Raj] JSON parse error: {e}")
+
     # Also extract any XML files (for flows, layouts)
     xml_files = _parse_xml_files(content)
     if xml_files:
         result["files"] = xml_files
         result["success"] = True
-    
+
     # If no JSON but we have the raw content, try to parse it directly
     if not result["operations"] and not result["files"]:
         try:
@@ -881,7 +845,228 @@ def _parse_build_v2_response(content: str, phase: int) -> dict:
             json_data = json.loads(content.strip())
             result["operations"] = json_data.get("operations", [])
             result["success"] = len(result["operations"]) > 0
-        except:
+        except (json.JSONDecodeError, ValueError):
             pass
-    
+
     return result
+
+
+# ============================================================================
+# ADMIN AGENT CLASS -- Importable + CLI compatible
+# ============================================================================
+class AdminAgent:
+    """
+    Raj (Salesforce Admin) Agent - Spec + Build + Build_v2 modes.
+
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - spec: Generate admin configuration specifications for SDS document
+        - build: Generate real Salesforce metadata XML
+        - build_v2: Generate JSON plan for Tooling API (phases 1/4/5)
+
+    Usage (import):
+        agent = AdminAgent()
+        result = agent.run({"mode": "spec", "input_content": "..."})
+
+    Usage (CLI):
+        python salesforce_admin.py --mode spec --input input.json --output output.json
+
+    Note: Module-level functions (generate_spec, generate_build, generate_build_v2,
+    _parse_xml_files) and prompts (BUILD_V2_PHASE1_PROMPT, BUILD_V2_PHASE4_PROMPT,
+    BUILD_V2_PHASE5_PROMPT) are preserved for direct import by
+    phased_build_executor.py and tests.
+    """
+
+    VALID_MODES = ("spec", "build", "build_v2")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: "spec", "build", or "build_v2"
+                - input_content: string content (raw text for spec, JSON string for build)
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+        """
+        mode = task_data.get("mode", "spec")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            if mode == "spec":
+                return self._execute_spec(input_content, execution_id, project_id)
+            elif mode == "build":
+                return self._execute_build(input_content, execution_id, project_id)
+            else:  # build_v2
+                return self._execute_build_v2(input_content, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"AdminAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # SPEC MODE
+    # ------------------------------------------------------------------
+    def _execute_spec(
+        self,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Execute spec mode: generate admin specifications for SDS."""
+        rag_context = self._get_rag_context()
+
+        result = generate_spec(
+            requirements=input_content,
+            project_name=str(project_id),
+            execution_id=str(execution_id),
+            rag_context=rag_context,
+        )
+
+        if "success" not in result:
+            result["success"] = True
+
+        return result
+
+    # ------------------------------------------------------------------
+    # BUILD MODE
+    # ------------------------------------------------------------------
+    def _execute_build(
+        self,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Execute build mode: generate real Salesforce metadata."""
+        try:
+            input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+        except (json.JSONDecodeError, TypeError):
+            input_data = {"task": {"name": "Task", "description": str(input_content)}}
+
+        task = input_data.get("task", input_data)
+        rag_context = self._get_rag_context()
+
+        result = generate_build(
+            task,
+            input_data.get("architecture_context", ""),
+            str(execution_id),
+            rag_context,
+            input_data.get("previous_feedback", ""),
+            input_data.get("solution_design"),
+            input_data.get("gap_context", ""),
+        )
+
+        if "success" not in result:
+            result["success"] = result.get("content", {}).get("file_count", 0) > 0
+
+        return result
+
+    # ------------------------------------------------------------------
+    # BUILD V2 MODE
+    # ------------------------------------------------------------------
+    def _execute_build_v2(
+        self,
+        input_content: str,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Execute build_v2 mode: generate JSON plan for Tooling API."""
+        try:
+            input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+        except (json.JSONDecodeError, TypeError):
+            return {"success": False, "error": "build_v2 requires JSON input with phase, target, task_description, context"}
+
+        phase = input_data.get("phase", 1)
+        target = input_data.get("target", "")
+        task_description = input_data.get("task_description", "")
+        context = input_data.get("context", {})
+        rag_context = self._get_rag_context()
+
+        return generate_build_v2(
+            phase=phase,
+            target=target,
+            task_description=task_description,
+            context=context,
+            execution_id=str(execution_id),
+            rag_context=rag_context,
+        )
+
+    # ------------------------------------------------------------------
+    # RAG helper
+    # ------------------------------------------------------------------
+    def _get_rag_context(self) -> str:
+        """Fetch RAG context for Salesforce admin best practices."""
+        if not RAG_AVAILABLE:
+            return ""
+        try:
+            return get_salesforce_context(
+                "Salesforce admin object relationships Master-Detail Lookup Rollup Summary field validation rules standard objects Case Account Contact",
+                n_results=5,
+                agent_type="admin",
+            )
+        except Exception as e:
+            logger.warning(f"RAG context retrieval failed: {e}")
+            return ""
+
+
+# ============================================================================
+# CLI MODE - Backward compatible subprocess entry point
+# ============================================================================
+
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Add backend root to sys.path for CLI mode
+    _backend_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_root not in sys.path:
+        sys.path.insert(0, _backend_root)
+
+    parser = argparse.ArgumentParser(description='Raj - Salesforce Admin (Dual Mode)')
+    parser.add_argument('--mode', required=True, choices=['spec', 'build'])
+    parser.add_argument('--input', required=True)
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--execution-id', default='0')
+    parser.add_argument('--project-id', default='unknown')
+    parser.add_argument('--use-rag', action='store_true', default=True)
+    args = parser.parse_args()
+
+    try:
+        with open(args.input, 'r', encoding='utf-8') as f:
+            input_content = f.read()
+
+        agent = AdminAgent()
+        task_data = {
+            "mode": args.mode,
+            "input_content": input_content,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+        }
+        result = agent.run(task_data)
+
+        with open(args.output, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        print(json.dumps({"success": result.get("success", True), "mode": args.mode}))
+
+    except Exception as e:
+        with open(args.output, 'w') as f:
+            json.dump({"agent_id": "raj", "success": False, "error": str(e)}, f)
+        print(json.dumps({"success": False, "error": str(e)}))
+        sys.exit(1)
