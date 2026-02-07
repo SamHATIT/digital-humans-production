@@ -95,6 +95,34 @@ except ImportError:
     _LWC_AGENT_AVAILABLE = False
     logger.warning("LWCDeveloperAgent not available for direct import, will use subprocess fallback")
 
+try:
+    from agents.roles.salesforce_developer_apex import ApexDeveloperAgent
+    _APEX_AGENT_AVAILABLE = True
+except ImportError:
+    _APEX_AGENT_AVAILABLE = False
+    logger.warning("ApexDeveloperAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_admin import AdminAgent
+    _ADMIN_AGENT_AVAILABLE = True
+except ImportError:
+    _ADMIN_AGENT_AVAILABLE = False
+    logger.warning("AdminAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_solution_architect import SolutionArchitectAgent
+    _ARCHITECT_AGENT_AVAILABLE = True
+except ImportError:
+    _ARCHITECT_AGENT_AVAILABLE = False
+    logger.warning("SolutionArchitectAgent not available for direct import, will use subprocess fallback")
+
+try:
+    from agents.roles.salesforce_research_analyst import ResearchAnalystAgent
+    _RESEARCH_AGENT_AVAILABLE = True
+except ImportError:
+    _RESEARCH_AGENT_AVAILABLE = False
+    logger.warning("ResearchAnalystAgent not available for direct import, will use subprocess fallback")
+
 # Registry mapping agent_id -> class for migrated agents
 # Agents not in this dict fall back to subprocess execution
 MIGRATED_AGENTS: Dict[str, type] = {}
@@ -118,6 +146,18 @@ if _QA_AGENT_AVAILABLE:
 if _LWC_AGENT_AVAILABLE:
     MIGRATED_AGENTS["zara"] = LWCDeveloperAgent
     MIGRATED_AGENTS["lwc"] = LWCDeveloperAgent
+if _APEX_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["diego"] = ApexDeveloperAgent
+    MIGRATED_AGENTS["apex"] = ApexDeveloperAgent
+if _ADMIN_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["raj"] = AdminAgent
+    MIGRATED_AGENTS["admin"] = AdminAgent
+if _ARCHITECT_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["marcus"] = SolutionArchitectAgent
+    MIGRATED_AGENTS["architect"] = SolutionArchitectAgent
+if _RESEARCH_AGENT_AVAILABLE:
+    MIGRATED_AGENTS["emma"] = ResearchAnalystAgent
+    MIGRATED_AGENTS["research_analyst"] = ResearchAnalystAgent
 
 # Default modes when called from agent tester (execute_agent flow).
 # Each agent's most common/default mode for testing.
@@ -135,6 +175,14 @@ AGENT_DEFAULT_MODES: Dict[str, str] = {
     "qa": "sds_strategy",
     "zara": "spec",
     "lwc": "spec",
+    "diego": "spec",
+    "apex": "spec",
+    "raj": "spec",
+    "admin": "spec",
+    "marcus": "design",
+    "architect": "design",
+    "emma": "analyze",
+    "research_analyst": "analyze",
 }
 
 
