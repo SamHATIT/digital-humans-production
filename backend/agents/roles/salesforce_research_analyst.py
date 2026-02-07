@@ -1,48 +1,51 @@
 #!/usr/bin/env python3
 """
-Salesforce Research Analyst (Emma) Agent
-Based on MetaGPT Researcher pattern - Adapted for UC Analysis, Validation, and SDS Writing
+Salesforce Research Analyst Agent - Emma
+3 distinct modes:
+1. analyze (Phase 2.5): UCs -> UC Digest (for Marcus)
+2. validate (Phase 3.3): Solution Design + UCs -> Coverage Analysis (for Marcus revision)
+3. write_sds (Phase 5): All deliverables -> Final SDS Document
 
-Three modes:
-- analyze: Cluster and digest all Use Cases for Marcus
-- validate: Check 100% coverage of UCs by Solution Design  
-- write_sds: Generate professional SDS document
+P3 Refactoring: Transformed from subprocess-only script to importable class.
+Can be used via direct import (ResearchAnalystAgent.run()) or CLI.
 
-Inspired by: metagpt/roles/researcher.py
+Module-level utility functions (parse_json_response, calculate_coverage_score,
+generate_coverage_report_programmatic) are preserved for direct import by tests.
 """
 
 import os
-import sys
-import json
+import re
 import time
-import argparse
-from pathlib import Path
+import json
+import logging
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from collections import defaultdict
+from typing import Dict, Any, Optional, List
+
+logger = logging.getLogger(__name__)
 
 # LLM imports
-# Path for Docker container
-sys.path.insert(0, "/app")
-# Path for local testing
-sys.path.insert(0, "/root/workspace/digital-humans-production/backend")
 try:
     from app.services.llm_service import generate_llm_response, LLMProvider
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
 
-# LLM Logger for debugging
+# RAG Service
+try:
+    from app.services.rag_service import get_salesforce_context
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+
+# LLM Logger for debugging (INFRA-002)
 try:
     from app.services.llm_logger import log_llm_interaction
     LLM_LOGGER_AVAILABLE = True
-    print(f"📝 LLM Logger loaded for Emma", file=sys.stderr)
-except ImportError as e:
+except ImportError:
     LLM_LOGGER_AVAILABLE = False
-    print(f"⚠️ LLM Logger unavailable: {e}", file=sys.stderr)
     def log_llm_interaction(*args, **kwargs): pass
 
-# JSON Cleaner for robust parsing (added 2025-12-22)
+# JSON Cleaner for robust parsing
 try:
     from app.utils.json_cleaner import clean_llm_json_response
     JSON_CLEANER_AVAILABLE = True
@@ -50,1210 +53,1025 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
-# BUG-057 FIX: Use programmatic coverage calculation instead of LLM
-# Set to False to rollback to LLM-based coverage report
-USE_PROGRAMMATIC_COVERAGE = True
 
+# ============================================================================
+# JSON PARSING UTILITIES
+# ============================================================================
+
+def parse_json_response(content: str) -> dict:
+    """
+    Parse JSON from LLM response using json_cleaner with fallback.
+    Exported for direct import by tests and other services.
+    """
+    if JSON_CLEANER_AVAILABLE:
+        parsed_content, parse_error = clean_llm_json_response(content)
+        if parsed_content is not None:
+            return parsed_content
+        else:
+            logger.warning(f"JSON parse error (cleaner): {parse_error}")
+
+    # Fallback to basic parsing
+    try:
+        clean_content = content.strip()
+        if clean_content.startswith('```'):
+            clean_content = re.sub(r'^```(?:json)?\s*', '', clean_content)
+            clean_content = re.sub(r'```\s*$', '', clean_content)
+        return json.loads(clean_content.strip())
+    except json.JSONDecodeError as e:
+        logger.warning(f"JSON parse error (basic): {e}")
+        return {"raw": content, "parse_error": str(e)}
 
 
 # ============================================================================
-# PROMPTS - MODE ANALYZE (inspired by CollectLinks + ConductResearch)
+# MODE 1: ANALYZE (Phase 2.5) - UC Digest Generation
 # ============================================================================
 
-ANALYZE_SYSTEM = """You are Emma, a Research Analyst specialized in Salesforce project analysis.
-Your goal is to analyze Use Cases and create structured digests for solution architects."""
+ANALYZE_PROMPT = """# UC DIGEST GENERATION
 
-CLUSTER_UCS_PROMPT = """# USE CASE CLUSTERING ANALYSIS
+You are **Emma**, a Research Analyst specializing in Salesforce project analysis.
 
-## INPUT DATA
-Total Use Cases: {uc_count}
-Business Requirements: {br_count}
+## YOUR MISSION
+Analyze ALL the Use Cases and create a structured UC Digest that will help Marcus (Solution Architect) design the best architecture.
 
-### Use Cases (JSON):
-{use_cases_json}
+## USE CASES TO ANALYZE
 
-### Business Requirements (JSON):
-{business_requirements_json}
-
-## YOUR TASK
-Analyze all Use Cases and group them by:
-1. Parent Business Requirement (BR-XXX)
-2. Salesforce Object patterns
-3. Automation type (Flow, Trigger, Batch)
+{use_cases_text}
 
 ## OUTPUT FORMAT (JSON)
+Generate a UC Digest with this EXACT structure:
+
 ```json
 {{
-  "clusters": [
-    {{
-      "cluster_id": "CL-001",
-      "parent_br": "BR-001",
-      "uc_ids": ["UC-001-01", "UC-001-02"],
-      "theme": "Customer Feedback Management",
-      "sf_objects": ["Account", "Feedback__c"],
-      "automation_types": ["Record-Triggered Flow"],
-      "complexity": "medium"
-    }}
-  ],
-  "cross_cutting": {{
-    "shared_objects": ["Account"],
-    "shared_automations": []
-  }},
-  "statistics": {{
-    "total_ucs": {uc_count},
-    "total_clusters": 0,
-    "ucs_per_cluster_avg": 0
-  }}
-}}
-```
-
-## RULES
-1. EVERY UC must belong to exactly ONE cluster
-2. Group by parent_br first, then by object affinity
-3. Identify objects used across multiple clusters as "shared_objects"
-4. Complexity: low (<3 UCs), medium (3-6 UCs), high (>6 UCs)
-
-Output ONLY valid JSON, no markdown fences.
-"""
-
-GENERATE_DIGEST_PROMPT = """# UC DIGEST GENERATION
-
-## CLUSTERS ANALYSIS
-{clusters_json}
-
-## YOUR TASK
-Generate a comprehensive UC Digest that Marcus (Solution Architect) can use to design the solution.
-The digest must capture ALL requirements without exceeding context limits.
-
-## OUTPUT FORMAT (JSON)
-```json
-{{
-  "digest_id": "DIGEST-001",
+  "artifact_id": "UCD-001",
+  "title": "Use Case Digest",
   "generated_at": "{timestamp}",
-  "project_summary": {{
-    "total_brs": 0,
-    "total_ucs": 0,
-    "complexity_score": "medium"
-  }},
+  "total_use_cases_analyzed": {uc_count},
   "by_requirement": {{
     "BR-001": {{
-      "title": "...",
-      "uc_count": 3,
-      "sf_objects": ["Account", "Custom__c"],
+      "title": "Business Requirement title",
+      "uc_count": 5,
+      "sf_objects": ["Account", "Contact", "CustomObj__c"],
       "sf_fields": {{
-        "Account": ["Name", "Industry"],
-        "Custom__c": ["Status__c", "Amount__c"]
+        "Account": ["Name", "Industry", "Custom_Field__c"],
+        "Contact": ["Email", "Phone"]
       }},
       "automations": [
-        {{"type": "Record-Triggered Flow", "purpose": "..."}}
+        {{"type": "Flow", "purpose": "Auto-create contact on account creation"}},
+        {{"type": "Trigger", "purpose": "Validate email format before save"}}
       ],
-      "ui_components": ["LWC AccountFeedback", "Related List"],
-      "actors": ["Sales Rep", "Admin"],
-      "key_acceptance_criteria": ["GIVEN... WHEN... THEN..."]
+      "ui_components": ["accountDashboard", "contactList"],
+      "key_acceptance_criteria": [
+        "User can create a new account with all required fields",
+        "Contact is auto-created with default values"
+      ]
     }}
   }},
   "cross_cutting_concerns": {{
-    "shared_objects": ["Account"],
-    "integrations": [],
-    "security_considerations": [],
-    "data_migration_needs": []
+    "shared_objects": [
+      {{"object": "Account", "usage": "Used in BR-001, BR-002, BR-003"}}
+    ],
+    "integration_points": [
+      {{"name": "ERP Sync", "systems": ["SAP"], "direction": "Bidirectional"}}
+    ],
+    "security_requirements": [
+      "Role-based access to sensitive fields",
+      "Record-level sharing for regional data"
+    ]
   }},
   "recommendations": [
-    "Consider using standard Case object instead of custom Feedback__c",
-    "Consolidate validation rules into single flow"
-  ]
-}}
-```
-
-## RULES
-1. EVERY UC from every cluster MUST be represented
-2. Extract ALL sf_objects and sf_fields from UCs
-3. Deduplicate objects/fields within each BR
-4. Provide actionable recommendations based on patterns
-5. Keep field lists complete but not verbose
-
-Output ONLY valid JSON, no markdown fences.
-"""
-
-
-# ============================================================================
-# PROMPTS - MODE VALIDATE (inspired by WebBrowseAndSummarize pattern)
-# ============================================================================
-
-VALIDATE_SYSTEM = """You are Emma, a QA Research Analyst ensuring 100% coverage of requirements.
-Your goal is to verify every Use Case element is addressed in the Solution Design."""
-
-MAP_ELEMENTS_PROMPT = """# ELEMENT MAPPING: UC → SOLUTION
-
-## USE CASES
-{use_cases_json}
-
-## SOLUTION DESIGN
-{solution_design_json}
-
-## YOUR TASK
-For EACH Use Case, map its elements to the Solution Design components.
-
-## OUTPUT FORMAT (JSON)
-```json
-{{
-  "mappings": [
-    {{
-      "uc_id": "UC-001-01",
-      "uc_title": "Create Feedback Record",
-      "elements": [
-        {{
-          "element_type": "sf_object",
-          "element_value": "Feedback__c",
-          "solution_component": "Custom Object: Feedback__c",
-          "coverage_status": "covered",
-          "notes": ""
-        }},
-        {{
-          "element_type": "sf_field",
-          "element_value": "Feedback__c.Rating__c",
-          "solution_component": "Field: Rating__c (Picklist)",
-          "coverage_status": "covered",
-          "notes": ""
-        }},
-        {{
-          "element_type": "automation",
-          "element_value": "Record-Triggered Flow",
-          "solution_component": "Flow: Feedback_After_Insert",
-          "coverage_status": "covered",
-          "notes": ""
-        }}
-      ]
-    }}
+    "Consider Master-Detail relationship between X and Y",
+    "Use Platform Events for real-time notifications"
   ],
-  "summary": {{
-    "total_elements": 0,
-    "covered": 0,
-    "partial": 0,
-    "missing": 0
+  "data_volume_estimates": {{
+    "Account": "10K-50K records",
+    "Contact": "50K-100K records"
   }}
 }}
 ```
 
-## COVERAGE STATUS VALUES
-- "covered": Element fully addressed in solution
-- "partial": Element partially addressed, needs clarification
-- "missing": Element NOT found in solution design
+## ANALYSIS RULES
+1. Group analysis BY BUSINESS REQUIREMENT (BR)
+2. Extract ALL Salesforce objects mentioned (standard + custom)
+3. Identify ALL fields per object
+4. List ALL automations (Flows, Triggers, Scheduled Jobs)
+5. Extract UI component needs (LWC, Lightning Pages)
+6. Note cross-cutting concerns (shared objects, integrations)
+7. Provide actionable recommendations for Marcus
+8. Estimate data volumes where possible
 
-Output ONLY valid JSON, no markdown fences.
+---
+
+**Analyze ALL Use Cases now. Output ONLY valid JSON.**
 """
 
-COVERAGE_REPORT_PROMPT = """# COVERAGE REPORT GENERATION
 
-## ELEMENT MAPPINGS
-{mappings_json}
+# ============================================================================
+# MODE 2: VALIDATE (Phase 3.3) - Coverage Analysis
+# ============================================================================
 
-## YOUR TASK
-Generate a comprehensive coverage report with score and gaps.
+VALIDATE_PROMPT = """# SOLUTION DESIGN COVERAGE VALIDATION
+
+You are **Emma**, a Research Analyst validating Marcus's Solution Design.
+
+## YOUR MISSION
+Compare the Solution Design against ALL Use Cases to ensure complete coverage.
+Identify gaps, missing elements, and areas needing improvement.
+
+## SOLUTION DESIGN TO VALIDATE
+{solution_design_text}
+
+## USE CASES TO CHECK AGAINST
+{use_cases_text}
+
+## UC DIGEST (Summary)
+{uc_digest_text}
 
 ## OUTPUT FORMAT (JSON)
+
 ```json
 {{
-  "report_id": "COVERAGE-001",
+  "artifact_id": "COV-001",
+  "title": "Coverage Analysis Report",
   "generated_at": "{timestamp}",
-  "coverage_score": 94.5,
-  "status": "NEEDS_REVISION",
-  "summary": {{
-    "total_ucs": 0,
-    "fully_covered_ucs": 0,
-    "partial_ucs": 0,
-    "missing_ucs": 0,
-    "total_elements": 0,
-    "covered_elements": 0
+  "overall_coverage_score": 85,
+  "coverage_by_requirement": {{
+    "BR-001": {{
+      "title": "Requirement title",
+      "coverage_score": 90,
+      "covered_elements": ["Object X created", "Flow Y defined"],
+      "missing_elements": ["Field Z not in data model"],
+      "partial_elements": ["Integration defined but missing error handling"]
+    }}
   }},
-  "gaps": [
+  "coverage_by_category": {{
+    "data_model": {{
+      "score": 90,
+      "covered": ["All custom objects defined"],
+      "gaps": ["Missing picklist values for Status__c"]
+    }},
+    "automation": {{
+      "score": 80,
+      "covered": ["Main flows defined"],
+      "gaps": ["No scheduled job for data cleanup"]
+    }},
+    "security": {{
+      "score": 75,
+      "covered": ["Permission sets defined"],
+      "gaps": ["Missing FLS for sensitive fields"]
+    }},
+    "ui_components": {{
+      "score": 70,
+      "covered": ["Dashboard LWC defined"],
+      "gaps": ["Missing detail view component"]
+    }},
+    "integration": {{
+      "score": 85,
+      "covered": ["REST API defined"],
+      "gaps": ["Missing retry mechanism"]
+    }}
+  }},
+  "critical_gaps": [
     {{
-      "gap_id": "GAP-001",
-      "uc_id": "UC-003-02",
-      "element_type": "automation",
-      "element_value": "Batch job for monthly aggregation",
+      "element_type": "custom_object",
+      "element_value": "Audit_Log__c",
       "severity": "high",
-      "recommendation": "Add Batch Apex class for monthly feedback aggregation"
+      "uc_refs": ["UC-003-01"],
+      "recommendation": "Add Audit_Log__c to data model for compliance tracking"
     }}
   ],
-  "recommendations_for_marcus": [
-    "Add missing Batch Apex for UC-003-02",
-    "Clarify validation rule for Rating__c field"
-  ]
+  "uncovered_use_cases": [
+    {{
+      "id": "UC-005-03",
+      "title": "Bulk data import",
+      "reason": "No data migration strategy defined"
+    }}
+  ],
+  "recommendations": [
+    "Add missing objects to data model",
+    "Define error handling for all integrations"
+  ],
+  "verdict": "NEEDS_REVISION"
 }}
 ```
 
-## STATUS VALUES
-- "APPROVED": coverage_score >= 100
-- "NEEDS_REVISION": coverage_score < 100
+## SCORING RULES
+- 95-100%: APPROVED - No changes needed
+- 80-94%: NEEDS_MINOR_REVISION - Small gaps to address
+- 60-79%: NEEDS_REVISION - Significant gaps found
+- <60%: REJECTED - Major redesign needed
 
-Output ONLY valid JSON, no markdown fences.
+## VALIDATION RULES
+1. Every UC must be traceable to at least one Solution Design element
+2. Every custom object in UCs must exist in the data model
+3. Every automation mentioned in UCs must be designed
+4. Every UI component needed by UCs must be specified
+5. Security model must cover all roles mentioned in UCs
+6. Integration points must match UC requirements
+
+---
+
+**Validate the Solution Design now. Output ONLY valid JSON.**
 """
 
 
 # ============================================================================
-# PROMPTS - MODE WRITE_SDS
+# MODE 3: WRITE_SDS (Phase 5) - Final SDS Document Assembly
 # ============================================================================
 
-WRITE_SDS_SYSTEM = """You are Emma, a Technical Writer specialized in Salesforce Solution Design Specifications.
+WRITE_SDS_PROMPT = """# SDS DOCUMENT GENERATION
 
-## YOUR EXPERTISE
-- Professional technical documentation in French
-- Salesforce terminology and best practices
-- Clear, structured, client-ready documents
-- Transforming technical data into readable prose
+You are **Emma**, a Research Analyst writing the final Solution Design Specification (SDS) document.
 
-## WRITING STYLE
-- Professional but accessible language
-- Active voice preferred
-- Avoid jargon without explanation
-- Use concrete examples where helpful
-- Each section flows naturally to the next
+## YOUR MISSION
+Assemble ALL deliverables from all agents into a cohesive, professional SDS document in Markdown.
 
-## IMPORTANT RULES
-- DO NOT copy-paste JSON - transform data into readable text
-- DO include specific numbers, names, and details from the source data
-- DO reference related sections where appropriate
+## PROJECT INFORMATION
+**Project Name:** {project_name}
+**Generated:** {timestamp}
 
-## CRITICAL: ANTI-HALLUCINATION RULES
-- NEVER invent component names, LWC names, Flow names, or Apex class names not in the source data
-- NEVER fabricate workshops, meetings, or dates not mentioned in the sources
-- NEVER create fictional statistics, percentages, or metrics
-- If data is missing for a section, write: "Information non disponible dans les données sources"
-- If a table would be empty, state: "Aucune donnée disponible pour ce tableau"
-- ONLY use information explicitly present in the provided JSON sources
-- When uncertain, be explicit: "Selon les données fournies..." or "D'après l'analyse..."
+## DELIVERABLES TO ASSEMBLE
+
+### Business Requirements (Sophie - PM)
+{br_content}
+
+### Use Cases (Olivia - BA)
+{uc_content}
+
+### UC Digest (Emma - Research Analyst)
+{uc_digest_content}
+
+### Solution Design (Marcus - Solution Architect)
+{solution_design_content}
+
+### Gap Analysis (Marcus)
+{gap_analysis_content}
+
+### WBS (Marcus)
+{wbs_content}
+
+### QA Test Plan (Elena - QA)
+{qa_content}
+
+### DevOps Plan (Jordan - DevOps)
+{devops_content}
+
+### Training Plan (Lucas - Trainer)
+{training_content}
+
+### Data Migration Plan (Aisha - Data Migration)
+{data_migration_content}
+
+## SDS DOCUMENT STRUCTURE
+
+Generate a complete SDS with these sections:
+
+1. **Executive Summary** - Project overview, scope, objectives
+2. **Business Requirements** - Validated BRs from Sophie
+3. **Use Case Analysis** - Key UCs from Olivia, organized by BR
+4. **Solution Architecture**
+   - 4.1 Data Model (objects, fields, relationships, ERD)
+   - 4.2 Security Model (profiles, permissions, sharing)
+   - 4.3 Automation Design (flows, triggers, scheduled jobs)
+   - 4.4 Integration Architecture (APIs, external systems)
+   - 4.5 UI/UX Design (Lightning pages, LWC components)
+5. **Gap Analysis Summary** - Key gaps and resolution approach
+6. **Implementation Plan** (WBS summary)
+   - 6.1 Phases and Milestones
+   - 6.2 Resource Allocation
+   - 6.3 Critical Path
+7. **Quality Assurance**
+   - 7.1 Test Strategy
+   - 7.2 Test Scenarios
+8. **DevOps & Deployment**
+   - 8.1 Environment Strategy
+   - 8.2 CI/CD Pipeline
+   - 8.3 Release Plan
+9. **Training & Adoption**
+   - 9.1 Training Plan
+   - 9.2 User Documentation
+10. **Data Migration**
+    - 10.1 Data Mapping
+    - 10.2 Migration Strategy
+    - 10.3 Validation Plan
+11. **Risks & Mitigations**
+12. **Appendices**
+    - A. Glossary
+    - B. Reference Documents
+    - C. Change Log
+
+## WRITING RULES
+1. Use professional, clear language
+2. Include specific Salesforce terminology
+3. Reference deliverables by artifact ID (ARCH-001, GAP-001, etc.)
+4. Include tables for structured data
+5. Use Mermaid diagrams where available
+6. Cross-reference between sections
+7. Highlight risks and dependencies
+8. Keep each section concise but complete
+9. Use consistent formatting throughout
+
+---
+
+**Write the complete SDS document now. Output ONLY Markdown.**
 """
 
-WRITE_FULL_SDS_PROMPT = """# GÉNÉRATION DU DOCUMENT SDS
-
-## INFORMATIONS PROJET
-{project_info_json}
-
-## STRUCTURE DU TEMPLATE
-{template_json}
-
-## DONNÉES SOURCE
-
-### Business Requirements (Sophie):
-{business_requirements_json}
-
-### UC Digest (Emma analyze):
-{uc_digest_json}
-
-### Use Cases Complets (pour Annexe A.1):
-{use_cases_json}
-
-### Solution Design (Marcus):
-{solution_design_json}
-
-### Coverage Report (Emma validate):
-{coverage_report_json}
-
-### Work Breakdown Structure (Marcus):
-{wbs_json}
-
-### Spécifications QA (Elena):
-{qa_specs_json}
-
-### Spécifications DevOps (Jordan):
-{devops_specs_json}
-
-### Spécifications Formation (Lucas):
-{training_specs_json}
-
-### Spécifications Data (Aisha):
-{data_specs_json}
-
-## VOTRE TÂCHE
-Générez un document SDS complet et professionnel en français selon la structure du template.
-
-Pour chaque section:
-1. Extrayez les données pertinentes des sources
-2. Transformez en prose fluide et professionnelle
-3. Incluez tableaux et descriptions de diagrammes où approprié
-4. Assurez la traçabilité entre BRs → UCs → Composants Solution
-
-## FORMAT DE SORTIE
-Générez le document SDS complet en **Markdown** avec:
-- Page de titre (nom projet, client, date, version)
-- Table des matières
-- Toutes les sections du template
-- Séparateurs entre sections majeures (---)
-- Hiérarchie de titres (# ## ### ####)
-- Tableaux pour données structurées
-- Diagrammes Mermaid si disponibles (ERD, workflows)
-
-## CHECKLIST QUALITÉ
-☐ Tous les BRs documentés avec descriptions complètes
-☐ Tous les UCs traçables vers BRs
-☐ Composants solution adressent les gaps identifiés
-☐ Tâches WBS liées aux composants solution
-☐ Aucun texte placeholder
-☐ AUCUNE information inventée - uniquement les données sources
-☐ Si données manquantes: "Information non disponible"
-☐ Document fluide de section en section
-
-Générez le document SDS maintenant:
-"""
-
-WRITE_SECTION_PROMPT = """# ÉCRITURE DE SECTION SDS
-
-## SECTION À RÉDIGER
-**Numéro:** {section_id}
-**Titre:** {section_title}
-**Description:** {section_description}
-
-## DONNÉES SOURCE
-{section_data_json}
-
-## FORMAT ATTENDU: {format_type}
-
-## SOUS-SECTIONS À INCLURE
-{subsections_list}
-
-## INSTRUCTIONS
-Rédigez cette section du document SDS en français professionnel:
-- Ton formel mais accessible
-- Terminologie Salesforce précise
-- Transformez les données JSON en prose fluide
-- Incluez des tableaux si pertinent
-- Longueur appropriée au contenu
-
-Rédigez le contenu directement en Markdown:
-"""
-
-# Section-specific guidance for better output
-SECTION_GUIDANCE = {
-    "1": "Résumé exécutif: contexte, périmètre, recommandations clés, estimation effort",
-    "2": "Contexte métier: présentation client, enjeux, parties prenantes, contraintes",
-    "3": "Exigences métier: tableau récapitulatif puis détail par BR avec priorités MoSCoW",
-    "4": "Spécifications fonctionnelles: UCs par BR, acteurs, matrice traçabilité",
-    "5": "Architecture technique: modèle données (ERD), objets, sécurité, automatisations, intégrations",
-    "6": "Plan implémentation: phases, estimation efforts, dépendances, risques",
-    "7": "Stratégie test: approche QA, critères acceptation, plan UAT",
-    "8": "Déploiement: stratégie, environnements, rollback",
-    "9": "Formation: plan formation, documentation, support post-déploiement",
-    "A": "Annexes: UCs détaillés, WBS complet, dictionnaire données, glossaire"
-}
-
-
 
 # ============================================================================
-# HELPER FUNCTIONS
+# COVERAGE CALCULATION UTILITIES
 # ============================================================================
 
-def parse_json_response(content: str) -> Dict:
+def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
     """
-    Clean and parse JSON from LLM response.
-    UPDATED (2025-12-22): Uses json_cleaner for robust parsing.
+    Programmatic coverage calculation (no LLM needed).
+    Exported for direct import by tests and other services.
+
+    Checks:
+    - Object coverage: Are all UC-referenced objects in the data model?
+    - Automation coverage: Are all UC automations designed?
+    - UC traceability: Can every UC be traced to a solution element?
     """
-    # Try the robust cleaner first
-    if JSON_CLEANER_AVAILABLE:
-        parsed, error = clean_llm_json_response(content)
-        if parsed is not None:
-            return parsed
-        # If cleaner fails, fall through to legacy code
-        print(f"⚠️ JSON cleaner failed: {error}, trying legacy parser", file=sys.stderr)
-    
-    # Legacy parsing (fallback)
-    import re as regex
-    clean = content.strip()
-    
-    # Remove markdown code blocks
-    if clean.startswith('```json'):
-        clean = clean[7:]
-    elif clean.startswith('```'):
-        clean = clean[3:]
-    if clean.endswith('```'):
-        clean = clean[:-3]
-    clean = clean.strip()
-    
-    # Find JSON start
-    if not clean.startswith('{') and not clean.startswith('['):
-        start_obj = clean.find('{')
-        if start_obj >= 0:
-            clean = clean[start_obj:]
-    
-    # Remove control characters
-    clean = regex.sub(r'[\x00-\x1f]', ' ', clean)
-    
-    return json.loads(clean)
-
-
-
-def calculate_coverage_score(mappings: Dict) -> float:
-    """Calculate coverage percentage from mappings"""
-    summary = mappings.get("summary", {})
-    total = summary.get("total_elements", 0)
-    covered = summary.get("covered", 0)
-    partial = summary.get("partial", 0)
-    
-    if total == 0:
-        return 100.0
-    
-    # Partial counts as 50%
-    score = ((covered + partial * 0.5) / total) * 100
-    return round(score, 1)
-
-
-# ============================================================================
-# MODE HANDLERS
-# ============================================================================
-
-async def run_analyze_mode(input_data: Dict, execution_id: int, args) -> Dict:
-    """
-    Mode ANALYZE: Cluster UCs and generate digest for Marcus
-    Inspired by: CollectLinks → WebBrowseAndSummarize → ConductResearch
-    """
-    start_time = time.time()
-    
-    use_cases = input_data.get("use_cases", [])
-    business_requirements = input_data.get("business_requirements", [])
-    
-    print(f"📊 Analyzing {len(use_cases)} UCs from {len(business_requirements)} BRs", file=sys.stderr)
-    
-    # Step 1: Cluster UCs (equivalent to CollectLinks - decompose & organize)
-    print(f"🔍 Step 1/2: Clustering Use Cases...", file=sys.stderr)
-    
-    cluster_prompt = CLUSTER_UCS_PROMPT.format(
-        uc_count=len(use_cases),
-        br_count=len(business_requirements),
-        use_cases_json=json.dumps(use_cases[:200], indent=2),  # Increased limit
-        business_requirements_json=json.dumps(business_requirements, indent=2)
-    )
-    
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(
-            prompt=cluster_prompt,
-            agent_type="research",  # Uses appropriate tier
-            system_prompt=ANALYZE_SYSTEM,
-            max_tokens=12000,  # Increased for large projects
-            temperature=0.3
-        )
-        clusters_content = response["content"]
-        tokens_step1 = response["tokens_used"]
-        model_used = response["model"]
-        provider_used = response["provider"]
-        
-        # LOG CLUSTER LLM CALL (19/12/2025)
-        if LLM_LOGGER_AVAILABLE:
-            log_llm_interaction(
-                agent_id="emma",
-                prompt=cluster_prompt,
-                response=clusters_content[:5000],
-                execution_id=execution_id,
-                agent_mode="analyze_cluster",
-                tokens_input=response.get("input_tokens", 0),
-                tokens_output=tokens_step1,
-                model=model_used,
-                provider=provider_used,
-                execution_time_seconds=0,
-                success=True
-            )
-    else:
-        raise ValueError("LLM Service not available")
-    
-    try:
-        clusters = parse_json_response(clusters_content)
-        print(f"✅ Created {len(clusters.get('clusters', []))} clusters", file=sys.stderr)
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Cluster JSON parse error: {e}", file=sys.stderr)
-        clusters = {"clusters": [], "error": str(e)}
-    
-    # Step 2: Generate Digest (equivalent to ConductResearch - synthesize)
-    print(f"📝 Step 2/2: Generating UC Digest...", file=sys.stderr)
-    
-    digest_prompt = GENERATE_DIGEST_PROMPT.format(
-        clusters_json=json.dumps(clusters, indent=2),
-        timestamp=datetime.now().isoformat()
-    )
-    
-    if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(
-            prompt=digest_prompt,
-            agent_type="research",
-            system_prompt=ANALYZE_SYSTEM,
-            max_tokens=20000,  # Increased for large projects (was 12000)
-            temperature=0.3
-        )
-        digest_content = response["content"]
-        tokens_step2 = response["tokens_used"]
-        
-        # LOG DIGEST LLM CALL (19/12/2025)
-        if LLM_LOGGER_AVAILABLE:
-            log_llm_interaction(
-                agent_id="emma",
-                prompt=digest_prompt,
-                response=digest_content[:5000],
-                execution_id=execution_id,
-                agent_mode="analyze_digest",
-                tokens_input=response.get("input_tokens", 0),
-                tokens_output=tokens_step2,
-                model=model_used,
-                provider=provider_used,
-                execution_time_seconds=0,
-                success=True
-            )
-    
-    try:
-        digest = parse_json_response(digest_content)
-        print(f"✅ Generated digest with {len(digest.get('by_requirement', {}))} BR sections", file=sys.stderr)
-    except json.JSONDecodeError as e:
-        print(f"⚠️ Digest JSON parse error: {e}", file=sys.stderr)
-        digest = {"raw": digest_content, "parse_error": str(e)}
-    
-    execution_time = time.time() - start_time
-    total_tokens = tokens_step1 + tokens_step2
-    
-    # Log LLM interaction
-    if LLM_LOGGER_AVAILABLE:
-        log_llm_interaction(
-            agent_id="emma",
-            prompt=f"[ANALYZE] Cluster + Digest for {len(use_cases)} UCs",
-            response=json.dumps(digest)[:2000],
-            execution_id=execution_id,
-            agent_mode="analyze",
-            tokens_output=total_tokens,
-            model=model_used,
-            provider=provider_used,
-            execution_time_seconds=execution_time,
-            success=True
-        )
-    
-    return {
-        "agent_id": "research_analyst",
-        "agent_name": "Emma (Research Analyst)",
-        "execution_id": execution_id,
-        "mode": "analyze",
-        "deliverable_type": "uc_digest",
-        "content": {
-            "clusters": clusters,
-            "digest": digest
-        },
-        "metadata": {
-            "tokens_used": total_tokens,
-            "model": model_used,
-            "provider": provider_used,
-            "execution_time_seconds": round(execution_time, 2),
-            "uc_count": len(use_cases),
-            "br_count": len(business_requirements),
-            "cluster_count": len(clusters.get("clusters", [])),
-            "generated_at": datetime.now().isoformat()
+    if not solution_design or not use_cases:
+        return {
+            "overall_score": 0,
+            "details": "Missing solution_design or use_cases",
+            "by_category": {}
         }
+
+    # Extract elements from solution design
+    data_model = solution_design.get('data_model', {})
+    sd_objects = set()
+    for obj in data_model.get('standard_objects', []):
+        if isinstance(obj, dict):
+            sd_objects.add(obj.get('api_name', '').lower())
+        elif isinstance(obj, str):
+            sd_objects.add(obj.lower())
+    for obj in data_model.get('custom_objects', []):
+        if isinstance(obj, dict):
+            sd_objects.add(obj.get('api_name', '').lower())
+        elif isinstance(obj, str):
+            sd_objects.add(obj.lower())
+
+    automation = solution_design.get('automation_design', {})
+    sd_automations = set()
+    for flow in automation.get('flows', []):
+        if isinstance(flow, dict):
+            sd_automations.add(flow.get('name', '').lower())
+        elif isinstance(flow, str):
+            sd_automations.add(flow.lower())
+    for trigger in automation.get('triggers', []):
+        if isinstance(trigger, dict):
+            sd_automations.add(trigger.get('name', '').lower())
+        elif isinstance(trigger, str):
+            sd_automations.add(trigger.lower())
+
+    ui = solution_design.get('ui_components', {})
+    sd_ui = set()
+    for lwc in ui.get('lwc_components', []):
+        if isinstance(lwc, dict):
+            sd_ui.add(lwc.get('name', '').lower())
+        elif isinstance(lwc, str):
+            sd_ui.add(lwc.lower())
+
+    # Extract requirements from UCs
+    uc_objects = set()
+    uc_automations = set()
+    uc_ui = set()
+    covered_ucs = 0
+    total_ucs = len(use_cases)
+
+    for uc in use_cases:
+        sf = uc.get('salesforce_components', {})
+        uc_objs = set()
+        for obj in sf.get('objects', []):
+            obj_lower = obj.lower() if isinstance(obj, str) else ''
+            uc_objects.add(obj_lower)
+            uc_objs.add(obj_lower)
+        for auto in sf.get('automation', []):
+            auto_lower = auto.lower() if isinstance(auto, str) else ''
+            uc_automations.add(auto_lower)
+        for comp in sf.get('ui_components', sf.get('components', [])):
+            comp_lower = comp.lower() if isinstance(comp, str) else ''
+            uc_ui.add(comp_lower)
+
+        # Check if this UC is covered (at least one object in solution)
+        if uc_objs & sd_objects:
+            covered_ucs += 1
+
+    # Calculate scores
+    obj_coverage = len(uc_objects & sd_objects) / max(len(uc_objects), 1) * 100
+    auto_coverage = len(uc_automations & sd_automations) / max(len(uc_automations), 1) * 100 if uc_automations else 100
+    ui_coverage = len(uc_ui & sd_ui) / max(len(uc_ui), 1) * 100 if uc_ui else 100
+    uc_coverage = covered_ucs / max(total_ucs, 1) * 100
+
+    overall = (obj_coverage * 0.35 + auto_coverage * 0.25 + ui_coverage * 0.2 + uc_coverage * 0.2)
+
+    return {
+        "overall_score": round(overall, 1),
+        "by_category": {
+            "data_model": {
+                "score": round(obj_coverage, 1),
+                "sd_objects": list(sd_objects),
+                "uc_objects": list(uc_objects),
+                "missing": list(uc_objects - sd_objects)
+            },
+            "automation": {
+                "score": round(auto_coverage, 1),
+                "sd_automations": list(sd_automations),
+                "uc_automations": list(uc_automations),
+                "missing": list(uc_automations - sd_automations)
+            },
+            "ui_components": {
+                "score": round(ui_coverage, 1),
+                "sd_ui": list(sd_ui),
+                "uc_ui": list(uc_ui),
+                "missing": list(uc_ui - sd_ui)
+            },
+            "uc_traceability": {
+                "score": round(uc_coverage, 1),
+                "covered": covered_ucs,
+                "total": total_ucs,
+                "coverage_pct": round(uc_coverage, 1)
+            }
+        },
+        "verdict": (
+            "APPROVED" if overall >= 95 else
+            "NEEDS_MINOR_REVISION" if overall >= 80 else
+            "NEEDS_REVISION" if overall >= 60 else
+            "REJECTED"
+        )
     }
 
 
+def generate_coverage_report_programmatic(solution_design: dict, use_cases: list) -> dict:
+    """
+    Generate a full coverage report combining programmatic + LLM analysis.
+    Exported for direct import by tests and other services.
+
+    The programmatic part checks object/automation coverage.
+    If LLM is available, it also generates qualitative analysis.
+    """
+    prog_report = calculate_coverage_score(solution_design, use_cases)
+
+    # Build critical gaps list from missing elements
+    critical_gaps = []
+    dm = prog_report.get('by_category', {}).get('data_model', {})
+    for missing_obj in dm.get('missing', []):
+        critical_gaps.append({
+            "element_type": "object",
+            "element_value": missing_obj,
+            "severity": "high",
+            "category": "DATA_MODEL"
+        })
+
+    auto = prog_report.get('by_category', {}).get('automation', {})
+    for missing_auto in auto.get('missing', []):
+        critical_gaps.append({
+            "element_type": "automation",
+            "element_value": missing_auto,
+            "severity": "medium",
+            "category": "AUTOMATION"
+        })
+
+    ui = prog_report.get('by_category', {}).get('ui_components', {})
+    for missing_ui in ui.get('missing', []):
+        critical_gaps.append({
+            "element_type": "ui_component",
+            "element_value": missing_ui,
+            "severity": "medium",
+            "category": "UI"
+        })
+
+    prog_report['critical_gaps'] = critical_gaps
+    prog_report['total_gaps'] = len(critical_gaps)
+
+    return prog_report
 
 
 # ============================================================================
-# BUG-057 FIX: Programmatic Coverage Calculation
+# RESEARCH ANALYST AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
+class ResearchAnalystAgent:
+    """
+    Emma (Research Analyst) Agent - 3 modes.
 
-def generate_coverage_report_programmatic(all_mappings: List[Dict]) -> Dict:
+    P3 refactoring: importable class replacing subprocess-only script.
+    Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    Modes:
+        - analyze (Phase 2.5): UCs -> UC Digest
+        - validate (Phase 3.3): Solution Design + UCs -> Coverage Analysis
+        - write_sds (Phase 5): All deliverables -> Final SDS Document
+
+    Usage (import):
+        agent = ResearchAnalystAgent()
+        result = agent.run({"mode": "analyze", "input_content": '{"use_cases": [...]}'})
+
+    Usage (CLI):
+        python salesforce_research_analyst.py --mode analyze --input input.json --output output.json
+
+    Note: Module-level utility functions (parse_json_response, calculate_coverage_score,
+    generate_coverage_report_programmatic) are preserved for direct import.
     """
-    Calculate coverage report programmatically instead of using LLM.
-    This avoids the 543K+ token issue when accumulating all mappings.
-    
-    Args:
-        all_mappings: List of UC mappings from validate_batch calls
-        
-    Returns:
-        Coverage report dict with score, gaps, and recommendations
-    """
-    total_elements = 0
-    covered = 0
-    partial = 0
-    missing = 0
-    gaps = []
-    uc_stats = {}  # Track per-UC coverage
-    
-    for mapping in all_mappings:
-        uc_id = mapping.get("uc_id", "UNKNOWN")
-        uc_title = mapping.get("uc_title", "")
-        elements = mapping.get("elements", [])
-        
-        uc_covered = 0
-        uc_total = len(elements)
-        
-        for element in elements:
-            total_elements += 1
-            status = element.get("coverage_status", "missing")
-            
-            if status == "covered":
-                covered += 1
-                uc_covered += 1
-            elif status == "partial":
-                partial += 1
-                gaps.append({
-                    "gap_id": f"GAP-{len(gaps)+1:03d}",
-                    "uc_id": uc_id,
-                    "uc_title": uc_title,
-                    "element_type": element.get("element_type", "unknown"),
-                    "element_value": element.get("element_value", ""),
-                    "severity": "medium",
-                    "notes": element.get("notes", "Partially covered - needs clarification")
-                })
-            else:  # missing
-                missing += 1
-                gaps.append({
-                    "gap_id": f"GAP-{len(gaps)+1:03d}",
-                    "uc_id": uc_id,
-                    "uc_title": uc_title,
-                    "element_type": element.get("element_type", "unknown"),
-                    "element_value": element.get("element_value", ""),
-                    "severity": "high",
-                    "notes": element.get("notes", "Missing from solution design")
-                })
-        
-        # Track UC-level stats
-        uc_stats[uc_id] = {
-            "title": uc_title,
-            "total_elements": uc_total,
-            "covered": uc_covered,
-            "coverage_pct": round((uc_covered / uc_total * 100) if uc_total > 0 else 0, 1)
+
+    VALID_MODES = ("analyze", "validate", "write_sds")
+
+    def __init__(self, config: Optional[Dict] = None):
+        self.config = config or {}
+
+    def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Main entry point. Executes the agent and returns structured result.
+
+        Args:
+            task_data: dict with keys:
+                - mode: "analyze", "validate", or "write_sds"
+                - input_content: JSON string with mode-specific data
+                - execution_id: int (optional, default 0)
+                - project_id: int (optional, default 0)
+
+        Returns:
+            dict with agent output including "success" key.
+        """
+        mode = task_data.get("mode", "analyze")
+        input_content = task_data.get("input_content", "")
+        execution_id = task_data.get("execution_id", 0)
+        project_id = task_data.get("project_id", 0)
+
+        if mode not in self.VALID_MODES:
+            return {"success": False, "error": f"Unknown mode: {mode}. Valid: {self.VALID_MODES}"}
+
+        if not input_content:
+            return {"success": False, "error": "No input_content provided"}
+
+        try:
+            # Parse input JSON
+            try:
+                input_data = json.loads(input_content) if isinstance(input_content, str) else input_content
+            except (json.JSONDecodeError, TypeError):
+                input_data = {"raw_input": str(input_content)}
+
+            if mode == "analyze":
+                return self._execute_analyze(input_data, execution_id, project_id)
+            elif mode == "validate":
+                return self._execute_validate(input_data, execution_id, project_id)
+            else:  # write_sds
+                return self._execute_write_sds(input_data, execution_id, project_id)
+        except Exception as e:
+            logger.error(f"ResearchAnalystAgent error in mode '{mode}': {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    # ------------------------------------------------------------------
+    # MODE 1: ANALYZE (Phase 2.5) - UC Digest
+    # ------------------------------------------------------------------
+    def _execute_analyze(
+        self,
+        input_data: dict,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Generate UC Digest from Use Cases for Marcus."""
+        start_time = time.time()
+
+        use_cases = input_data.get('use_cases', [])
+        if not use_cases:
+            return {"success": False, "error": "No use_cases provided for analyze mode"}
+
+        # Build UC text for prompt
+        uc_text = ""
+        for i, uc in enumerate(use_cases):
+            uc_id = uc.get('id', f'UC-{i+1:03d}')
+            uc_title = uc.get('title', 'Untitled')
+            uc_actor = uc.get('actor', 'User')
+            uc_description = uc.get('description', '')
+
+            uc_text += f"\n### {uc_id}: {uc_title}\n"
+            uc_text += f"- **Actor**: {uc_actor}\n"
+            if uc_description:
+                uc_text += f"- **Description**: {uc_description[:500]}\n"
+
+            sf = uc.get('salesforce_components', {})
+            if sf:
+                objects = sf.get('objects', [])
+                if objects:
+                    uc_text += f"- **Objects**: {', '.join(objects)}\n"
+                automation = sf.get('automation', [])
+                if automation:
+                    uc_text += f"- **Automation**: {', '.join(automation)}\n"
+
+            # BR reference
+            br_ref = uc.get('br_ref', uc.get('requirement_id', ''))
+            if br_ref:
+                uc_text += f"- **Business Requirement**: {br_ref}\n"
+
+            criteria = uc.get('acceptance_criteria', [])
+            if criteria:
+                uc_text += "- **Acceptance Criteria**:\n"
+                for c in criteria[:3]:
+                    if isinstance(c, dict):
+                        uc_text += f"  - {c.get('description', str(c))}\n"
+                    else:
+                        uc_text += f"  - {c}\n"
+
+        timestamp = datetime.now().isoformat()
+        prompt = ANALYZE_PROMPT.format(
+            use_cases_text=uc_text,
+            timestamp=timestamp,
+            uc_count=len(use_cases)
+        )
+
+        system_prompt = "You are Emma, a Research Analyst. Generate a UC Digest. Output ONLY valid JSON."
+
+        logger.info(f"ANALYZE mode: {len(use_cases)} UCs, prompt size: {len(prompt)} chars")
+
+        # Call LLM
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, system_prompt, max_tokens=16000, temperature=0.3
+        )
+
+        execution_time = time.time() - start_time
+
+        # Log interaction
+        self._log_interaction(
+            mode="analyze", prompt=prompt, content=content,
+            execution_id=execution_id, input_tokens=input_tokens,
+            tokens_used=tokens_used, model_used=model_used,
+            provider_used=provider_used, execution_time=execution_time,
+        )
+
+        # Parse JSON
+        parsed_content = parse_json_response(content)
+
+        return {
+            "success": True,
+            "agent_id": "research_analyst",
+            "agent_name": "Emma (Research Analyst)",
+            "mode": "analyze",
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "deliverable_type": "uc_digest",
+            "artifact_id": "UCD-001",
+            "content": parsed_content,
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "use_cases_count": len(use_cases),
+                "generated_at": timestamp
+            }
         }
-    
-    # Calculate overall score
-    score = round((covered / total_elements * 100) if total_elements > 0 else 0, 1)
-    
-    # Count UC coverage levels
-    fully_covered_ucs = sum(1 for s in uc_stats.values() if s["coverage_pct"] == 100)
-    partial_ucs = sum(1 for s in uc_stats.values() if 0 < s["coverage_pct"] < 100)
-    missing_ucs = sum(1 for s in uc_stats.values() if s["coverage_pct"] == 0)
-    
-    # Generate recommendations from top gaps
-    recommendations = []
-    high_severity_gaps = [g for g in gaps if g["severity"] == "high"][:10]
-    for gap in high_severity_gaps:
-        recommendations.append(
-            f"Add {gap['element_type']} '{gap['element_value']}' for {gap['uc_id']}"
-        )
-    
-    return {
-        "report_id": f"COVERAGE-{datetime.now().strftime('%Y%m%d%H%M%S')}",
-        "generated_at": datetime.now().isoformat(),
-        "coverage_score": score,
-        "status": "APPROVED" if score >= 95 else "NEEDS_REVISION",
-        "summary": {
-            "total_ucs": len(all_mappings),
-            "fully_covered_ucs": fully_covered_ucs,
-            "partial_ucs": partial_ucs,
-            "missing_ucs": missing_ucs,
-            "total_elements": total_elements,
-            "covered_elements": covered,
-            "partial_elements": partial,
-            "missing_elements": missing
-        },
-        "gaps": gaps[:100],  # Limit to top 100 gaps
-        "recommendations_for_marcus": recommendations,
-        "calculation_method": "programmatic"  # Flag to identify this was calculated, not LLM-generated
-    }
 
+    # ------------------------------------------------------------------
+    # MODE 2: VALIDATE (Phase 3.3) - Coverage Analysis
+    # ------------------------------------------------------------------
+    def _execute_validate(
+        self,
+        input_data: dict,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Validate Solution Design coverage against Use Cases."""
+        start_time = time.time()
 
-async def run_validate_mode(input_data: Dict, execution_id: int, args) -> Dict:
-    """
-    Mode VALIDATE: Check 100% coverage of UCs by Solution Design
-    Inspired by: WebBrowseAndSummarize (detailed analysis) → ConductResearch (report)
-    
-    BATCHING: Process UCs in batches of 15 to avoid JSON continuation issues.
-    """
-    start_time = time.time()
-    
-    use_cases = input_data.get("use_cases", [])
-    solution_design = input_data.get("solution_design", {})
-    
-    print(f"🔍 Validating coverage of {len(use_cases)} UCs against Solution Design", file=sys.stderr)
-    
-    # Step 1: Map elements with BATCHING (to avoid JSON continuation issues)
-    print(f"📋 Step 1/2: Mapping UC elements to Solution...", file=sys.stderr)
-    
-    BATCH_SIZE = 15  # Increased for faster processing (Claude handles larger batches)
-    all_mappings = []
-    tokens_step1 = 0
-    model_used = "unknown"
-    provider_used = "unknown"
-    
-    # Process UCs in batches
-    num_batches = (len(use_cases) + BATCH_SIZE - 1) // BATCH_SIZE
-    print(f"   Processing {len(use_cases)} UCs in {num_batches} batches of {BATCH_SIZE}", file=sys.stderr)
-    
-    for batch_idx in range(num_batches):
-        batch_start = batch_idx * BATCH_SIZE
-        batch_end = min(batch_start + BATCH_SIZE, len(use_cases))
-        batch_ucs = use_cases[batch_start:batch_end]
-        
-        print(f"   📦 Batch {batch_idx + 1}/{num_batches}: UCs {batch_start + 1}-{batch_end}", file=sys.stderr)
-        
-        map_prompt = MAP_ELEMENTS_PROMPT.format(
-            use_cases_json=json.dumps(batch_ucs, indent=2),
-            solution_design_json=json.dumps(solution_design, indent=2)
+        solution_design = input_data.get('solution_design', input_data.get('architecture', {}))
+        use_cases = input_data.get('use_cases', [])
+        uc_digest = input_data.get('uc_digest', {})
+
+        if not solution_design:
+            return {"success": False, "error": "No solution_design provided for validate mode"}
+
+        # Step 1: Programmatic coverage analysis
+        prog_report = generate_coverage_report_programmatic(solution_design, use_cases)
+        prog_score = prog_report.get('overall_score', 0)
+
+        logger.info(f"Programmatic coverage score: {prog_score}%")
+
+        # Step 2: LLM-based qualitative analysis
+        solution_text = json.dumps(solution_design, indent=2, ensure_ascii=False)[:12000]
+
+        uc_text = ""
+        for uc in use_cases[:20]:
+            uc_text += f"- {uc.get('id', 'UC')}: {uc.get('title', '')}\n"
+            sf = uc.get('salesforce_components', {})
+            if sf:
+                objects = sf.get('objects', [])
+                if objects:
+                    uc_text += f"  Objects: {', '.join(objects[:5])}\n"
+
+        uc_digest_text = json.dumps(uc_digest, indent=2, ensure_ascii=False)[:5000] if uc_digest else "Not available"
+
+        timestamp = datetime.now().isoformat()
+        prompt = VALIDATE_PROMPT.format(
+            solution_design_text=solution_text,
+            use_cases_text=uc_text,
+            uc_digest_text=uc_digest_text,
+            timestamp=timestamp
         )
-        
-        if LLM_SERVICE_AVAILABLE:
-            response = generate_llm_response(
-                prompt=map_prompt,
-                agent_type="research",
-                system_prompt=VALIDATE_SYSTEM,
-                max_tokens=8000,  # Increased to avoid continuation
-                temperature=0.2
-            )
-            mappings_content = response["content"]
-            tokens_step1 += response["tokens_used"]
-            model_used = response["model"]
-            provider_used = response["provider"]
-            
-            # LOG EACH BATCH LLM CALL
-            if LLM_LOGGER_AVAILABLE:
-                log_llm_interaction(
-                    agent_id="emma",
-                    prompt=map_prompt,
-                    response=mappings_content,
-                    execution_id=execution_id,
-                    agent_mode="validate_batch",
-                    tokens_input=response.get("input_tokens", 0),
-                    tokens_output=response["tokens_used"],
-                    model=model_used,
-                    provider=provider_used,
-                    execution_time_seconds=0,
-                    success=True
-                )
+
+        system_prompt = "You are Emma, a Research Analyst. Validate coverage. Output ONLY valid JSON."
+
+        logger.info(f"VALIDATE mode: {len(use_cases)} UCs, prompt size: {len(prompt)} chars")
+
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, system_prompt, max_tokens=16000, temperature=0.3
+        )
+
+        execution_time = time.time() - start_time
+
+        # Log interaction
+        self._log_interaction(
+            mode="validate", prompt=prompt, content=content,
+            execution_id=execution_id, input_tokens=input_tokens,
+            tokens_used=tokens_used, model_used=model_used,
+            provider_used=provider_used, execution_time=execution_time,
+        )
+
+        # Parse LLM response
+        llm_report = parse_json_response(content)
+
+        # Merge programmatic + LLM results
+        # Use LLM score if available, otherwise use programmatic
+        llm_score = llm_report.get('overall_coverage_score', prog_score)
+        final_score = (llm_score * 0.6 + prog_score * 0.4)  # Weighted average
+
+        # Determine verdict
+        if final_score >= 95:
+            verdict = "APPROVED"
+        elif final_score >= 80:
+            verdict = "NEEDS_MINOR_REVISION"
+        elif final_score >= 60:
+            verdict = "NEEDS_REVISION"
         else:
-            raise ValueError("LLM Service not available")
-        
-        try:
-            batch_mappings = parse_json_response(mappings_content)
-            batch_list = batch_mappings.get('mappings', [])
-            all_mappings.extend(batch_list)
-            print(f"   ✅ Batch {batch_idx + 1}: {len(batch_list)} mappings", file=sys.stderr)
-        except json.JSONDecodeError as e:
-            print(f"   ⚠️ Batch {batch_idx + 1} parse error: {e}", file=sys.stderr)
-            # Continue with other batches
-    
-    # Combine all mappings
-    mappings = {"mappings": all_mappings}
-    print(f"✅ Total mapped: {len(all_mappings)} UCs", file=sys.stderr)
-    
-    # Step 2: Generate coverage report
-    print(f"📊 Step 2/2: Generating Coverage Report...", file=sys.stderr)
-    
-    tokens_step2 = 0
-    
-    if USE_PROGRAMMATIC_COVERAGE:
-        # BUG-057 FIX: Calculate coverage programmatically (no LLM call)
-        print(f"   Using programmatic calculation (BUG-057 fix)", file=sys.stderr)
-        coverage_report = generate_coverage_report_programmatic(all_mappings)
-        coverage_score = coverage_report.get("coverage_score", 0)
-        print(f"✅ Coverage Score: {coverage_score}% (programmatic)", file=sys.stderr)
-    else:
-        # LEGACY: LLM-based coverage report (can cause context overflow on large projects)
-        print(f"   ⚠️ Using LLM-based calculation (legacy mode)", file=sys.stderr)
-        report_prompt = COVERAGE_REPORT_PROMPT.format(
-            mappings_json=json.dumps(mappings, indent=2),
-            timestamp=datetime.now().isoformat()
+            verdict = "REJECTED"
+
+        # Combine critical gaps from both sources
+        all_gaps = prog_report.get('critical_gaps', [])
+        llm_gaps = llm_report.get('critical_gaps', [])
+        if isinstance(llm_gaps, list):
+            all_gaps.extend(llm_gaps)
+
+        # Combine uncovered UCs
+        uncovered_ucs = llm_report.get('uncovered_use_cases', [])
+
+        return {
+            "success": True,
+            "agent_id": "research_analyst",
+            "agent_name": "Emma (Research Analyst)",
+            "mode": "validate",
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "deliverable_type": "coverage_analysis",
+            "artifact_id": "COV-001",
+            "content": {
+                "overall_coverage_score": round(final_score, 1),
+                "programmatic_score": prog_score,
+                "llm_score": llm_score,
+                "verdict": verdict,
+                "coverage_by_category": {
+                    **prog_report.get('by_category', {}),
+                    **(llm_report.get('coverage_by_category', {}))
+                },
+                "coverage_by_requirement": llm_report.get('coverage_by_requirement', {}),
+                "critical_gaps": all_gaps,
+                "uncovered_use_cases": uncovered_ucs,
+                "recommendations": llm_report.get('recommendations', [])
+            },
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "use_cases_count": len(use_cases),
+                "generated_at": timestamp
+            }
+        }
+
+    # ------------------------------------------------------------------
+    # MODE 3: WRITE_SDS (Phase 5) - Final SDS Document
+    # ------------------------------------------------------------------
+    def _execute_write_sds(
+        self,
+        input_data: dict,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """Assemble all deliverables into final SDS document."""
+        start_time = time.time()
+
+        project_name = input_data.get('project_name', 'Salesforce Project')
+        timestamp = datetime.now().isoformat()
+
+        # Extract all deliverables (truncate each to avoid token overflow)
+        def safe_content(key: str, max_len: int = 8000) -> str:
+            val = input_data.get(key, '')
+            if isinstance(val, dict):
+                val = json.dumps(val, indent=2, ensure_ascii=False)
+            elif isinstance(val, list):
+                val = json.dumps(val, indent=2, ensure_ascii=False)
+            return str(val)[:max_len] if val else "Not provided"
+
+        prompt = WRITE_SDS_PROMPT.format(
+            project_name=project_name,
+            timestamp=timestamp,
+            br_content=safe_content('business_requirements', 6000),
+            uc_content=safe_content('use_cases', 8000),
+            uc_digest_content=safe_content('uc_digest', 5000),
+            solution_design_content=safe_content('solution_design', 10000),
+            gap_analysis_content=safe_content('gap_analysis', 6000),
+            wbs_content=safe_content('wbs', 6000),
+            qa_content=safe_content('qa_plan', 4000),
+            devops_content=safe_content('devops_plan', 3000),
+            training_content=safe_content('training_plan', 3000),
+            data_migration_content=safe_content('data_migration_plan', 3000),
         )
-        
+
+        system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
+
+        logger.info(f"WRITE_SDS mode: prompt size: {len(prompt)} chars")
+
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+            prompt, system_prompt, max_tokens=16000, temperature=0.4
+        )
+
+        execution_time = time.time() - start_time
+
+        # Log interaction
+        self._log_interaction(
+            mode="write_sds", prompt=prompt, content=content,
+            execution_id=execution_id, input_tokens=input_tokens,
+            tokens_used=tokens_used, model_used=model_used,
+            provider_used=provider_used, execution_time=execution_time,
+        )
+
+        # For write_sds, content is Markdown, not JSON
+        return {
+            "success": True,
+            "agent_id": "research_analyst",
+            "agent_name": "Emma (Research Analyst)",
+            "mode": "write_sds",
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "deliverable_type": "sds_document",
+            "artifact_id": "SDS-001",
+            "content": {
+                "raw_markdown": content,
+                "word_count": len(content.split()),
+                "sections_count": content.count('\n# ') + content.count('\n## ')
+            },
+            "metadata": {
+                "tokens_used": tokens_used,
+                "model": model_used,
+                "provider": provider_used,
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "generated_at": timestamp
+            }
+        }
+
+    # ------------------------------------------------------------------
+    # LLM / RAG / Logger helpers
+    # ------------------------------------------------------------------
+    def _call_llm(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        max_tokens: int = 16000,
+        temperature: float = 0.3,
+    ) -> tuple:
+        """
+        Call LLM service with fallback to direct Anthropic API.
+
+        Returns:
+            (content, tokens_used, input_tokens, model_used, provider_used)
+        """
         if LLM_SERVICE_AVAILABLE:
             response = generate_llm_response(
-                prompt=report_prompt,
-                agent_type="research",
-                system_prompt=VALIDATE_SYSTEM,
-                max_tokens=12000,  # Increased for large projects
-                temperature=0.2
+                prompt=prompt,
+                agent_type="research_analyst",
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature
             )
-            report_content = response["content"]
-            tokens_step2 = response["tokens_used"]
-            
-            # LOG COVERAGE REPORT LLM CALL
-            if LLM_LOGGER_AVAILABLE:
-                log_llm_interaction(
-                    agent_id="emma",
-                    prompt=report_prompt,
-                    response=report_content,
-                    execution_id=execution_id,
-                    agent_mode="validate_report",
-                    tokens_input=response.get("input_tokens", 0),
-                    tokens_output=tokens_step2,
-                    model=model_used,
-                    provider=provider_used,
-                    execution_time_seconds=0,
-                    success=True
-                )
-        
+            content = response.get("content", "")
+            tokens_used = response.get("tokens_used", 0)
+            input_tokens = response.get("input_tokens", 0)
+            model_used = response.get("model", "")
+            provider_used = response.get("provider", "")
+            logger.info(f"Using {provider_used} / {model_used}")
+            return content, tokens_used, input_tokens, model_used, provider_used
+
+        # Fallback to direct Anthropic
+        logger.info("Calling Anthropic API directly...")
+        from anthropic import Anthropic
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
+
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        content = response.content[0].text
+        tokens_used = response.usage.input_tokens + response.usage.output_tokens
+        input_tokens = response.usage.input_tokens
+        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+
+    def _log_interaction(
+        self,
+        mode: str,
+        prompt: str,
+        content: str,
+        execution_id: int,
+        input_tokens: int = 0,
+        tokens_used: int = 0,
+        model_used: str = "",
+        provider_used: str = "",
+        execution_time: float = 0.0,
+    ) -> None:
+        """Log LLM interaction for debugging (INFRA-002)."""
+        if not LLM_LOGGER_AVAILABLE:
+            return
         try:
-            coverage_report = parse_json_response(report_content)
-            coverage_score = coverage_report.get("coverage_score", 0)
-            print(f"✅ Coverage Score: {coverage_score}%", file=sys.stderr)
-        except json.JSONDecodeError as e:
-            print(f"⚠️ Report JSON parse error: {e}", file=sys.stderr)
-            coverage_report = {"raw": report_content, "parse_error": str(e), "coverage_score": 0}
-            coverage_score = 0
-    
-    execution_time = time.time() - start_time
-    total_tokens = tokens_step1 + tokens_step2
-
-    
-    # Log LLM interaction
-    if LLM_LOGGER_AVAILABLE:
-        log_llm_interaction(
-            agent_id="emma",
-            prompt=f"[VALIDATE] Coverage check for {len(use_cases)} UCs",
-            response=json.dumps(coverage_report)[:2000],
-            execution_id=execution_id,
-            agent_mode="validate",
-            tokens_output=total_tokens,
-            model=model_used,
-            provider=provider_used,
-            execution_time_seconds=execution_time,
-            success=True
-        )
-    
-    return {
-        "agent_id": "research_analyst",
-        "agent_name": "Emma (Research Analyst)",
-        "execution_id": execution_id,
-        "mode": "validate",
-        "deliverable_type": "coverage_report",
-        "content": {
-            "mappings": mappings,
-            "coverage_report": coverage_report,
-            "coverage_score": coverage_score,
-            "status": "APPROVED" if coverage_score >= 100 else "NEEDS_REVISION"
-        },
-        "metadata": {
-            "tokens_used": total_tokens,
-            "model": model_used,
-            "provider": provider_used,
-            "execution_time_seconds": round(execution_time, 2),
-            "uc_count": len(use_cases),
-            "coverage_score": coverage_score,
-            "gaps_count": len(coverage_report.get("gaps", [])),
-            "generated_at": datetime.now().isoformat()
-        }
-    }
-
-
-async def run_write_sds_mode(input_data: Dict, execution_id: int, args) -> Dict:
-    """
-    Mode WRITE_SDS: Generate professional SDS document
-    
-    Uses the SDS Template Service to structure the document.
-    Generates section by section following the template.
-    Combines all agent deliverables into a cohesive document.
-    """
-    start_time = time.time()
-    
-    # Get template from service or input
-    try:
-        from app.services.sds_template_service import get_sds_template_service
-        template_service = get_sds_template_service()
-        template = template_service.get_default_template()
-        print(f"📋 Using template: {template.get('template_name', 'Unknown')}", file=sys.stderr)
-    except ImportError:
-        print(f"⚠️ Template service not available, using input template", file=sys.stderr)
-        template = input_data.get("template", {})
-    
-    # Gather all source data
-    project_info = input_data.get("project_info", {})
-    business_requirements = input_data.get("business_requirements", [])
-    use_cases = input_data.get("use_cases", [])
-    uc_digest = input_data.get("uc_digest", {})
-    solution_design = input_data.get("solution_design", {})
-    coverage_report = input_data.get("coverage_report", {})
-    wbs = input_data.get("wbs", {})
-    qa_specs = input_data.get("qa_specs", {})
-    devops_specs = input_data.get("devops_specs", {})
-    training_specs = input_data.get("training_specs", {})
-    data_specs = input_data.get("data_specs", {})
-    
-    project_name = project_info.get("name", "Projet Salesforce")
-    print(f"📄 Writing SDS document for: {project_name}", file=sys.stderr)
-    print(f"   Sources: {len(business_requirements)} BRs, {len(use_cases)} UCs", file=sys.stderr)
-    
-    # Prepare consolidated sources for template
-    sources = {
-        "project_info": project_info,
-        "business_requirements": business_requirements,
-        "use_cases": use_cases,
-        "uc_digest": uc_digest,
-        "solution_design": solution_design,
-        "coverage_report": coverage_report,
-        "wbs": wbs,
-        "qa_specs": qa_specs,
-        "devops_specs": devops_specs,
-        "training_specs": training_specs,
-        "data_specs": data_specs
-    }
-    
-    # Check data size to decide approach
-    total_data_size = len(json.dumps(sources, default=str))
-    use_single_call = total_data_size < 500000  # ~500KB (Claude handles 200K tokens = ~800KB)
-    
-    sds_sections = {}
-    total_tokens = 0
-    model_used = ""
-    provider_used = ""
-    
-    if use_single_call:
-        # Single call for entire document
-        print(f"📝 Generating full document (single call, {total_data_size} bytes)...", file=sys.stderr)
-        
-        full_prompt = WRITE_FULL_SDS_PROMPT.format(
-            project_info_json=json.dumps(project_info, indent=2, ensure_ascii=False, default=str)[:5000],
-            template_json=json.dumps(template.get("sections", []), indent=2)[:5000],
-            business_requirements_json=json.dumps(business_requirements, indent=2, ensure_ascii=False, default=str)[:30000],
-            uc_digest_json=json.dumps(uc_digest, indent=2, ensure_ascii=False, default=str)[:50000],
-            use_cases_json=json.dumps(use_cases, indent=2, ensure_ascii=False, default=str)[:180000],  # Full UCs for Annexe A.1
-            solution_design_json=json.dumps(solution_design, indent=2, ensure_ascii=False, default=str)[:60000],
-            coverage_report_json=json.dumps(coverage_report, indent=2, ensure_ascii=False, default=str)[:20000],
-            wbs_json=json.dumps(wbs, indent=2, ensure_ascii=False, default=str)[:60000],
-            qa_specs_json=json.dumps(qa_specs, indent=2, ensure_ascii=False, default=str)[:50000],
-            devops_specs_json=json.dumps(devops_specs, indent=2, ensure_ascii=False, default=str)[:30000],
-            training_specs_json=json.dumps(training_specs, indent=2, ensure_ascii=False, default=str)[:30000],
-            data_specs_json=json.dumps(data_specs, indent=2, ensure_ascii=False, default=str)[:30000]
-        )
-        
-        if LLM_SERVICE_AVAILABLE:
-            response = generate_llm_response(
-                prompt=full_prompt,
-                agent_type="research",
-                system_prompt=WRITE_SDS_SYSTEM,
-                max_tokens=16000,
-                temperature=0.4
+            log_llm_interaction(
+                agent_id="emma",
+                prompt=prompt,
+                response=content,
+                execution_id=execution_id,
+                task_id=None,
+                agent_mode=mode,
+                rag_context=None,
+                previous_feedback=None,
+                parsed_files=None,
+                tokens_input=input_tokens,
+                tokens_output=tokens_used,
+                model=model_used,
+                provider=provider_used,
+                execution_time_seconds=round(execution_time, 2),
+                success=True,
+                error_message=None
             )
-            sds_sections["full_document"] = response["content"]
-            total_tokens = response["tokens_used"]
-            model_used = response["model"]
-            provider_used = response["provider"]
-            
-            # LOG FULL SDS LLM CALL (19/12/2025)
-            if LLM_LOGGER_AVAILABLE:
-                log_llm_interaction(
-                    agent_id="emma",
-                    prompt=full_prompt[:50000],  # Truncate for storage
-                    response=response["content"][:5000],
-                    execution_id=execution_id,
-                    agent_mode="write_sds_full",
-                    tokens_input=response.get("input_tokens", 0),
-                    tokens_output=total_tokens,
-                    model=model_used,
-                    provider=provider_used,
-                    execution_time_seconds=0,
-                    success=True
-                )
-        
-        print(f"✅ Full document generated ({len(sds_sections.get('full_document', ''))} chars)", file=sys.stderr)
-        
-    else:
-        # Section by section for larger projects
-        template_sections = template.get("sections", [])
-        print(f"📝 Generating section by section ({len(template_sections)} sections)...", file=sys.stderr)
-        
-        for section in template_sections:
-            section_id = section.get("id", "")
-            section_title = section.get("title", "")
-            section_desc = section.get("description", "")
-            subsections = section.get("subsections", [])
-            
-            print(f"   📄 Section {section_id}: {section_title}...", file=sys.stderr)
-            
-            # Gather data for this section
-            section_data = {}
-            for subsec in subsections:
-                source_path = subsec.get("source", "")
-                if source_path and source_path != "auto_generated":
-                    # Extract data from sources
-                    parts = source_path.split(".")
-                    data = sources
-                    for part in parts:
-                        if isinstance(data, dict):
-                            data = data.get(part, {})
-                        else:
-                            data = {}
-                            break
-                    section_data[subsec.get("id", "")] = data
-            
-            # Build subsections list
-            subsections_list = "\n".join([
-                f"- {s.get('id')}: {s.get('title')} (source: {s.get('source')}, format: {s.get('format', 'prose')})"
-                for s in subsections
-            ])
-            
-            # Get section guidance
-            guidance = SECTION_GUIDANCE.get(section_id, section_desc)
-            
-            section_prompt = WRITE_SECTION_PROMPT.format(
-                section_id=section_id,
-                section_title=section_title,
-                section_description=guidance,
-                section_data_json=json.dumps(section_data, indent=2, ensure_ascii=False, default=str)[:30000],
-                format_type=subsections[0].get("format", "prose") if subsections else "prose",
-                subsections_list=subsections_list
-            )
-            
-            if LLM_SERVICE_AVAILABLE:
-                response = generate_llm_response(
-                    prompt=section_prompt,
-                    agent_type="research",
-                    system_prompt=WRITE_SDS_SYSTEM,
-                    max_tokens=6000,
-                    temperature=0.4
-                )
-                sds_sections[section_id] = {
-                    "title": section_title,
-                    "content": response["content"]
-                }
-                total_tokens += response["tokens_used"]
-                model_used = response["model"]
-                provider_used = response["provider"]
-                
-                # LOG SECTION LLM CALL (19/12/2025)
-                if LLM_LOGGER_AVAILABLE:
-                    log_llm_interaction(
-                        agent_id="emma",
-                        prompt=section_prompt,
-                        response=response["content"][:3000],
-                        execution_id=execution_id,
-                        agent_mode=f"write_sds_section_{section_id}",
-                        tokens_input=response.get("input_tokens", 0),
-                        tokens_output=response["tokens_used"],
-                        model=model_used,
-                        provider=provider_used,
-                        execution_time_seconds=0,
-                        success=True
-                    )
-            
-            print(f"   ✅ Section {section_id} done", file=sys.stderr)
-    
-    execution_time = time.time() - start_time
-    
-    # Assemble final document
-    if "full_document" in sds_sections:
-        final_document = sds_sections["full_document"]
-    else:
-        # Combine sections into full document
-        doc_parts = []
-        doc_parts.append(f"# Solution Design Specification\n## {project_name}\n")
-        doc_parts.append(f"**Date:** {datetime.now().strftime('%Y-%m-%d')}\n")
-        doc_parts.append(f"**Version:** 1.0\n")
-        doc_parts.append("\n---\n\n## Table des Matières\n")
-        
-        for section_id, section_data in sds_sections.items():
-            if isinstance(section_data, dict):
-                doc_parts.append(f"- [{section_data.get('title', section_id)}](#{section_id.lower().replace(' ', '-')})\n")
-        
-        doc_parts.append("\n---\n")
-        
-        for section_id, section_data in sds_sections.items():
-            if isinstance(section_data, dict):
-                doc_parts.append(f"\n# {section_data.get('title', section_id)}\n")
-                doc_parts.append(section_data.get("content", ""))
-                doc_parts.append("\n---\n")
-        
-        final_document = "".join(doc_parts)
-    
-    print(f"✅ SDS document complete: {len(final_document)} chars, {total_tokens} tokens, {execution_time:.1f}s", file=sys.stderr)
-    
-    # Log LLM interaction
-    if LLM_LOGGER_AVAILABLE:
-        log_llm_interaction(
-            agent_id="emma",
-            prompt=f"[WRITE_SDS] Document for {project_name}",
-            response=f"Generated {len(sds_sections)} sections, {len(final_document)} chars",
-            execution_id=execution_id,
-            agent_mode="write_sds",
-            tokens_output=total_tokens,
-            model=model_used,
-            provider=provider_used,
-            execution_time_seconds=execution_time,
-            success=True
-        )
-    
-    return {
-        "agent_id": "research_analyst",
-        "agent_name": "Emma (Research Analyst)",
-        "execution_id": execution_id,
-        "mode": "write_sds",
-        "deliverable_type": "sds_document",
-        "artifact_id": "SDS-001",
-        "content": {
-            "document": final_document,
-            "sections": sds_sections,
-            "project_name": project_name,
-            "generated_at": datetime.now().isoformat(),
-            "template_used": template.get("template_id", "default"),
-            "sources_used": list(sources.keys())
-        },
-        "metadata": {
-            "tokens_used": total_tokens,
-            "model": model_used,
-            "provider": provider_used,
-            "execution_time_seconds": round(execution_time, 2),
-            "document_length": len(final_document),
-            "sections_count": len(sds_sections),
-            "generated_at": datetime.now().isoformat()
-        }
-    }
+            logger.info("LLM interaction logged")
+        except Exception as e:
+            logger.warning(f"Failed to log LLM interaction: {e}")
 
 
 # ============================================================================
-# MAIN EXECUTION (follows same pattern as other agents)
+# CLI MODE - Backward compatible subprocess entry point
 # ============================================================================
 
-def main():
-    parser = argparse.ArgumentParser(description='Emma Research Analyst Agent')
+if __name__ == "__main__":
+    import sys
+    import argparse
+    from pathlib import Path
+
+    # Add backend root to sys.path for CLI mode
+    _backend_root = str(Path(__file__).resolve().parent.parent.parent)
+    if _backend_root not in sys.path:
+        sys.path.insert(0, _backend_root)
+
+    parser = argparse.ArgumentParser(description='Emma - Research Analyst Agent')
+    parser.add_argument('--mode', required=True,
+                        choices=['analyze', 'validate', 'write_sds'],
+                        help='Operation mode')
     parser.add_argument('--input', required=True, help='Input JSON file')
-    parser.add_argument('--output', required=True, help='Output JSON file path')
-    parser.add_argument('--mode', required=True, choices=['analyze', 'validate', 'write_sds'], 
-                        help='Execution mode')
-    parser.add_argument('--execution-id', type=int, default=0, help='Execution ID')
-    parser.add_argument('--project-id', type=int, default=0, help='Project ID')
-    parser.add_argument('--use-rag', action='store_true', help='Enable RAG (optional)')
-    
+    parser.add_argument('--output', required=True, help='Output JSON file')
+    parser.add_argument('--execution-id', type=int, default=0)
+    parser.add_argument('--project-id', type=int, default=0)
+    parser.add_argument('--use-rag', action='store_true', default=True)
+
     args = parser.parse_args()
-    
+
     try:
         # Read input
-        print(f"📖 Reading input from {args.input}...", file=sys.stderr)
+        print(f"Reading input from {args.input}...", file=sys.stderr)
         with open(args.input, 'r', encoding='utf-8') as f:
-            input_data = json.load(f)
-        
-        print(f"🚀 Running Emma in mode: {args.mode}", file=sys.stderr)
-        
-        # Run appropriate mode
-        import asyncio
-        
-        if args.mode == "analyze":
-            result = asyncio.run(run_analyze_mode(input_data, args.execution_id, args))
-        elif args.mode == "validate":
-            result = asyncio.run(run_validate_mode(input_data, args.execution_id, args))
-        elif args.mode == "write_sds":
-            result = asyncio.run(run_write_sds_mode(input_data, args.execution_id, args))
-        else:
-            raise ValueError(f"Unknown mode: {args.mode}")
-        
+            input_content = f.read()
+
+        # Use agent class
+        agent = ResearchAnalystAgent()
+        task_data = {
+            "mode": args.mode,
+            "input_content": input_content,
+            "execution_id": args.execution_id,
+            "project_id": args.project_id,
+        }
+        result = agent.run(task_data)
+
         # Save output
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         with open(args.output, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
-        
-        print(f"✅ Output saved to {args.output}", file=sys.stderr)
-        
-        # Print summary to stdout for agent_executor
-        print(json.dumps({
-            "success": True,
-            "mode": args.mode,
-            "deliverable_type": result["deliverable_type"],
-            "metadata": result["metadata"]
-        }))
-        
+
+        print(f"SUCCESS: Output saved to {args.output}", file=sys.stderr)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        sys.exit(0)
+
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        print(f"ERROR: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc(file=sys.stderr)
-        print(json.dumps({"success": False, "error": str(e)}))
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    main()
