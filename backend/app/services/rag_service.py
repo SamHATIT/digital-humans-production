@@ -11,6 +11,7 @@ import os
 import chromadb
 from typing import List, Dict, Optional
 import logging
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def _log_rag_debug(step: str, data: dict):
         logger.warning(f"RAG debug log error: {e}")
 
 
-CHROMA_PATH = "/opt/digital-humans/rag/chromadb_data"
+CHROMA_PATH = str(settings.CHROMA_PATH)
 
 # Collections avec leur type d'embedding
 COLLECTIONS = {
@@ -95,7 +96,7 @@ def get_openai_client():
             from openai import OpenAI
             api_key = os.environ.get("OPENAI_API_KEY")
             if not api_key:
-                env_path = "/opt/digital-humans/rag/.env"
+                env_path = str(settings.RAG_ENV_PATH)
                 if os.path.exists(env_path):
                     with open(env_path) as f:
                         for line in f:

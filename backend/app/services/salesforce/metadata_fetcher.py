@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 import logging
+from app.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -401,7 +402,7 @@ if __name__ == "__main__":
     
     output_dir = args.output
     if args.project_id:
-        output_dir = f"/app/metadata/{args.project_id}"
+        output_dir = str(settings.METADATA_DIR / str(args.project_id))
     
     fetcher = MetadataFetcher(org_alias=args.org)
     result = fetcher.fetch_all_metadata(output_dir)

@@ -2190,7 +2190,7 @@ async def download_sds_v3(
         raise HTTPException(status_code=403, detail="Access denied")
     
     # Chercher le fichier existant
-    output_dir = f"/app/outputs/sds_v3"
+    output_dir = str(settings.OUTPUT_DIR / "sds_v3")
     pattern = f"{output_dir}/SDS_*_{execution_id}.docx"
     existing_files = glob.glob(pattern)
     
@@ -2396,7 +2396,7 @@ async def generate_sds_v3_full_pipeline(
         }
         
         # Créer le répertoire de sortie
-        output_dir = f"/app/outputs/sds_v3"
+        output_dir = str(settings.OUTPUT_DIR / "sds_v3")
         os.makedirs(output_dir, exist_ok=True)
         
         safe_name = "".join(c if c.isalnum() or c in "- _" else "_" for c in project.name)

@@ -22,10 +22,11 @@ from docx.oxml.ns import qn
 from docx.oxml import parse_xml
 
 from sqlalchemy import create_engine, text
+from app.config import settings
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db")
-OUTPUT_DIR = "/app/outputs"
+OUTPUT_DIR = str(settings.OUTPUT_DIR)
 COMPANY_NAME = "Digital-Humans.fr"
 COMPANY_ADDRESS = "Paris, France"
 

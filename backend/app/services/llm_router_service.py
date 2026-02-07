@@ -27,6 +27,7 @@ from datetime import datetime
 
 import yaml
 import httpx
+from app.config import settings
 
 # Provider imports - handled gracefully
 try:
@@ -144,7 +145,7 @@ class LLMRouterService:
         # Try multiple locations
         candidates = [
             Path(__file__).parent.parent.parent / "config" / "llm_routing.yaml",
-            Path("/root/workspace/digital-humans-production/backend/config/llm_routing.yaml"),
+            settings.LLM_CONFIG_PATH,
             Path("config/llm_routing.yaml"),
         ]
         

@@ -64,13 +64,14 @@ except ImportError:
     HAS_VALIDATION_GATE = False
 # ValidationGate peut ne pas exister, on le gère dynamiquement
 import logging
+from app.config import settings
 from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
 
 logger = logging.getLogger(__name__)
 
-# Agent script paths
-AGENTS_PATH = Path("/root/workspace/digital-humans-production/backend/agents/roles")
+# Agent script paths (centralized via config.py)
+AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
 
 # Agent configurations
 AGENT_CONFIG = {
@@ -1641,9 +1642,9 @@ class PMOrchestratorServiceV2:
         If sds_markdown is provided (from Emma write_sds), uses it as the source.
         Otherwise falls back to the professional generator.
         """
-        output_dir = "/app/outputs"
+        output_dir = str(settings.OUTPUT_DIR)
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # If Emma provided markdown, convert to DOCX
         if sds_markdown:
             try:
@@ -1677,7 +1678,7 @@ class PMOrchestratorServiceV2:
 
     def _generate_markdown_sds(self, project: Project, artifacts: Dict, execution_id: int) -> str:
         """Fallback: Generate Markdown SDS"""
-        output_dir = "/app/outputs"
+        output_dir = str(settings.OUTPUT_DIR)
         os.makedirs(output_dir, exist_ok=True)
         
         md_content = f"""# Solution Design Specification

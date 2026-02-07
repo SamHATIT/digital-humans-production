@@ -26,6 +26,7 @@ from app.database import SessionLocal
 from app.models.execution import Execution, ExecutionStatus
 from app.models.artifact import ExecutionArtifact, ArtifactType, ArtifactStatus
 from app.salesforce_config import salesforce_config
+from app.config import settings
 
 # Test logger for debugging
 try:
@@ -75,7 +76,7 @@ class ExecutionLog:
 # AGENT CONFIG - Maps UI agent IDs to real scripts
 # ============================================================================
 
-AGENTS_PATH = Path("/root/workspace/digital-humans-production/backend/agents/roles")
+AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
 
 AGENT_CONFIG = {
     "marcus": {"script": "salesforce_solution_architect.py", "display_name": "Marcus (Solution Architect)", "tier": "architect"},
@@ -674,13 +675,13 @@ async def run_agent_task(
         # Run subprocess with environment variables
         import os as os_module
         env = os_module.environ.copy()
-        env["PYTHONPATH"] = "/root/workspace/digital-humans-production/backend"
+        env["PYTHONPATH"] = str(settings.BACKEND_ROOT)
         
         process = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd="/root/workspace/digital-humans-production/backend",
+            cwd=str(settings.BACKEND_ROOT),
             env=env
         )
         
