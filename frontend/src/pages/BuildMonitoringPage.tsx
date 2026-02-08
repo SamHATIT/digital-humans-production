@@ -8,7 +8,8 @@ import {
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import { api } from '../services/api';
-import BuildPhasesPanel, { PhaseExecution } from '../components/BuildPhasesPanel';
+import BuildPhasesPanel from '../components/BuildPhasesPanel';
+import type { PhaseExecution } from '../components/BuildPhasesPanel';
 
 interface TaskInfo {
   task_id: string;
