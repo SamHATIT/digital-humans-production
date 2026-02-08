@@ -70,6 +70,14 @@ from app.services.document_generator import generate_professional_sds, Professio
 
 logger = logging.getLogger(__name__)
 
+# C1.1: Direct import registry for migrated agents (P3 fix)
+try:
+    from app.services.agent_executor import MIGRATED_AGENTS
+    DIRECT_IMPORT_AVAILABLE = True
+except ImportError:
+    MIGRATED_AGENTS = {}
+    DIRECT_IMPORT_AVAILABLE = False
+
 # Agent script paths (centralized via config.py)
 AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
 
@@ -1150,6 +1158,65 @@ class PMOrchestratorServiceV2:
         
         return summary
 
+
+    async def _run_agent_direct(
+        self,
+        agent_id: str,
+        input_data: Dict,
+        execution_id: int,
+        project_id: int,
+        mode: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """C1.1: Run a migrated agent via direct import (no subprocess).
+        
+        Replaces the subprocess flow with direct class instantiation.
+        The agent receives input_data as a JSON string (matching the subprocess
+        contract where the agent reads the input file as raw text).
+        """
+        try:
+            agent_class = MIGRATED_AGENTS[agent_id]
+            agent_instance = agent_class()
+            
+            # Build task_data matching agent class interface
+            # input_content = JSON string of input_data (same as subprocess reads from file)
+            task_data = {
+                "mode": mode or "spec",
+                "input_content": json.dumps(input_data, ensure_ascii=False),
+                "execution_id": execution_id,
+                "project_id": project_id,
+            }
+            
+            # Dynamic timeout (same as subprocess version)
+            timeout_seconds = 300  # Default 5 min
+            if agent_id == "research_analyst":
+                timeout_seconds = 3600  # 60 min for Emma (large projects)
+            elif agent_id == "architect":
+                timeout_seconds = 900  # 15 min for Marcus
+            
+            config = AGENT_CONFIG.get(agent_id, {})
+            display_name = config.get("display_name", agent_id)
+            logger.info(f"[C1.1] Running {display_name} via direct import (mode={mode})")
+            
+            # Run in thread pool with timeout (agents do blocking LLM calls)
+            result = await asyncio.wait_for(
+                asyncio.to_thread(agent_instance.run, task_data),
+                timeout=timeout_seconds
+            )
+            
+            if result.get("success"):
+                return {"success": True, "output": result}
+            else:
+                error_msg = result.get("error", "Unknown error")
+                logger.error(f"[C1.1] Agent {agent_id} failed: {error_msg}")
+                return {"success": False, "error": error_msg}
+                
+        except asyncio.TimeoutError:
+            logger.error(f"[C1.1] Agent {agent_id} timed out ({timeout_seconds}s)")
+            return {"success": False, "error": f"Timeout ({timeout_seconds // 60} min)"}
+        except Exception as e:
+            logger.error(f"[C1.1] Agent {agent_id} direct import error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
     async def _run_agent(
         self,
         agent_id: str,
@@ -1160,6 +1227,13 @@ class PMOrchestratorServiceV2:
     ) -> Dict[str, Any]:
         """Run an agent script and return the result"""
         try:
+            # C1.1: Adapter Pattern — route to direct import for migrated agents
+            if DIRECT_IMPORT_AVAILABLE and agent_id in MIGRATED_AGENTS:
+                return await self._run_agent_direct(
+                    agent_id, input_data, execution_id, project_id, mode
+                )
+            
+            # Legacy subprocess fallback (for non-migrated agents)
             config = AGENT_CONFIG.get(agent_id)
             if not config:
                 return {"success": False, "error": f"Unknown agent: {agent_id}"}
