@@ -1,9 +1,12 @@
 # LLM Router Configuration - Digital Humans Platform
+# Sophie=Opus | Olivia/Emma/Marcus=Sonnet | Others=Haiku (flexible)
+# Ollama (Mistral 7B/Nemo) = experimental only, for future freeware SDS
+
 default_routing:
-  simple: local/mistral:7b-instruct
+  simple: anthropic/claude-haiku
   medium: anthropic/claude-haiku
   complex: anthropic/claude-sonnet
-  critical: anthropic/claude-sonnet
+  critical: anthropic/claude-opus
 
 pricing:
   local/mistral:7b-instruct:
@@ -18,10 +21,13 @@ pricing:
   anthropic/claude-sonnet:
     input: 3.0
     output: 15.0
+  anthropic/claude-opus:
+    input: 15.0
+    output: 75.0
 
 providers:
   ollama:
-    enabled: true
+    enabled: false  # Experimental only — enable manually for freeware tests
     base_url: "http://localhost:11434"
     timeout_seconds: 300
     models:
@@ -38,6 +44,25 @@ providers:
         model_id: "claude-haiku-4-5-20251001"
       claude-sonnet:
         model_id: "claude-sonnet-4-5-20250929"
+      claude-opus:
+        model_id: "claude-opus-4-5-20251101"
   openai:
     enabled: true
     api_key_env: "OPENAI_API_KEY"
+
+# Agent-to-complexity mapping
+# Sophie (PM) = critical (Opus) — entry point, quality matters most
+# Olivia (BA), Emma (Research), Marcus (Architect) = complex (Sonnet) — core SDS agents
+# Others = medium (Haiku) — flexible, cost-optimized
+agent_complexity_map:
+  pm: critical
+  ba: complex
+  architect: complex
+  research_analyst: complex
+  qa: medium
+  devops: medium
+  trainer: medium
+  data: medium
+  admin: medium
+  apex: medium
+  lwc: medium
