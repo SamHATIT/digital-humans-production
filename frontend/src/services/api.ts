@@ -145,6 +145,14 @@ export const executions = {
     return `${API_URL}/api/pm-orchestrator/execute/${executionId}/download?token=${token}`;
   },
 
+  // H12: Resume execution with optional action (architecture validation)
+  resume: async (executionId: number, action?: string) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/resume`, {
+      method: 'POST',
+      body: action ? JSON.stringify({ action }) : '{}',
+    });
+  },
+
   // ORCH-04: Retry failed execution
   retry: async (executionId: number) => {
     return apiCall(`/api/pm-orchestrator/execute/${executionId}/retry`, {

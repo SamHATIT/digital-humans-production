@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
@@ -55,6 +55,9 @@ export default function ExecutionMonitoringPage() {
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
+  // H12: Architecture validation state
+  const [isArchAction, setIsArchAction] = useState(false);
+
   // FRNT-02: Compare progress to avoid unnecessary re-renders that cause scroll jumps
   const hasProgressChanged = (oldData: ExecutionProgress | null, newData: ExecutionProgress | null): boolean => {
     if (!oldData || !newData) return true;
@@ -89,7 +92,7 @@ export default function ExecutionMonitoringPage() {
         }
 
         // Stop polling if completed or failed
-        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'cancelled' || data?.status === 'waiting_br_validation') {
+        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'cancelled' || data?.status === 'waiting_br_validation' || data?.status === 'waiting_architecture_validation') {
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -202,7 +205,39 @@ export default function ExecutionMonitoringPage() {
   const isFailed = normalizedMainStatus === 'failed';
   const isCancelled = normalizedMainStatus === 'cancelled';
   const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
+  const isWaitingArchitectureValidation = normalizedMainStatus === 'waiting_architecture_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
+
+  // H12: Extract architecture coverage data from agent progress
+  const getArchitectureCoverageData = () => {
+    if (!isWaitingArchitectureValidation || !progress) return null;
+    const researchAgent = progress.agent_progress?.find(
+      (a) => a.agent_name?.includes('Emma') || a.agent_name?.includes('Research')
+    );
+    // The extra_data is embedded in the progress response from backend
+    return researchAgent || null;
+  };
+
+  const handleArchitectureAction = async (action: 'approve_architecture' | 'revise_architecture') => {
+    if (!executionId) return;
+    setIsArchAction(true);
+    try {
+      await executions.resume(Number(executionId), action);
+      // Restart polling
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      pollingRef.current = setInterval(async () => {
+        const data = await executions.getProgress(Number(executionId));
+        setProgress(data);
+        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled' || data.status === 'waiting_architecture_validation') {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      }, 3000);
+    } catch (err: any) {
+      setError(err.message || `Failed to ${action}`);
+    } finally {
+      setIsArchAction(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
@@ -263,6 +298,71 @@ export default function ExecutionMonitoringPage() {
                   <ClipboardList className="w-5 h-5" />
                   Review & Validate Requirements
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* H12: Architecture Coverage Validation */}
+        {isWaitingArchitectureValidation && (
+          <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                <ShieldCheck className="w-6 h-6 text-blue-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-blue-400 mb-2">
+                  Architecture Coverage Validation
+                </h3>
+                <p className="text-slate-300 mb-4">
+                  Emma (Research Analyst) has validated the solution architecture against your use cases.
+                  The coverage score is between 70-94%. Please review and decide whether to approve or request a revision.
+                </p>
+
+                {/* Coverage info from agent progress */}
+                {(() => {
+                  const researchAgent = getArchitectureCoverageData();
+                  const taskInfo = researchAgent?.current_task || researchAgent?.output_summary || '';
+                  const coverageMatch = taskInfo.match(/(\d+)%/);
+                  const score = coverageMatch ? parseInt(coverageMatch[1]) : null;
+
+                  return (
+                    <div className="mb-4 space-y-3">
+                      {score !== null && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400">Coverage Score:</span>
+                          <span className={`text-2xl font-bold ${
+                            score >= 85 ? 'text-green-400' : score >= 75 ? 'text-orange-400' : 'text-red-400'
+                          }`}>
+                            {score}%
+                          </span>
+                        </div>
+                      )}
+                      {taskInfo && (
+                        <p className="text-slate-400 text-sm">{taskInfo}</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleArchitectureAction('approve_architecture')}
+                    disabled={isArchAction}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25 disabled:opacity-50"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {isArchAction ? 'Processing...' : 'Approve Architecture'}
+                  </button>
+                  <button
+                    onClick={() => handleArchitectureAction('revise_architecture')}
+                    disabled={isArchAction}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50"
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    {isArchAction ? 'Processing...' : 'Revise Architecture'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
