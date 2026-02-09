@@ -23,7 +23,7 @@ from app.schemas.execution import (
     ExecutionResultResponse,
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
-from app.services.pm_orchestrator_service_v2 import execute_workflow_background
+from app.services.pm_orchestrator_service_v2 import execute_workflow_background, resume_architecture_background
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
     AGENT_NAMES,
@@ -99,18 +99,50 @@ async def start_execution(
 @router.post("/execute/{execution_id}/resume", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
 async def resume_execution(
     execution_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Resume execution after Business Requirements validation."""
+    """Resume execution after BR validation or architecture validation (H12)."""
     execution = verify_execution_access(execution_id, current_user.id, db)
 
-    if execution.status not in [ExecutionStatus.WAITING_BR_VALIDATION, ExecutionStatus.FAILED]:
+    # Parse optional action from request body
+    action = None
+    try:
+        body = await request.json()
+        action = body.get("action")
+    except Exception:
+        pass  # No body or invalid JSON — action stays None
+
+    allowed_statuses = [
+        ExecutionStatus.WAITING_BR_VALIDATION,
+        ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION,
+        ExecutionStatus.FAILED,
+    ]
+    if execution.status not in allowed_statuses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot resume execution. Status must be WAITING_BR_VALIDATION or FAILED. Current: {execution.status.value}",
+            detail=f"Cannot resume execution. Current status: {execution.status.value}",
         )
 
+    # ── H12: Architecture validation resume ──
+    if execution.status == ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION:
+        if action not in ("approve_architecture", "revise_architecture"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Action required: 'approve_architecture' or 'revise_architecture'",
+            )
+        logger.info(f"[Resume] Architecture validation: action={action}, execution={execution_id}")
+        asyncio.create_task(
+            resume_architecture_background(execution.id, execution.project_id, action)
+        )
+        return ExecutionStartResponse(
+            execution_id=execution.id,
+            status="resumed",
+            message=f"Architecture validation: {action}. Use the progress endpoint to track status.",
+        )
+
+    # ── BR validation resume (existing logic) ──
     resume_point = None
     if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
         resume_point = "phase2_ba"

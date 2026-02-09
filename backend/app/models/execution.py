@@ -17,6 +17,7 @@ class ExecutionStatus(str, enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     WAITING_BR_VALIDATION = "waiting_br_validation"
+    WAITING_ARCHITECTURE_VALIDATION = "waiting_architecture_validation"
 
 
 class Execution(Base):

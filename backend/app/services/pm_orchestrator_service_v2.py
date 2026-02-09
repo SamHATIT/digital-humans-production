@@ -67,11 +67,17 @@ import logging
 from app.config import settings
 from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
+from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
 
 logger = logging.getLogger(__name__)
 
 # Agent script paths (centralized via config.py)
 AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
+
+# H12: Coverage gate thresholds
+COVERAGE_AUTO_APPROVE = 95   # >= this: auto-proceed, no pause
+COVERAGE_MIN_PROCEED = 70    # >= this: pause for HITL validation; below: fail
+MAX_ARCHITECTURE_REVISIONS = 2  # Max times user can request revision
 
 # Agent configurations
 AGENT_CONFIG = {
@@ -180,15 +186,15 @@ class PMOrchestratorServiceV2:
                 }
             }
             
-            # Resume is only supported for Phase 1 (BR validation)
-            # If resume_from is set, we skip Phase 1 and use validated BRs
+            # Resume support: Phase 1 (BR validation)
+            # Architecture validation resume uses dedicated resume_from_architecture_validation method
 
             # ========================================
             # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
             # ========================================
             if resume_from and resume_from not in (None, "phase1", "phase1_pm"):
-                # Resuming after BR validation - load validated BRs from database
-                logger.info(f"[Phase 1] SKIPPED - Resuming from Phase 2 with validated BRs")
+                # Resuming after BR validation or architecture validation
+                logger.info(f"[Phase 1] SKIPPED - Resuming from {resume_from} with validated BRs")
                 business_requirements = self._get_validated_brs(project_id)
                 self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
                 self._save_checkpoint(execution, "phase1_pm")
@@ -454,29 +460,47 @@ class PMOrchestratorServiceV2:
                 logger.warning(f"[Phase 3] ⚠️ UC Digest is corrupted (parse_error or missing by_requirement), falling back to raw UCs")
                 logger.warning(f"[Phase 3]    Digest keys: {list(uc_digest.keys())}")
             
-            # 3.1: As-Is Analysis (Analyze current Salesforce org - ALWAYS RUN)
-            self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
-            
-            asis_result = await self._run_agent(
-                agent_id="architect",
-                mode="as_is",
-                input_data={
-                    "sfdx_metadata": json.dumps(org_metadata),
-                    "org_summary": org_summary,
-                    "org_info": org_summary
-                },
-                execution_id=execution_id,
-                project_id=project_id
-            )
-            
-            if asis_result.get("success"):
-                results["artifacts"]["AS_IS"] = asis_result["output"]
-                architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
-                logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
+            # 3.1: As-Is Analysis
+            # Check if greenfield — use standard As-Is instead of analyzing org
+            if project and project.project_type == "greenfield":
+                # Load standard Salesforce As-Is (no org to analyze)
+                standard_asis_path = Path(__file__).parent.parent.parent / "data" / "standard_salesforce_asis.json"
+                with open(standard_asis_path) as f:
+                    standard_asis = json.load(f)
+
+                results["artifacts"]["AS_IS"] = {
+                    "artifact_id": "ASIS-001",
+                    "content": standard_asis,
+                    "metadata": {"tokens_used": 0, "source": "standard_greenfield"}
+                }
+                self._save_deliverable(execution_id, "architect", "as_is", results["artifacts"]["AS_IS"])
+                logger.info("[Phase 3.1] ✅ Greenfield mode — using standard Salesforce As-Is (no org analysis)")
+                self._update_progress(execution, "architect", "running", 55,
+                                     "Greenfield mode — standard Salesforce baseline")
             else:
-                results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
-                logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
+                # EXISTING org — run Marcus As-Is analysis as before
+                self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
+
+                asis_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="as_is",
+                    input_data={
+                        "sfdx_metadata": json.dumps(org_metadata),
+                        "org_summary": org_summary,
+                        "org_info": org_summary
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+
+                if asis_result.get("success"):
+                    results["artifacts"]["AS_IS"] = asis_result["output"]
+                    architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
+                    self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
+                    logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
+                else:
+                    results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
+                    logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
             
             # Gap Analysis moved to Phase 3.4 (after Emma Validate)
             
@@ -518,17 +542,17 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Phase 3.2] ✅ Solution Design (ARCH-001)")
                 
                 # ========================================
-                # PHASE 3.3: Emma Validate (REORDERED) (Coverage Check)
+                # PHASE 3.3: Emma Validate — HITL Coverage Gate (H12)
                 # ========================================
                 # Emma validates that the solution design covers all UCs
-                # If coverage < 95%, Marcus will revise with gaps
-                
+                # 3-zone gate: >=95% auto-approve, 70-94% HITL pause, <70% fail
+
                 self._update_progress(execution, "research_analyst", "running", 68, "Validating UC coverage...")
-                
+
                 # Prepare validation input
                 all_use_cases = self._get_use_cases(execution_id, limit=None)
                 solution_design = results["artifacts"]["ARCHITECTURE"].get("content", {})
-                
+
                 validate_result = await self._run_agent(
                     agent_id="research_analyst",
                     mode="validate",
@@ -540,57 +564,77 @@ class PMOrchestratorServiceV2:
                     execution_id=execution_id,
                     project_id=project_id
                 )
-                
+
                 emma_validate_tokens = 0
                 if validate_result.get("success"):
                     coverage_report = validate_result["output"].get("content", {})
-                    coverage_pct = coverage_report.get("coverage_percentage", 0)
+                    # H12a: Fix field name — Emma returns overall_coverage_score, not coverage_percentage
+                    coverage_pct = coverage_report.get("overall_coverage_score",
+                                    coverage_report.get("coverage_percentage", 0))
                     emma_validate_tokens = validate_result["output"].get("metadata", {}).get("tokens_used", 0)
-                    
+
                     self._save_deliverable(execution_id, "research_analyst", "coverage_report", validate_result["output"])
                     results["artifacts"]["COVERAGE"] = validate_result["output"]
-                    
-                    logger.info(f"[Phase 3.3] ✅ Emma Validate - Coverage: {coverage_pct}%")
-                    
-                    # Coverage loop: if < 95%, ask Marcus to revise
-                    if coverage_pct < 95:
-                        gaps = coverage_report.get("gaps", [])
-                        uncovered_ucs = coverage_report.get("uncovered_use_cases", [])
-                        
-                        logger.info(f"[Phase 3.3] ⚠️ Coverage insufficient ({coverage_pct}%), requesting revision...")
-                        self._update_progress(execution, "architect", "running", 70, f"Revising design (coverage: {coverage_pct}%)...")
-                        
-                        # Marcus revision with gaps
-                        revision_result = await self._run_agent(
-                            agent_id="architect",
-                            mode="design",
-                            input_data={
-                                "project_summary": br_result["output"]["content"].get("project_summary", ""),
-                                "uc_digest": uc_digest,
-                                "use_cases": [],
-                                "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
-                                "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
-                                # Add coverage gaps for revision
-                                "coverage_gaps": gaps,
-                                "uncovered_use_cases": uncovered_ucs,
-                                "revision_request": f"Please revise the solution design to address {len(gaps)} coverage gaps affecting {len(uncovered_ucs)} use cases."
-                            },
-                            execution_id=execution_id,
-                            project_id=project_id
-                        )
-                        
-                        if revision_result.get("success"):
-                            results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
-                            architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
-                            self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
-                            logger.info(f"[Phase 3.3] ✅ Solution Design Revised (after validation)")
-                        else:
-                            logger.warning(f"[Phase 3.3] ⚠️ Revision failed, keeping original design")
-                    
+
+                    logger.info(f"[Phase 3.3] Emma Validate - Coverage: {coverage_pct}%")
+
+                    # Track tokens
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_validate_tokens
                     results["metrics"]["total_tokens"] += emma_validate_tokens
 
-                    self._update_progress(execution, "research_analyst", "completed", 72, "Coverage validated")
+                    # H12b: Fix field name — Emma returns critical_gaps, not gaps
+                    critical_gaps = coverage_report.get("critical_gaps",
+                                     coverage_report.get("gaps", []))
+                    uncovered_ucs = coverage_report.get("uncovered_use_cases", [])
+
+                    # ── Zone 1: AUTO-APPROVE (>= 95%) ──
+                    if coverage_pct >= COVERAGE_AUTO_APPROVE:
+                        logger.info(f"[Phase 3.3] ✅ Architecture APPROVED — coverage {coverage_pct}% >= {COVERAGE_AUTO_APPROVE}%")
+                        self._update_progress(execution, "research_analyst", "completed", 72,
+                                             f"Coverage {coverage_pct}% — auto-approved")
+
+                    # ── Zone 2: HITL PAUSE (70-94%) ──
+                    elif coverage_pct >= COVERAGE_MIN_PROCEED:
+                        logger.info(f"[Phase 3.3] ⏸️ Coverage {coverage_pct}% — pausing for human validation")
+
+                        # Store coverage data in agent_execution_status for frontend
+                        coverage_data = {
+                            "approval_type": "architecture_coverage",
+                            "coverage_score": coverage_pct,
+                            "critical_gaps": critical_gaps,
+                            "uncovered_use_cases": uncovered_ucs,
+                            "revision_count": 0,
+                            "max_revisions": MAX_ARCHITECTURE_REVISIONS,
+                        }
+
+                        if execution.agent_execution_status is None:
+                            execution.agent_execution_status = {}
+                        execution.agent_execution_status.setdefault("research_analyst", {})
+                        execution.agent_execution_status["research_analyst"]["state"] = "waiting_approval"
+                        execution.agent_execution_status["research_analyst"]["extra_data"] = coverage_data
+                        execution.agent_execution_status["research_analyst"]["message"] = (
+                            f"Coverage {coverage_pct}% — awaiting validation"
+                        )
+                        flag_modified(execution, "agent_execution_status")
+
+                        execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                        self._save_checkpoint(execution, "phase3_3_coverage_gate")
+                        self.db.commit()
+
+                        logger.info(f"[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
+                        return results  # <-- PAUSE: execution stops here
+
+                    # ── Zone 3: FAIL (< 70%) ──
+                    else:
+                        logger.error(f"[Phase 3.3] ❌ Coverage {coverage_pct}% < {COVERAGE_MIN_PROCEED}% — architecture rejected")
+                        execution.status = ExecutionStatus.FAILED
+                        self._update_progress(execution, "research_analyst", "failed", 72,
+                                             f"Architecture coverage too low ({coverage_pct}%)")
+                        self.db.commit()
+                        raise Exception(
+                            f"Architecture coverage too low: {coverage_pct}% (minimum {COVERAGE_MIN_PROCEED}%). "
+                            f"{len(critical_gaps)} critical gaps, {len(uncovered_ucs)} uncovered use cases."
+                        )
 
                 else:
                     logger.warning(f"[Phase 3.3] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
@@ -672,264 +716,10 @@ class PMOrchestratorServiceV2:
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             self._save_checkpoint(execution, "phase3_wbs")
             
-            # ========================================
-            # PHASE 4: SDS Expert Agents (Conditional)
-            # ========================================
-            # These experts enrich the SDS with specialized sections:
-            # - Aisha (Data): Data Migration Strategy
-            # - Lucas (Trainer): Training & Change Management Plan  
-            # - Elena (QA): Test Strategy & QA Approach
-            # - Jordan (DevOps): CI/CD & Deployment Strategy
-            # ORCH-01: Only execute agents that were selected by the user
-            
-            ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
-            
-            # Filter to only include experts selected by user (if selection provided)
-            if selected_agents:
-                SDS_EXPERTS = [agent for agent in ALL_SDS_EXPERTS if agent in selected_agents]
-                skipped = [agent for agent in ALL_SDS_EXPERTS if agent not in selected_agents]
-                if skipped:
-                    logger.info(f"[Phase 4] ⏭️ Skipping non-selected agents: {skipped}")
-            else:
-                # No selection = run all (backward compatibility)
-                SDS_EXPERTS = ALL_SDS_EXPERTS
-            
-            if SDS_EXPERTS:
-                logger.info(f"[Phase 4] SDS Expert Agents to execute: {SDS_EXPERTS}")
-            else:
-                logger.info(f"[Phase 4] No SDS Expert Agents selected - skipping Phase 4")
-            
-            expert_progress_start = 75
-            expert_progress_end = 90
-            
-            # Common context for all experts
-            common_context = {
-                "project": {
-                    "name": project.name,
-                    "description": project.description or "",
-                    "requirements": project.business_requirements or project.requirements_text or "",
-                    "product": project.salesforce_product,
-                    "compliance": project.compliance_requirements or ""
-                },
-                "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                "use_cases": self._get_use_cases(execution_id, 15),
-                "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
-                "wbs": results["artifacts"].get("WBS", {}).get("content", {})
-            }
-            
-            # ORCH-02: Parallel execution for SDS experts
-            async def run_sds_expert(agent_id: str) -> dict:
-                """Run a single SDS expert agent"""
-                agent_name = AGENT_CONFIG[agent_id]["display_name"]
-                self._update_progress(execution, agent_id, "running", 80, f"{agent_name} creating specifications...")
-                
-                # Build expert-specific input
-                expert_input = dict(common_context)
-                focus_map = {
-                    "data": "data_migration",
-                    "trainer": "training_adoption",
-                    "qa": "quality_assurance",
-                    "devops": "deployment_cicd"
-                }
-                expert_input["focus"] = focus_map.get(agent_id, agent_id)
-                
-                try:
-                    # PRPT-07: Pass mode to trainer (sds_strategy)
-                    # PRPT-07: Mode for each SDS expert
-                    mode_map = {
-                        "trainer": "sds_strategy",
-                        "qa": "spec",
-                        "devops": "spec",
-                        "data": "spec"
-                    }
-                    agent_mode = mode_map.get(agent_id, "spec")
-                    expert_result = await self._run_agent(
-                        agent_id=agent_id,
-                        input_data=expert_input,
-                        execution_id=execution_id,
-                        project_id=project_id,
-                        mode=agent_mode
-                    )
-                    return {"agent_id": agent_id, "result": expert_result}
-                except Exception as e:
-                    return {"agent_id": agent_id, "result": {"success": False, "error": str(e)}}
-            
-            if SDS_EXPERTS:
-                if PARALLEL_MODE.get("sds_experts", False):
-                    # Parallel execution
-                    logger.info(f"[Phase 4] 🚀 Running {len(SDS_EXPERTS)} SDS experts in PARALLEL")
-                    tasks = [run_sds_expert(agent_id) for agent_id in SDS_EXPERTS]
-                    expert_results = await asyncio.gather(*tasks)
-                else:
-                    # Sequential execution (fallback)
-                    logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts sequentially")
-                    expert_results = []
-                    for agent_id in SDS_EXPERTS:
-                        result = await run_sds_expert(agent_id)
-                        expert_results.append(result)
-                
-                # Process results
-                for item in expert_results:
-                    agent_id = item["agent_id"]
-                    expert_result = item["result"]
-                    agent_name = AGENT_CONFIG[agent_id]["display_name"]
-                    
-                    if expert_result.get("success"):
-                        results["agent_outputs"][agent_id] = expert_result["output"]
-                        results["artifacts"][f"{agent_id.upper()}_SPECS"] = expert_result["output"]
-                        self._track_tokens(agent_id, expert_result["output"], results)
-                        self._save_deliverable(execution_id, agent_id, f"{agent_id}_specifications", expert_result["output"])
-                        logger.info(f"[Phase 4] ✅ {agent_name} completed")
-                        self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
-                    else:
-                        logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {expert_result.get('error')}")
-                        self._update_progress(execution, agent_id, "failed", 88, f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
-            
-            # ========================================
-            # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
-            # ========================================
-            sds_markdown = ""
-            logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
-            self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
-            # DEBUG: Log WBS data availability
-            wbs_artifact = results["artifacts"].get("WBS", {})
-            logger.info(f"[Phase 5 DEBUG] WBS artifact keys: {list(wbs_artifact.keys())}")
-            wbs_content = wbs_artifact.get("content", {})
-            logger.info(f"[Phase 5 DEBUG] WBS content keys: {list(wbs_content.keys())}")
-            if wbs_content:
-                phases_count = len(wbs_content.get('phases', []))
-                logger.info(f"[Phase 5 DEBUG] WBS has {phases_count} phases")
-            else:
-                logger.warning("[Phase 5 DEBUG] ⚠️ WBS content is EMPTY!")
-            
-
-            
-            # Prepare all sources for Emma write_sds
-            emma_write_input = {
-                "project_info": {
-                    "name": project.name,
-                    "description": project.description or "",
-                    "client_name": getattr(project, 'client_name', '') or "",
-                    "objectives": project.architecture_notes or ""
-                },
-                "business_requirements": self._get_business_requirements_for_sds(execution_id),
-                "use_cases": self._get_use_cases(execution_id, limit=None),
-                "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
-                "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
-                "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
-                "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
-                "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
-                "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
-                "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
-            }
-            
-            emma_write_result = await self._run_agent(
-                agent_id="research_analyst",
-                mode="write_sds",
-                input_data=emma_write_input,
-                execution_id=execution_id,
-                project_id=project_id
+            # H12: Phases 4-6 + Finalize extracted to _execute_from_phase4
+            return await self._execute_from_phase4(
+                project, execution, execution_id, project_id, results, selected_agents
             )
-            
-            emma_write_tokens = 0
-            
-            if emma_write_result.get("success"):
-                emma_output = emma_write_result["output"]
-                emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
-                sds_markdown = emma_output.get("content", {}).get("document", "")
-                
-                self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
-                results["artifacts"]["SDS"] = emma_output
-                results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
-                results["metrics"]["total_tokens"] += emma_write_tokens
-                
-                logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
-            else:
-                error_msg = emma_write_result.get('error', 'Unknown error')
-                logger.error(f"[Phase 5] ❌ Emma write_sds failed: {error_msg}")
-                self._update_progress(execution, "research_analyst", "failed", 92, f"Write SDS failed: {error_msg[:50]}")
-                raise Exception(f"SDS Document generation failed: {error_msg}")
-            
-            self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
-            self._save_checkpoint(execution, "phase5_write_sds")
-            
-            # ========================================
-            # PHASE 6: Export SDS to DOCX/PDF
-            # ========================================
-            logger.info(f"[Phase 6] Exporting SDS Document")
-            self._update_progress(execution, "pm", "running", 94, "Exporting SDS Document...")
-            
-            # Generate SDS file (DOCX/PDF) from Emma's markdown
-            # Note: sds_markdown is guaranteed to exist (Emma failure raises exception above)
-            
-            # Save markdown first
-            md_path = f"/tmp/sds_{execution_id}.md"
-            with open(md_path, 'w', encoding='utf-8') as f:
-                f.write(sds_markdown)
-            results["sds_markdown_path"] = md_path
-            
-            # Convert to DOCX using document generator
-            try:
-                sds_path = await self._generate_sds_document(
-                    project=project,
-                    agent_outputs=results["agent_outputs"],
-                    artifacts=results["artifacts"],
-                    execution_id=execution_id,
-                    sds_markdown=sds_markdown
-                )
-                results["sds_path"] = sds_path
-                execution.sds_document_path = sds_path
-                logger.info(f"[Phase 6] ✅ SDS Document: {sds_path}")
-            except Exception as e:
-                logger.error(f"[Phase 6] DOCX export failed: {e}")
-                # Keep markdown as the output (no fallback to old generator)
-                results["sds_path"] = md_path
-                execution.sds_document_path = md_path
-                logger.info(f"[Phase 6] ⚠️ Using Markdown instead: {md_path}")
-            
-            self._update_progress(execution, "pm", "completed", 98, "SDS Document exported")
-            self._save_checkpoint(execution, "phase6_export")
-            
-            # ========================================
-            # FINALIZE
-            # ========================================
-            execution.status = ExecutionStatus.COMPLETED
-            execution.completed_at = datetime.now(timezone.utc)
-            execution.total_tokens_used = results["metrics"]["total_tokens"]
-            
-            # P7: Atomic finalization — status + SDS version + project update in one commit
-            self._create_sds_version(project, execution, results.get("sds_path"))
-            try:
-                self.db.commit()
-            except Exception:
-                self.db.rollback()
-                raise
-            
-            logger.info(f"[Complete] Execution {execution_id} finished")
-            logger.info(f"[Metrics] Total tokens: {results['metrics']['total_tokens']}")
-            logger.info(f"[Metrics] By agent: {results['metrics']['tokens_by_agent']}")
-            
-            
-            # CORE-001: Audit log - execution completed
-            audit_service.log(
-                actor_type=ActorType.SYSTEM,
-                actor_id="orchestrator",
-                action=ActionCategory.EXECUTION_COMPLETE,
-                entity_type="execution",
-                entity_id=str(execution_id),
-                project_id=project_id,
-                execution_id=execution_id,
-                extra_data={"total_tokens": results["metrics"]["total_tokens"], "artifacts_count": len(results["artifacts"])}
-            )
-            return {
-                "success": True,
-                "execution_id": execution_id,
-                "artifacts_count": len(results["artifacts"]),
-                "total_tokens": results["metrics"]["total_tokens"],
-                "tokens_by_agent": results["metrics"]["tokens_by_agent"],
-                "sds_path": results.get("sds_path")
-            }
             
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {str(e)}")
@@ -2176,6 +1966,520 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             # Don't fail the execution, just log the error
 
 
+    async def _execute_from_phase4(
+        self,
+        project,
+        execution,
+        execution_id: int,
+        project_id: int,
+        results: Dict[str, Any],
+        selected_agents: List[str]
+    ) -> Dict[str, Any]:
+        """
+        Execute Phases 4, 5, 6, and Finalize.
+        Extracted from execute_workflow so it can be called from both
+        normal flow and architecture validation resume (H12).
+        """
+        # ========================================
+        # PHASE 4: SDS Expert Agents (Conditional)
+        # ========================================
+        ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+
+        if selected_agents:
+            SDS_EXPERTS = [agent for agent in ALL_SDS_EXPERTS if agent in selected_agents]
+            skipped = [agent for agent in ALL_SDS_EXPERTS if agent not in selected_agents]
+            if skipped:
+                logger.info(f"[Phase 4] Skipping non-selected agents: {skipped}")
+        else:
+            SDS_EXPERTS = ALL_SDS_EXPERTS
+
+        if SDS_EXPERTS:
+            logger.info(f"[Phase 4] SDS Expert Agents to execute: {SDS_EXPERTS}")
+        else:
+            logger.info(f"[Phase 4] No SDS Expert Agents selected - skipping Phase 4")
+
+        common_context = {
+            "project": {
+                "name": project.name,
+                "description": project.description or "",
+                "requirements": project.business_requirements or project.requirements_text or "",
+                "product": project.salesforce_product,
+                "compliance": project.compliance_requirements or ""
+            },
+            "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+            "use_cases": self._get_use_cases(execution_id, 15),
+            "gaps": results["artifacts"].get("GAP", {}).get("content", {}).get("gaps", []),
+            "wbs": results["artifacts"].get("WBS", {}).get("content", {})
+        }
+
+        async def run_sds_expert(agent_id: str) -> dict:
+            agent_name = AGENT_CONFIG[agent_id]["display_name"]
+            self._update_progress(execution, agent_id, "running", 80, f"{agent_name} creating specifications...")
+            expert_input = dict(common_context)
+            focus_map = {
+                "data": "data_migration",
+                "trainer": "training_adoption",
+                "qa": "quality_assurance",
+                "devops": "deployment_cicd"
+            }
+            expert_input["focus"] = focus_map.get(agent_id, agent_id)
+            try:
+                mode_map = {
+                    "trainer": "sds_strategy",
+                    "qa": "spec",
+                    "devops": "spec",
+                    "data": "spec"
+                }
+                agent_mode = mode_map.get(agent_id, "spec")
+                expert_result = await self._run_agent(
+                    agent_id=agent_id,
+                    input_data=expert_input,
+                    execution_id=execution_id,
+                    project_id=project_id,
+                    mode=agent_mode
+                )
+                return {"agent_id": agent_id, "result": expert_result}
+            except Exception as e:
+                return {"agent_id": agent_id, "result": {"success": False, "error": str(e)}}
+
+        if SDS_EXPERTS:
+            if PARALLEL_MODE.get("sds_experts", False):
+                logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts in PARALLEL")
+                tasks = [run_sds_expert(agent_id) for agent_id in SDS_EXPERTS]
+                expert_results = await asyncio.gather(*tasks)
+            else:
+                logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts sequentially")
+                expert_results = []
+                for agent_id in SDS_EXPERTS:
+                    result = await run_sds_expert(agent_id)
+                    expert_results.append(result)
+
+            for item in expert_results:
+                agent_id = item["agent_id"]
+                expert_result = item["result"]
+                agent_name = AGENT_CONFIG[agent_id]["display_name"]
+                if expert_result.get("success"):
+                    results["agent_outputs"][agent_id] = expert_result["output"]
+                    results["artifacts"][f"{agent_id.upper()}_SPECS"] = expert_result["output"]
+                    self._track_tokens(agent_id, expert_result["output"], results)
+                    self._save_deliverable(execution_id, agent_id, f"{agent_id}_specifications", expert_result["output"])
+                    logger.info(f"[Phase 4] ✅ {agent_name} completed")
+                    self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
+                else:
+                    logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {expert_result.get('error')}")
+                    self._update_progress(execution, agent_id, "failed", 88, f"Failed: {str(expert_result.get('error', 'Unknown'))[:50]}")
+
+        # ========================================
+        # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
+        # ========================================
+        sds_markdown = ""
+        logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
+        self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
+
+        wbs_artifact = results["artifacts"].get("WBS", {})
+        wbs_content = wbs_artifact.get("content", {})
+        if wbs_content:
+            logger.info(f"[Phase 5] WBS has {len(wbs_content.get('phases', []))} phases")
+        else:
+            logger.warning("[Phase 5] WBS content is EMPTY!")
+
+        all_use_cases_for_sds = self._get_use_cases(execution_id, limit=None)
+        uc_section_3_content = ""
+        uc_section_3_tokens = 0
+
+        # H13: Sub-batch Section 3 if UCs exceed threshold
+        if len(all_use_cases_for_sds) > UC_BATCH_SIZE:
+            logger.info(
+                f"[Phase 5] {len(all_use_cases_for_sds)} UCs exceed batch size "
+                f"({UC_BATCH_SIZE}), generating Section 3 in sub-batches"
+            )
+            self._update_progress(
+                execution, "research_analyst", "running", 89,
+                f"Generating UC specs in batches ({len(all_use_cases_for_sds)} UCs)..."
+            )
+            section_3_result = await generate_uc_section_batched(
+                all_ucs=all_use_cases_for_sds,
+                project_name=project.name,
+            )
+            uc_section_3_content = section_3_result["content"]
+            uc_section_3_tokens = section_3_result["tokens_used"]
+            logger.info(
+                f"[Phase 5] Section 3 pre-generated: {section_3_result['batch_count']} batches, "
+                f"{len(uc_section_3_content)} chars, {uc_section_3_tokens} tokens"
+            )
+
+        emma_write_input = {
+            "agent_list": DIGITAL_HUMANS_AGENTS,
+            "project_info": {
+                "name": project.name,
+                "description": project.description or "",
+                "client_name": getattr(project, 'client_name', '') or "",
+                "objectives": project.architecture_notes or ""
+            },
+            "business_requirements": self._get_business_requirements_for_sds(execution_id),
+            "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
+            "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+            "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
+            "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
+            "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
+            "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
+            "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
+            "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
+        }
+
+        if uc_section_3_content:
+            emma_write_input["use_cases"] = []
+            emma_write_input["pre_generated_section_3"] = uc_section_3_content
+            emma_write_input["section_3_instruction"] = (
+                "Section 3 (Use Case Specifications) has already been generated. "
+                "Include the pre_generated_section_3 content verbatim in the document. "
+                "Do NOT regenerate Use Case Specifications."
+            )
+        else:
+            emma_write_input["use_cases"] = all_use_cases_for_sds
+
+        emma_write_result = await self._run_agent(
+            agent_id="research_analyst",
+            mode="write_sds",
+            input_data=emma_write_input,
+            execution_id=execution_id,
+            project_id=project_id
+        )
+
+        emma_write_tokens = 0
+        if emma_write_result.get("success"):
+            emma_output = emma_write_result["output"]
+            emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
+            sds_markdown = emma_output.get("content", {}).get("document", "")
+
+            # H13: Splice pre-generated Section 3 if needed
+            if uc_section_3_content and uc_section_3_content not in sds_markdown:
+                section_3_marker = "## 3. Use Case Specifications"
+                alt_markers = ["## 3.", "## Use Case Specifications", "## Section 3"]
+                inserted = False
+                for marker in [section_3_marker] + alt_markers:
+                    if marker in sds_markdown:
+                        marker_pos = sds_markdown.index(marker)
+                        next_section = sds_markdown.find("\n## ", marker_pos + len(marker))
+                        if next_section > 0:
+                            sds_markdown = (
+                                sds_markdown[:marker_pos] + uc_section_3_content
+                                + "\n\n" + sds_markdown[next_section:]
+                            )
+                        else:
+                            sds_markdown = sds_markdown[:marker_pos] + uc_section_3_content + "\n\n"
+                        inserted = True
+                        break
+                if not inserted:
+                    sds_markdown = sds_markdown + "\n\n" + uc_section_3_content
+
+            emma_write_tokens += uc_section_3_tokens
+            self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
+            results["artifacts"]["SDS"] = emma_output
+            results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
+            results["metrics"]["total_tokens"] += emma_write_tokens
+            logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
+        else:
+            error_msg = emma_write_result.get('error', 'Unknown error')
+            logger.error(f"[Phase 5] ❌ Emma write_sds failed: {error_msg}")
+            self._update_progress(execution, "research_analyst", "failed", 92, f"Write SDS failed: {error_msg[:50]}")
+            raise Exception(f"SDS Document generation failed: {error_msg}")
+
+        self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
+        self._save_checkpoint(execution, "phase5_write_sds")
+
+        # ========================================
+        # PHASE 6: Export SDS to DOCX/PDF
+        # ========================================
+        logger.info(f"[Phase 6] Exporting SDS Document")
+        self._update_progress(execution, "pm", "running", 94, "Exporting SDS Document...")
+
+        md_path = f"/tmp/sds_{execution_id}.md"
+        with open(md_path, 'w', encoding='utf-8') as f:
+            f.write(sds_markdown)
+        results["sds_markdown_path"] = md_path
+
+        try:
+            sds_path = await self._generate_sds_document(
+                project=project,
+                agent_outputs=results["agent_outputs"],
+                artifacts=results["artifacts"],
+                execution_id=execution_id,
+                sds_markdown=sds_markdown
+            )
+            results["sds_path"] = sds_path
+            execution.sds_document_path = sds_path
+            logger.info(f"[Phase 6] ✅ SDS Document: {sds_path}")
+        except Exception as e:
+            logger.error(f"[Phase 6] DOCX export failed: {e}")
+            results["sds_path"] = md_path
+            execution.sds_document_path = md_path
+            logger.info(f"[Phase 6] ⚠️ Using Markdown instead: {md_path}")
+
+        self._update_progress(execution, "pm", "completed", 98, "SDS Document exported")
+        self._save_checkpoint(execution, "phase6_export")
+
+        # ========================================
+        # FINALIZE
+        # ========================================
+        execution.status = ExecutionStatus.COMPLETED
+        execution.completed_at = datetime.now(timezone.utc)
+        execution.total_tokens_used = results["metrics"]["total_tokens"]
+
+        self._create_sds_version(project, execution, results.get("sds_path"))
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+        logger.info(f"[Complete] Execution {execution_id} finished")
+        logger.info(f"[Metrics] Total tokens: {results['metrics']['total_tokens']}")
+        logger.info(f"[Metrics] By agent: {results['metrics']['tokens_by_agent']}")
+
+        audit_service.log(
+            actor_type=ActorType.SYSTEM,
+            actor_id="orchestrator",
+            action=ActionCategory.EXECUTION_COMPLETE,
+            entity_type="execution",
+            entity_id=str(execution_id),
+            project_id=project_id,
+            execution_id=execution_id,
+            extra_data={"total_tokens": results["metrics"]["total_tokens"], "artifacts_count": len(results["artifacts"])}
+        )
+        return {
+            "success": True,
+            "execution_id": execution_id,
+            "artifacts_count": len(results["artifacts"]),
+            "total_tokens": results["metrics"]["total_tokens"],
+            "tokens_by_agent": results["metrics"]["tokens_by_agent"],
+            "sds_path": results.get("sds_path")
+        }
+
+    async def resume_from_architecture_validation(
+        self,
+        execution_id: int,
+        project_id: int,
+        action: str  # "approve_architecture" or "revise_architecture"
+    ) -> Dict[str, Any]:
+        """
+        H12: Resume workflow after HITL architecture coverage validation.
+
+        - approve_architecture: skip to Phase 3.4 (gap analysis)
+        - revise_architecture: run Marcus revision + Emma re-validate, then continue
+        """
+        project = self.db.query(Project).filter(Project.id == project_id).first()
+        if not project:
+            raise ValueError(f"Project {project_id} not found")
+        execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+        if not execution:
+            raise ValueError(f"Execution {execution_id} not found")
+
+        logger.info(f"[Architecture Resume] action={action}, execution={execution_id}")
+
+        execution.status = ExecutionStatus.RUNNING
+        self.db.commit()
+
+        # Load all previously saved artifacts
+        loaded_artifacts = self._load_existing_artifacts(execution_id)
+        results = {
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "artifacts": loaded_artifacts,
+            "agent_outputs": {},
+            "metrics": {
+                "total_tokens": execution.total_tokens_used or 0,
+                "tokens_by_agent": {},
+                "execution_times": {}
+            }
+        }
+
+        architect_tokens = 0
+
+        # Get revision count from extra_data
+        ra_status = (execution.agent_execution_status or {}).get("research_analyst", {})
+        extra_data = ra_status.get("extra_data", {})
+        revision_count = extra_data.get("revision_count", 0)
+
+        # ── REVISE: Marcus revises → Emma re-validates ──
+        if action == "revise_architecture":
+            if revision_count >= MAX_ARCHITECTURE_REVISIONS:
+                logger.warning(f"[Architecture Resume] Max revisions ({MAX_ARCHITECTURE_REVISIONS}) reached")
+                raise ValueError(f"Maximum architecture revisions ({MAX_ARCHITECTURE_REVISIONS}) reached")
+
+            revision_count += 1
+            logger.info(f"[Architecture Resume] Running revision {revision_count}/{MAX_ARCHITECTURE_REVISIONS}")
+
+            # Get coverage gaps from stored data
+            critical_gaps = extra_data.get("critical_gaps", [])
+            uncovered_ucs = extra_data.get("uncovered_use_cases", [])
+
+            self._update_progress(execution, "architect", "running", 70,
+                                 f"Revising design (revision {revision_count})...")
+
+            revision_result = await self._run_agent(
+                agent_id="architect",
+                mode="design",
+                input_data={
+                    "project_summary": project.description or project.name or "",
+                    "use_cases": [],
+                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                    "coverage_gaps": critical_gaps,
+                    "uncovered_use_cases": uncovered_ucs,
+                    "revision_request": (
+                        f"Please revise the solution design to address "
+                        f"{len(critical_gaps)} coverage gaps affecting "
+                        f"{len(uncovered_ucs)} use cases."
+                    )
+                },
+                execution_id=execution_id,
+                project_id=project_id
+            )
+
+            if revision_result.get("success"):
+                results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
+                architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
+                self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
+                logger.info(f"[Architecture Resume] Marcus revision completed")
+            else:
+                logger.warning(f"[Architecture Resume] Marcus revision failed, keeping original")
+
+            # Re-validate with Emma
+            self._update_progress(execution, "research_analyst", "running", 68,
+                                 "Re-validating coverage after revision...")
+
+            all_use_cases = self._get_use_cases(execution_id, limit=None)
+            solution_design = results["artifacts"].get("ARCHITECTURE", {}).get("content", {})
+
+            validate_result = await self._run_agent(
+                agent_id="research_analyst",
+                mode="validate",
+                input_data={
+                    "solution_design": solution_design,
+                    "use_cases": all_use_cases,
+                },
+                execution_id=execution_id,
+                project_id=project_id
+            )
+
+            if validate_result.get("success"):
+                coverage_report = validate_result["output"].get("content", {})
+                coverage_pct = coverage_report.get("overall_coverage_score",
+                                coverage_report.get("coverage_percentage", 0))
+                emma_tokens = validate_result["output"].get("metadata", {}).get("tokens_used", 0)
+                results["metrics"]["total_tokens"] += emma_tokens
+
+                self._save_deliverable(execution_id, "research_analyst", "coverage_report", validate_result["output"])
+                results["artifacts"]["COVERAGE"] = validate_result["output"]
+
+                new_gaps = coverage_report.get("critical_gaps", coverage_report.get("gaps", []))
+                new_uncovered = coverage_report.get("uncovered_use_cases", [])
+
+                logger.info(f"[Architecture Resume] Re-validation coverage: {coverage_pct}%")
+
+                # Apply 3-zone gate again
+                if coverage_pct >= COVERAGE_AUTO_APPROVE:
+                    logger.info(f"[Architecture Resume] ✅ APPROVED — {coverage_pct}%")
+                    self._update_progress(execution, "research_analyst", "completed", 72,
+                                         f"Coverage {coverage_pct}% — approved after revision")
+                elif coverage_pct >= COVERAGE_MIN_PROCEED:
+                    # Pause again for another HITL decision
+                    coverage_data = {
+                        "approval_type": "architecture_coverage",
+                        "coverage_score": coverage_pct,
+                        "critical_gaps": new_gaps,
+                        "uncovered_use_cases": new_uncovered,
+                        "revision_count": revision_count,
+                        "max_revisions": MAX_ARCHITECTURE_REVISIONS,
+                    }
+                    execution.agent_execution_status.setdefault("research_analyst", {})
+                    execution.agent_execution_status["research_analyst"]["state"] = "waiting_approval"
+                    execution.agent_execution_status["research_analyst"]["extra_data"] = coverage_data
+                    execution.agent_execution_status["research_analyst"]["message"] = (
+                        f"Coverage {coverage_pct}% after revision {revision_count}"
+                    )
+                    flag_modified(execution, "agent_execution_status")
+                    execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                    self.db.commit()
+
+                    logger.info(f"[Architecture Resume] ⏸️ Re-paused — {coverage_pct}%")
+                    return results  # Pause again
+                else:
+                    execution.status = ExecutionStatus.FAILED
+                    self._update_progress(execution, "research_analyst", "failed", 72,
+                                         f"Coverage still too low ({coverage_pct}%)")
+                    self.db.commit()
+                    raise Exception(f"Architecture coverage too low after revision: {coverage_pct}%")
+            else:
+                logger.warning("[Architecture Resume] Emma re-validation failed, proceeding anyway")
+
+        # ── APPROVE or POST-REVISE: Continue from Phase 3.4 ──
+        logger.info("[Architecture Resume] Continuing from Phase 3.4 (Gap Analysis)")
+        self._update_progress(execution, "architect", "running", 70, "Analyzing implementation gaps...")
+
+        final_solution_design = results["artifacts"].get("ARCHITECTURE", {}).get("content", {})
+        use_cases_for_gap = self._get_use_cases(execution_id, limit=50)
+
+        # Phase 3.4: Gap Analysis
+        gap_result = await self._run_agent(
+            agent_id="architect",
+            mode="gap",
+            input_data={
+                "requirements": [],
+                "use_cases": use_cases_for_gap,
+                "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                "solution_design": final_solution_design
+            },
+            execution_id=execution_id,
+            project_id=project_id
+        )
+
+        if gap_result.get("success"):
+            results["artifacts"]["GAP"] = gap_result["output"]
+            architect_tokens += gap_result["output"]["metadata"].get("tokens_used", 0)
+            self._save_deliverable(execution_id, "architect", "gap_analysis", gap_result["output"])
+            logger.info("[Phase 3.4] ✅ Gap Analysis (resume)")
+        else:
+            results["artifacts"]["GAP"] = {"artifact_id": "GAP-001", "content": {"gaps": []}}
+            logger.warning("[Phase 3.4] ⚠️ Gap Analysis failed (resume)")
+
+        # Phase 3.5: WBS
+        self._update_progress(execution, "architect", "running", 74, "Creating work breakdown...")
+        wbs_result = await self._run_agent(
+            agent_id="architect",
+            mode="wbs",
+            input_data={
+                "gaps": results["artifacts"].get("GAP", {}).get("content", {}),
+                "architecture": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
+                "constraints": project.compliance_requirements or project.architecture_notes or ""
+            },
+            execution_id=execution_id,
+            project_id=project_id
+        )
+
+        if wbs_result.get("success"):
+            results["artifacts"]["WBS"] = wbs_result["output"]
+            architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
+            self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
+            logger.info("[Phase 3.5] ✅ WBS (resume)")
+        else:
+            logger.warning("[Phase 3.5] ⚠️ WBS failed (resume)")
+
+        results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
+        results["metrics"]["total_tokens"] += architect_tokens
+
+        self._save_checkpoint(execution, "phase3_wbs")
+        self._update_progress(execution, "architect", "completed", 78, "Architecture complete (resume)")
+
+        # Continue with Phase 4, 5, 6 via extracted helper
+        selected_agents = execution.selected_agents
+        if isinstance(selected_agents, str):
+            selected_agents = json.loads(selected_agents)
+        return await self._execute_from_phase4(
+            project, execution, execution_id, project_id, results, selected_agents or []
+        )
+
+
 # Background execution helper
 async def execute_workflow_background(
     db: Session,  # Not used - we create our own session
@@ -2198,6 +2502,24 @@ async def execute_workflow_background(
             include_as_is=include_as_is,
             sfdx_metadata=sfdx_metadata,
             resume_from=resume_from
+        )
+    finally:
+        db_session.close()
+
+
+async def resume_architecture_background(
+    execution_id: int,
+    project_id: int,
+    action: str  # "approve_architecture" or "revise_architecture"
+):
+    """Background task for architecture validation resume (H12)."""
+    db_session = SessionLocal()
+    try:
+        service = PMOrchestratorServiceV2(db_session)
+        return await service.resume_from_architecture_validation(
+            execution_id=execution_id,
+            project_id=project_id,
+            action=action
         )
     finally:
         db_session.close()

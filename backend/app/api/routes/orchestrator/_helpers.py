@@ -140,5 +140,7 @@ def build_agent_progress(execution: Execution) -> tuple:
         current_phase = "Failed"
     elif execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
         current_phase = "Waiting for BR Validation"
+    elif execution.status == ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION:
+        current_phase = "Waiting for Architecture Validation"
 
     return agent_progress, overall_progress, current_phase
