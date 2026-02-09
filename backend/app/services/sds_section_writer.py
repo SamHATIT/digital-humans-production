@@ -50,12 +50,20 @@ Only reference the 11 agents listed above — never invent agent names.
 async def generate_uc_section_batched(
     all_ucs: List[Dict[str, Any]],
     project_name: str = "",
+    project_context: dict = None,
 ) -> Dict[str, Any]:
     """
     Generate SDS Section 3 (Use Case Specifications) in sub-batches.
 
     When UCs exceed UC_BATCH_SIZE, splits into batches and makes separate
     LLM calls per batch, then concatenates the results.
+
+    Args:
+        all_ucs: List of use case dicts to include in section.
+        project_name: Project name for prompt context.
+        project_context: Optional dict with project metadata and BRs.
+            Expected keys: project (dict with name, description,
+            salesforce_product, organization_type), business_requirements (list).
 
     Returns:
         Dict with keys: content (str), tokens_used (int), batch_count (int)
@@ -66,6 +74,29 @@ async def generate_uc_section_batched(
     total_batches = (total_ucs + UC_BATCH_SIZE - 1) // UC_BATCH_SIZE
     section_parts = []
     total_tokens = 0
+
+    # Build project context block for prompt enrichment
+    context_block = ""
+    if project_context:
+        proj = project_context.get("project", {})
+        brs = project_context.get("business_requirements", [])
+        context_lines = []
+        if proj.get("name"):
+            context_lines.append(f"- Project: {proj['name']}")
+        if proj.get("description"):
+            context_lines.append(f"- Description: {proj['description']}")
+        if proj.get("salesforce_product"):
+            context_lines.append(f"- Salesforce Product: {proj['salesforce_product']}")
+        if proj.get("organization_type"):
+            context_lines.append(f"- Organization Type: {proj['organization_type']}")
+        if brs:
+            br_summary = ", ".join(
+                br.get("category", br.get("requirement", "")[:40])
+                for br in brs[:15]
+            )
+            context_lines.append(f"- Business Requirements ({len(brs)} total): {br_summary}")
+        if context_lines:
+            context_block = "PROJECT CONTEXT:\n" + "\n".join(context_lines) + "\n\n"
 
     section_system_prompt = get_section_system_prompt("Use Case Specifications")
 
@@ -81,9 +112,12 @@ async def generate_uc_section_batched(
         if batch_num == 1:
             header_instruction = "Include section header and introduction only in batch 1."
         else:
-            header_instruction = "Continue directly with use case specifications, no section header."
+            header_instruction = (
+                "Continue directly with use case specifications, no section header. "
+                "Maintain consistent formatting and numbering with previous batches."
+            )
 
-        batch_prompt = f"""Generate Use Case Specifications for batch {batch_num}/{total_batches}.
+        batch_prompt = f"""{context_block}Generate Use Case Specifications for batch {batch_num}/{total_batches}.
 {f"Project: {project_name}" if project_name else ""}
 
 This batch covers Use Cases {batch_idx + 1} to {batch_idx + len(batch)} out of {total_ucs} total.

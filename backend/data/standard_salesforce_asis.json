@@ -1,7 +1,7 @@
 {
   "_metadata": {
-    "last_updated": "2025-02",
-    "salesforce_release": "Spring '25 (API 63.0)",
+    "last_updated": "2026-02",
+    "salesforce_release": "Spring '26 (API 63.0)",
     "description": "Standard Salesforce Developer Edition baseline for greenfield gap analysis",
     "source": "standard_greenfield"
   },
@@ -138,6 +138,46 @@
       "custom_fields_count": 0,
       "record_types_custom": 0,
       "description": "Visual dashboards from report data"
+    },
+    {
+      "name": "ContentDocument",
+      "label": "Content Document",
+      "standard_fields_count": 20,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Files and documents stored in Salesforce"
+    },
+    {
+      "name": "ContentVersion",
+      "label": "Content Version",
+      "standard_fields_count": 30,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Versioned file content linked to ContentDocument"
+    },
+    {
+      "name": "User",
+      "label": "User",
+      "standard_fields_count": 80,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "System users, login credentials, and user preferences"
+    },
+    {
+      "name": "Profile",
+      "label": "Profile",
+      "standard_fields_count": 15,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "User profiles controlling baseline object and field permissions"
+    },
+    {
+      "name": "PermissionSet",
+      "label": "Permission Set",
+      "standard_fields_count": 10,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Additive permission grants assigned to users"
     }
   ]
 }
