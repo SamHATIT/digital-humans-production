@@ -2286,6 +2286,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             section_3_result = await generate_uc_section_batched(
                 all_ucs=all_use_cases_for_sds,
                 project_name=project.name,
+                project_context={
+                    "name": project.name,
+                    "description": project.description or "",
+                    "salesforce_product": getattr(project, 'salesforce_product', '') or "",
+                    "organization_type": getattr(project, 'project_type', 'existing') or "existing",
+                },
             )
             uc_section_3_content = section_3_result["content"]
             uc_section_3_tokens = section_3_result["tokens_used"]
