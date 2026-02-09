@@ -157,3 +157,6 @@ class Project(Base):
     
     # Section 6.3: Git configuration (one per project)
     git_config = relationship("ProjectGitConfig", back_populates="project", uselist=False, cascade="all, delete-orphan")
+
+    # P3: Project documents for RAG isolation
+    documents = relationship("ProjectDocument", back_populates="project", cascade="all, delete-orphan")

@@ -624,7 +624,7 @@ class ApexDeveloperAgent:
     ) -> Dict[str, Any]:
         """Execute spec mode: generate Apex code specifications for SDS."""
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Delegate to module-level function
         result = generate_spec(
@@ -659,7 +659,7 @@ class ApexDeveloperAgent:
         task = input_data.get("task", input_data)
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Delegate to module-level generate_build for consistency with
         # phased_build_executor.py which imports it directly
@@ -682,7 +682,7 @@ class ApexDeveloperAgent:
     # ------------------------------------------------------------------
     # LLM / RAG / Logger helpers
     # ------------------------------------------------------------------
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for Apex best practices."""
         if not RAG_AVAILABLE:
             return ""
@@ -691,6 +691,7 @@ class ApexDeveloperAgent:
                 "Apex best practices bulkification governor limits security",
                 n_results=3,
                 agent_type="apex_developer",
+                project_id=project_id or None,
             )
         except Exception as e:
             logger.warning(f"RAG context retrieval failed: {e}")

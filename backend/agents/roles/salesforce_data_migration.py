@@ -306,7 +306,7 @@ class DataMigrationAgent:
         start_time = time.time()
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt
         prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
@@ -387,7 +387,7 @@ class DataMigrationAgent:
         data_sources = input_data.get("data_sources")
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Build correction context
         correction_context = ""
@@ -527,7 +527,7 @@ FIX THESE ISSUES.
             logger.error(f"LLM call failed (no provider available): {e}")
             raise
 
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for data migration best practices."""
         if not RAG_AVAILABLE:
             return ""
@@ -536,6 +536,7 @@ FIX THESE ISSUES.
                 "Salesforce data migration data loader ETL",
                 n_results=3,
                 agent_type="data_migration",
+                project_id=project_id or None,
             )
         except Exception as e:
             logger.warning(f"RAG context retrieval failed: {e}")

@@ -158,6 +158,9 @@ from app.models.project_git_config import (
     GitConnectionStatus,
 )
 
+# P3: Project Documents for RAG isolation
+from app.models.project_document import ProjectDocument
+
 # Section 6.4: SDS Templates
 from app.models.sds_template import (
     SDSTemplate,
@@ -184,6 +187,8 @@ __all__.extend([
     "GitProvider",
     "BranchStrategy",
     "GitConnectionStatus",
+    # P3: Project Documents
+    "ProjectDocument",
     # SDS Templates
     "SDSTemplate",
     "DEFAULT_SDS_TEMPLATE",

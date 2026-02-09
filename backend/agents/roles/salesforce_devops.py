@@ -206,7 +206,7 @@ class DevOpsAgent:
         start_time = time.time()
 
         # Get RAG context for spec mode
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt
         prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
@@ -346,13 +346,13 @@ class DevOpsAgent:
 
         return output_data
 
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for DevOps best practices (spec mode only)."""
         if not RAG_AVAILABLE:
             return ""
         try:
             rag_context = get_salesforce_context(
-                "Salesforce DevOps CI/CD SFDX deployment", n_results=3, agent_type="devops"
+                "Salesforce DevOps CI/CD SFDX deployment", n_results=3, agent_type="devops", project_id=project_id or None
             )
             logger.info(f"RAG context loaded ({len(rag_context)} chars)")
             return rag_context

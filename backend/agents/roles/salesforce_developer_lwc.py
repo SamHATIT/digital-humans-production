@@ -535,7 +535,7 @@ class LWCDeveloperAgent:
         start_time = time.time()
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt
         prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
@@ -607,7 +607,7 @@ class LWCDeveloperAgent:
         task = input_data.get("task", input_data)
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Delegate to module-level generate_build for consistency with
         # phased_build_executor.py which imports it directly
@@ -670,7 +670,7 @@ class LWCDeveloperAgent:
             logger.error(f"LLM call failed (no provider available): {e}")
             raise
 
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for LWC best practices."""
         if not RAG_AVAILABLE:
             return ""
@@ -679,6 +679,7 @@ class LWCDeveloperAgent:
                 "LWC best practices wire events accessibility",
                 n_results=3,
                 agent_type="lwc_developer",
+                project_id=project_id or None,
             )
         except Exception as e:
             logger.warning(f"RAG context retrieval failed: {e}")

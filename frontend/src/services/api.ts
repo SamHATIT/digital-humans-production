@@ -275,3 +275,45 @@ export const wizard = {
     });
   },
 };
+
+// ==================== DOCUMENTS (P3: RAG Project Isolation) ====================
+
+export const documents = {
+  upload: async (projectId: number, file: File, collectionName: string = 'technical') => {
+    const token = localStorage.getItem('token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(
+      `${API_URL}/api/projects/${projectId}/documents?collection_name=${encodeURIComponent(collectionName)}`,
+      {
+        method: 'POST',
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: formData,
+      }
+    );
+
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+      throw new Error('Unauthorized');
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new Error(error.detail || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  list: async (projectId: number) => {
+    return apiCall(`/api/projects/${projectId}/documents`, { method: 'GET' });
+  },
+
+  delete: async (projectId: number, documentId: number) => {
+    return apiCall(`/api/projects/${projectId}/documents/${documentId}`, { method: 'DELETE' });
+  },
+};

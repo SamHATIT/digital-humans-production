@@ -169,43 +169,61 @@ def rerank_results(query: str, documents: List[str], top_k: int = 10) -> List[tu
     scored_docs = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
     return scored_docs[:top_k]
 
-def query_collection(coll_key: str, query: str, n_results: int = 15) -> tuple:
-    """Interroger une collection avec le bon embedding"""
+def query_collection(coll_key: str, query: str, n_results: int = 15, project_id: int = None) -> tuple:
+    """Interroger une collection avec le bon embedding.
+
+    Args:
+        coll_key: Collection key (technical, operations, business, apex, lwc)
+        query: Search query text
+        n_results: Number of results to return
+        project_id: If set, filter results to this project only
+    """
     try:
         collection = get_collection(coll_key)
         embedding_type = COLLECTIONS[coll_key]["embedding"]
-        
+
         if embedding_type == "openai":
             query_embedding = get_openai_embedding(query)
         else:
             query_embedding = get_nomic_embedding(query)
-        
-        results = collection.query(query_embeddings=[query_embedding], n_results=n_results)
-        
+
+        where_filter = {"project_id": str(project_id)} if project_id else None
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=n_results,
+            where=where_filter,
+        )
+
         docs = results['documents'][0] if results['documents'] else []
         metas = results['metadatas'][0] if results['metadatas'] else []
         return docs, metas
-        
+
     except Exception as e:
         logger.warning(f"Erreur query collection {coll_key}: {e}")
         return [], []
 
 def query_rag(
-    query: str, 
-    n_results: int = 10, 
+    query: str,
+    n_results: int = 10,
     agent_type: str = "default",
     use_reranking: bool = True,
-    n_candidates: int = 30
+    n_candidates: int = 30,
+    project_id: int = None
 ) -> Dict:
-    """Recherche multi-collection avec reranking"""
-    _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking})
+    """Recherche multi-collection avec reranking.
+
+    Args:
+        project_id: If set, filter results to this project's documents only.
+                     None returns global (untagged) documents for backward compat.
+    """
+    _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking, "project_id": project_id})
     collection_keys = AGENT_COLLECTIONS.get(agent_type, AGENT_COLLECTIONS["default"])
-    
+
     all_documents = []
     all_metadatas = []
-    
+
     for coll_key in collection_keys:
-        docs, metas = query_collection(coll_key, query, n_candidates // len(collection_keys))
+        docs, metas = query_collection(coll_key, query, n_candidates // len(collection_keys), project_id=project_id)
         all_documents.extend(docs)
         all_metadatas.extend(metas if metas else [{}] * len(docs))
     
@@ -264,10 +282,14 @@ def query_rag(
         "collections_used": collection_keys
     }
 
-def get_salesforce_context(query: str, n_results: int = 10, agent_type: str = "default") -> str:
-    """Interface compatible avec les agents existants"""
+def get_salesforce_context(query: str, n_results: int = 10, agent_type: str = "default", project_id: int = None) -> str:
+    """Interface compatible avec les agents existants.
+
+    Args:
+        project_id: If set, filter RAG results to this project's documents.
+    """
     try:
-        result = query_rag(query, n_results=n_results, agent_type=agent_type)
+        result = query_rag(query, n_results=n_results, agent_type=agent_type, project_id=project_id)
         
         if result["count"] == 0:
             return ""
@@ -290,12 +312,12 @@ Documents: {result['count']}
 # Alias compatibilité
 get_salesforce_context_v2 = get_salesforce_context
 
-def get_code_context(query: str, language: str = "apex", n_results: int = 8) -> str:
+def get_code_context(query: str, language: str = "apex", n_results: int = 8, project_id: int = None) -> str:
     """Contexte code spécifique (Apex ou LWC)"""
     coll_key = "apex" if language.lower() == "apex" else "lwc"
-    
+
     try:
-        docs, metas = query_collection(coll_key, query, n_results)
+        docs, metas = query_collection(coll_key, query, n_results, project_id=project_id)
         if not docs:
             return ""
         
@@ -317,7 +339,7 @@ def get_code_context(query: str, language: str = "apex", n_results: int = 8) -> 
 def get_stats() -> Dict:
     client = get_client()
     stats = {"total_chunks": 0, "collections": {}}
-    
+
     for key, info in COLLECTIONS.items():
         try:
             coll = client.get_collection(info["name"])
@@ -327,5 +349,91 @@ def get_stats() -> Dict:
             stats["total_chunks"] += count
         except Exception as e:
             stats["collections"][key] = {"error": str(e)}
-    
+
     return stats
+
+
+# ============================================================================
+# P3: Document ingestion & deletion with project isolation
+# ============================================================================
+
+def ingest_document(
+    collection_name: str,
+    chunks: List[str],
+    metadata: Optional[dict] = None,
+    project_id: int = None,
+    document_id: int = None,
+) -> int:
+    """Ingest document chunks into a ChromaDB collection with project tagging.
+
+    Args:
+        collection_name: Collection key (e.g. "technical", "business")
+        chunks: List of text chunks to ingest
+        metadata: Base metadata to attach to each chunk
+        project_id: Project ID for isolation tagging
+        document_id: ProjectDocument ID for deletion tracking
+
+    Returns:
+        Number of chunks ingested
+    """
+    import uuid
+
+    if not chunks:
+        return 0
+
+    collection = get_collection(collection_name)
+    embedding_type = COLLECTIONS[collection_name]["embedding"]
+
+    ids = []
+    embeddings = []
+    metadatas = []
+
+    for i, chunk in enumerate(chunks):
+        chunk_meta = dict(metadata) if metadata else {}
+        if project_id:
+            chunk_meta["project_id"] = str(project_id)
+        if document_id:
+            chunk_meta["document_id"] = str(document_id)
+
+        chunk_id = f"proj{project_id}_doc{document_id}_{i}" if project_id else str(uuid.uuid4())
+
+        if embedding_type == "openai":
+            emb = get_openai_embedding(chunk)
+        else:
+            emb = get_nomic_embedding(chunk, is_query=False)
+
+        ids.append(chunk_id)
+        embeddings.append(emb)
+        metadatas.append(chunk_meta)
+
+    # ChromaDB batch upsert (handles duplicates by ID)
+    collection.upsert(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
+    logger.info(f"Ingested {len(chunks)} chunks into {collection_name} (project_id={project_id}, document_id={document_id})")
+    return len(chunks)
+
+
+def delete_project_document_chunks(collection_name: str, document_id: int) -> int:
+    """Delete all chunks belonging to a specific document from a collection.
+
+    Args:
+        collection_name: Collection key
+        document_id: The ProjectDocument ID whose chunks to remove
+
+    Returns:
+        Number of chunks deleted
+    """
+    collection = get_collection(collection_name)
+
+    try:
+        # Get matching chunk IDs
+        results = collection.get(where={"document_id": str(document_id)})
+        chunk_ids = results["ids"] if results["ids"] else []
+
+        if chunk_ids:
+            collection.delete(ids=chunk_ids)
+            logger.info(f"Deleted {len(chunk_ids)} chunks from {collection_name} (document_id={document_id})")
+
+        return len(chunk_ids)
+    except Exception as e:
+        logger.error(f"Error deleting chunks for document_id={document_id} from {collection_name}: {e}")
+        return 0

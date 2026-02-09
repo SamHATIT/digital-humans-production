@@ -618,7 +618,7 @@ class QATesterAgent:
         start_time = time.time()
 
         # Get RAG context for spec mode only
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt
         prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
@@ -738,7 +738,7 @@ class QATesterAgent:
             logger.error(f"LLM call failed (no provider available): {e}")
             raise
 
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for QA testing best practices."""
         if not RAG_AVAILABLE:
             return ""
@@ -747,6 +747,7 @@ class QATesterAgent:
                 "Apex testing best practices",
                 n_results=3,
                 agent_type="qa_tester",
+                project_id=project_id or None,
             )
         except Exception as e:
             logger.warning(f"RAG context retrieval failed: {e}")

@@ -930,7 +930,7 @@ class AdminAgent:
         project_id: int,
     ) -> Dict[str, Any]:
         """Execute spec mode: generate admin specifications for SDS."""
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         result = generate_spec(
             requirements=input_content,
@@ -960,7 +960,7 @@ class AdminAgent:
             input_data = {"task": {"name": "Task", "description": str(input_content)}}
 
         task = input_data.get("task", input_data)
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         result = generate_build(
             task,
@@ -996,7 +996,7 @@ class AdminAgent:
         target = input_data.get("target", "")
         task_description = input_data.get("task_description", "")
         context = input_data.get("context", {})
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         return generate_build_v2(
             phase=phase,
@@ -1010,7 +1010,7 @@ class AdminAgent:
     # ------------------------------------------------------------------
     # RAG helper
     # ------------------------------------------------------------------
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for Salesforce admin best practices."""
         if not RAG_AVAILABLE:
             return ""
@@ -1019,6 +1019,7 @@ class AdminAgent:
                 "Salesforce admin object relationships Master-Detail Lookup Rollup Summary field validation rules standard objects Case Account Contact",
                 n_results=5,
                 agent_type="admin",
+                project_id=project_id or None,
             )
         except Exception as e:
             logger.warning(f"RAG context retrieval failed: {e}")

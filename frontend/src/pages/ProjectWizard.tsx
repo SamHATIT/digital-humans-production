@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { 
-  Loader2, ChevronRight, ChevronLeft, Check, 
+import {
+  Loader2, ChevronRight, ChevronLeft, Check,
   Building2, Target, Cloud, GitBranch, FileText, Rocket,
-  AlertCircle, CheckCircle2
+  AlertCircle, CheckCircle2, Upload, Trash2, File as FileIcon
 } from 'lucide-react';
-import { wizard } from '../services/api';
+import { wizard, documents } from '../services/api';
 import Navbar from '../components/Navbar';
 
 // Types
@@ -396,7 +396,7 @@ export default function ProjectWizard() {
             />
           )}
           {currentStep === 6 && (
-            <Step6Requirements data={data} updateField={updateField} />
+            <Step6Requirements data={data} updateField={updateField} projectId={projectIdState} />
           )}
         </div>
 
@@ -781,7 +781,53 @@ function Step5Git({ data, updateField, onTest, testResult, isLoading }: {
   );
 }
 
-function Step6Requirements({ data, updateField }: { data: WizardData; updateField: (f: keyof WizardData, v: any) => void }) {
+function Step6Requirements({ data, updateField, projectId }: {
+  data: WizardData;
+  updateField: (f: keyof WizardData, v: any) => void;
+  projectId: number | null;
+}) {
+  const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Load existing documents
+  useEffect(() => {
+    if (projectId) {
+      documents.list(projectId).then(setUploadedDocs).catch(() => {});
+    }
+  }, [projectId]);
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || !projectId) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const result = await documents.upload(projectId, file);
+        setUploadedDocs(prev => [result, ...prev]);
+      }
+    } catch (err: any) {
+      console.error('Upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (docId: number) => {
+    if (!projectId) return;
+    try {
+      await documents.delete(projectId, docId);
+      setUploadedDocs(prev => prev.filter(d => d.id !== docId));
+    } catch (err: any) {
+      console.error('Delete failed:', err);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
+
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -804,6 +850,83 @@ function Step6Requirements({ data, updateField }: { data: WizardData; updateFiel
           {data.business_requirements.length} caractères (minimum 20)
         </p>
       </div>
+
+      {/* P3: Document Upload Section */}
+      {projectId && (
+        <div className="border border-slate-600 rounded-xl p-4">
+          <h3 className="text-md font-medium text-white flex items-center gap-2 mb-3">
+            <Upload className="w-5 h-5 text-purple-400" />
+            Documents techniques (optionnel)
+          </h3>
+          <p className="text-xs text-slate-500 mb-3">
+            Ajoutez des documents PDF, DOCX ou TXT pour enrichir le contexte RAG de ce projet.
+          </p>
+
+          {/* Drag & drop zone */}
+          <div
+            className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+              dragOver ? 'border-cyan-400 bg-cyan-500/10' : 'border-slate-600 hover:border-slate-500'
+            }`}
+            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => document.getElementById('doc-upload-input')?.click()}
+          >
+            {uploading ? (
+              <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mx-auto" />
+            ) : (
+              <>
+                <Upload className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                <p className="text-sm text-slate-400">
+                  Glissez vos fichiers ici ou cliquez pour parcourir
+                </p>
+                <p className="text-xs text-slate-600 mt-1">PDF, DOCX, TXT, MD, CSV (max 20 Mo)</p>
+              </>
+            )}
+            <input
+              id="doc-upload-input"
+              type="file"
+              multiple
+              accept=".pdf,.docx,.txt,.md,.csv"
+              className="hidden"
+              onChange={(e) => handleFileUpload(e.target.files)}
+            />
+          </div>
+
+          {/* Uploaded documents list */}
+          {uploadedDocs.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {uploadedDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex items-center justify-between bg-slate-900/50 rounded-lg px-3 py-2"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                    <span className="text-sm text-white truncate">{doc.filename}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      doc.status === 'ready'
+                        ? 'bg-green-500/20 text-green-400'
+                        : doc.status === 'error'
+                        ? 'bg-red-500/20 text-red-400'
+                        : 'bg-yellow-500/20 text-yellow-400'
+                    }`}>
+                      {doc.status === 'ready' ? `${doc.chunk_count} chunks` : doc.status}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(doc.id)}
+                    className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0 ml-2"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>

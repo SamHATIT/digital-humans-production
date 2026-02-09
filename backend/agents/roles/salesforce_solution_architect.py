@@ -764,7 +764,7 @@ class SolutionArchitectAgent:
         # Get RAG context for design mode
         rag_context = ""
         if mode == 'design' and RAG_AVAILABLE:
-            rag_context = self._get_rag_context(input_data)
+            rag_context = self._get_rag_context(input_data, project_id=project_id)
 
         # Build prompt based on mode
         prompt, deliverable_type, artifact_prefix = self._build_prompt(mode, input_data, rag_context)
@@ -973,7 +973,7 @@ class SolutionArchitectAgent:
         input_tokens = response.usage.input_tokens
         return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
 
-    def _get_rag_context(self, input_data: dict) -> str:
+    def _get_rag_context(self, input_data: dict, project_id: int = 0) -> str:
         """Fetch RAG context for design mode with dynamic query based on project objects."""
         if not RAG_AVAILABLE:
             return ""
@@ -997,7 +997,7 @@ class SolutionArchitectAgent:
                 query = "Salesforce architecture design patterns data model best practices"
                 logger.info(f"RAG query (generic): {query}")
 
-            rag_context = get_salesforce_context(query, n_results=8, agent_type="solution_architect")
+            rag_context = get_salesforce_context(query, n_results=8, agent_type="solution_architect", project_id=project_id or None)
             logger.info(f"RAG context: {len(rag_context)} chars")
             return rag_context
         except Exception as e:
