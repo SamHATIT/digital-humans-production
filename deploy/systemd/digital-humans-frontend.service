@@ -1,0 +1,18 @@
+[Unit]
+Description=Digital Humans Frontend (Vite)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/workspace/digital-humans-production/frontend
+ExecStart=/usr/bin/npm exec vite -- --host 0.0.0.0 --port 3000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=digital-humans-frontend
+
+[Install]
+WantedBy=multi-user.target

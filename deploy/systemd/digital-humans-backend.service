@@ -1,0 +1,20 @@
+[Unit]
+Description=Digital Humans Backend (FastAPI/Uvicorn)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/workspace/digital-humans-production/backend
+Environment=PATH=/root/workspace/digital-humans-production/backend/venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/root/workspace/digital-humans-production/backend/venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8002 --log-level info
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=digital-humans-backend
+
+[Install]
+WantedBy=multi-user.target
