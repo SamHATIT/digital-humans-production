@@ -224,6 +224,15 @@ async def start_build_phase(
     if not result.get("success"):
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
 
+    # Transition to build_queued state
+    from app.services.execution_state import ExecutionStateMachine, InvalidTransitionError
+    try:
+        sm = ExecutionStateMachine(db, result["execution_id"])
+        sm.transition_to("build_queued")
+        db.commit()
+    except InvalidTransitionError as e:
+        logger.warning(f"[BUILD] State transition to build_queued skipped: {e}")
+
     pool = await get_redis_pool()
     job = await pool.enqueue_job(
         "execute_build_task",

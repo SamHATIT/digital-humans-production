@@ -77,11 +77,20 @@ async def resume_architecture_task(ctx, execution_id: int, project_id: int, acti
 async def execute_build_task(ctx, project_id: int, execution_id: int):
     """ARQ task: Execute BUILD v2 with PhasedBuildExecutor."""
     from app.services.phased_build_executor import PhasedBuildExecutor
+    from app.services.execution_state import ExecutionStateMachine, InvalidTransitionError
     from app.models.task_execution import TaskExecution
 
     db = SessionLocal()
     try:
         logger.info(f"[ARQ] BUILD v2 starting for project {project_id}, execution {execution_id}")
+
+        # Transition to build_running
+        sm = ExecutionStateMachine(db, execution_id)
+        try:
+            sm.transition_to("build_running")
+            db.commit()
+        except InvalidTransitionError as e:
+            logger.warning(f"[ARQ] BUILD state transition skipped: {e}")
 
         tasks = db.query(TaskExecution).filter(
             TaskExecution.execution_id == execution_id
@@ -105,10 +114,27 @@ async def execute_build_task(ctx, project_id: int, execution_id: int):
         executor = PhasedBuildExecutor(project_id, execution_id, db)
         result = await executor.execute_build(wbs_tasks)
 
+        # Transition to build_complete or failed
+        try:
+            if result.get("success"):
+                sm.transition_to("build_complete")
+            else:
+                sm.transition_to("failed")
+            db.commit()
+        except InvalidTransitionError as e:
+            logger.warning(f"[ARQ] BUILD final state transition skipped: {e}")
+
         logger.info(f"[ARQ] BUILD v2 completed: {result}")
         return result
     except Exception as e:
         logger.error(f"[ARQ] BUILD v2 error: {e}")
+        # Mark as failed in state machine
+        try:
+            sm = ExecutionStateMachine(db, execution_id)
+            sm.transition_to("failed")
+            db.commit()
+        except Exception:
+            pass
         raise
     finally:
         db.close()

@@ -193,6 +193,13 @@ export const executions = {
       method: 'GET',
     });
   },
+
+  // I1.4: Get budget/cost status for an execution
+  getBudget: async (executionId: number) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/budget`, {
+      method: 'GET',
+    });
+  },
 };
 
 // ==================== GENERIC API ====================
