@@ -1,12 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
 import SDSv3Generator from '../components/SDSv3Generator';
+import TimelineStepper from '../components/TimelineStepper';
+import DeliverableViewer from '../components/DeliverableViewer';
 import { AGENTS } from '../constants';
+import type { PhaseInfo } from '../components/TimelineStepper';
 
 // Define Agent type inline - TypeScript types get erased at runtime
 interface Agent {
@@ -51,20 +54,23 @@ export default function ExecutionMonitoringPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Thought modal state
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedAgentTask, setSelectedAgentTask] = useState<string>('');
   const [selectedAgentOutput, setSelectedAgentOutput] = useState<string>('');
   const [selectedAgentStatus, setSelectedAgentStatus] = useState<string>('');
-  
+
   // ORCH-04: Retry state
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState('');
 
   // H12: Architecture validation state
   const [isArchAction, setIsArchAction] = useState(false);
+
+  // UX1: Timeline + Deliverable viewer state
+  const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
+  const [allAgentsExpanded, setAllAgentsExpanded] = useState(false);
 
   // FRNT-02: Compare progress to avoid unnecessary re-renders that cause scroll jumps
   const hasProgressChanged = (oldData: ExecutionProgress | null, newData: ExecutionProgress | null): boolean => {
@@ -86,7 +92,7 @@ export default function ExecutionMonitoringPage() {
     const fetchProgress = async () => {
       try {
         const data = await executions.getProgress(Number(executionId));
-        
+
         // FRNT-02: Only update if data actually changed (prevents scroll jumps)
         if (data && data.agent_progress && data.agent_progress.length > 0) {
           setProgress(prevProgress => {
@@ -154,9 +160,9 @@ export default function ExecutionMonitoringPage() {
     if (!executionId) return;
     setIsRetrying(true);
     setRetryError('');
-    
+
     try {
-      const result = await executions.retry(Number(executionId));
+      await executions.retry(Number(executionId));
       // Restart polling
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
@@ -195,6 +201,95 @@ export default function ExecutionMonitoringPage() {
       FAILED: 'failed',
     };
     return statusMap[status?.toUpperCase()] || status?.toLowerCase() || 'pending';
+  };
+
+  // UX1: Map execution progress to timeline phases
+  const getPhaseStatus = (prog: ExecutionProgress): PhaseInfo[] => {
+    const agentStatus = (name: string) =>
+      prog.agent_progress?.find(a => a.agent_name.includes(name))?.status;
+
+    const normalizedStatus = prog.status?.toLowerCase() || '';
+
+    const phases: PhaseInfo[] = [
+      {
+        number: 1,
+        label: 'Business Req.',
+        agents: 'Sophie',
+        status: normalizeStatus(agentStatus('Sophie') || '') === 'completed' ? 'completed' :
+                normalizedStatus === 'waiting_br_validation' ? 'waiting_hitl' :
+                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Sophie') || '')) ? 'active' : 'pending',
+        hasDeliverables: normalizeStatus(agentStatus('Sophie') || '') === 'completed',
+      },
+      {
+        number: 2,
+        label: 'Use Cases',
+        agents: 'Olivia & Emma',
+        status: normalizeStatus(agentStatus('Olivia') || '') === 'completed' ? 'completed' :
+                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Olivia') || '')) ? 'active' : 'pending',
+        hasDeliverables: normalizeStatus(agentStatus('Olivia') || '') === 'completed',
+      },
+      {
+        number: 3,
+        label: 'Architecture',
+        agents: 'Marcus & Emma',
+        status: normalizeStatus(agentStatus('Marcus') || '') === 'completed' ? 'completed' :
+                normalizedStatus.includes('waiting_architecture') ? 'waiting_hitl' :
+                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Marcus') || '')) ? 'active' : 'pending',
+        hasDeliverables: normalizeStatus(agentStatus('Marcus') || '') === 'completed',
+      },
+      {
+        number: 4,
+        label: 'Expert Specs',
+        agents: 'Elena, Jordan, Aisha, Lucas',
+        status: ['Elena', 'Jordan', 'Aisha', 'Lucas'].every(
+                  n => normalizeStatus(agentStatus(n) || '') === 'completed') ? 'completed' :
+                ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
+                  n => ['in_progress', 'running'].includes(normalizeStatus(agentStatus(n) || ''))) ? 'active' : 'pending',
+        hasDeliverables: ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
+                  n => normalizeStatus(agentStatus(n) || '') === 'completed'),
+      },
+      {
+        number: 5,
+        label: 'SDS Final',
+        agents: 'Emma',
+        status: normalizedStatus === 'completed' ? 'completed' :
+                normalizeStatus(
+                  prog.agent_progress?.find(
+                    a => a.agent_name.includes('Emma') &&
+                    a.current_task?.toLowerCase().includes('sds'))?.status || ''
+                ) === 'in_progress' ? 'active' : 'pending',
+        hasDeliverables: normalizedStatus === 'completed',
+      },
+    ];
+
+    // Check for failed agents
+    for (const phase of phases) {
+      if (phase.status === 'pending' || phase.status === 'active') {
+        const phaseAgentNames: Record<number, string[]> = {
+          1: ['Sophie'],
+          2: ['Olivia'],
+          3: ['Marcus'],
+          4: ['Elena', 'Jordan', 'Aisha', 'Lucas'],
+          5: ['Emma'],
+        };
+        const agents = phaseAgentNames[phase.number] || [];
+        if (agents.some(n => normalizeStatus(agentStatus(n) || '') === 'failed')) {
+          phase.status = 'failed';
+        }
+      }
+    }
+
+    return phases;
+  };
+
+  // UX1: Handle phase click from timeline
+  const handlePhaseClick = (phaseNumber: number) => {
+    // If clicking a HITL phase, don't open deliverables (HITL panel is already visible)
+    const phases = progress ? getPhaseStatus(progress) : [];
+    const phase = phases.find(p => p.number === phaseNumber);
+    if (phase?.status === 'waiting_hitl') return;
+    // Toggle deliverable viewer
+    setSelectedPhase(prev => prev === phaseNumber ? null : phaseNumber);
   };
 
   if (isLoading) {
@@ -278,6 +373,14 @@ export default function ExecutionMonitoringPage() {
     return true;
   });
 
+  // UX1: Find the active agent (currently running)
+  const activeAgentProgress = filteredAgentProgress?.find(
+    (a) => normalizeStatus(a.status) === 'in_progress' || normalizeStatus(a.status) === 'running'
+  );
+
+  // UX1: Compute timeline phases
+  const timelinePhases = progress ? getPhaseStatus(progress) : [];
+
   return (
     <div className="min-h-screen bg-[#0B1120]">
       <Navbar />
@@ -290,11 +393,11 @@ export default function ExecutionMonitoringPage() {
 
       <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Header */}
-        <div className="mb-10 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-extrabold text-white">Execution Monitor</h1>
             <p className="text-slate-400 mt-1">
-              {isCancelled ? '❌ Execution Cancelled' : (progress?.current_phase || 'Initializing...')}
+              {isCancelled ? 'Execution Cancelled' : (progress?.current_phase || 'Initializing...')}
             </p>
           </div>
 
@@ -315,6 +418,9 @@ export default function ExecutionMonitoringPage() {
           </div>
         )}
 
+        {/* UX1: Timeline Stepper — always visible */}
+        <TimelineStepper phases={timelinePhases} onPhaseClick={handlePhaseClick} />
+
         {/* BR Validation Required */}
         {isWaitingBRValidation && (
           <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-xl p-6">
@@ -327,7 +433,7 @@ export default function ExecutionMonitoringPage() {
                   Business Requirements Validation Required
                 </h3>
                 <p className="text-slate-300 mb-4">
-                  Sophie has extracted the Business Requirements from your project. 
+                  Sophie has extracted the Business Requirements from your project.
                   Please review, modify, add or remove requirements before continuing with the analysis.
                 </p>
                 <button
@@ -419,7 +525,7 @@ export default function ExecutionMonitoringPage() {
                           <p className="text-slate-400 text-sm font-medium mb-1">Uncovered Use Cases ({uncoveredUCs.length}):</p>
                           <ul className="space-y-1">
                             {uncoveredUCs.map((uc, i) => (
-                              <li key={i} className="text-slate-300 text-sm">• {uc}</li>
+                              <li key={i} className="text-slate-300 text-sm">&bull; {uc}</li>
                             ))}
                           </ul>
                         </div>
@@ -451,11 +557,20 @@ export default function ExecutionMonitoringPage() {
           </div>
         )}
 
+        {/* UX1: Deliverable Viewer — shown when a completed phase is clicked */}
+        {selectedPhase !== null && progress?.execution_id && (
+          <DeliverableViewer
+            executionId={progress.execution_id}
+            phaseNumber={selectedPhase}
+            onClose={() => setSelectedPhase(null)}
+          />
+        )}
+
         {/* H6: SDS v3 Generator - Show only when SDS standard execution is done */}
         {(isCompleted || normalizedMainStatus === 'sds_generated') && progress?.execution_id && (
           <div className="mb-8">
-            <SDSv3Generator 
-              executionId={progress.execution_id} 
+            <SDSv3Generator
+              executionId={progress.execution_id}
               projectName={`Project_${progress.project_id}`}
               onComplete={() => {
                 // Refresh progress after generation
@@ -518,70 +633,143 @@ export default function ExecutionMonitoringPage() {
             )}
             {!isCompleted && !isFailed && (
               <span className="inline-flex items-center gap-1 text-cyan-400 text-sm">
-                {isCancelled ? '❌ Cancelled' : <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>}
+                {isCancelled ? 'Cancelled' : <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>}
               </span>
             )}
           </div>
         </div>
 
-        {/* Agent Progress Grid */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6">
-          <h2 className="text-xl font-bold text-white mb-6">Agent Activity</h2>
-          <p className="text-sm text-slate-400 mb-6">Click on an agent to see their thought process</p>
+        {/* UX1: Active Agent Detail — highlight the currently running agent */}
+        {activeAgentProgress && !isExecutionDone && (() => {
+          const agentNameLower = activeAgentProgress.agent_name.toLowerCase();
+          const agent = AGENTS.find((a) => {
+            const nameMatch = agentNameLower.startsWith(a.name.toLowerCase());
+            const idFromName = agentNameLower.includes('(')
+              ? agentNameLower.split('(')[1]?.replace(')', '').trim().replace(' ', '_')
+              : '';
+            const idMatch = a.id === idFromName || agentNameLower === a.id;
+            return nameMatch || idMatch;
+          });
+          const status = normalizeStatus(activeAgentProgress.status);
+          const config = getStatusConfig(status);
+          const StatusIcon = config.icon;
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredAgentProgress?.map((agentProg) => {
-              // Flexible agent matching: by name prefix or by ID extracted from parentheses
-              const agentNameLower = agentProg.agent_name.toLowerCase();
-              const agent = AGENTS.find((a) => {
-                const nameMatch = agentNameLower.startsWith(a.name.toLowerCase());
-                const idFromName = agentNameLower.includes('(') 
-                  ? agentNameLower.split('(')[1]?.replace(')', '').trim().replace(' ', '_')
-                  : '';
-                const idMatch = a.id === idFromName || agentNameLower === a.id;
-                return nameMatch || idMatch;
-              });
-              const status = normalizeStatus(agentProg.status);
-              const config = getStatusConfig(status);
-              const StatusIcon = config.icon;
-
-              return (
-                <div
-                  key={agentProg.agent_name}
-                  onClick={() => handleAgentClick(agentProg)}
-                  className="bg-slate-900/50 border border-slate-600 rounded-xl p-4 hover:border-cyan-500/50 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Avatar
-                      src={agent?.avatar || '/avatars/default.png'}
-                      alt={agentProg.agent_name}
-                      size="md"
-                      isActive={status === 'running' || status === 'in_progress'}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-white truncate group-hover:text-cyan-400 transition-colors">
-                        {agentProg.agent_name}
-                      </p>
-                      <p className="text-xs text-slate-400">{agent?.role || 'Agent'}</p>
-                    </div>
-                    <StatusIcon className={`w-5 h-5 ${config.color}`} />
+          return (
+            <div className="bg-slate-800/50 backdrop-blur-sm border border-cyan-500/30 rounded-2xl p-6 mb-8">
+              <h2 className="text-lg font-bold text-white mb-4">Active Agent</h2>
+              <div
+                onClick={() => handleAgentClick(activeAgentProgress)}
+                className="flex items-center gap-4 cursor-pointer group"
+              >
+                <Avatar
+                  src={agent?.avatar || '/avatars/default.png'}
+                  alt={activeAgentProgress.agent_name}
+                  size="md"
+                  isActive={true}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-white group-hover:text-cyan-400 transition-colors">
+                      {activeAgentProgress.agent_name}
+                    </p>
+                    <StatusIcon className={`w-4 h-4 ${config.color}`} />
                   </div>
-
-                  {/* Progress bar */}
-                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
-                    <div
-                      className={`h-full ${config.bgColor} transition-all duration-300`}
-                      style={{ width: `${agentProg.progress}%` }}
-                    />
-                  </div>
-
-                  <p className="text-xs text-slate-500 break-words">
-                    {agentProg.current_task || agentProg.output_summary || 'Waiting...'}
+                  <p className="text-sm text-slate-400">{agent?.role || 'Agent'}</p>
+                  <p className="text-sm text-slate-500 mt-1 break-words">
+                    {activeAgentProgress.current_task || 'Working...'}
                   </p>
                 </div>
-              );
-            })}
-          </div>
+                <div className="w-32 flex-shrink-0">
+                  <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full ${config.bgColor} transition-all duration-300`}
+                      style={{ width: `${activeAgentProgress.progress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 text-right mt-1">{activeAgentProgress.progress}%</p>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* UX1: All Agents — collapsible accordion */}
+        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl overflow-hidden">
+          <button
+            onClick={() => setAllAgentsExpanded(!allAgentsExpanded)}
+            className="w-full flex items-center justify-between p-6 text-left hover:bg-slate-700/20 transition-colors"
+          >
+            <div>
+              <h2 className="text-xl font-bold text-white">All Agents</h2>
+              <p className="text-sm text-slate-400 mt-1">
+                {filteredAgentProgress?.length || 0} agents &middot; Click to {allAgentsExpanded ? 'collapse' : 'expand'}
+              </p>
+            </div>
+            {allAgentsExpanded ? (
+              <ChevronUp className="w-5 h-5 text-slate-400" />
+            ) : (
+              <ChevronDown className="w-5 h-5 text-slate-400" />
+            )}
+          </button>
+
+          {allAgentsExpanded && (
+            <div className="px-6 pb-6">
+              <p className="text-sm text-slate-400 mb-4">Click on an agent to see their thought process</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredAgentProgress?.map((agentProg) => {
+                  // Flexible agent matching: by name prefix or by ID extracted from parentheses
+                  const agentNameLower = agentProg.agent_name.toLowerCase();
+                  const agent = AGENTS.find((a) => {
+                    const nameMatch = agentNameLower.startsWith(a.name.toLowerCase());
+                    const idFromName = agentNameLower.includes('(')
+                      ? agentNameLower.split('(')[1]?.replace(')', '').trim().replace(' ', '_')
+                      : '';
+                    const idMatch = a.id === idFromName || agentNameLower === a.id;
+                    return nameMatch || idMatch;
+                  });
+                  const status = normalizeStatus(agentProg.status);
+                  const config = getStatusConfig(status);
+                  const StatusIcon = config.icon;
+
+                  return (
+                    <div
+                      key={agentProg.agent_name}
+                      onClick={() => handleAgentClick(agentProg)}
+                      className="bg-slate-900/50 border border-slate-600 rounded-xl p-4 hover:border-cyan-500/50 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <Avatar
+                          src={agent?.avatar || '/avatars/default.png'}
+                          alt={agentProg.agent_name}
+                          size="md"
+                          isActive={status === 'running' || status === 'in_progress'}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-white truncate group-hover:text-cyan-400 transition-colors">
+                            {agentProg.agent_name}
+                          </p>
+                          <p className="text-xs text-slate-400">{agent?.role || 'Agent'}</p>
+                        </div>
+                        <StatusIcon className={`w-5 h-5 ${config.color}`} />
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden mb-2">
+                        <div
+                          className={`h-full ${config.bgColor} transition-all duration-300`}
+                          style={{ width: `${agentProg.progress}%` }}
+                        />
+                      </div>
+
+                      <p className="text-xs text-slate-500 break-words">
+                        {agentProg.current_task || agentProg.output_summary || 'Waiting...'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </main>
 
