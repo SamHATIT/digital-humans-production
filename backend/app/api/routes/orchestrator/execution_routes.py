@@ -23,7 +23,7 @@ from app.schemas.execution import (
     ExecutionResultResponse,
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
-from app.services.pm_orchestrator_service_v2 import execute_workflow_background, resume_architecture_background
+from app.workers.arq_config import get_redis_pool
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
     AGENT_NAMES,
@@ -85,9 +85,15 @@ async def start_execution(
         db.rollback()
         raise
 
-    asyncio.create_task(
-        execute_workflow_background(db, execution.id, project.id, execution_data.selected_agents)
+    pool = await get_redis_pool()
+    job = await pool.enqueue_job(
+        "execute_sds_task",
+        execution_id=execution.id,
+        project_id=project.id,
+        selected_agents=execution_data.selected_agents,
+        _queue_name="digital-humans",
     )
+    logger.info(f"[ARQ] Job {job.job_id} enqueued for execution {execution.id}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -133,9 +139,15 @@ async def resume_execution(
                 detail="Action required: 'approve_architecture' or 'revise_architecture'",
             )
         logger.info(f"[Resume] Architecture validation: action={action}, execution={execution_id}")
-        asyncio.create_task(
-            resume_architecture_background(execution.id, execution.project_id, action)
+        pool = await get_redis_pool()
+        job = await pool.enqueue_job(
+            "resume_architecture_task",
+            execution_id=execution.id,
+            project_id=execution.project_id,
+            action=action,
+            _queue_name="digital-humans",
         )
+        logger.info(f"[ARQ] Job {job.job_id} enqueued for architecture resume {execution.id}")
         return ExecutionStartResponse(
             execution_id=execution.id,
             status="resumed",
@@ -175,11 +187,16 @@ async def resume_execution(
         db.rollback()
         raise
 
-    asyncio.create_task(
-        execute_workflow_background(
-            db, execution.id, execution.project_id, execution.selected_agents, resume_from=resume_point
-        )
+    pool = await get_redis_pool()
+    job = await pool.enqueue_job(
+        "execute_sds_task",
+        execution_id=execution.id,
+        project_id=execution.project_id,
+        selected_agents=execution.selected_agents,
+        resume_from=resume_point,
+        _queue_name="digital-humans",
     )
+    logger.info(f"[ARQ] Job {job.job_id} enqueued for resume {execution.id} from {resume_point}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -398,3 +415,20 @@ def list_available_agents(
     agent_service = AgentIntegrationService()
     agents = agent_service.get_available_agents()
     return {"agents": agents}
+
+
+@router.get("/workers/health")
+async def worker_health():
+    """Check ARQ worker status via Redis."""
+    try:
+        pool = await get_redis_pool()
+        info = await pool.info()
+        # Check queued jobs count via Redis list length
+        queued = await pool.llen(b"arq:queue:digital-humans")
+        return {
+            "redis": "connected",
+            "redis_version": info.get("redis_version", "unknown"),
+            "queued_jobs": queued,
+        }
+    except Exception as e:
+        return {"redis": "error", "detail": str(e)}

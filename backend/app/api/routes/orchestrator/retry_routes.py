@@ -6,7 +6,6 @@ P7: Multi-step retry operations wrapped in try/except with rollback.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-import asyncio
 import logging
 
 from app.database import get_db
@@ -14,7 +13,7 @@ from app.models.user import User
 from app.models.execution import Execution, ExecutionStatus
 from app.schemas.execution import ExecutionStartResponse
 from app.utils.dependencies import get_current_user
-from app.services.pm_orchestrator_service_v2 import execute_workflow_background
+from app.workers.arq_config import get_redis_pool
 from app.api.routes.orchestrator._helpers import verify_execution_access
 
 logger = logging.getLogger(__name__)
@@ -73,11 +72,16 @@ async def retry_failed_execution(
         db.rollback()
         raise
 
-    asyncio.create_task(
-        execute_workflow_background(
-            db, execution.id, execution.project_id, execution.selected_agents, resume_from=resume_from
-        )
+    pool = await get_redis_pool()
+    job = await pool.enqueue_job(
+        "execute_sds_task",
+        execution_id=execution.id,
+        project_id=execution.project_id,
+        selected_agents=execution.selected_agents,
+        resume_from=resume_from,
+        _queue_name="digital-humans",
     )
+    logger.info(f"[ARQ] Job {job.job_id} enqueued for retry {execution.id} from {resume_from}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -172,7 +176,6 @@ async def resume_build(
 ):
     """Resume a paused BUILD phase execution."""
     from app.services.pm_orchestrator_service_v2 import BuildPhaseService
-    from app.api.routes.orchestrator.build_executor import execute_build_v2
 
     service = BuildPhaseService(db)
     result = service.resume_build(execution_id)
@@ -182,7 +185,14 @@ async def resume_build(
 
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if execution:
-        asyncio.create_task(execute_build_v2(execution.project_id, execution_id))
+        pool = await get_redis_pool()
+        job = await pool.enqueue_job(
+            "execute_build_task",
+            project_id=execution.project_id,
+            execution_id=execution_id,
+            _queue_name="digital-humans",
+        )
+        logger.info(f"[ARQ] Job {job.job_id} enqueued for build resume {execution_id}")
 
     return {
         "status": result["status"],

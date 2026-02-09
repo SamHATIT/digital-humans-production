@@ -1,0 +1,16 @@
+[Unit]
+Description=Digital Humans ARQ Worker
+After=network.target redis-server.service postgresql.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/workspace/digital-humans-production/backend
+ExecStart=/usr/bin/python -m arq app.workers.worker.WorkerSettings
+Restart=always
+RestartSec=5
+Environment="PYTHONPATH=/root/workspace/digital-humans-production/backend"
+
+[Install]
+WantedBy=multi-user.target

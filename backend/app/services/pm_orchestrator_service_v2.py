@@ -50,7 +50,6 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from app.database import SessionLocal
 from app.services.audit_service import audit_service, ActorType, ActionCategory
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
@@ -2656,51 +2655,6 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         return await self._execute_from_phase4(
             project, execution, execution_id, project_id, results, selected_agents or []
         )
-
-
-# Background execution helper
-async def execute_workflow_background(
-    db: Session,  # Not used - we create our own session
-    execution_id: int,
-    project_id: int,
-    selected_agents: List[str] = None,
-    include_as_is: bool = False,
-    sfdx_metadata: Optional[Dict] = None,
-        resume_from: Optional[str] = None  # "phase2" to skip Phase 1
-):
-    """Background task for workflow execution - creates its own DB session"""
-    # Create a new session for background task (original session closes after API response)
-    db_session = SessionLocal()
-    try:
-        service = PMOrchestratorServiceV2(db_session)
-        return await service.execute_workflow(
-            execution_id=execution_id,
-            project_id=project_id,
-            selected_agents=selected_agents,
-            include_as_is=include_as_is,
-            sfdx_metadata=sfdx_metadata,
-            resume_from=resume_from
-        )
-    finally:
-        db_session.close()
-
-
-async def resume_architecture_background(
-    execution_id: int,
-    project_id: int,
-    action: str  # "approve_architecture" or "revise_architecture"
-):
-    """Background task for architecture validation resume (H12)."""
-    db_session = SessionLocal()
-    try:
-        service = PMOrchestratorServiceV2(db_session)
-        return await service.resume_from_architecture_validation(
-            execution_id=execution_id,
-            project_id=project_id,
-            action=action
-        )
-    finally:
-        db_session.close()
 
 
 # ════════════════════════════════════════════════════════════════════════════════
