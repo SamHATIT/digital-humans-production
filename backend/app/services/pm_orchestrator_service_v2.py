@@ -67,6 +67,7 @@ import logging
 from app.config import settings
 from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
+from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS
 
 logger = logging.getLogger(__name__)
 
@@ -824,6 +825,7 @@ class PMOrchestratorServiceV2:
             
             # Prepare all sources for Emma write_sds
             emma_write_input = {
+                "agent_list": DIGITAL_HUMANS_AGENTS,
                 "project_info": {
                     "name": project.name,
                     "description": project.description or "",

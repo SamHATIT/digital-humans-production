@@ -25,6 +25,7 @@ from app.services.llm_router_service import (
     LLMRouterService, LLMRequest, LLMResponse, TaskComplexity, get_llm_router
 )
 from app.models.uc_requirement_sheet import UCRequirementSheet
+from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,8 @@ DOMAIN_KEYWORDS = {
 
 # Template de section SDS (inspiré LVMH/Shiseido)
 SDS_SECTION_PROMPT = """Tu es un consultant Salesforce senior rédigeant un SDS (Solution Design Specification) professionnel.
+
+""" + DIGITAL_HUMANS_AGENTS + """
 
 CONTEXTE PROJET:
 {project_context}
