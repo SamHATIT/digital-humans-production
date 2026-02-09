@@ -1,0 +1,143 @@
+{
+  "_metadata": {
+    "last_updated": "2025-02",
+    "salesforce_release": "Spring '25 (API 63.0)",
+    "description": "Standard Salesforce Developer Edition baseline for greenfield gap analysis",
+    "source": "standard_greenfield"
+  },
+  "organization": {
+    "edition": "Developer Edition",
+    "api_version": "63.0",
+    "release": "Spring '25",
+    "custom_objects": 0,
+    "apex_classes": 0,
+    "apex_triggers": 0,
+    "flows": 0,
+    "lightning_pages": 0,
+    "permission_sets_custom": 0,
+    "permission_sets_standard": ["Salesforce API Integration", "Salesforce CMS Integration User"],
+    "profiles_standard": ["System Administrator", "Standard User", "Standard Platform User", "Marketing User", "Contract Manager", "Solution Manager", "Read Only"]
+  },
+  "standard_objects": [
+    {
+      "name": "Account",
+      "label": "Account",
+      "standard_fields_count": 65,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Companies and organizations tracked in the system"
+    },
+    {
+      "name": "Contact",
+      "label": "Contact",
+      "standard_fields_count": 55,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Individuals associated with accounts"
+    },
+    {
+      "name": "Opportunity",
+      "label": "Opportunity",
+      "standard_fields_count": 40,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Sales deals and revenue tracking"
+    },
+    {
+      "name": "Lead",
+      "label": "Lead",
+      "standard_fields_count": 50,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Prospective customers and conversion tracking"
+    },
+    {
+      "name": "Case",
+      "label": "Case",
+      "standard_fields_count": 45,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Customer support cases and service requests"
+    },
+    {
+      "name": "Task",
+      "label": "Task",
+      "standard_fields_count": 35,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "To-do items and activities"
+    },
+    {
+      "name": "Event",
+      "label": "Event",
+      "standard_fields_count": 35,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Calendar events and meetings"
+    },
+    {
+      "name": "Campaign",
+      "label": "Campaign",
+      "standard_fields_count": 30,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Marketing campaigns and member tracking"
+    },
+    {
+      "name": "Contract",
+      "label": "Contract",
+      "standard_fields_count": 25,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Customer contracts and agreements"
+    },
+    {
+      "name": "Asset",
+      "label": "Asset",
+      "standard_fields_count": 25,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Products owned by customers"
+    },
+    {
+      "name": "Order",
+      "label": "Order",
+      "standard_fields_count": 30,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Customer orders and order items"
+    },
+    {
+      "name": "Product2",
+      "label": "Product",
+      "standard_fields_count": 20,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Product catalog entries"
+    },
+    {
+      "name": "PricebookEntry",
+      "label": "Price Book Entry",
+      "standard_fields_count": 15,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Price book entries linking products to price books"
+    },
+    {
+      "name": "Report",
+      "label": "Report",
+      "standard_fields_count": 15,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Standard and custom reports"
+    },
+    {
+      "name": "Dashboard",
+      "label": "Dashboard",
+      "standard_fields_count": 10,
+      "custom_fields_count": 0,
+      "record_types_custom": 0,
+      "description": "Visual dashboards from report data"
+    }
+  ]
+}

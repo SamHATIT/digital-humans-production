@@ -454,29 +454,47 @@ class PMOrchestratorServiceV2:
                 logger.warning(f"[Phase 3] ⚠️ UC Digest is corrupted (parse_error or missing by_requirement), falling back to raw UCs")
                 logger.warning(f"[Phase 3]    Digest keys: {list(uc_digest.keys())}")
             
-            # 3.1: As-Is Analysis (Analyze current Salesforce org - ALWAYS RUN)
-            self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
-            
-            asis_result = await self._run_agent(
-                agent_id="architect",
-                mode="as_is",
-                input_data={
-                    "sfdx_metadata": json.dumps(org_metadata),
-                    "org_summary": org_summary,
-                    "org_info": org_summary
-                },
-                execution_id=execution_id,
-                project_id=project_id
-            )
-            
-            if asis_result.get("success"):
-                results["artifacts"]["AS_IS"] = asis_result["output"]
-                architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
-                logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
+            # 3.1: As-Is Analysis
+            # Check if greenfield — use standard As-Is instead of analyzing org
+            if project and project.project_type == "greenfield":
+                # Load standard Salesforce As-Is (no org to analyze)
+                standard_asis_path = Path(__file__).parent.parent.parent / "data" / "standard_salesforce_asis.json"
+                with open(standard_asis_path) as f:
+                    standard_asis = json.load(f)
+
+                results["artifacts"]["AS_IS"] = {
+                    "artifact_id": "ASIS-001",
+                    "content": standard_asis,
+                    "metadata": {"tokens_used": 0, "source": "standard_greenfield"}
+                }
+                self._save_deliverable(execution_id, "architect", "as_is", results["artifacts"]["AS_IS"])
+                logger.info("[Phase 3.1] ✅ Greenfield mode — using standard Salesforce As-Is (no org analysis)")
+                self._update_progress(execution, "architect", "running", 55,
+                                     "Greenfield mode — standard Salesforce baseline")
             else:
-                results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
-                logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
+                # EXISTING org — run Marcus As-Is analysis as before
+                self._update_progress(execution, "architect", "running", 50, "Analyzing Salesforce org...")
+
+                asis_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="as_is",
+                    input_data={
+                        "sfdx_metadata": json.dumps(org_metadata),
+                        "org_summary": org_summary,
+                        "org_info": org_summary
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+
+                if asis_result.get("success"):
+                    results["artifacts"]["AS_IS"] = asis_result["output"]
+                    architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
+                    self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
+                    logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
+                else:
+                    results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
+                    logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
             
             # Gap Analysis moved to Phase 3.4 (after Emma Validate)
             
