@@ -37,6 +37,53 @@ HEADER_LIGHT_BLUE = RGBColor(68, 114, 196)  # #4472C4
 LINK_BLUE = RGBColor(37, 99, 235)  # #2563EB
 GRAY_TEXT = RGBColor(107, 114, 128)
 
+# Salesforce standard object labels — used to replace "Unknown" when Marcus omits name/label
+SALESFORCE_STANDARD_OBJECTS = {
+    "Account": "Account (Corporate/Individual Account)",
+    "Contact": "Contact (Person/Stakeholder)",
+    "Opportunity": "Opportunity (Sales Deal)",
+    "Lead": "Lead (Prospect)",
+    "Case": "Case (Support/Service Request)",
+    "Asset": "Asset (Owned Product/Service)",
+    "Campaign": "Campaign (Marketing Campaign)",
+    "Task": "Task (Activity/To-Do)",
+    "Event": "Event (Calendar Activity)",
+    "User": "User (System User)",
+    "Product2": "Product (Product Catalog Item)",
+    "PricebookEntry": "Pricebook Entry (Price List Item)",
+    "Order": "Order (Sales Order)",
+    "Contract": "Contract (Service/Sales Agreement)",
+    "Quote": "Quote (Sales Quote/Proposal)",
+    "ContentDocument": "Content Document (File/Attachment)",
+    "Knowledge__kav": "Knowledge Article",
+    "WorkOrder": "Work Order (Field Service)",
+    "ServiceAppointment": "Service Appointment",
+}
+
+
+def _resolve_object_name(obj: dict) -> str:
+    """Resolve a Salesforce object's display name from Marcus's JSON output.
+
+    Tries keys in order: 'object', 'name', 'label', 'api_name'.
+    Falls back to SALESFORCE_STANDARD_OBJECTS mapping for well-known objects.
+    """
+    # Try explicit name/label fields first
+    name = (
+        obj.get("object")
+        or obj.get("name")
+        or obj.get("label")
+    )
+    if name and name != "Unknown":
+        return name
+
+    # Fall back to api_name + standard object lookup
+    api_name = obj.get("api_name", "")
+    if api_name:
+        return SALESFORCE_STANDARD_OBJECTS.get(api_name, api_name)
+
+    return name or "Unknown"
+
+
 # Database connection
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db")
 
@@ -577,7 +624,7 @@ This document includes:
         if std_objects:
             generator.doc.add_heading("Standard Objects", 2)
             for obj in std_objects:
-                generator.doc.add_heading(obj.get("object", "Unknown"), 3)
+                generator.doc.add_heading(_resolve_object_name(obj), 3)
                 generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
                 
                 custom_fields = obj.get("custom_fields", obj.get("customizations", []))
@@ -597,7 +644,7 @@ This document includes:
         if custom_objects:
             generator.doc.add_heading("Custom Objects", 2)
             for obj in custom_objects:
-                generator.doc.add_heading(obj.get("label", obj.get("api_name", "Unknown")), 3)
+                generator.doc.add_heading(_resolve_object_name(obj), 3)
                 generator.doc.add_paragraph(f"API Name: {obj.get('api_name', 'N/A')}")
                 generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
                 
