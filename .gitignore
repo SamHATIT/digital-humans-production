@@ -82,3 +82,4 @@ agents/backups/
 -e 
 # RAG resources (too large for git)
 data/rag/
+backend/.env.pre-refonte-backup

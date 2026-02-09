@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Humans — Documentation Technique</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0f14;
+    --bg-card: #151922;
+    --bg-card-hover: #1a1f2b;
+    --bg-sidebar: #10131a;
+    --border: #1e2433;
+    --text: #c8cdd8;
+    --text-dim: #6b7280;
+    --text-bright: #eef0f4;
+    --accent: #4f8cff;
+    --accent-dim: #2a4a8a;
+    --green: #34d399;
+    --green-dim: rgba(52,211,153,0.12);
+    --red: #f87171;
+    --red-dim: rgba(248,113,113,0.12);
+    --orange: #fb923c;
+    --orange-dim: rgba(251,146,60,0.12);
+    --purple: #a78bfa;
+    --purple-dim: rgba(167,139,250,0.12);
+    --yellow: #fbbf24;
+    --cyan: #22d3ee;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-height: 100vh;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    overflow-y: auto;
+    z-index: 100;
+  }
+
+  .sidebar-header {
+    padding: 0 24px 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.3px;
+  }
+
+  .sidebar-header .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .nav-section {
+    padding: 8px 16px;
+  }
+
+  .nav-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-dim);
+    padding: 8px;
+    margin-top: 8px;
+  }
+
+  .nav-link {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 400;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+
+  .nav-link:hover { background: var(--bg-card); color: var(--text-bright); }
+  .nav-link.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
+
+  /* Main */
+  .main {
+    margin-left: 280px;
+    flex: 1;
+    padding: 48px 64px;
+    max-width: 960px;
+  }
+
+  .section { display: none; }
+  .section.active { display: block; }
+
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-top: 36px;
+    margin-bottom: 12px;
+  }
+
+  h4 {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-top: 24px;
+    margin-bottom: 8px;
+  }
+
+  .section-desc {
+    font-size: 15px;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    line-height: 1.5;
+  }
+
+  p { margin-bottom: 16px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent-dim); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  .card-subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  /* Agent cards */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .agent-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.2s;
+  }
+  .agent-card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
+
+  .agent-name { font-weight: 600; color: var(--text-bright); font-size: 15px; }
+  .agent-role { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
+  .agent-file { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
+  .agent-desc { font-size: 13px; color: var(--text); line-height: 1.5; }
+
+  /* Tags */
+  .tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tag-critical { background: var(--red-dim); color: var(--red); }
+  .tag-major { background: var(--orange-dim); color: var(--orange); }
+  .tag-medium { background: var(--purple-dim); color: var(--purple); }
+  .tag-done { background: var(--green-dim); color: var(--green); }
+  .tag-pending { background: rgba(107,114,128,0.15); color: var(--text-dim); }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    color: var(--text-dim);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:hover td { background: rgba(79,140,255,0.03); }
+
+  /* Code */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    background: rgba(79,140,255,0.08);
+    padding: 2px 7px;
+    border-radius: 5px;
+    color: var(--accent);
+  }
+
+  pre {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  /* Mermaid */
+  .mermaid-wrapper {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px 24px;
+    margin: 20px 0 28px;
+    overflow-x: auto;
+  }
+  .mermaid { display: flex; justify-content: center; }
+  .mermaid svg { max-width: 100%; }
+
+  /* Stats row */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+  }
+  .stat-value { font-size: 32px; font-weight: 700; color: var(--text-bright); }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; margin: 24px 0; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 4px;
+    bottom: 4px;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-item { position: relative; margin-bottom: 28px; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -24px;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    background: var(--bg);
+  }
+  .timeline-item.done::before { background: var(--green); border-color: var(--green); }
+  .timeline-item.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .timeline-date { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  .timeline-title { font-size: 15px; font-weight: 600; color: var(--text-bright); margin: 4px 0; }
+  .timeline-desc { font-size: 13px; color: var(--text); }
+
+  /* Services status */
+  .service-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .service-name { font-weight: 500; color: var(--text-bright); }
+  .service-port { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-dim); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px;
+  }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.inactive { background: var(--red); }
+  .status-dot.partial { background: var(--orange); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .agent-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <h1>🤖 Digital Humans</h1>
+    <div class="subtitle">Documentation Technique</div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Général</div>
+    <a class="nav-link active" onclick="showSection('overview')">Vue d'ensemble</a>
+    <a class="nav-link" onclick="showSection('architecture')">Architecture</a>
+    <a class="nav-link" onclick="showSection('agents')">Les 11 Agents</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Flux métier</div>
+    <a class="nav-link" onclick="showSection('sds-flow')">Phase SDS</a>
+    <a class="nav-link" onclick="showSection('build-flow')">Phase BUILD</a>
+    <a class="nav-link" onclick="showSection('rag')">RAG & Knowledge</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Infrastructure</div>
+    <a class="nav-link" onclick="showSection('infra')">Services & Ports</a>
+    <a class="nav-link" onclick="showSection('api')">API Reference</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-section-title">Refonte 2026</div>
+    <a class="nav-link" onclick="showSection('refonte')">Plan de refonte</a>
+    <a class="nav-link" onclick="showSection('journal')">Journal</a>
+  </div>
+</nav>
+
+<main class="main">
+
+  <!-- ==================== VUE D'ENSEMBLE ==================== -->
+  <div id="overview" class="section active">
+    <h2>Vue d'ensemble</h2>
+    <p class="section-desc">
+      Digital Humans est une plateforme multi-agents IA qui automatise le développement Salesforce.
+      11 agents spécialisés collaborent en séquence pour générer des spécifications (SDS) puis du code déployable (BUILD).
+    </p>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-value">11</div>
+        <div class="stat-label">Agents IA</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">198</div>
+        <div class="stat-label">Fichiers Python</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">70K</div>
+        <div class="stat-label">Chunks RAG</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value">2</div>
+        <div class="stat-label">Phases (SDS + BUILD)</div>
+      </div>
+    </div>
+
+    <h3>Stack technique</h3>
+    <table>
+      <tr><th>Composant</th><th>Technologie</th><th>Détail</th></tr>
+      <tr><td>Backend</td><td>FastAPI (Python 3.11)</td><td>Port 8002 · SQLAlchemy ORM · Uvicorn</td></tr>
+      <tr><td>Frontend</td><td>React + Vite</td><td>Port 3000 · 41 fichiers src</td></tr>
+      <tr><td>Base de données</td><td>PostgreSQL 16</td><td>Port 5432 · Auto-start</td></tr>
+      <tr><td>RAG</td><td>ChromaDB</td><td>70,251 chunks · 5 collections · 2.4 GB</td></tr>
+      <tr><td>LLM Cloud</td><td>Claude API (Anthropic)</td><td>Modèle principal pour les agents</td></tr>
+      <tr><td>LLM Local</td><td>Ollama + Mistral Nemo</td><td>Port 11434 · SDS v3 local</td></tr>
+      <tr><td>CMS</td><td>Ghost (Docker)</td><td>Port 2368 · Blog agents</td></tr>
+      <tr><td>Workflows</td><td>N8N</td><td>Port 5678 · Non utilisé en prod</td></tr>
+      <tr><td>Reverse Proxy</td><td>Nginx</td><td>Port 80/443 · HTTPS · Routing</td></tr>
+    </table>
+
+    <h3>Repo & serveur</h3>
+    <table>
+      <tr><th>Propriété</th><th>Valeur</th></tr>
+      <tr><td>GitHub</td><td><code>github.com/SamHATIT/digital-humans-production</code></td></tr>
+      <tr><td>VPS</td><td><code>72.61.161.222</code> · Ubuntu 24.04 LTS · Hostinger</td></tr>
+      <tr><td>Chemin code</td><td><code>/root/workspace/digital-humans-production/</code></td></tr>
+      <tr><td>Taille code Python</td><td>~2.4 MB (~600K tokens)</td></tr>
+      <tr><td>Taille code Frontend</td><td>~322 KB (~80K tokens)</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== ARCHITECTURE ==================== -->
+  <div id="architecture" class="section">
+    <h2>Architecture</h2>
+    <p class="section-desc">
+      Vue globale du système : du navigateur jusqu'aux LLM, en passant par l'orchestrateur et les agents.
+    </p>
+
+    <h3>Architecture globale</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph Client["🖥ï¸ Client"]
+        Browser["Navigateur Web"]
+    end
+
+    subgraph Proxy["Nginx :80/443"]
+        NG["Reverse Proxy + HTTPS"]
+    end
+
+    subgraph Frontend["Frontend React :3000"]
+        UI["Interface Utilisateur<br/>React + Vite"]
+    end
+
+    subgraph Backend["Backend FastAPI :8002"]
+        Routes["Routes API<br/><i>pm_orchestrator.py</i>"]
+        WS["WebSocket<br/>Temps réel"]
+        Orch["PMOrchestratorServiceV2<br/><i>Orchestration</i>"]
+        Exec["PhasedBuildExecutor<br/><i>Exécution par phases</i>"]
+        AgentExec["AgentExecutor<br/><i>subprocess.run()</i>"]
+    end
+
+    subgraph Agents["🤖 11 Agents IA"]
+        Sophie["Sophie<br/>PM"]
+        Emma["Emma<br/>Research Analyst"]
+        Olivia["Olivia<br/>Business Analyst"]
+        Marcus["Marcus<br/>Solution Architect"]
+        Specialists["Diego · Zara · Jordan<br/>Elena · Raj · Aisha"]
+        Lucas["Lucas<br/>Trainer"]
+    end
+
+    subgraph Data["💾 Données"]
+        PG["PostgreSQL :5432"]
+        RAG["ChromaDB RAG<br/>70K chunks"]
+    end
+
+    subgraph LLM["🧠 LLM"]
+        Claude["Claude API<br/>Anthropic"]
+        Ollama["Ollama/Mistral<br/>:11434"]
+    end
+
+    Browser --> NG --> Frontend
+    NG --> Routes
+    Frontend <--> WS
+    Routes --> Orch --> Exec --> AgentExec
+    AgentExec --> Sophie & Emma & Olivia & Marcus & Specialists & Lucas
+    Agents --> Claude & Ollama
+    Agents --> RAG
+    Routes --> PG
+    Orch --> PG
+
+    style Backend fill:#151922,stroke:#4f8cff,stroke-width:2px
+    style Agents fill:#151922,stroke:#34d399,stroke-width:2px
+    style Data fill:#151922,stroke:#a78bfa,stroke-width:2px
+    style LLM fill:#151922,stroke:#fb923c,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Couches applicatives</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    HTTP["<b>HTTP Layer</b><br/>Routes API<br/>WebSocket<br/>Auth JWT"] --> Service["<b>Service Layer</b><br/>PMOrchestratorV2<br/>LLM Service<br/>RAG Service"] --> Executor["<b>Executor Layer</b><br/>PhasedBuildExecutor<br/>AgentExecutor<br/>Task Queue"] --> Agent["<b>Agent Layer</b><br/>11 Agents Python<br/>subprocess.run()<br/>Résultats JSON"] --> External["<b>External</b><br/>Claude API<br/>Ollama<br/>SFDX CLI<br/>ChromaDB"]
+
+    style HTTP fill:#1a2744,stroke:#4f8cff
+    style Service fill:#1a2744,stroke:#a78bfa
+    style Executor fill:#1a2744,stroke:#fb923c
+    style Agent fill:#1a2744,stroke:#34d399
+    style External fill:#1a2744,stroke:#f87171
+      </pre>
+    </div>
+
+    <h3>Problèmes architecturaux identifiés</h3>
+    <table>
+      <tr><th>#</th><th>Problème</th><th>Sévérité</th><th>Impact</th></tr>
+      <tr>
+        <td>P0</td>
+        <td>Routes <code>async def</code> + SQLAlchemy sync = event loop bloqué</td>
+        <td><span class="tag tag-critical">Critique</span></td>
+        <td>L'API entière bloque pendant chaque requête DB</td>
+      </tr>
+      <tr>
+        <td>P1</td>
+        <td>Split brain : <code>pm.py</code> (v1) cohabite avec <code>pm_orchestrator.py</code> (v2)</td>
+        <td><span class="tag tag-critical">Critique</span></td>
+        <td>Confusion sur les endpoints actifs, dead code</td>
+      </tr>
+      <tr>
+        <td>P2</td>
+        <td>52 chemins absolus hardcodés</td>
+        <td><span class="tag tag-critical">Critique</span></td>
+        <td>Pas de portabilité, impossible hors Docker spécifique</td>
+      </tr>
+      <tr>
+        <td>P3</td>
+        <td>Agents lancés via <code>subprocess.run()</code></td>
+        <td><span class="tag tag-critical">Critique</span></td>
+        <td>Overhead 3-5s/appel, perte contexte, debug impossible</td>
+      </tr>
+      <tr>
+        <td>P4</td>
+        <td>Fat Controller : <code>pm_orchestrator.py</code> = 2637 lignes</td>
+        <td><span class="tag tag-major">Majeur</span></td>
+        <td>Impossible à maintenir, tester ou lire</td>
+      </tr>
+      <tr>
+        <td>P5</td>
+        <td>Logs fragmentés (print/stderr/DB)</td>
+        <td><span class="tag tag-major">Majeur</span></td>
+        <td>Observabilité impossible</td>
+      </tr>
+      <tr>
+        <td>P6</td>
+        <td>LLM Router v3 prêt mais sous-utilisé</td>
+        <td><span class="tag tag-medium">Moyen</span></td>
+        <td>Surcoût API, pas d'optimisation de routage</td>
+      </tr>
+      <tr>
+        <td>P7</td>
+        <td>Transactions <code>db.commit()</code> éparpillés</td>
+        <td><span class="tag tag-major">Majeur</span></td>
+        <td>États DB incohérents en cas d'erreur</td>
+      </tr>
+      <tr>
+        <td>P8</td>
+        <td>Rotation de <code>SECRET_KEY</code> absente</td>
+        <td><span class="tag tag-medium">Moyen</span></td>
+        <td>Compromission totale si fuite de clé</td>
+      </tr>
+      <tr>
+        <td>P9</td>
+        <td>SDS <code>write_sds</code> tronque 50-77% des livrables experts</td>
+        <td><span class="tag tag-major">Majeur</span></td>
+        <td>Coverage Report perd 77%, DevOps 46%, Trainer 50% â†' SDS incomplet â†' BUILD dégradé</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ==================== LES 11 AGENTS ==================== -->
+  <div id="agents" class="section">
+    <h2>Les 11 Agents</h2>
+    <p class="section-desc">
+      Chaque agent est un script Python spécialisé dans un domaine Salesforce. Ils sont orchestrés
+      séquentiellement par le PM (Sophie) via l'AgentExecutor.
+    </p>
+
+    <h3>Pipeline des agents</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph SDS["Phase SDS"]
+        direction LR
+        Sophie["Sophie<br/>PM"] -->|"extract BRs"| Olivia["Olivia<br/>Business Analyst"]
+        Olivia -->|"Use Cases"| Emma["Emma<br/>Research Analyst"]
+        Emma -->|"UC Digest"| Marcus["Marcus<br/>Solution Architect"]
+        Marcus -->|"Solution Design"| Experts
+        subgraph Experts["Experts SDS"]
+            Elena2["Elena QA"]
+            Jordan2["Jordan DevOps"]
+            Lucas2["Lucas Trainer"]
+            Aisha2["Aisha Data"]
+        end
+        Experts -->|"write_sds"| Emma2["Emma<br/>SDS Writer"]
+    end
+
+    subgraph BUILD["Phase BUILD"]
+        direction LR
+        Raj3["Raj<br/>Admin"] --> Diego["Diego<br/>Apex"]
+        Raj3 --> Zara["Zara<br/>LWC"]
+        Diego & Zara --> Elena3["Elena<br/>QA"]
+        Elena3 --> Jordan3["Jordan<br/>DevOps"]
+        Jordan3 --> Lucas3["Lucas<br/>Trainer"]
+    end
+
+    SDS --> BUILD
+
+    style SDS fill:#151922,stroke:#4f8cff,stroke-width:2px
+    style BUILD fill:#151922,stroke:#34d399,stroke-width:2px
+    style Sophie fill:#2a4a8a,stroke:#4f8cff
+    style Emma fill:#2a3a5a,stroke:#22d3ee
+    style Olivia fill:#2a3a5a,stroke:#fb923c
+    style Marcus fill:#2a3a5a,stroke:#a78bfa
+      </pre>
+    </div>
+
+    <h3>Fiches agents</h3>
+    <div class="agent-grid">
+      <div class="agent-card">
+        <div class="agent-name">🎯 Sophie</div>
+        <div class="agent-role">PM Orchestrator</div>
+        <div class="agent-file">salesforce_pm.py · 16 Ko</div>
+        <div class="agent-desc">Cheffe de projet. Décompose les exigences en tâches, pilote le workflow, coordonne les agents. Point d'entrée de toute exécution.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">🔬 Emma</div>
+        <div class="agent-role">Research Analyst</div>
+        <div class="agent-file">salesforce_research_analyst.py · 46 Ko</div>
+        <div class="agent-desc">Analyse et digère les Use Cases. 3 modes : <code>analyze</code> (clustering UCs), <code>validate</code> (couverture 100%), <code>write_sds</code> (rédaction SDS). Le plus gros agent du projet.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">📋 Marcus</div>
+        <div class="agent-role">Solution Architect</div>
+        <div class="agent-file">salesforce_solution_architect.py · 16 Ko</div>
+        <div class="agent-desc">Architecte technique. 4 appels séquentiels : as_is, gap_analysis, solution_design, wbs. Produit l'architecture, les ERD, la matrice de permissions. Accède à 3 collections RAG.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">🏗️ Olivia</div>
+        <div class="agent-role">Business Analyst</div>
+        <div class="agent-file">salesforce_business_analyst.py · 40 Ko</div>
+        <div class="agent-desc">Traduit les besoins métier en exigences Salesforce structurées. Appelée N fois (1 par BR) pour générer les Use Cases. Utilise les collections RAG business + operations.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">⚡ Diego</div>
+        <div class="agent-role">Apex Developer</div>
+        <div class="agent-file">salesforce_developer_apex.py · 23 Ko</div>
+        <div class="agent-desc">Développe le code Apex (classes, triggers, tests). Utilise les collections RAG apex + technical.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">🎨 Zara</div>
+        <div class="agent-role">LWC Developer</div>
+        <div class="agent-file">salesforce_developer_lwc.py · 20 Ko</div>
+        <div class="agent-desc">Développe les composants Lightning Web Components. Utilise les collections RAG lwc + technical.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">⚙️ Jordan</div>
+        <div class="agent-role">DevOps</div>
+        <div class="agent-file">salesforce_devops.py · 10 Ko</div>
+        <div class="agent-desc">Déploiement et opérations. Gère les pipelines CI/CD Salesforce, la configuration SFDX. Collections technical + operations.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">🧪 Elena</div>
+        <div class="agent-role">QA Tester</div>
+        <div class="agent-file">salesforce_qa_tester.py · 22 Ko</div>
+        <div class="agent-desc">Tests et validation qualité. Vérifie le code produit par les développeurs. Collections technical + operations + apex.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">🔐 Raj</div>
+        <div class="agent-role">Salesforce Admin</div>
+        <div class="agent-file">salesforce_admin.py · 29 Ko</div>
+        <div class="agent-desc">Configuration admin Salesforce : profils, permissions, workflows, validation rules. Complexité élevée (SFDX, sys.path). Collections operations + technical.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">📦 Aisha</div>
+        <div class="agent-role">Data Migration</div>
+        <div class="agent-file">salesforce_data_migration.py · 16 Ko</div>
+        <div class="agent-desc">Migration de données entre systèmes. Mapping, transformation, validation d'intégrité. Collections technical + operations.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">📚 Lucas</div>
+        <div class="agent-role">Trainer</div>
+        <div class="agent-file">salesforce_trainer.py · 13 Ko</div>
+        <div class="agent-desc">Formateur. Génère les supports de formation, guides d'adoption, stratégies de change management. Collections business + operations. 33K chunks RAG.</div>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">📦 Data Migration</div>
+        <div class="agent-role">Spécialiste migration</div>
+        <div class="agent-file">salesforce_data_migration.py · 16 Ko</div>
+        <div class="agent-desc">Migration de données entre systèmes. Mapping, transformation, validation d'intégrité. Collections technical + operations.</div>
+      </div>
+    </div>
+
+    <h3>Matrice Agent → Collections RAG</h3>
+    <table>
+      <tr><th>Agent</th><th>Collections</th><th>Chunks accessibles</th></tr>
+      <tr><td>Sophie (PM)</td><td>technical + operations + business</td><td>62,625</td></tr>
+      <tr><td>Emma (Research)</td><td>technical + operations + business</td><td>62,625</td></tr>
+      <tr><td>Olivia (BA)</td><td>business + operations</td><td>33,525</td></tr>
+      <tr><td>Marcus (Architect)</td><td>technical + operations + business</td><td>62,625</td></tr>
+      <tr><td>Diego (Apex)</td><td>apex + technical</td><td>30,694</td></tr>
+      <tr><td>Zara (LWC)</td><td>lwc + technical</td><td>35,132</td></tr>
+      <tr><td>Jordan (DevOps)</td><td>operations + technical</td><td>46,356</td></tr>
+      <tr><td>Elena (QA Tester)</td><td>technical + operations + apex</td><td>47,950</td></tr>
+      <tr><td>Raj (Admin)</td><td>operations + technical</td><td>46,356</td></tr>
+      <tr><td>Aisha (Data Migration)</td><td>technical + operations</td><td>46,356</td></tr>
+      <tr><td>Lucas (Trainer)</td><td>business + operations</td><td>33,525</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== PHASE SDS ==================== -->
+  <div id="sds-flow" class="section">
+    <h2>Phase SDS</h2>
+    <p class="section-desc">
+      La phase SDS (Solution Design Specification) transforme des Use Cases métier en un document technique complet
+      décrivant l'architecture Salesforce à implémenter.
+    </p>
+
+    <h3>Flux SDS complet</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+sequenceDiagram
+    participant U as Utilisateur
+    participant PM as Sophie (PM)
+    participant BA as Olivia (BA)
+    participant E as Emma (Research)
+    participant SA as Marcus (Architect)
+    participant EX as Experts SDS
+    participant W as Emma (SDS Writer)
+
+    U->>PM: Créer projet + Use Cases
+    PM->>PM: extract_br (Business Requirements)
+    PM-->>U: BRs à valider
+    U-->>PM: BRs validés
+
+    loop Pour chaque BR
+        PM->>BA: generate_use_cases(BR)
+        BA-->>PM: Use Cases structurés
+    end
+
+    PM->>E: analyze(use_cases)
+    E->>E: Clustering & Digest UCs
+    E-->>PM: UC Digest structuré
+
+    PM->>SA: as_is + gap_analysis
+    PM->>SA: solution_design(uc_digest)
+    PM->>SA: wbs(solution_design)
+    SA-->>PM: Solution Design complet
+
+    PM->>E: validate(solution, use_cases)
+    E->>E: Vérification couverture 100%
+    alt Couverture < 95%
+        E-->>PM: Coverage gaps
+        PM->>SA: revision(gaps)
+        SA-->>PM: Design révisé
+    end
+
+    par Experts en parallèle
+        PM->>EX: Elena(QA) + Jordan(DevOps) + Lucas(Trainer) + Aisha(Data)
+    end
+    EX-->>PM: Spécifications experts
+
+    PM->>W: write_sds(all deliverables)
+    W->>W: Assemblage SDS final
+    Note over W: ⚠️ Troncature 50-77% (P9 corrige)
+    W-->>U: SDS v3 (DOCX)
+</pre>
+    </div>
+
+    <h3>Versions SDS</h3>
+    <table>
+      <tr><th>Version</th><th>Méthode</th><th>État</th></tr>
+      <tr><td>SDS v1</td><td>Génération directe par un seul agent</td><td><span class="tag tag-pending">Legacy</span></td></tr>
+      <tr><td>SDS v2</td><td>Pipeline multi-agents (Sophie → Olivia → Marcus)</td><td><span class="tag tag-done">Actif</span></td></tr>
+      <tr><td>SDS v3</td><td>V2 + Emma (Research) + micro-analyse + DOCX pro</td><td><span class="tag tag-done">Actif</span></td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== PHASE BUILD ==================== -->
+  <div id="build-flow" class="section">
+    <h2>Phase BUILD</h2>
+    <p class="section-desc">
+      La phase BUILD prend le SDS et génère le code Salesforce déployable : Apex, LWC, configurations admin, tests.
+      Le BUILD v2 utilise un exécuteur par phases (PhasedBuildExecutor) avec 50+ lots d'agents.
+    </p>
+
+    <h3>Flux BUILD v2</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    SDS["📄 SDS Document"] --> Decompose["Sophie décompose<br/>en tâches BUILD"]
+    Decompose --> Phases["PhasedBuildExecutor"]
+
+    subgraph Phase1["Phase 1 : Fondations"]
+        P1A["Raj : Objets custom<br/>Profils, Permissions"]
+        P1B["Raj : Workflows<br/>Validation Rules"]
+    end
+
+    subgraph Phase2["Phase 2 : Backend"]
+        P2A["Diego : Classes Apex<br/>Triggers"]
+        P2B["Diego : Services<br/>Batch Jobs"]
+    end
+
+    subgraph Phase3["Phase 3 : Frontend"]
+        P3A["Zara : Composants LWC"]
+        P3B["Zara : Pages Lightning"]
+    end
+
+    subgraph Phase4["Phase 4 : Qualité"]
+        P4A["Elena : Tests unitaires"]
+        P4B["Elena : Tests intégration"]
+    end
+
+    subgraph Phase5["Phase 5 : Déploiement"]
+        P5A["Jordan : Package<br/>& Deploy"]
+        P5B["Lucas : Documentation<br/>Formation"]
+    end
+
+    Phases --> Phase1 --> Phase2 --> Phase3 --> Phase4 --> Phase5
+    Phase5 --> Done["✅ Code Salesforce<br/>déployé"]
+
+    style Phase1 fill:#151922,stroke:#fb923c
+    style Phase2 fill:#151922,stroke:#4f8cff
+    style Phase3 fill:#151922,stroke:#a78bfa
+    style Phase4 fill:#151922,stroke:#34d399
+    style Phase5 fill:#151922,stroke:#22d3ee
+      </pre>
+    </div>
+  </div>
+
+  <!-- ==================== RAG ==================== -->
+  <div id="rag" class="section">
+    <h2>RAG & Knowledge Base</h2>
+    <p class="section-desc">
+      Le système RAG (Retrieval Augmented Generation) fournit aux agents un accès contextuel
+      à 70,251 chunks de documentation Salesforce via ChromaDB.
+    </p>
+
+    <h3>Collections</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+pie title Distribution des chunks RAG (70,251 total)
+    "technical (29,100)" : 29100
+    "operations (17,256)" : 17256
+    "business (16,269)" : 16269
+    "lwc (6,032)" : 6032
+    "apex (1,594)" : 1594
+      </pre>
+    </div>
+
+    <table>
+      <tr><th>Collection</th><th>Chunks</th><th>Embedding</th><th>Contenu</th></tr>
+      <tr><td><code>technical_collection</code></td><td>29,100</td><td>OpenAI text-embedding-3-large</td><td>Architecture, API docs, specs techniques</td></tr>
+      <tr><td><code>operations_collection</code></td><td>17,256</td><td>OpenAI text-embedding-3-large</td><td>Guides opérationnels, best practices</td></tr>
+      <tr><td><code>business_collection</code></td><td>16,269</td><td>OpenAI text-embedding-3-large</td><td>Business requirements, use cases, solutions</td></tr>
+      <tr><td><code>lwc_collection</code></td><td>6,032</td><td>Nomic nomic-embed-text-v1.5 (local)</td><td>Composants LWC, patterns JavaScript</td></tr>
+      <tr><td><code>apex_collection</code></td><td>1,594</td><td>Nomic nomic-embed-text-v1.5 (local)</td><td>Code Apex, triggers, SOQL patterns</td></tr>
+    </table>
+
+    <h3>Processus de recherche</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    Q["Query agent"] --> Detect["Détection collections<br/><i>AGENT_COLLECTIONS map</i>"]
+    Detect --> Embed["Génération embedding<br/><i>OpenAI ou Nomic</i>"]
+    Embed --> Search["Recherche vectorielle<br/><i>Top 30 candidats</i>"]
+    Search --> Rerank["Reranking BGE<br/><i>bge-reranker-v2-m3</i>"]
+    Rerank --> Result["Top 10 résultats<br/><i>+ métadonnées</i>"]
+
+    style Rerank fill:#2a3a5a,stroke:#a78bfa
+      </pre>
+    </div>
+
+    <h4>Localisation</h4>
+    <table>
+      <tr><th>Base</th><th>Chemin</th><th>Taille</th><th>Statut</th></tr>
+      <tr><td>Production</td><td><code>/opt/digital-humans/rag/chromadb_data/</code></td><td>2.4 GB</td><td><span class="tag tag-done">Active</span></td></tr>
+      <tr><td>Backup</td><td><code>/opt/digital-humans/rag/chromadb_data_backup_20251206_openai/</code></td><td>2.2 GB</td><td><span class="tag tag-done">OK</span></td></tr>
+      <tr><td>Obsolète</td><td><code>backend/chroma_db/</code></td><td>164 KB</td><td><span class="tag tag-pending">À supprimer</span></td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== INFRASTRUCTURE ==================== -->
+  <div id="infra" class="section">
+    <h2>Services & Infrastructure</h2>
+    <p class="section-desc">
+      VPS Hostinger · 72.61.161.222 · Ubuntu 24.04 LTS
+    </p>
+
+    <h3>État des services</h3>
+    <div class="card">
+      <div class="service-row">
+        <div><span class="status-dot active"></span><span class="service-name">PostgreSQL</span></div>
+        <div class="service-port">:5432 · Auto-start</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot active"></span><span class="service-name">Nginx</span></div>
+        <div class="service-port">:80/443 · Auto-start</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot active"></span><span class="service-name">Ghost CMS (Docker)</span></div>
+        <div class="service-port">:2368 · Auto-restart</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot inactive"></span><span class="service-name">Backend FastAPI</span></div>
+        <div class="service-port">:8002 · Démarrage manuel</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot inactive"></span><span class="service-name">Frontend React</span></div>
+        <div class="service-port">:3000 · Démarrage manuel</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot partial"></span><span class="service-name">Ollama/Mistral</span></div>
+        <div class="service-port">:11434 · Optionnel (SDS v3)</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot active"></span><span class="service-name">ChromaDB RAG</span></div>
+        <div class="service-port">Embedded · 70K chunks</div>
+      </div>
+      <div class="service-row">
+        <div><span class="status-dot inactive"></span><span class="service-name">N8N Workflows</span></div>
+        <div class="service-port">:5678 · Non utilisé</div>
+      </div>
+    </div>
+
+    <h3>Commandes essentielles</h3>
+    <h4>Démarrage complet</h4>
+    <pre>cd /root/workspace/digital-humans-production/backend
+source venv/bin/activate
+nohup uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload > /tmp/backend.log 2>&1 &
+
+cd /root/workspace/digital-humans-production/frontend
+nohup npm run dev -- --host 0.0.0.0 > /tmp/frontend.log 2>&1 &</pre>
+
+    <h4>Vérification rapide</h4>
+    <pre>ss -tlnp | grep -E '3000|8002|11434|5678'
+curl -s localhost:8002/docs && echo 'Backend OK' || echo 'Backend KO'
+curl -s localhost:3000 && echo 'Frontend OK' || echo 'Frontend KO'</pre>
+
+    <h4>Arrêt</h4>
+    <pre>fuser -k 8002/tcp   # Backend
+pkill -f 'vite'     # Frontend</pre>
+  </div>
+
+  <!-- ==================== API REFERENCE ==================== -->
+  <div id="api" class="section">
+    <h2>API Reference</h2>
+    <p class="section-desc">
+      Principaux endpoints de l'API FastAPI. Documentation Swagger complète sur <code>http://72.61.161.222:8002/docs</code>
+    </p>
+
+    <h3>Endpoints principaux</h3>
+    <table>
+      <tr><th>Méthode</th><th>Route</th><th>Description</th></tr>
+      <tr><td><code>GET</code></td><td>/api/health</td><td>Health check</td></tr>
+      <tr><td><code>POST</code></td><td>/api/auth/login</td><td>Authentification → JWT</td></tr>
+      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/projects</td><td>Créer un projet</td></tr>
+      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/projects</td><td>Lister les projets</td></tr>
+      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/projects/{id}</td><td>Détail d'un projet</td></tr>
+      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/projects/{id}/execute</td><td>Lancer l'exécution SDS</td></tr>
+      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/executions/{id}/progress</td><td>Progression d'exécution</td></tr>
+      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/dashboard/stats</td><td>Stats tableau de bord</td></tr>
+      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/execute/{id}/generate-docx</td><td>Générer SDS DOCX</td></tr>
+      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/execute/{id}/download-sds-v3</td><td>Télécharger SDS</td></tr>
+      <tr><td><code>WS</code></td><td>/ws</td><td>WebSocket temps réel</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== PLAN DE REFONTE ==================== -->
+  <div id="refonte" class="section">
+    <h2>Plan de refonte 2026</h2>
+    <p class="section-desc">
+      Refonte architecturale complète utilisant Claude Code Agent Teams (Opus 4.6).
+      Méthodologie anti-régression avec tags git, baseline tests, et rollback &lt;30s.
+    </p>
+
+    <h3>Stratégie Agent Teams</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph P1["Phase 1 — L'Architecte"]
+        A1["1 agent Opus<br/>Fenêtre 1M tokens<br/>Analyse repo entier (680K tokens)"]
+    end
+
+    subgraph P2["Phase 2 — Les Spécialistes (parallèle)"]
+        direction LR
+        S["🔧 Stabilizer<br/>P0 + P1 + P2<br/><i>1 semaine</i>"]
+        R["🔄 Refactorer<br/>P3 : 11 agents<br/><i>2-3 semaines</i>"]
+        M["🏗️ Modernizer<br/>P4 + P7<br/><i>1-2 semaines</i>"]
+    end
+
+    subgraph P3["Phase 3 — L'Intégrateur"]
+        I1["Smoke tests complets"]
+        I2["Vérif contrats d'interface"]
+        I3["Tag git + Rapport final"]
+    end
+
+    P1 -->|"Docs de référence"| P2
+    P2 --> P3
+
+    style P1 fill:#151922,stroke:#4f8cff,stroke-width:2px
+    style P2 fill:#151922,stroke:#34d399,stroke-width:2px
+    style P3 fill:#151922,stroke:#a78bfa,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Planning</h3>
+    <table>
+      <tr><th>Semaine</th><th>Phase</th><th>Actions</th><th>Statut</th></tr>
+      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse et documentation complète</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S2</td><td>Phase 2a</td><td>Stabilizer : P0 (async fix) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S3</td><td>Phase 2b + 2c</td><td>Refactorer agents 1-4 + Modernizer P4/P7</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S4</td><td>Phase 2b</td><td>Refactorer agents 5-8 + <b>P9 SDS Sections</b> (4j)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S5</td><td>Phase 2b</td><td>Refactorer agents 9-11 (complexes)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S6</td><td>Phase 3</td><td>Intégrateur + P5 + P6 + P8 + validation finale</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+    </table>
+
+    <h3>Dépendances</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    P0["P0<br/>Async Fix"] --> P3["P3<br/>Subprocess→Import"]
+    P1["P1<br/>Dead Code"] --> P2["P2<br/>Paths"]
+    P2 --> P3
+    P0 --> P4["P4<br/>Fat Controller"]
+    P0 --> P7["P7<br/>Transactions"]
+    P3 --> P5["P5<br/>Logs"]
+    P3 --> P6["P6<br/>LLM Router"]
+    P3 --> P8["P8<br/>Secrets"]
+    P0 --> P9["P9<br/>SDS Sections"]
+    P3 -.->|"recommandé"| P9
+
+    style P0 fill:#4a1c1c,stroke:#f87171
+    style P3 fill:#4a1c1c,stroke:#f87171
+    style P1 fill:#4a1c1c,stroke:#f87171
+    style P2 fill:#4a1c1c,stroke:#f87171
+    style P4 fill:#3a2a0a,stroke:#fb923c
+    style P5 fill:#3a2a0a,stroke:#fb923c
+    style P6 fill:#2a2a4a,stroke:#a78bfa
+    style P7 fill:#3a2a0a,stroke:#fb923c
+    style P8 fill:#2a2a4a,stroke:#a78bfa
+    style P9 fill:#0a3a2a,stroke:#34d399
+      </pre>
+    </div>
+  </div>
+
+  <!-- ==================== JOURNAL ==================== -->
+  <div id="journal" class="section">
+    <h2>Journal de la refonte</h2>
+    <p class="section-desc">
+      Timeline des événements, décisions et résultats au fil de la refonte.
+    </p>
+
+    <div class="timeline">
+      <div class="timeline-item done">
+        <div class="timeline-date">5 février 2026</div>
+        <div class="timeline-title">Audit technique exhaustif</div>
+        <div class="timeline-desc">Analyse statique (Claude) + audit contextuel (Gemini). 15 problèmes identifiés dont 5 critiques. Plan de migration consolidé P0→P8.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">5 février 2026</div>
+        <div class="timeline-title">Analyse RAG complète</div>
+        <div class="timeline-desc">70,251 chunks inventoriés. 5 collections. Mapping agent→collections documenté. Base fonctionnelle confirmée.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">5 février 2026</div>
+        <div class="timeline-title">Guide admin serveur v2</div>
+        <div class="timeline-desc">Documentation complète de l'administration VPS avec section RAG.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">6 février 2026</div>
+        <div class="timeline-title">Playbook de migration</div>
+        <div class="timeline-desc">Plan d'exécution exhaustif avec méthodologie anti-régression. 5 principes, stratégie Git, protocole smoke test, 4 sprints détaillés.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">7 février 2026</div>
+        <div class="timeline-title">Blueprint Agent Teams</div>
+        <div class="timeline-desc">Architecture de refonte via Claude Code Agent Teams. 6 agents définis (Architect, Stabilizer, Refactorer, Modernizer, Integrator, Reviewer). Contrats d'interface et séquencement détaillés.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">7 février 2026</div>
+        <div class="timeline-title">Correction rôles agents + P9 SDS Sections</div>
+        <div class="timeline-desc">Analyse du code révèle : Olivia=BA, Marcus=Architect (inversés dans la doc initiale). Pipeline SDS corrigé (6 étapes). Découverte troncature critique : Emma perd 50-77% des livrables experts dans write_sds. Spec P9 formalisée : génération séquencée en 11 sections, 0% troncature.</div>
+      </div>
+      <div class="timeline-item active">
+        <div class="timeline-date">7 février 2026</div>
+        <div class="timeline-title">Documentation mise Ã  jour</div>
+        <div class="timeline-desc">CLAUDE.md + mini-site HTML corrigés : rôles agents, pipeline SDS, P9 ajouté au graphe de dépendances et tableau des problèmes.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Fin février 2026</div>
+        <div class="timeline-title">Phase 1 — Analyse architecte</div>
+        <div class="timeline-desc">Chargement du repo entier dans Opus 4.6 (1M context). Production des documents de référence.</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Mars 2026</div>
+        <div class="timeline-title">Phases 2 & 3 — Exécution refonte</div>
+        <div class="timeline-desc">Agent Teams en parallèle. 6 semaines de travail. Validation finale et tag git.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // Navigation
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    event.target.classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // Mermaid init
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#1e2433',
+      primaryTextColor: '#c8cdd8',
+      primaryBorderColor: '#4f8cff',
+      lineColor: '#4f8cff',
+      secondaryColor: '#151922',
+      tertiaryColor: '#151922',
+      fontFamily: 'DM Sans, sans-serif',
+      fontSize: '13px'
+    },
+    flowchart: { curve: 'basis', padding: 16 },
+    sequence: { actorMargin: 40, messageMargin: 30 }
+  });
+
+  // Render mermaid on section change
+  async function renderMermaid() {
+    const elements = document.querySelectorAll('.section.active .mermaid');
+    for (const el of elements) {
+      if (!el.getAttribute('data-processed')) {
+        const { svg } = await mermaid.render('mermaid-' + Math.random().toString(36).substr(2, 9), el.textContent);
+        el.innerHTML = svg;
+        el.setAttribute('data-processed', 'true');
+      }
+    }
+  }
+
+  // Override showSection to also render mermaid
+  const originalShow = showSection;
+  showSection = function(id) {
+    originalShow(id);
+    setTimeout(renderMermaid, 50);
+  };
+
+  // Initial render
+  document.addEventListener('DOMContentLoaded', () => setTimeout(renderMermaid, 100));
+</script>
+
+</body>
+</html>

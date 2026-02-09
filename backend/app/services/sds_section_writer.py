@@ -33,7 +33,7 @@ IMPORTANT: Only reference these 11 agents by their exact names. Never invent oth
 """
 
 # Sub-batch size for Section 3 (Use Case Specifications)
-UC_BATCH_SIZE = 35  # ~35 UCs ~ 50K tokens of context
+UC_BATCH_SIZE = 100  # ~100 UCs ~ 143K tokens (200K limit, 15K prompt overhead)
 
 
 def get_section_system_prompt(section_name: str = "") -> str:
