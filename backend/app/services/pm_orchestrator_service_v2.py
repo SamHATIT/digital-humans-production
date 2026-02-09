@@ -268,7 +268,6 @@ class PMOrchestratorServiceV2:
             if not business_requirements:
                 logger.error("[GATE] No Business Requirements available - cannot proceed to Phase 2")
                 execution.status = ExecutionStatus.FAILED
-                self.db.commit()
                 raise Exception("No Business Requirements available. Please ensure Sophie extracts BRs first.")
             logger.info(f"[GATE] ✅ {len(business_requirements)} BRs available - proceeding to Phase 2")
             
@@ -373,7 +372,6 @@ class PMOrchestratorServiceV2:
             if all_ucs_count == 0:
                 logger.error("[GATE] No Use Cases generated - cannot proceed")
                 execution.status = ExecutionStatus.FAILED
-                self.db.commit()
                 raise Exception("No Use Cases generated. Business Analyst failed to produce outputs.")
             logger.info(f"[GATE] ✅ {all_ucs_count} UCs available - proceeding to Phase 2.5")
             
@@ -619,7 +617,6 @@ class PMOrchestratorServiceV2:
 
                         execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                         self._save_checkpoint(execution, "phase3_3_coverage_gate")
-                        self.db.commit()
 
                         logger.info(f"[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
                         return results  # <-- PAUSE: execution stops here
@@ -726,7 +723,6 @@ class PMOrchestratorServiceV2:
                             flag_modified(execution, "agent_execution_status")
                             execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                             self._save_checkpoint(execution, "phase3_3_coverage_gate")
-                            self.db.commit()
                             return results
                         else:
                             logger.error(
@@ -736,7 +732,6 @@ class PMOrchestratorServiceV2:
                             execution.status = ExecutionStatus.FAILED
                             self._update_progress(execution, "research_analyst", "failed", 72,
                                                  f"Architecture coverage too low ({current_coverage}%) after {revision_count} revision(s)")
-                            self.db.commit()
                             raise Exception(
                                 f"Architecture coverage {current_coverage}% still below {COVERAGE_MIN_PROCEED}% "
                                 f"after {revision_count} revision(s). {len(current_gaps)} critical gaps remain."
@@ -1194,11 +1189,11 @@ class PMOrchestratorServiceV2:
         
         # CRITICAL: Mark JSON column as modified for SQLAlchemy to detect changes
         flag_modified(execution, "agent_execution_status")
-        # P7: Protect progress commit — rollback on failure to keep session usable
+        # P7: Protect progress flush — rollback on failure to keep session usable
         try:
-            self.db.commit()
+            self.db.flush()
         except Exception as e:
-            logger.warning(f"Failed to commit progress update for {agent_id}: {e}")
+            logger.warning(f"Failed to flush progress update for {agent_id}: {e}")
             self.db.rollback()
 
         # PERF-001: Send real-time notification (fire-and-forget)
@@ -1254,7 +1249,7 @@ class PMOrchestratorServiceV2:
                 created_at=datetime.now(timezone.utc)
             )
             self.db.add(deliverable)
-            self.db.commit()
+            self.db.flush()
             logger.info(f"✅ Saved deliverable: {agent_id}_{deliverable_type} (execution {execution_id})")
         except Exception as e:
             logger.error(f"❌ Failed to save deliverable {agent_id}_{deliverable_type}: {e}")
@@ -1319,7 +1314,7 @@ class PMOrchestratorServiceV2:
                 execution_time_seconds=execution_time
             )
             self.db.add(item)
-            self.db.commit()
+            self.db.flush()
             logger.debug(f"Saved item {item_id} (parse_success={parse_success})")
             return True
         except Exception as e:
@@ -1508,7 +1503,7 @@ class PMOrchestratorServiceV2:
                     created_at=datetime.now(timezone.utc)
                 )
                 self.db.add(gate)
-            self.db.commit()
+            self.db.flush()
         except Exception as e:
             logger.warning(f"Could not initialize gates: {e}")
             self.db.rollback()
@@ -1534,8 +1529,8 @@ class PMOrchestratorServiceV2:
                     gate.completed_at = datetime.now(timezone.utc)
                 else:
                     gate.status = "in_progress"
-                
-                self.db.commit()
+
+                self.db.flush()
         except Exception as e:
             logger.warning(f"Gate update failed: {e}")
 
@@ -1711,8 +1706,8 @@ See WBS-001 artifact for details.
             
             self.db.add(br_record)
             saved_count += 1
-        
-        self.db.commit()
+
+        self.db.flush()
         logger.info(f"Saved {saved_count} BRs to database for validation")
         return saved_count
 
