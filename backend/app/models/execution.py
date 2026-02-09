@@ -55,6 +55,11 @@ class Execution(Base):
     # Resume capability
     last_completed_phase = Column(String(50))  # Last successfully completed phase for resume
 
+    # State Machine (granular phase tracking — I1.2)
+    execution_state = Column(String(60), default="draft", index=True)
+    state_updated_at = Column(DateTime(timezone=True))
+    state_history = Column(JSON, default=list)  # List of {from, to, at, metadata}
+
     # Relationships
     project = relationship("Project", back_populates="executions")
     user = relationship("User", back_populates="executions")
