@@ -5,7 +5,6 @@ P4: Extracted from pm_orchestrator.py — BUILD task/phase monitoring and execut
 """
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
-import asyncio
 import logging
 
 from app.database import get_db
@@ -13,6 +12,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from app.workers.arq_config import get_redis_pool
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import verify_execution_access
 
@@ -217,7 +217,6 @@ async def start_build_phase(
 ):
     """Start the BUILD phase for a project after SDS approval."""
     from app.services.pm_orchestrator_service_v2 import BuildPhaseService
-    from app.api.routes.orchestrator.build_executor import execute_build_v2
 
     service = BuildPhaseService(db)
     result = service.prepare_build_phase(project_id, current_user.id)
@@ -225,7 +224,14 @@ async def start_build_phase(
     if not result.get("success"):
         raise HTTPException(status_code=result.get("code", 400), detail=result.get("error"))
 
-    asyncio.create_task(execute_build_v2(project_id, result["execution_id"]))
+    pool = await get_redis_pool()
+    job = await pool.enqueue_job(
+        "execute_build_task",
+        project_id=project_id,
+        execution_id=result["execution_id"],
+        _queue_name="digital-humans",
+    )
+    logger.info(f"[ARQ] Job {job.job_id} enqueued for BUILD {result['execution_id']}")
 
     return {
         "message": f"BUILD phase started with {result['tasks_created']} tasks",
