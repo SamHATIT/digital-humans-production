@@ -56,7 +56,7 @@ from app.models.execution import Execution, ExecutionStatus
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.deliverable_item import DeliverableItem
 from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
-from app.models.validation_gate import ValidationGate
+from app.models.artifact import ValidationGate
 from app.services.execution_state import ExecutionStateMachine
 import logging
 from app.config import settings
