@@ -24,6 +24,7 @@ from app.schemas.execution import (
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.services.pm_orchestrator_service_v2 import execute_workflow_background, resume_architecture_background
+from app.services.budget_service import BudgetService, BudgetExceededError
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
     AGENT_NAMES,
@@ -398,3 +399,22 @@ def list_available_agents(
     agent_service = AgentIntegrationService()
     agents = agent_service.get_available_agents()
     return {"agents": agents}
+
+
+@router.get("/execute/{execution_id}/budget")
+def get_execution_budget(
+    execution_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get budget status for an execution (P1.1)."""
+    service = BudgetService(db)
+    try:
+        return service.check_budget(execution_id)
+    except BudgetExceededError as e:
+        return {
+            "allowed": False,
+            "limit_type": e.limit_type,
+            "current": e.current,
+            "limit": e.limit,
+            "message": str(e),
+        }
