@@ -217,7 +217,7 @@ class DevOpsAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=8000, temperature=0.3
+            prompt, max_tokens=8000, temperature=0.3, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -295,7 +295,7 @@ class DevOpsAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=4000, temperature=0.2
+            prompt, max_tokens=4000, temperature=0.2, execution_id=execution_id
         )
 
         # Parse files from response
@@ -360,7 +360,7 @@ class DevOpsAgent:
             logger.warning(f"RAG unavailable: {e}")
             return ""
 
-    def _call_llm(self, prompt: str, max_tokens: int = 8000, temperature: float = 0.3) -> tuple:
+    def _call_llm(self, prompt: str, max_tokens: int = 8000, temperature: float = 0.3, execution_id: int = 0) -> tuple:
         """
         Call LLM via llm_service or OpenAI fallback.
 
@@ -375,6 +375,7 @@ class DevOpsAgent:
                 model="claude-sonnet-4-20250514",
                 max_tokens=max_tokens,
                 temperature=temperature,
+                execution_id=execution_id,
             )
             return (
                 response.get('content', ''),

@@ -548,6 +548,37 @@ def generate_llm_response(
         )
         content = response["content"]
     """
+    # P1.1: Auto-create DB session for budget tracking if execution_id provided
+    execution_id = kwargs.get('execution_id')
+    db_session = kwargs.get('db')
+    auto_created_db = False
+
+    if execution_id and not db_session:
+        try:
+            from app.database import SessionLocal
+            db_session = SessionLocal()
+            kwargs['db'] = db_session
+            auto_created_db = True
+        except Exception:
+            pass  # Budget tracking is optional
+
+    try:
+        return _generate_llm_response_inner(prompt, agent_type, system_prompt, **kwargs)
+    finally:
+        if auto_created_db and db_session:
+            try:
+                db_session.close()
+            except Exception:
+                pass
+
+
+def _generate_llm_response_inner(
+    prompt: str,
+    agent_type: str = "worker",
+    system_prompt: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """Inner implementation of generate_llm_response (extracted for DB session management)."""
     # --- P6: try Router V3 bridge first ---
     router = _get_router_v3()
     if router is not None:

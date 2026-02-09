@@ -371,7 +371,7 @@ class TrainerAgent:
         logger.info(f"TrainerAgent mode={mode}, prompt_size={len(prompt)} chars")
 
         # Call LLM
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(prompt)
+        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(prompt, execution_id=execution_id)
 
         execution_time = time.time() - start_time
         logger.info(
@@ -431,7 +431,7 @@ class TrainerAgent:
             logger.warning(f"RAG unavailable: {e}")
             return ""
 
-    def _call_llm(self, prompt: str) -> tuple:
+    def _call_llm(self, prompt: str, execution_id: int = 0) -> tuple:
         """
         Call LLM via llm_service.
 
@@ -440,7 +440,7 @@ class TrainerAgent:
         """
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service")
-            response = generate_llm_response(prompt, max_tokens=8000, temperature=0.3)
+            response = generate_llm_response(prompt, max_tokens=8000, temperature=0.3, execution_id=execution_id)
             return (
                 response.get('content', ''),
                 response.get('tokens_used', 0),

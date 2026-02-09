@@ -775,7 +775,8 @@ class SolutionArchitectAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.4
+            prompt, system_prompt, max_tokens=16000, temperature=0.4,
+            execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -930,6 +931,7 @@ class SolutionArchitectAgent:
         system_prompt: str = "",
         max_tokens: int = 16000,
         temperature: float = 0.4,
+        execution_id: int = 0,
     ) -> tuple:
         """
         Call LLM service with fallback to direct Anthropic API.
@@ -944,7 +946,8 @@ class SolutionArchitectAgent:
                 agent_type="architect",
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                execution_id=execution_id
             )
             content = response["content"]
             tokens_used = response["tokens_used"]

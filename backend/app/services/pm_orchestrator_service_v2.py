@@ -56,12 +56,8 @@ from app.models.execution import Execution, ExecutionStatus
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.deliverable_item import DeliverableItem
 from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
-try:
-    from app.models.validation_gate import ValidationGate
-    HAS_VALIDATION_GATE = True
-except ImportError:
-    HAS_VALIDATION_GATE = False
-# ValidationGate peut ne pas exister, on le gère dynamiquement
+from app.models.validation_gate import ValidationGate
+from app.services.execution_state import ExecutionStateMachine
 import logging
 from app.config import settings
 from app.salesforce_config import salesforce_config
@@ -213,10 +209,17 @@ class PMOrchestratorServiceV2:
                 raise ValueError(f"Execution {execution_id} not found")
             
             # Initialize
-            execution.status = ExecutionStatus.RUNNING
             execution.started_at = datetime.now(timezone.utc)
             execution.agent_execution_status = self._init_agent_status(selected_agents or [])
             self.db.commit()
+
+            # State Machine: track granular execution phases
+            sm = ExecutionStateMachine(self.db, execution_id)
+            try:
+                sm.transition_to("queued")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
+                execution.status = ExecutionStatus.RUNNING
             
             
             # CORE-001: Audit log - execution started
@@ -277,6 +280,10 @@ class PMOrchestratorServiceV2:
                 # Normal flow - extract BRs with Sophie
                 logger.info(f"[Phase 1] Sophie PM - Extracting Business Requirements")
                 self._update_progress(execution, "pm", "running", 5, "Extracting Business Requirements...")
+                try:
+                    sm.transition_to("sds_phase1_running")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
             
                 br_result = await self._run_agent(
                     agent_id="pm",
@@ -299,18 +306,26 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Phase 1] ✅ Extracted {len(business_requirements)} Business Requirements")
                 self._update_progress(execution, "pm", "completed", 15, f"Extracted {len(business_requirements)} BRs")
                 self._save_checkpoint(execution, "phase1_pm")
-                
+                try:
+                    sm.transition_to("sds_phase1_complete")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
+
                 # ========================================
                 # PAUSE FOR BR VALIDATION (if full workflow)
                 # ========================================
                 # Save extracted BRs to database for client validation
                 self._save_extracted_brs(execution_id, project_id, business_requirements)
-                
+
                 # Check if we should pause for BR validation
                 # Pause only if other agents (ba) are selected, meaning full workflow requested
                 if 'ba' in (selected_agents or []):
                     logger.info(f"[BR Validation] Pausing for client validation - {len(business_requirements)} BRs to review")
-                    execution.status = ExecutionStatus.WAITING_BR_VALIDATION
+                    try:
+                        sm.transition_to("waiting_br_validation")
+                    except Exception as e:
+                        logger.warning(f"[StateMachine] transition failed: {e}")
+                        execution.status = ExecutionStatus.WAITING_BR_VALIDATION
                     self.db.commit()
                     
                     return {
@@ -327,7 +342,11 @@ class PMOrchestratorServiceV2:
             # ========================================
             if not business_requirements:
                 logger.error("[GATE] No Business Requirements available - cannot proceed to Phase 2")
-                execution.status = ExecutionStatus.FAILED
+                try:
+                    sm.transition_to("failed")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
+                    execution.status = ExecutionStatus.FAILED
                 raise Exception("No Business Requirements available. Please ensure Sophie extracts BRs first.")
             logger.info(f"[GATE] ✅ {len(business_requirements)} BRs available - proceeding to Phase 2")
             
@@ -340,6 +359,10 @@ class PMOrchestratorServiceV2:
             # ========================================
             logger.info(f"[Phase 2] Olivia BA - Generating Use Cases (database-first)")
             self._update_progress(execution, "ba", "running", 18, "Starting Use Case generation...")
+            try:
+                sm.transition_to("sds_phase2_running")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
             
             ba_tokens_total = 0
             ba_ucs_saved = 0
@@ -424,6 +447,10 @@ class PMOrchestratorServiceV2:
             logger.info(f"[Phase 2] Saved {uc_stats["parsed"]} UCs + {uc_stats["raw_saved"]} raw to database")
             self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats["parsed"]} UCs")
             self._save_checkpoint(execution, "phase2_ba")
+            try:
+                sm.transition_to("sds_phase2_complete")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
 
             # ========================================
             # GATE: Validate UCs before Phase 2.5
@@ -431,7 +458,11 @@ class PMOrchestratorServiceV2:
             all_ucs_count = uc_stats.get("parsed", 0) + uc_stats.get("raw_saved", 0)
             if all_ucs_count == 0:
                 logger.error("[GATE] No Use Cases generated - cannot proceed")
-                execution.status = ExecutionStatus.FAILED
+                try:
+                    sm.transition_to("failed")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
+                    execution.status = ExecutionStatus.FAILED
                 raise Exception("No Use Cases generated. Business Analyst failed to produce outputs.")
             logger.info(f"[GATE] ✅ {all_ucs_count} UCs available - proceeding to Phase 2.5")
             
@@ -443,6 +474,10 @@ class PMOrchestratorServiceV2:
             # This replaces the old approach of passing raw UCs (limited to 15)
             logger.info(f"[Phase 2.5] Emma Research Analyst - Generating UC Digest")
             self._update_progress(execution, "research_analyst", "running", 43, "Analyzing Use Cases...")
+            try:
+                sm.transition_to("sds_phase2_5_running")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
             
             # Get ALL use cases (no limit) and business requirements
             all_use_cases = self._get_use_cases(execution_id, limit=None)
@@ -480,10 +515,19 @@ class PMOrchestratorServiceV2:
                 self._update_progress(execution, "research_analyst", "failed", 45, "Analysis failed - using fallback")
                 # Fallback: Marcus will receive raw UCs (old behavior)
             
+            try:
+                sm.transition_to("sds_phase2_5_complete")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
+
             # PHASE 3: Marcus Architect - 4 Sequential Calls
             # ========================================
             logger.info(f"[Phase 3] Marcus Architect - Solution Design")
             self._update_progress(execution, "architect", "running", 46, "Retrieving Salesforce metadata...")
+            try:
+                sm.transition_to("sds_phase3_running")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
             
             # 3.0: Get Salesforce org metadata FIRST
             sf_metadata_result = await self._get_salesforce_metadata(execution_id)
@@ -675,7 +719,11 @@ class PMOrchestratorServiceV2:
                         )
                         flag_modified(execution, "agent_execution_status")
 
-                        execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                        try:
+                            sm.transition_to("waiting_architecture_validation")
+                        except Exception as e:
+                            logger.warning(f"[StateMachine] transition failed: {e}")
+                            execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                         self._save_checkpoint(execution, "phase3_3_coverage_gate")
 
                         logger.info(f"[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
@@ -781,7 +829,11 @@ class PMOrchestratorServiceV2:
                                 f"Coverage {current_coverage}% after {revision_count} revision(s) — awaiting validation"
                             )
                             flag_modified(execution, "agent_execution_status")
-                            execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                            try:
+                                sm.transition_to("waiting_architecture_validation")
+                            except Exception as e:
+                                logger.warning(f"[StateMachine] transition failed: {e}")
+                                execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                             self._save_checkpoint(execution, "phase3_3_coverage_gate")
                             return results
                         else:
@@ -789,7 +841,11 @@ class PMOrchestratorServiceV2:
                                 f"[Phase 3.3] ❌ Coverage still {current_coverage}% after "
                                 f"{revision_count} revision(s) — architecture rejected"
                             )
-                            execution.status = ExecutionStatus.FAILED
+                            try:
+                                sm.transition_to("failed")
+                            except Exception as e:
+                                logger.warning(f"[StateMachine] transition failed: {e}")
+                                execution.status = ExecutionStatus.FAILED
                             self._update_progress(execution, "research_analyst", "failed", 72,
                                                  f"Architecture coverage too low ({current_coverage}%) after {revision_count} revision(s)")
                             raise Exception(
@@ -876,7 +932,11 @@ class PMOrchestratorServiceV2:
             
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             self._save_checkpoint(execution, "phase3_wbs")
-            
+            try:
+                sm.transition_to("sds_phase3_complete")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
+
             # H12: Phases 4-6 + Finalize extracted to _execute_from_phase4
             return await self._execute_from_phase4(
                 project, execution, execution_id, project_id, results, selected_agents
@@ -902,7 +962,10 @@ class PMOrchestratorServiceV2:
             
             # P7: Error state commit — must not fail silently or leave dirty session
             try:
-                execution.status = ExecutionStatus.FAILED
+                try:
+                    sm.transition_to("failed")
+                except Exception:
+                    execution.status = ExecutionStatus.FAILED
                 # error_message not in model, using logs instead
                 if execution.logs:
                     import json as json_module
@@ -1110,6 +1173,23 @@ class PMOrchestratorServiceV2:
         mode: Optional[str] = None
     ) -> Dict[str, Any]:
         """Run an agent script and return the result"""
+        # P1.2: Circuit breaker check before running agent
+        try:
+            from app.services.budget_service import CircuitBreaker
+            cb = CircuitBreaker(self.db)
+            if not cb.check_agent_retry(execution_id, agent_id):
+                return {
+                    "success": False,
+                    "error": f"CircuitBreaker: agent {agent_id} exceeded max retries"
+                }
+            if not cb.check_total_calls(execution_id):
+                return {
+                    "success": False,
+                    "error": f"CircuitBreaker: execution {execution_id} exceeded max LLM calls"
+                }
+        except Exception as e:
+            logger.warning(f"[CircuitBreaker] check failed: {e}")
+
         try:
             config = AGENT_CONFIG.get(agent_id)
             if not config:
@@ -2149,9 +2229,17 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         Extracted from execute_workflow so it can be called from both
         normal flow and architecture validation resume (H12).
         """
+        # State Machine for phase 4+
+        sm = ExecutionStateMachine(self.db, execution_id)
+
         # ========================================
         # PHASE 4: SDS Expert Agents (Conditional)
         # ========================================
+        try:
+            sm.transition_to("sds_phase4_running")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition failed: {e}")
+
         ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
 
         if selected_agents:
@@ -2249,6 +2337,11 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     logger.warning(f"[Phase 4] ⚠️ {agent_name} failed (non-fatal): {expert_result.get('error')}")
                     self._update_progress(execution, agent_id, "failed", 88, f"Skipped: {str(expert_result.get('error', 'Unknown'))[:50]}")
 
+        try:
+            sm.transition_to("sds_phase4_complete")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition failed: {e}")
+
         # ========================================
         # P2-Full: Configurable gate — after expert specs
         # ========================================
@@ -2271,6 +2364,10 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 gate_name="after_expert_specs",
                 deliverables_summary=expert_summary,
             )
+            try:
+                sm.transition_to("waiting_expert_validation")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
             logger.info(f"[Phase 4] ⏸️ Paused at after_expert_specs gate")
             return results
 
@@ -2280,6 +2377,10 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         sds_markdown = ""
         logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
         self._update_progress(execution, "research_analyst", "running", 85, "Writing SDS Document...")
+        try:
+            sm.transition_to("sds_phase5_running")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition failed: {e}")
 
         wbs_artifact = results["artifacts"].get("WBS", {})
         wbs_content = wbs_artifact.get("content", {})
@@ -2404,6 +2505,10 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 gate_name="after_sds_generation",
                 deliverables_summary=sds_summary,
             )
+            try:
+                sm.transition_to("waiting_sds_validation")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
             logger.info(f"[Phase 5] ⏸️ Paused at after_sds_generation gate")
             return results
 
@@ -2441,7 +2546,11 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # FINALIZE
         # ========================================
-        execution.status = ExecutionStatus.COMPLETED
+        try:
+            sm.transition_to("sds_complete")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition failed: {e}")
+            execution.status = ExecutionStatus.COMPLETED
         execution.completed_at = datetime.now(timezone.utc)
         execution.total_tokens_used = results["metrics"]["total_tokens"]
 
@@ -2496,7 +2605,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         logger.info(f"[Architecture Resume] action={action}, execution={execution_id}")
 
-        execution.status = ExecutionStatus.RUNNING
+        sm = ExecutionStateMachine(self.db, execution_id)
+        try:
+            sm.transition_to("sds_phase3_running")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition failed: {e}")
+            execution.status = ExecutionStatus.RUNNING
         self.db.commit()
 
         # Load all previously saved artifacts
@@ -2618,13 +2732,21 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                         f"Coverage {coverage_pct}% after revision {revision_count}"
                     )
                     flag_modified(execution, "agent_execution_status")
-                    execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                    try:
+                        sm.transition_to("waiting_architecture_validation")
+                    except Exception as e:
+                        logger.warning(f"[StateMachine] transition failed: {e}")
+                        execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                     self.db.commit()
 
                     logger.info(f"[Architecture Resume] ⏸️ Re-paused — {coverage_pct}%")
                     return results  # Pause again
                 else:
-                    execution.status = ExecutionStatus.FAILED
+                    try:
+                        sm.transition_to("failed")
+                    except Exception as e:
+                        logger.warning(f"[StateMachine] transition failed: {e}")
+                        execution.status = ExecutionStatus.FAILED
                     self._update_progress(execution, "research_analyst", "failed", 72,
                                          f"Coverage still too low ({coverage_pct}%)")
                     self.db.commit()
