@@ -351,7 +351,7 @@ class TrainerAgent:
             input_data = {"context": input_content}
 
         # Get RAG context
-        rag_context = self._get_rag_context()
+        rag_context = self._get_rag_context(project_id=project_id)
 
         # Select prompt and artifact type based on mode
         if mode == "sds_strategy":
@@ -418,13 +418,13 @@ class TrainerAgent:
 
         return output_data
 
-    def _get_rag_context(self) -> str:
+    def _get_rag_context(self, project_id: int = 0) -> str:
         """Fetch RAG context for training best practices."""
         if not RAG_AVAILABLE:
             return ""
         try:
             query = "Salesforce training best practices user adoption"
-            rag_context = get_salesforce_context(query, n_results=3, agent_type="trainer")
+            rag_context = get_salesforce_context(query, n_results=3, agent_type="trainer", project_id=project_id or None)
             logger.info(f"RAG context loaded ({len(rag_context)} chars)")
             return rag_context
         except Exception as e:

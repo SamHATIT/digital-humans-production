@@ -294,7 +294,7 @@ class BusinessAnalystAgent:
         logger.info(f"BusinessAnalystAgent processing {len(brs)} BR(s): {', '.join(br_ids)}")
 
         # Get RAG context
-        rag_context = self._get_rag_context(br)
+        rag_context = self._get_rag_context(br, project_id=project_id)
 
         # Build prompt (single or batch)
         if batch_mode:
@@ -384,14 +384,14 @@ class BusinessAnalystAgent:
         else:
             raise ValueError("Input must contain business_requirement(s) with 'id' starting with 'BR-'")
 
-    def _get_rag_context(self, br: Dict) -> str:
+    def _get_rag_context(self, br: Dict, project_id: int = 0) -> str:
         """Fetch RAG context based on BR content."""
         if not RAG_AVAILABLE:
             return ""
         try:
             query = f"Salesforce {br.get('category', '')} {br.get('title', '')} {br.get('description', '')}"
             logger.debug(f"Querying RAG: {query[:80]}...")
-            rag_context = get_salesforce_context(query[:500], n_results=5, agent_type="business_analyst")
+            rag_context = get_salesforce_context(query[:500], n_results=5, agent_type="business_analyst", project_id=project_id or None)
             logger.info(f"RAG context: {len(rag_context)} chars")
             return rag_context
         except Exception as e:

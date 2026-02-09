@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
 from app.database import Base, engine
@@ -101,6 +101,9 @@ app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscr
 from app.api.routes import leads, blog
 app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
 app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
+
+# P3: Document upload routes (RAG project isolation)
+app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
 
 # Environment routes (Section 6.2, 6.3, 6.4)
 
