@@ -2235,14 +2235,14 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         if uc_section_3_content:
             emma_write_input["use_cases"] = []
-            # Do NOT send the 44K+ chars of pre-generated content to the LLM.
-            # Instead, tell Emma to insert a placeholder that we'll splice programmatically.
+            # UCs are too large for inline — move to Annex A.
+            # Emma writes a brief Section 3 referencing the annex.
             emma_write_input["section_3_instruction"] = (
-                "For Section 3 (Use Case Specifications), DO NOT generate any use cases. "
-                "Instead, write ONLY this exact line as the entire section content:\n"
-                "## 3. Use Case Specifications\n\n"
-                "[UC_SECTION_PLACEHOLDER]\n\n"
-                "Then continue with Section 4 and subsequent sections normally."
+                "For Section 3 (Use Case Specifications), write a brief summary paragraph stating: "
+                f"'This project includes {len(all_use_cases_for_sds)} use cases organized by business requirement. "
+                "The complete Use Case Specifications are provided in Annexe A at the end of this document.' "
+                "Then include a high-level summary table listing the BR names and the count of UCs per BR. "
+                "Do NOT generate individual use case details. Continue with Section 4."
             )
         else:
             emma_write_input["use_cases"] = all_use_cases_for_sds
@@ -2261,39 +2261,14 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
             sds_markdown = emma_output.get("content", {}).get("document", "")
 
-            # H13: Splice pre-generated Section 3 into document
+            # H13: Append pre-generated UCs as Annexe A
             if uc_section_3_content:
-                import re
-                # Try placeholder first
-                if "[UC_SECTION_PLACEHOLDER]" in sds_markdown:
-                    sds_markdown = sds_markdown.replace("[UC_SECTION_PLACEHOLDER]", uc_section_3_content)
-                    logger.info(f"[Phase 5] Section 3 spliced via placeholder ({len(uc_section_3_content)} chars)")
-                else:
-                    # Fallback: find any Section 3 header variant and replace up to Section 4
-                    section_3_patterns = [
-                        r"(#{1,3}\s*3\.?\s*Use Case[^\n]*\n)",   # ## 3. Use Case...
-                        r"(#{1,3}\s*Use Case Specifications[^\n]*\n)",  # # Use Case Specifications
-                        r"(#{1,3}\s*Section 3[^\n]*\n)",            # ## Section 3
-                    ]
-                    inserted = False
-                    for pattern in section_3_patterns:
-                        match = re.search(pattern, sds_markdown, re.IGNORECASE)
-                        if match:
-                            start = match.start()
-                            # Find next top-level section (## 4. or # 4. or similar)
-                            next_match = re.search(r"\n#{1,3}\s*(4\.|Section 4|Implementation|Gap)", sds_markdown[match.end():], re.IGNORECASE)
-                            if next_match:
-                                end = match.end() + next_match.start()
-                            else:
-                                end = len(sds_markdown)
-                            sds_markdown = sds_markdown[:start] + uc_section_3_content + "\n\n" + sds_markdown[end:]
-                            inserted = True
-                            logger.info(f"[Phase 5] Section 3 spliced via pattern match ({len(uc_section_3_content)} chars)")
-                            break
-                    if not inserted:
-                        # Last resort: append at the end
-                        sds_markdown += "\n\n" + uc_section_3_content
-                        logger.warning("[Phase 5] Section 3 appended at end (no marker found)")
+                annexe_header = "\n\n---\n\n# Annexe A — Use Case Specifications\n\n"
+                sds_markdown += annexe_header + uc_section_3_content
+                logger.info(
+                    f"[Phase 5] Annexe A appended: {len(uc_section_3_content)} chars, "
+                    f"{len(all_use_cases_for_sds)} UCs"
+                )
 
             emma_write_tokens += uc_section_3_tokens
             self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
