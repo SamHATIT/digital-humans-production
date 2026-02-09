@@ -67,7 +67,7 @@ import logging
 from app.config import settings
 from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
-from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS
+from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
 
 logger = logging.getLogger(__name__)
 
@@ -823,6 +823,35 @@ class PMOrchestratorServiceV2:
             
 
             
+            # Get all use cases for Phase 5
+            all_use_cases_for_sds = self._get_use_cases(execution_id, limit=None)
+            uc_section_3_content = ""
+            uc_section_3_tokens = 0
+
+            # H13: Sub-batch Section 3 if UCs exceed threshold
+            if len(all_use_cases_for_sds) > UC_BATCH_SIZE:
+                logger.info(
+                    f"[Phase 5] {len(all_use_cases_for_sds)} UCs exceed batch size "
+                    f"({UC_BATCH_SIZE}), generating Section 3 in sub-batches"
+                )
+                self._update_progress(
+                    execution, "research_analyst", "running", 89,
+                    f"Generating UC specs in batches ({len(all_use_cases_for_sds)} UCs)..."
+                )
+
+                section_3_result = await generate_uc_section_batched(
+                    all_ucs=all_use_cases_for_sds,
+                    project_name=project.name,
+                )
+                uc_section_3_content = section_3_result["content"]
+                uc_section_3_tokens = section_3_result["tokens_used"]
+                batch_count = section_3_result["batch_count"]
+
+                logger.info(
+                    f"[Phase 5] Section 3 pre-generated: {batch_count} batches, "
+                    f"{len(uc_section_3_content)} chars, {uc_section_3_tokens} tokens"
+                )
+
             # Prepare all sources for Emma write_sds
             emma_write_input = {
                 "agent_list": DIGITAL_HUMANS_AGENTS,
@@ -833,7 +862,6 @@ class PMOrchestratorServiceV2:
                     "objectives": project.architecture_notes or ""
                 },
                 "business_requirements": self._get_business_requirements_for_sds(execution_id),
-                "use_cases": self._get_use_cases(execution_id, limit=None),
                 "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
                 "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
                 "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
@@ -843,7 +871,19 @@ class PMOrchestratorServiceV2:
                 "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
                 "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
             }
-            
+
+            # H13: If Section 3 was pre-generated, pass it and skip full UC data
+            if uc_section_3_content:
+                emma_write_input["use_cases"] = []  # Empty — Section 3 already done
+                emma_write_input["pre_generated_section_3"] = uc_section_3_content
+                emma_write_input["section_3_instruction"] = (
+                    "Section 3 (Use Case Specifications) has already been generated. "
+                    "Include the pre_generated_section_3 content verbatim in the document. "
+                    "Do NOT regenerate Use Case Specifications."
+                )
+            else:
+                emma_write_input["use_cases"] = all_use_cases_for_sds
+
             emma_write_result = await self._run_agent(
                 agent_id="research_analyst",
                 mode="write_sds",
@@ -851,19 +891,51 @@ class PMOrchestratorServiceV2:
                 execution_id=execution_id,
                 project_id=project_id
             )
-            
+
             emma_write_tokens = 0
-            
+
             if emma_write_result.get("success"):
                 emma_output = emma_write_result["output"]
                 emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
                 sds_markdown = emma_output.get("content", {}).get("document", "")
-                
+
+                # H13: If Section 3 was batched, ensure it's in the final document
+                if uc_section_3_content and uc_section_3_content not in sds_markdown:
+                    # Emma may not have included the pre-generated section — splice it in
+                    section_3_marker = "## 3. Use Case Specifications"
+                    alt_markers = ["## 3.", "## Use Case Specifications", "## Section 3"]
+                    inserted = False
+                    for marker in [section_3_marker] + alt_markers:
+                        if marker in sds_markdown:
+                            # Find end of line with marker and replace section
+                            marker_pos = sds_markdown.index(marker)
+                            # Find next section header (## N.)
+                            next_section = sds_markdown.find("\n## ", marker_pos + len(marker))
+                            if next_section > 0:
+                                sds_markdown = (
+                                    sds_markdown[:marker_pos]
+                                    + uc_section_3_content + "\n\n"
+                                    + sds_markdown[next_section:]
+                                )
+                            else:
+                                sds_markdown = (
+                                    sds_markdown[:marker_pos]
+                                    + uc_section_3_content + "\n\n"
+                                )
+                            inserted = True
+                            break
+                    if not inserted:
+                        # Fallback: append Section 3 before the last section
+                        sds_markdown = sds_markdown + "\n\n" + uc_section_3_content
+
+                # Track total tokens including batched Section 3
+                emma_write_tokens += uc_section_3_tokens
+
                 self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
                 results["artifacts"]["SDS"] = emma_output
                 results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
                 results["metrics"]["total_tokens"] += emma_write_tokens
-                
+
                 logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
             else:
                 error_msg = emma_write_result.get('error', 'Unknown error')
