@@ -347,7 +347,7 @@ class PMAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens, temperature
+            prompt, system_prompt, max_tokens, temperature, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -412,6 +412,7 @@ class PMAgent:
         system_prompt: str,
         max_tokens: int,
         temperature: float,
+        execution_id: int = 0,
     ) -> tuple:
         """
         Call LLM via llm_service or direct Anthropic fallback.
@@ -427,6 +428,7 @@ class PMAgent:
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                execution_id=execution_id,
             )
             return (
                 response["content"],

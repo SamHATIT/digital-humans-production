@@ -306,7 +306,7 @@ class BusinessAnalystAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, self.SYSTEM_PROMPT
+            prompt, self.SYSTEM_PROMPT, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -398,7 +398,7 @@ class BusinessAnalystAgent:
             logger.warning(f"RAG error: {e}")
             return ""
 
-    def _call_llm(self, prompt: str, system_prompt: str) -> tuple:
+    def _call_llm(self, prompt: str, system_prompt: str, execution_id: int = 0) -> tuple:
         """
         Call LLM via llm_service or direct Anthropic fallback.
 
@@ -413,6 +413,7 @@ class BusinessAnalystAgent:
                 system_prompt=system_prompt,
                 max_tokens=8000,
                 temperature=0.4,
+                execution_id=execution_id,
             )
             return (
                 response["content"],

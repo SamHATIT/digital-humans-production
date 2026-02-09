@@ -216,7 +216,8 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
             provider=LLMProvider.ANTHROPIC,
             model="claude-sonnet-4-20250514",
             max_tokens=16000,
-            temperature=0.3
+            temperature=0.3,
+            execution_id=execution_id
         )
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
@@ -427,7 +428,8 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
             provider=LLMProvider.ANTHROPIC,
             model="claude-sonnet-4-20250514",
             max_tokens=16000,
-            temperature=0.2  # Lower for more deterministic code
+            temperature=0.2,  # Lower for more deterministic code
+            execution_id=execution_id
         )
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)

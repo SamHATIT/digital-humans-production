@@ -685,7 +685,8 @@ class ResearchAnalystAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.3
+            prompt, system_prompt, max_tokens=16000, temperature=0.3,
+            execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -773,7 +774,8 @@ class ResearchAnalystAgent:
         logger.info(f"VALIDATE mode: {len(use_cases)} UCs, prompt size: {len(prompt)} chars")
 
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.3
+            prompt, system_prompt, max_tokens=16000, temperature=0.3,
+            execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -890,7 +892,8 @@ class ResearchAnalystAgent:
         logger.info(f"WRITE_SDS mode: prompt size: {len(prompt)} chars")
 
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.4
+            prompt, system_prompt, max_tokens=16000, temperature=0.4,
+            execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -937,6 +940,7 @@ class ResearchAnalystAgent:
         system_prompt: str = "",
         max_tokens: int = 16000,
         temperature: float = 0.3,
+        execution_id: int = 0,
     ) -> tuple:
         """
         Call LLM service with fallback to direct Anthropic API.
@@ -950,7 +954,8 @@ class ResearchAnalystAgent:
                 agent_type="research_analyst",
                 system_prompt=system_prompt,
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
+                execution_id=execution_id
             )
             content = response.get("content", "")
             tokens_used = response.get("tokens_used", 0)

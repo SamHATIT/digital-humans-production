@@ -317,7 +317,7 @@ class DataMigrationAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=8000, temperature=0.3
+            prompt, max_tokens=8000, temperature=0.3, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -438,7 +438,7 @@ FIX THESE ISSUES.
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=8000, temperature=0.2
+            prompt, max_tokens=8000, temperature=0.2, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time
@@ -489,7 +489,8 @@ FIX THESE ISSUES.
     # LLM / RAG / Logger helpers
     # ------------------------------------------------------------------
     def _call_llm(
-        self, prompt: str, max_tokens: int = 8000, temperature: float = 0.3
+        self, prompt: str, max_tokens: int = 8000, temperature: float = 0.3,
+        execution_id: int = 0
     ) -> tuple:
         """
         Call LLM service with fallback to direct OpenAI.
@@ -504,6 +505,7 @@ FIX THESE ISSUES.
                 model="claude-sonnet-4-20250514",
                 max_tokens=max_tokens,
                 temperature=temperature,
+                execution_id=execution_id,
             )
             content = response.get("content", "")
             tokens_used = response.get("tokens_used", 0)
