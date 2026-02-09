@@ -189,7 +189,7 @@ class PMOrchestratorServiceV2:
             if resume_from and resume_from not in (None, "phase1", "phase1_pm"):
                 # Resuming after BR validation - load validated BRs from database
                 logger.info(f"[Phase 1] SKIPPED - Resuming from Phase 2 with validated BRs")
-                business_requirements = self._get_validated_brs(project_id)
+                business_requirements = self._get_validated_brs(project_id, execution_id)
                 self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
                 self._save_checkpoint(execution, "phase1_pm")
                 logger.info(f"[Phase 1] ✅ Loaded {len(business_requirements)} validated BRs from database")
@@ -1820,23 +1820,25 @@ See WBS-001 artifact for details.
         logger.info(f"Saved {saved_count} BRs to database for validation")
         return saved_count
 
-    def _get_validated_brs(self, project_id: int) -> List[Dict]:
+    def _get_validated_brs(self, project_id: int, execution_id: int) -> List[Dict]:
         """
-        Get validated BRs from database.
+        Get validated BRs from database for a specific execution.
         Returns list of BR dicts compatible with agent input.
         """
         from app.models.business_requirement import BusinessRequirement, BRStatus
-        
+
         brs = self.db.query(BusinessRequirement).filter(
             BusinessRequirement.project_id == project_id,
+            BusinessRequirement.execution_id == execution_id,
             BusinessRequirement.status != BRStatus.DELETED
         ).order_by(BusinessRequirement.order_index).all()
-        
+
         return [
             {
                 "id": br.br_id,
-                "title": br.br_id,
+                "title": br.requirement or br.br_id,
                 "description": br.requirement,
+                "original_text": br.original_text or br.requirement or "",
                 "category": br.category or "OTHER",
                 "priority": (br.priority.value.upper() + "_HAVE") if br.priority else "SHOULD_HAVE",
                 "stakeholder": "Business User"
@@ -1882,7 +1884,7 @@ See WBS-001 artifact for details.
             }
             
             # Get validated BRs
-            business_requirements = self._get_validated_brs(project_id)
+            business_requirements = self._get_validated_brs(project_id, execution_id)
             logger.info(f"[Targeted Regen] Loaded {len(business_requirements)} validated BRs")
             
             # Build CR context to inject into prompts
