@@ -15,7 +15,7 @@ Date: November 27, 2025
 import os
 import sys
 import logging
-from typing import Optional, Dict, Any, Literal
+from typing import Any, Dict, Literal, Optional
 from enum import Enum
 from dataclasses import dataclass
 
@@ -221,11 +221,13 @@ class LLMService:
         max_tokens: int = 16000,
         temperature: float = 0.7,
         provider: Optional[LLMProvider] = None,
-        model_override: Optional[str] = None
+        model_override: Optional[str] = None,
+        execution_id: Optional[int] = None,
+        db: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """
         Generate a response from the LLM.
-        
+
         Args:
             prompt: The user prompt
             agent_type: Type of agent (determines model tier)
@@ -234,35 +236,65 @@ class LLMService:
             temperature: Sampling temperature
             provider: Override default provider
             model_override: Override automatic model selection
-            
+            execution_id: Optional execution ID for budget tracking (P1.1)
+            db: Optional SQLAlchemy Session for budget tracking (P1.1)
+
         Returns:
             Dict with 'content', 'model', 'provider', 'tokens_used'
         """
         provider = provider or self.default_provider
         model = model_override or self.get_model_for_agent(agent_type, provider)
         tier = self.get_tier_for_agent(agent_type)
-        
+
         logger.info("LLM Request: agent=%s, tier=%s, provider=%s, model=%s", agent_type, tier.value, provider.value, model)
-        
+
+        # P1.1: Budget check before LLM call (optional)
+        budget_service = None
+        if execution_id and db:
+            try:
+                from app.services.budget_service import BudgetService
+                budget_service = BudgetService(db)
+                budget_service.check_budget(execution_id, estimated_cost=0.5)
+            except Exception as e:
+                if "Budget exceeded" in str(e):
+                    raise
+                logger.warning("Budget pre-check failed (non-blocking): %s", e)
+
         # Try primary provider
         try:
             if provider == LLMProvider.ANTHROPIC and self._anthropic_client:
-                return self._call_anthropic(prompt, system_prompt, model, max_tokens, temperature)
+                response = self._call_anthropic(prompt, system_prompt, model, max_tokens, temperature)
             elif provider == LLMProvider.OPENAI and self._openai_client:
-                return self._call_openai(prompt, system_prompt, model, max_tokens, temperature)
+                response = self._call_openai(prompt, system_prompt, model, max_tokens, temperature)
             else:
                 raise ValueError(f"Provider {provider.value} not available")
-                
+
         except Exception as e:
+            if "Budget exceeded" in str(e):
+                raise
             logger.error("%s failed: %s", provider.value, e)
 
             # Fallback to OpenAI if enabled
             if self.fallback_to_openai and provider != LLMProvider.OPENAI and self._openai_client:
                 logger.warning("Falling back to OpenAI...")
                 fallback_model = self.get_model_for_agent(agent_type, LLMProvider.OPENAI)
-                return self._call_openai(prompt, system_prompt, fallback_model, max_tokens, temperature)
-            
-            raise
+                response = self._call_openai(prompt, system_prompt, fallback_model, max_tokens, temperature)
+            else:
+                raise
+
+        # P1.1: Record cost after LLM call (optional)
+        if execution_id and budget_service:
+            try:
+                cost = budget_service.record_cost(
+                    execution_id, response.get("model", model),
+                    response.get("input_tokens", 0),
+                    response.get("output_tokens", 0),
+                )
+                logger.info("[Budget] +$%.4f (execution %d)", cost, execution_id)
+            except Exception as e:
+                logger.warning("Budget recording failed (non-blocking): %s", e)
+
+        return response
     
     def _call_anthropic(
         self,
