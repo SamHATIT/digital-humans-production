@@ -3,6 +3,7 @@ Project model for managing user projects and requirements.
 Enhanced for Wizard Configuration (Phase 5).
 """
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum, JSON, Boolean
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -119,6 +120,10 @@ class Project(Base):
     
     # Custom agent parameters (JSON object)
     agent_parameters = Column(JSON)
+
+    # P2-Full: Configurable validation gates per project
+    # Keys: gate names (e.g. "after_expert_specs"), values: bool (enabled/disabled)
+    validation_gates = Column(JSONB, default=dict)
 
     # ========================================
     # Wizard Progress Tracking

@@ -45,15 +45,21 @@ class ExecutionState(str, PyEnum):
 
     SDS_PHASE4_RUNNING = "sds_phase4_running"
     SDS_PHASE4_COMPLETE = "sds_phase4_complete"
+    # P2-Full: Configurable gate after expert specs
+    WAITING_EXPERT_VALIDATION = "waiting_expert_validation"
 
     SDS_PHASE5_RUNNING = "sds_phase5_running"
     SDS_COMPLETE = "sds_complete"
+    # P2-Full: Configurable gate after SDS generation
+    WAITING_SDS_VALIDATION = "waiting_sds_validation"
 
     # BUILD Phases
     BUILD_QUEUED = "build_queued"
     BUILD_RUNNING = "build_running"
     BUILD_VALIDATING = "build_validating"
     BUILD_COMPLETE = "build_complete"
+    # P2-Full: Configurable gate after build code
+    WAITING_BUILD_VALIDATION = "waiting_build_validation"
 
     # Deploy
     DEPLOYING = "deploying"
@@ -84,15 +90,21 @@ TRANSITIONS: Dict[str, List[str]] = {
     "waiting_architecture_validation": ["sds_phase3_running", "sds_phase4_running", "cancelled"],
 
     "sds_phase4_running":   ["sds_phase4_complete", "failed"],
-    "sds_phase4_complete":  ["sds_phase5_running"],
+    "sds_phase4_complete":  ["sds_phase5_running", "waiting_expert_validation"],
+    # P2-Full: After expert validation, proceed to Phase 5
+    "waiting_expert_validation": ["sds_phase5_running", "sds_phase4_running", "cancelled"],
 
     "sds_phase5_running":   ["sds_complete", "failed"],
-    "sds_complete":         ["build_queued"],
+    "sds_complete":         ["build_queued", "waiting_sds_validation"],
+    # P2-Full: After SDS validation, proceed to BUILD
+    "waiting_sds_validation": ["build_queued", "sds_phase5_running", "cancelled"],
 
     "build_queued":         ["build_running", "failed", "cancelled"],
     "build_running":        ["build_validating", "build_complete", "failed"],
     "build_validating":     ["build_complete", "build_running", "failed"],
-    "build_complete":       ["deploying"],
+    "build_complete":       ["deploying", "waiting_build_validation"],
+    # P2-Full: After build validation, proceed to deploy
+    "waiting_build_validation": ["deploying", "build_running", "cancelled"],
 
     "deploying":            ["deployed", "failed"],
     "deployed":             [],
@@ -218,8 +230,10 @@ class ExecutionStateMachine:
             "sds_phase3": 3,
             "waiting_arch": 3,
             "sds_phase4": 4,
+            "waiting_expert": 4,
             "sds_phase5": 5,
             "sds_complete": 5,
+            "waiting_sds": 5,
         }
         for prefix, phase in mapping.items():
             if state.startswith(prefix):

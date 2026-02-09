@@ -107,6 +107,20 @@ export const projects = {
       body: JSON.stringify({ status }),
     });
   },
+
+  // P2-Full: Validation gates configuration
+  getValidationGates: async (projectId: number) => {
+    return apiCall(`/api/pm-orchestrator/projects/${projectId}/validation-gates`, {
+      method: 'GET',
+    });
+  },
+
+  updateValidationGates: async (projectId: number, gates: Record<string, boolean>) => {
+    return apiCall(`/api/pm-orchestrator/projects/${projectId}/validation-gates`, {
+      method: 'PUT',
+      body: JSON.stringify(gates),
+    });
+  },
 };
 
 // ==================== EXECUTIONS ====================
@@ -190,6 +204,26 @@ export const executions = {
   // SDS v3 - Get synthesis preview (domains summary)
   getSDSv3Preview: async (executionId: number) => {
     return apiCall(`/api/pm-orchestrator/execute/${executionId}/sds-preview`, {
+      method: 'GET',
+    });
+  },
+
+  // P2-Full: Validation gates
+  getValidationGate: async (executionId: number) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/validation-gate`, {
+      method: 'GET',
+    });
+  },
+
+  submitValidationGate: async (executionId: number, approved: boolean, annotations?: string) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/validation-gate/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ approved, annotations }),
+    });
+  },
+
+  getValidationHistory: async (executionId: number) => {
+    return apiCall(`/api/pm-orchestrator/execute/${executionId}/validation-history`, {
       method: 'GET',
     });
   },
