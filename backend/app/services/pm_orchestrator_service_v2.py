@@ -786,72 +786,63 @@ class PMOrchestratorServiceV2:
                         self._update_progress(execution, agent_id, "failed", 88, f"Failed: {expert_result.get('error', 'Unknown')[:50]}")
             
             # ========================================
-            # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
+            # PHASE 5: P9 Sectioned SDS Generation (replaces monolithic write_sds)
+            # Generates SDS in 11 sequential LLM calls — 0% truncation
             # ========================================
             sds_markdown = ""
-            logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
-            self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
-            # DEBUG: Log WBS data availability
-            wbs_artifact = results["artifacts"].get("WBS", {})
-            logger.info(f"[Phase 5 DEBUG] WBS artifact keys: {list(wbs_artifact.keys())}")
-            wbs_content = wbs_artifact.get("content", {})
-            logger.info(f"[Phase 5 DEBUG] WBS content keys: {list(wbs_content.keys())}")
-            if wbs_content:
-                phases_count = len(wbs_content.get('phases', []))
-                logger.info(f"[Phase 5 DEBUG] WBS has {phases_count} phases")
-            else:
-                logger.warning("[Phase 5 DEBUG] ⚠️ WBS content is EMPTY!")
-            
+            logger.info("[Phase 5/P9] Starting Sectioned SDS Generation (11 sections)")
+            self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS (sectioned)...")
 
-            
-            # Prepare all sources for Emma write_sds
-            emma_write_input = {
-                "project_info": {
-                    "name": project.name,
-                    "description": project.description or "",
-                    "client_name": getattr(project, 'client_name', '') or "",
-                    "objectives": project.architecture_notes or ""
-                },
-                "business_requirements": self._get_business_requirements_for_sds(execution_id),
-                "use_cases": self._get_use_cases(execution_id, limit=None),
-                "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
-                "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
-                "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
-                "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
-                "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
-                "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
-                "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
-                "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
-            }
-            
-            emma_write_result = await self._run_agent(
-                agent_id="research_analyst",
-                mode="write_sds",
-                input_data=emma_write_input,
+            from app.services.sds_section_writer import SDSSectionWriter
+
+            section_writer = SDSSectionWriter(db=self.db)
+
+            def _on_section_progress(section_id, section_num, total, status):
+                pct = 88 + int((section_num / total) * 6)  # 88% → 94%
+                self._update_progress(
+                    execution, "research_analyst", "running", pct,
+                    f"SDS section {section_num}/{total}: {section_id} ({status})"
+                )
+
+            sds_result = section_writer.generate_sds(
                 execution_id=execution_id,
-                project_id=project_id
+                project=project,
+                artifacts=results["artifacts"],
+                agent_outputs=results["agent_outputs"],
+                on_progress=_on_section_progress,
             )
-            
-            emma_write_tokens = 0
-            
-            if emma_write_result.get("success"):
-                emma_output = emma_write_result["output"]
-                emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
-                sds_markdown = emma_output.get("content", {}).get("document", "")
-                
-                self._save_deliverable(execution_id, "research_analyst", "sds_document", emma_output)
-                results["artifacts"]["SDS"] = emma_output
-                results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
-                results["metrics"]["total_tokens"] += emma_write_tokens
-                
-                logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
-            else:
-                error_msg = emma_write_result.get('error', 'Unknown error')
-                logger.error(f"[Phase 5] ❌ Emma write_sds failed: {error_msg}")
-                self._update_progress(execution, "research_analyst", "failed", 92, f"Write SDS failed: {error_msg[:50]}")
-                raise Exception(f"SDS Document generation failed: {error_msg}")
-            
-            self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
+
+            sds_markdown = sds_result["markdown"]
+            sds_metrics = sds_result["metrics"]
+
+            # Track tokens
+            sds_tokens = sds_metrics.get("total_tokens", 0)
+            results["metrics"]["tokens_by_agent"]["research_analyst"] = (
+                results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + sds_tokens
+            )
+            results["metrics"]["total_tokens"] += sds_tokens
+
+            # Save deliverable
+            sds_output = {
+                "content": {"document": sds_markdown, "raw_markdown": sds_markdown},
+                "metadata": {
+                    "tokens_used": sds_tokens,
+                    "method": "P9_sectioned_generation",
+                    "sections": sds_metrics["total_sections"],
+                    "successful_sections": sds_metrics["successful_sections"],
+                    "failed_sections": sds_metrics["failed_sections"],
+                    "total_time_seconds": sds_metrics["total_time_seconds"],
+                    "document_length_chars": sds_metrics["document_length_chars"],
+                },
+            }
+            self._save_deliverable(execution_id, "research_analyst", "sds_document", sds_output)
+            results["artifacts"]["SDS"] = sds_output
+
+            if sds_metrics["failed_sections"] > 0:
+                logger.warning(f"[Phase 5/P9] {sds_metrics['failed_sections']} sections failed")
+
+            self._update_progress(execution, "research_analyst", "completed", 94,
+                f"SDS complete — {sds_metrics['document_length_chars']:,} chars, {sds_metrics['total_sections']} sections")
             self._save_checkpoint(execution, "phase5_write_sds")
             
             # ========================================
