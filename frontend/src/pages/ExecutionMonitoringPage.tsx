@@ -77,7 +77,7 @@ export default function ExecutionMonitoringPage() {
       const oldAgent = oldData.agent_progress[i];
       const newAgent = newData.agent_progress?.find(a => a.agent_name === oldAgent.agent_name);
       if (!newAgent) return true;
-      if (oldAgent.status !== newAgent.status || oldAgent.progress !== newAgent.progress) return true;
+      if (oldAgent.status !== newAgent.status || oldAgent.progress !== newAgent.progress || oldAgent.current_task !== newAgent.current_task) return true;
     }
     return false;
   };
@@ -215,6 +215,22 @@ export default function ExecutionMonitoringPage() {
   const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
   const isWaitingArchitectureValidation = normalizedMainStatus === 'waiting_architecture_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
+
+  // H15-FE FIX 3: Compute granular progress from individual agent progress values.
+  // Backend overall_progress uses binary completed/total count (e.g. 2/11 = 18%).
+  // Individual agent progress values (0-100) give a more accurate picture.
+  const effectiveProgress = (() => {
+    const backendProgress = progress?.overall_progress || 0;
+    if (!progress?.agent_progress?.length) return backendProgress;
+    const agents = progress.agent_progress;
+    const granular = Math.round(
+      agents.reduce((sum, a) => {
+        const p = normalizeStatus(a.status) === 'completed' ? 100 : (a.progress || 0);
+        return sum + p;
+      }, 0) / agents.length
+    );
+    return Math.max(backendProgress, granular);
+  })();
 
   // H12: Extract architecture coverage data from agent progress
   const getArchitectureCoverageData = () => {
@@ -354,16 +370,28 @@ export default function ExecutionMonitoringPage() {
                   return (
                     <div className="mb-4 space-y-3">
                       {score !== null && (
-                        <div className="flex items-center gap-3">
-                          <span className="text-slate-400">Coverage Score:</span>
-                          <span className={`text-2xl font-bold ${
-                            score >= 85 ? 'text-green-400' : score >= 75 ? 'text-orange-400' : 'text-red-400'
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-slate-400">
+                              {revisionCount > 0
+                                ? `Score after ${revisionCount} revision${revisionCount > 1 ? 's' : ''}:`
+                                : 'Coverage Score:'}
+                            </span>
+                            <span className={`text-2xl font-bold ${
+                              score >= 85 ? 'text-green-400' : score >= 70 ? 'text-orange-400' : 'text-red-400'
+                            }`}>
+                              {Math.round(score)}%
+                            </span>
+                          </div>
+                          <p className={`text-sm mt-1 ${
+                            score >= 85 ? 'text-green-400' : score >= 70 ? 'text-orange-400' : 'text-red-400'
                           }`}>
-                            {Math.round(score)}%
-                          </span>
-                          {revisionCount > 0 && (
-                            <span className="text-slate-500 text-sm">(after {revisionCount} revision{revisionCount > 1 ? 's' : ''})</span>
-                          )}
+                            {score >= 85
+                              ? 'Good coverage'
+                              : score >= 70
+                              ? 'Acceptable — review gaps below'
+                              : 'Insufficient — revision recommended'}
+                          </p>
                         </div>
                       )}
                       {criticalGaps.length > 0 && (
@@ -373,9 +401,14 @@ export default function ExecutionMonitoringPage() {
                             {criticalGaps.map((gap, i) => (
                               <li key={i} className="text-slate-300 text-sm flex items-start gap-2">
                                 <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
-                                  gap.severity === 'high' ? 'bg-red-400' : 'bg-orange-400'
+                                  gap.severity === 'high' ? 'bg-red-400' : gap.severity === 'medium' ? 'bg-orange-400' : 'bg-yellow-400'
                                 }`} />
-                                {gap.gap}
+                                <span>
+                                  <span className={`font-medium ${
+                                    gap.severity === 'high' ? 'text-red-400' : gap.severity === 'medium' ? 'text-orange-400' : 'text-yellow-400'
+                                  }`}>[{gap.severity}]</span>{' '}
+                                  {gap.gap}
+                                </span>
                               </li>
                             ))}
                           </ul>
@@ -436,7 +469,7 @@ export default function ExecutionMonitoringPage() {
         <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-8">
           <div className="flex items-center justify-between mb-4">
             <span className="text-white font-medium">Overall Progress</span>
-            <span className="text-cyan-400 font-bold">{progress?.overall_progress || 0}%</span>
+            <span className="text-cyan-400 font-bold">{effectiveProgress}%</span>
           </div>
           <div className="h-4 bg-slate-700 rounded-full overflow-hidden">
             <div
@@ -447,7 +480,7 @@ export default function ExecutionMonitoringPage() {
                   ? 'bg-gradient-to-r from-green-500 to-emerald-500'
                   : 'bg-gradient-to-r from-cyan-500 to-purple-500'
               }`}
-              style={{ width: `${progress?.overall_progress || 0}%` }}
+              style={{ width: `${effectiveProgress}%` }}
             />
           </div>
           <div className="mt-4 flex items-center gap-2">
@@ -542,7 +575,7 @@ export default function ExecutionMonitoringPage() {
                     />
                   </div>
 
-                  <p className="text-xs text-slate-500 truncate">
+                  <p className="text-xs text-slate-500 break-words">
                     {agentProg.current_task || agentProg.output_summary || 'Waiting...'}
                   </p>
                 </div>
