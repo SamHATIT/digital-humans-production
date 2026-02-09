@@ -1,0 +1,227 @@
+"""
+Execution State Machine — Explicit phase tracking with transactional transitions.
+
+Provides granular state tracking for SDS and BUILD pipeline phases,
+replacing the simple ExecutionStatus enum with a full state machine
+that supports:
+- Explicit phase states (sds_phase1_running, sds_phase2_complete, etc.)
+- Validated transitions (prevents invalid state jumps)
+- Row-level locking for concurrent safety
+- Transition history for audit/debugging
+- Backward compatibility mapping to legacy ExecutionStatus
+"""
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional
+from enum import Enum as PyEnum
+
+from sqlalchemy.orm import Session
+from app.models.execution import Execution
+
+logger = logging.getLogger(__name__)
+
+
+class ExecutionState(str, PyEnum):
+    """Granular execution states covering the full SDS + BUILD lifecycle."""
+
+    # Lifecycle
+    DRAFT = "draft"
+    QUEUED = "queued"
+
+    # SDS Phases
+    SDS_PHASE1_RUNNING = "sds_phase1_running"
+    SDS_PHASE1_COMPLETE = "sds_phase1_complete"
+    WAITING_BR_VALIDATION = "waiting_br_validation"
+
+    SDS_PHASE2_RUNNING = "sds_phase2_running"
+    SDS_PHASE2_COMPLETE = "sds_phase2_complete"
+
+    SDS_PHASE2_5_RUNNING = "sds_phase2_5_running"
+    SDS_PHASE2_5_COMPLETE = "sds_phase2_5_complete"
+
+    SDS_PHASE3_RUNNING = "sds_phase3_running"
+    SDS_PHASE3_COMPLETE = "sds_phase3_complete"
+    WAITING_ARCHITECTURE_VALIDATION = "waiting_architecture_validation"
+
+    SDS_PHASE4_RUNNING = "sds_phase4_running"
+    SDS_PHASE4_COMPLETE = "sds_phase4_complete"
+
+    SDS_PHASE5_RUNNING = "sds_phase5_running"
+    SDS_COMPLETE = "sds_complete"
+
+    # BUILD Phases
+    BUILD_QUEUED = "build_queued"
+    BUILD_RUNNING = "build_running"
+    BUILD_VALIDATING = "build_validating"
+    BUILD_COMPLETE = "build_complete"
+
+    # Deploy
+    DEPLOYING = "deploying"
+    DEPLOYED = "deployed"
+
+    # Terminal
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+# Transition table: current_state -> list of valid target states
+TRANSITIONS: Dict[str, List[str]] = {
+    "draft":                ["queued"],
+    "queued":               ["sds_phase1_running", "failed", "cancelled"],
+
+    "sds_phase1_running":   ["sds_phase1_complete", "waiting_br_validation", "failed"],
+    "sds_phase1_complete":  ["sds_phase2_running"],
+    "waiting_br_validation": ["sds_phase2_running", "cancelled"],
+
+    "sds_phase2_running":   ["sds_phase2_complete", "failed"],
+    "sds_phase2_complete":  ["sds_phase2_5_running"],
+
+    "sds_phase2_5_running": ["sds_phase2_5_complete", "failed"],
+    "sds_phase2_5_complete": ["sds_phase3_running"],
+
+    "sds_phase3_running":   ["sds_phase3_complete", "waiting_architecture_validation", "failed"],
+    "sds_phase3_complete":  ["sds_phase4_running"],
+    "waiting_architecture_validation": ["sds_phase3_running", "sds_phase4_running", "cancelled"],
+
+    "sds_phase4_running":   ["sds_phase4_complete", "failed"],
+    "sds_phase4_complete":  ["sds_phase5_running"],
+
+    "sds_phase5_running":   ["sds_complete", "failed"],
+    "sds_complete":         ["build_queued"],
+
+    "build_queued":         ["build_running", "failed", "cancelled"],
+    "build_running":        ["build_validating", "build_complete", "failed"],
+    "build_validating":     ["build_complete", "build_running", "failed"],
+    "build_complete":       ["deploying"],
+
+    "deploying":            ["deployed", "failed"],
+    "deployed":             [],
+    "failed":               ["queued"],
+    "cancelled":            ["queued"],
+}
+
+
+class InvalidTransitionError(Exception):
+    """Raised when an invalid state transition is attempted."""
+
+    def __init__(self, current: str, target: str):
+        self.current = current
+        self.target = target
+        super().__init__(f"Invalid transition: {current} → {target}")
+
+
+class ExecutionStateMachine:
+    """
+    Manages execution state transitions with DB persistence.
+
+    Usage:
+        sm = ExecutionStateMachine(db, execution_id)
+        sm.transition_to("sds_phase1_running")
+        db.commit()
+    """
+
+    def __init__(self, db: Session, execution_id: int):
+        self.db = db
+        self.execution_id = execution_id
+
+    def _get_execution(self) -> Execution:
+        """Fetch execution with row-level lock for safe concurrent updates."""
+        execution = self.db.query(Execution).filter(
+            Execution.id == self.execution_id
+        ).with_for_update().first()
+        if not execution:
+            raise ValueError(f"Execution {self.execution_id} not found")
+        return execution
+
+    @property
+    def current_state(self) -> str:
+        """Get current execution state without locking."""
+        execution = self.db.query(Execution).filter(
+            Execution.id == self.execution_id
+        ).first()
+        if not execution:
+            raise ValueError(f"Execution {self.execution_id} not found")
+        return execution.execution_state or "draft"
+
+    def can_transition_to(self, target: str) -> bool:
+        """Check if a transition to the target state is valid."""
+        current = self.current_state
+        return target in TRANSITIONS.get(current, [])
+
+    def transition_to(self, target: str, metadata: Optional[dict] = None) -> str:
+        """
+        Transition to a new state. Transactional — caller must commit.
+
+        Args:
+            target: Target state name
+            metadata: Optional metadata to store with transition
+
+        Returns:
+            The new state
+
+        Raises:
+            InvalidTransitionError: if transition is not allowed
+            ValueError: if execution not found
+        """
+        execution = self._get_execution()  # Row lock
+        current = execution.execution_state or "draft"
+
+        if target not in TRANSITIONS.get(current, []):
+            raise InvalidTransitionError(current, target)
+
+        # Update state
+        execution.execution_state = target
+        execution.state_updated_at = datetime.utcnow()
+
+        # Map to legacy status for backward compatibility
+        execution.status = self._map_to_legacy_status(target)
+
+        # Store transition in history
+        history = list(execution.state_history or [])
+        history.append({
+            "from": current,
+            "to": target,
+            "at": datetime.utcnow().isoformat(),
+            "metadata": metadata,
+        })
+        execution.state_history = history
+
+        logger.info(
+            f"[StateMachine] Execution {self.execution_id}: {current} → {target}"
+        )
+        return target
+
+    @staticmethod
+    def _map_to_legacy_status(state: str) -> str:
+        """Map granular state to legacy ExecutionStatus for backward compat."""
+        if state in ("draft",):
+            return "pending"
+        elif state in ("failed",):
+            return "failed"
+        elif state in ("cancelled",):
+            return "cancelled"
+        elif state.startswith("waiting_"):
+            return state
+        elif state in ("sds_complete", "build_complete", "deployed"):
+            return "completed"
+        else:
+            return "running"
+
+    def get_current_phase_number(self) -> int:
+        """Get current SDS phase number (1-5) for frontend timeline."""
+        state = self.current_state
+        mapping = {
+            "sds_phase1": 1,
+            "waiting_br": 1,
+            "sds_phase2_5": 2,
+            "sds_phase2": 2,
+            "sds_phase3": 3,
+            "waiting_arch": 3,
+            "sds_phase4": 4,
+            "sds_phase5": 5,
+            "sds_complete": 5,
+        }
+        for prefix, phase in mapping.items():
+            if state.startswith(prefix):
+                return phase
+        return 0
