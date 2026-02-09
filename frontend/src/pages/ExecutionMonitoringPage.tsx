@@ -24,6 +24,14 @@ interface AgentProgress {
   progress: number;
   current_task?: string;
   output_summary?: string;
+  extra_data?: {
+    approval_type?: string;
+    coverage_score?: number;
+    critical_gaps?: Array<{gap: string; severity: string}>;
+    uncovered_use_cases?: string[];
+    revision_count?: number;
+    max_revisions?: number;
+  };
 }
 
 interface ExecutionProgress {
@@ -337,9 +345,11 @@ export default function ExecutionMonitoringPage() {
                 {/* Coverage info from agent progress */}
                 {(() => {
                   const researchAgent = getArchitectureCoverageData();
-                  const taskInfo = researchAgent?.current_task || researchAgent?.output_summary || '';
-                  const coverageMatch = taskInfo.match(/(\d+)%/);
-                  const score = coverageMatch ? parseInt(coverageMatch[1]) : null;
+                  const extraData = researchAgent?.extra_data;
+                  const score = extraData?.coverage_score ?? null;
+                  const criticalGaps = extraData?.critical_gaps || [];
+                  const uncoveredUCs = extraData?.uncovered_use_cases || [];
+                  const revisionCount = extraData?.revision_count ?? 0;
 
                   return (
                     <div className="mb-4 space-y-3">
@@ -349,12 +359,37 @@ export default function ExecutionMonitoringPage() {
                           <span className={`text-2xl font-bold ${
                             score >= 85 ? 'text-green-400' : score >= 75 ? 'text-orange-400' : 'text-red-400'
                           }`}>
-                            {score}%
+                            {Math.round(score)}%
                           </span>
+                          {revisionCount > 0 && (
+                            <span className="text-slate-500 text-sm">(after {revisionCount} revision{revisionCount > 1 ? 's' : ''})</span>
+                          )}
                         </div>
                       )}
-                      {taskInfo && (
-                        <p className="text-slate-400 text-sm">{taskInfo}</p>
+                      {criticalGaps.length > 0 && (
+                        <div>
+                          <p className="text-slate-400 text-sm font-medium mb-1">Critical Gaps ({criticalGaps.length}):</p>
+                          <ul className="space-y-1">
+                            {criticalGaps.map((gap, i) => (
+                              <li key={i} className="text-slate-300 text-sm flex items-start gap-2">
+                                <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
+                                  gap.severity === 'high' ? 'bg-red-400' : 'bg-orange-400'
+                                }`} />
+                                {gap.gap}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {uncoveredUCs.length > 0 && (
+                        <div>
+                          <p className="text-slate-400 text-sm font-medium mb-1">Uncovered Use Cases ({uncoveredUCs.length}):</p>
+                          <ul className="space-y-1">
+                            {uncoveredUCs.map((uc, i) => (
+                              <li key={i} className="text-slate-300 text-sm">• {uc}</li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   );

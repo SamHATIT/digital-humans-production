@@ -120,6 +120,7 @@ def build_agent_progress(execution: Execution) -> tuple:
             "progress": status_info.get("progress", 0),
             "current_task": status_info.get("message", ""),
             "output_summary": status_info.get("message", ""),
+            "extra_data": status_info.get("extra_data", None),
         })
 
     total_agents = len(selected_agents)
