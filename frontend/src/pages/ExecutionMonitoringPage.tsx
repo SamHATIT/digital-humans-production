@@ -204,6 +204,21 @@ export default function ExecutionMonitoringPage() {
   const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
   const canDownload = isCompleted && progress?.sds_document_path;
 
+  // H7: BUILD agents to hide during SDS phase (they show "Waiting..." which is confusing)
+  const BUILD_AGENT_IDS = ['apex', 'lwc', 'admin'];
+  const isExecutionDone = isCompleted || isFailed || isCancelled;
+
+  const filteredAgentProgress = progress?.agent_progress?.filter((agentProg) => {
+    if (isExecutionDone) return true; // Show all agents when execution is finished
+    const agentNameLower = agentProg.agent_name.toLowerCase();
+    const matchedAgent = AGENTS.find((a) => agentNameLower.startsWith(a.name.toLowerCase()));
+    // Hide BUILD agents that are still pending during active execution (SDS phase)
+    if (matchedAgent && BUILD_AGENT_IDS.includes(matchedAgent.id) && normalizeStatus(agentProg.status) === 'pending') {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-[#0B1120]">
       <Navbar />
@@ -268,8 +283,8 @@ export default function ExecutionMonitoringPage() {
           </div>
         )}
 
-        {/* SDS v3 Generator - Show when UCs are ready (after Phase 2) */}
-        {(isWaitingBRValidation || isCompleted || normalizedMainStatus === 'running' || normalizedMainStatus === 'sds_generated') && progress?.execution_id && (
+        {/* SDS v3 Generator - Show only when SDS standard execution is done */}
+        {(isCompleted || normalizedMainStatus === 'sds_generated') && progress?.execution_id && (
           <div className="mb-8">
             <SDSv3Generator 
               executionId={progress.execution_id} 
@@ -347,7 +362,7 @@ export default function ExecutionMonitoringPage() {
           <p className="text-sm text-slate-400 mb-6">Click on an agent to see their thought process</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {progress?.agent_progress?.map((agentProg) => {
+            {filteredAgentProgress?.map((agentProg) => {
               // Flexible agent matching: by name prefix or by ID extracted from parentheses
               const agentNameLower = agentProg.agent_name.toLowerCase();
               const agent = AGENTS.find((a) => {
