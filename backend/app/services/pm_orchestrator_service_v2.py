@@ -32,7 +32,7 @@ import json
 import asyncio
 import subprocess
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
@@ -111,6 +111,14 @@ PARALLEL_MODE = {
 # Note: Resume capability is limited to Phase 1 (BR validation pause/resume)
 # Full phase-by-phase resume was attempted but removed due to complexity
 
+# I1.1.1: Zombie job exclusion — these statuses are legitimate waits, not zombies
+ZOMBIE_EXCLUSIONS = [
+    ExecutionStatus.WAITING_BR_VALIDATION,
+    ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION,
+]
+ZOMBIE_TIMEOUT_HOURS = 2       # RUNNING executions older than this are zombies
+ABANDONED_TIMEOUT_HOURS = 24   # WAITING_* executions older than this are abandoned
+
 
 class PMOrchestratorServiceV2:
     """
@@ -122,7 +130,60 @@ class PMOrchestratorServiceV2:
         self.db = db
         self.temp_dir = Path(tempfile.mkdtemp(prefix="dh_exec_"))
         self.token_tracking = {}  # Per-agent token tracking
-        
+
+    def cleanup_zombie_executions(self) -> Dict[str, Any]:
+        """
+        I1.1.1: Clean up zombie executions at startup.
+
+        Rules:
+        - RUNNING since > ZOMBIE_TIMEOUT_HOURS → FAILED (zombie)
+        - WAITING_* since < ABANDONED_TIMEOUT_HOURS → skip (legitimate wait)
+        - WAITING_* since > ABANDONED_TIMEOUT_HOURS → FAILED (abandoned)
+        """
+        now = datetime.now(timezone.utc)
+        zombie_cutoff = now - timedelta(hours=ZOMBIE_TIMEOUT_HOURS)
+        abandoned_cutoff = now - timedelta(hours=ABANDONED_TIMEOUT_HOURS)
+        cleaned = {"zombies": 0, "abandoned": 0, "skipped": 0}
+
+        # 1. RUNNING executions older than zombie cutoff → FAILED
+        running_execs = self.db.query(Execution).filter(
+            Execution.status == ExecutionStatus.RUNNING,
+            Execution.started_at < zombie_cutoff
+        ).all()
+        for ex in running_execs:
+            logger.warning(f"[Zombie Cleanup] Execution {ex.id} RUNNING since {ex.started_at} → marking FAILED")
+            ex.status = ExecutionStatus.FAILED
+            ex.completed_at = now
+            cleaned["zombies"] += 1
+
+        # 2. WAITING_* executions — check age
+        for wait_status in ZOMBIE_EXCLUSIONS:
+            waiting_execs = self.db.query(Execution).filter(
+                Execution.status == wait_status
+            ).all()
+            for ex in waiting_execs:
+                exec_time = ex.started_at or ex.created_at
+                if exec_time and exec_time < abandoned_cutoff:
+                    logger.warning(
+                        f"[Zombie Cleanup] Execution {ex.id} {wait_status.value} since {exec_time} "
+                        f"(>{ABANDONED_TIMEOUT_HOURS}h) → marking FAILED (abandoned)"
+                    )
+                    ex.status = ExecutionStatus.FAILED
+                    ex.completed_at = now
+                    cleaned["abandoned"] += 1
+                else:
+                    logger.info(f"[Zombie Cleanup] Execution {ex.id} {wait_status.value} — legitimate wait, skipping")
+                    cleaned["skipped"] += 1
+
+        if cleaned["zombies"] or cleaned["abandoned"]:
+            self.db.commit()
+
+        logger.info(
+            f"[Zombie Cleanup] Done: {cleaned['zombies']} zombies, "
+            f"{cleaned['abandoned']} abandoned, {cleaned['skipped']} skipped"
+        )
+        return cleaned
+
     async def execute_workflow(
         self,
         execution_id: int,
@@ -195,7 +256,7 @@ class PMOrchestratorServiceV2:
             if resume_from and resume_from not in (None, "phase1", "phase1_pm"):
                 # Resuming after BR validation or architecture validation
                 logger.info(f"[Phase 1] SKIPPED - Resuming from {resume_from} with validated BRs")
-                business_requirements = self._get_validated_brs(project_id)
+                business_requirements = self._get_validated_brs(project_id, execution_id=execution_id)
                 self._update_progress(execution, "pm", "completed", 15, f"Using {len(business_requirements)} validated BRs")
                 self._save_checkpoint(execution, "phase1_pm")
                 logger.info(f"[Phase 1] ✅ Loaded {len(business_requirements)} validated BRs from database")
@@ -1716,23 +1777,31 @@ See WBS-001 artifact for details.
         logger.info(f"Saved {saved_count} BRs to database for validation")
         return saved_count
 
-    def _get_validated_brs(self, project_id: int) -> List[Dict]:
+    def _get_validated_brs(self, project_id: int, execution_id: int = None) -> List[Dict]:
         """
         Get validated BRs from database.
         Returns list of BR dicts compatible with agent input.
+
+        Args:
+            project_id: Project ID
+            execution_id: If provided, filter BRs by execution_id (H1)
         """
         from app.models.business_requirement import BusinessRequirement, BRStatus
-        
-        brs = self.db.query(BusinessRequirement).filter(
+
+        query = self.db.query(BusinessRequirement).filter(
             BusinessRequirement.project_id == project_id,
             BusinessRequirement.status != BRStatus.DELETED
-        ).order_by(BusinessRequirement.order_index).all()
-        
+        )
+        if execution_id is not None:
+            query = query.filter(BusinessRequirement.execution_id == execution_id)
+        brs = query.order_by(BusinessRequirement.order_index).all()
+
         return [
             {
                 "id": br.br_id,
-                "title": br.br_id,
+                "title": br.requirement or br.br_id,
                 "description": br.requirement,
+                "original_text": br.original_text or br.requirement or "",
                 "category": br.category or "OTHER",
                 "priority": (br.priority.value.upper() + "_HAVE") if br.priority else "SHOULD_HAVE",
                 "stakeholder": "Business User"
@@ -1778,7 +1847,7 @@ See WBS-001 artifact for details.
             }
             
             # Get validated BRs
-            business_requirements = self._get_validated_brs(project_id)
+            business_requirements = self._get_validated_brs(project_id, execution_id=execution_id)
             logger.info(f"[Targeted Regen] Loaded {len(business_requirements)} validated BRs")
             
             # Build CR context to inject into prompts
@@ -2152,7 +2221,17 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             if PARALLEL_MODE.get("sds_experts", False):
                 logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts in PARALLEL")
                 tasks = [run_sds_expert(agent_id) for agent_id in SDS_EXPERTS]
-                expert_results = await asyncio.gather(*tasks)
+                expert_results = await asyncio.gather(*tasks, return_exceptions=True)
+                # H21: Convert exceptions to failure dicts (non-fatal)
+                processed_results = []
+                for i, result in enumerate(expert_results):
+                    if isinstance(result, Exception):
+                        agent_id = SDS_EXPERTS[i]
+                        logger.warning(f"[Phase 4] ⚠️ {AGENT_CONFIG[agent_id]['display_name']} raised exception: {result}")
+                        processed_results.append({"agent_id": agent_id, "result": {"success": False, "error": str(result)}})
+                    else:
+                        processed_results.append(result)
+                expert_results = processed_results
             else:
                 logger.info(f"[Phase 4] Running {len(SDS_EXPERTS)} SDS experts sequentially")
                 expert_results = []
@@ -2172,15 +2251,16 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     logger.info(f"[Phase 4] ✅ {agent_name} completed")
                     self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
                 else:
-                    logger.warning(f"[Phase 4] ⚠️ {agent_name} failed: {expert_result.get('error')}")
-                    self._update_progress(execution, agent_id, "failed", 88, f"Failed: {str(expert_result.get('error', 'Unknown'))[:50]}")
+                    # H21: Expert failures are non-fatal — warn and skip
+                    logger.warning(f"[Phase 4] ⚠️ {agent_name} failed (non-fatal): {expert_result.get('error')}")
+                    self._update_progress(execution, agent_id, "failed", 88, f"Skipped: {str(expert_result.get('error', 'Unknown'))[:50]}")
 
         # ========================================
         # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
         # ========================================
         sds_markdown = ""
         logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
-        self._update_progress(execution, "research_analyst", "running", 88, "Writing SDS Document...")
+        self._update_progress(execution, "research_analyst", "running", 85, "Writing SDS Document...")
 
         wbs_artifact = results["artifacts"].get("WBS", {})
         wbs_content = wbs_artifact.get("content", {})
@@ -2200,7 +2280,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 f"({UC_BATCH_SIZE}), generating Section 3 in sub-batches"
             )
             self._update_progress(
-                execution, "research_analyst", "running", 89,
+                execution, "research_analyst", "running", 82,
                 f"Generating UC specs in batches ({len(all_use_cases_for_sds)} UCs)..."
             )
             section_3_result = await generate_uc_section_batched(
