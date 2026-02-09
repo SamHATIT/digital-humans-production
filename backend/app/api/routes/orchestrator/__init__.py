@@ -12,6 +12,7 @@ Module map:
 - retry_routes:     4 routes — Retry, pause, resume
 - sds_v3_routes:    8 routes — SDS V3 pipeline (microanalyze → DOCX)
 - build_executor:   execute_build_v2() background function
+- validation_gate_routes: 4 routes — Configurable validation gates (P2-Full)
 - _helpers:         Shared constants & utilities
 """
 from fastapi import APIRouter
@@ -22,6 +23,7 @@ from app.api.routes.orchestrator.build_routes import router as build_router
 from app.api.routes.orchestrator.chat_ws_routes import router as chat_ws_router
 from app.api.routes.orchestrator.retry_routes import router as retry_router
 from app.api.routes.orchestrator.sds_v3_routes import router as sds_v3_router
+from app.api.routes.orchestrator.validation_gate_routes import router as validation_gate_router
 
 # Combined router — preserves the same API surface as the original pm_orchestrator.py
 router = APIRouter(tags=["PM Orchestrator"])
@@ -32,3 +34,4 @@ router.include_router(build_router)
 router.include_router(chat_ws_router)
 router.include_router(retry_router)
 router.include_router(sds_v3_router)
+router.include_router(validation_gate_router)

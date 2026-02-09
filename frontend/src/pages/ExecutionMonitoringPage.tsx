@@ -8,6 +8,7 @@ import AgentThoughtModal from '../components/AgentThoughtModal';
 import SDSv3Generator from '../components/SDSv3Generator';
 import TimelineStepper from '../components/TimelineStepper';
 import DeliverableViewer from '../components/DeliverableViewer';
+import ValidationGatePanel from '../components/ValidationGatePanel';
 import { AGENTS } from '../constants';
 import type { PhaseInfo } from '../components/TimelineStepper';
 
@@ -92,6 +93,9 @@ export default function ExecutionMonitoringPage() {
   // H12: Architecture validation state
   const [isArchAction, setIsArchAction] = useState(false);
 
+  // P2-Full: Configurable gate validation state
+  const [pendingGateData, setPendingGateData] = useState<any>(null);
+
   // UX1: Timeline + Deliverable viewer state
   const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
   const [allAgentsExpanded, setAllAgentsExpanded] = useState(false);
@@ -135,8 +139,13 @@ export default function ExecutionMonitoringPage() {
           setProgress(prevProgress => prevProgress || data);
         }
 
-        // Stop polling if completed or failed
-        if (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'cancelled' || data?.status === 'waiting_br_validation' || data?.status === 'waiting_architecture_validation') {
+        // Stop polling if completed, failed, or waiting for validation
+        const stopStatuses = [
+          'completed', 'failed', 'cancelled',
+          'waiting_br_validation', 'waiting_architecture_validation',
+          'waiting_expert_validation', 'waiting_sds_validation', 'waiting_build_validation',
+        ];
+        if (stopStatuses.includes(data?.status)) {
           if (pollingRef.current) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
@@ -170,7 +179,7 @@ export default function ExecutionMonitoringPage() {
     };
   }, [executionId]);
 
-  // I1.4: Budget polling every 10 seconds
+// I1.4: Budget polling every 10 seconds
   useEffect(() => {
     if (!executionId) return;
 
@@ -192,6 +201,23 @@ export default function ExecutionMonitoringPage() {
       }
     };
   }, [executionId]);
+
+  // P2-Full: Fetch pending gate data when in a configurable gate state
+  useEffect(() => {
+    const waitingGateStatuses = [
+      'waiting_expert_validation',
+      'waiting_sds_validation',
+      'waiting_build_validation',
+    ];
+    const status = progress?.status?.toLowerCase() || '';
+    if (waitingGateStatuses.includes(status) && executionId) {
+      executions.getValidationGate(Number(executionId))
+        .then((data) => setPendingGateData(data?.pending || null))
+        .catch((err) => console.error('Failed to fetch validation gate:', err));
+    } else {
+      setPendingGateData(null);
+    }
+  }, [progress?.status, executionId]);
 
   const handleDownload = () => {
     if (!executionId) return;
@@ -332,7 +358,8 @@ export default function ExecutionMonitoringPage() {
         number: 4,
         label: 'Expert Specs',
         agents: 'Elena, Jordan, Aisha, Lucas',
-        status: useStateMachine ? phaseStatusFromState(4) : (
+        status: normalizedStatus === 'waiting_expert_validation' ? 'waiting_hitl' :
+                useStateMachine ? phaseStatusFromState(4) : (
           ['Elena', 'Jordan', 'Aisha', 'Lucas'].every(
             n => normalizeStatus(agentStatus(n) || '') === 'completed') ? 'completed' :
           ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
@@ -345,7 +372,8 @@ export default function ExecutionMonitoringPage() {
         number: 5,
         label: 'SDS Final',
         agents: 'Emma',
-        status: useStateMachine ? phaseStatusFromState(5) : (
+        status: normalizedStatus === 'waiting_sds_validation' ? 'waiting_hitl' :
+                useStateMachine ? phaseStatusFromState(5) : (
           normalizedStatus === 'completed' ? 'completed' :
           normalizeStatus(
             prog.agent_progress?.find(
@@ -419,6 +447,12 @@ export default function ExecutionMonitoringPage() {
   const isCancelled = normalizedMainStatus === 'cancelled';
   const isWaitingBRValidation = normalizedMainStatus === 'waiting_br_validation';
   const isWaitingArchitectureValidation = normalizedMainStatus === 'waiting_architecture_validation';
+  // P2-Full: Configurable validation gates
+  const isWaitingConfigurableGate = [
+    'waiting_expert_validation',
+    'waiting_sds_validation',
+    'waiting_build_validation',
+  ].includes(normalizedMainStatus);
   const canDownload = isCompleted && progress?.sds_document_path;
 
   // H15-FE FIX 3: Compute granular progress from individual agent progress values.
@@ -466,6 +500,29 @@ export default function ExecutionMonitoringPage() {
     } finally {
       setIsArchAction(false);
     }
+  };
+
+  // P2-Full: Handle resume after configurable gate validation
+  const handleGateResume = () => {
+    setPendingGateData(null);
+    // Restart polling
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(async () => {
+      try {
+        const data = await executions.getProgress(Number(executionId));
+        setProgress(data);
+        const stopStatuses = [
+          'completed', 'failed', 'cancelled',
+          'waiting_br_validation', 'waiting_architecture_validation',
+          'waiting_expert_validation', 'waiting_sds_validation', 'waiting_build_validation',
+        ];
+        if (stopStatuses.includes(data?.status)) {
+          if (pollingRef.current) clearInterval(pollingRef.current);
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, 3000);
   };
 
   // H7: BUILD agents to hide during SDS phase (they show "Waiting..." which is confusing)
@@ -665,6 +722,15 @@ export default function ExecutionMonitoringPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* P2-Full: Configurable validation gate panel */}
+        {isWaitingConfigurableGate && pendingGateData && progress?.execution_id && (
+          <ValidationGatePanel
+            executionId={progress.execution_id}
+            pending={pendingGateData}
+            onResume={handleGateResume}
+          />
         )}
 
         {/* UX1: Deliverable Viewer — shown when a completed phase is clicked */}

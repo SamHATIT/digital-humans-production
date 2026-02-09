@@ -124,6 +124,10 @@ async def resume_execution(
     allowed_statuses = [
         ExecutionStatus.WAITING_BR_VALIDATION,
         ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION,
+        # P2-Full: Configurable validation gates
+        ExecutionStatus.WAITING_EXPERT_VALIDATION,
+        ExecutionStatus.WAITING_SDS_VALIDATION,
+        ExecutionStatus.WAITING_BUILD_VALIDATION,
         ExecutionStatus.FAILED,
     ]
     if execution.status not in allowed_statuses:
@@ -303,7 +307,9 @@ async def stream_execution_progress(
                                 yield f"data: {json.dumps(data)}\n\n"
                                 last_status = current_status
                                 last_progress = overall
-                            if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+                            terminal = ["COMPLETED", "FAILED", "CANCELLED",
+                                       "WAITING_EXPERT_VALIDATION", "WAITING_SDS_VALIDATION", "WAITING_BUILD_VALIDATION"]
+                            if current_status.upper() in terminal or current_status in terminal:
                                 yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
                                 return
                         except Exception as e:
@@ -321,7 +327,9 @@ async def stream_execution_progress(
                         yield f"data: {json.dumps(data)}\n\n"
                         last_status = current_status
                         last_progress = overall
-                    if current_status in ["COMPLETED", "FAILED", "CANCELLED"]:
+                    terminal = ["COMPLETED", "FAILED", "CANCELLED",
+                               "WAITING_EXPERT_VALIDATION", "WAITING_SDS_VALIDATION", "WAITING_BUILD_VALIDATION"]
+                    if current_status.upper() in terminal or current_status in terminal:
                         yield f"data: {json.dumps({'event': 'close', 'status': current_status})}\n\n"
                         return
                     await asyncio.sleep(poll_interval)

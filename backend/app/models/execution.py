@@ -2,6 +2,7 @@
 Execution model for tracking agent execution runs.
 """
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Float, Enum, JSON, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
@@ -18,6 +19,10 @@ class ExecutionStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     WAITING_BR_VALIDATION = "waiting_br_validation"
     WAITING_ARCHITECTURE_VALIDATION = "waiting_architecture_validation"
+    # P2-Full: Configurable validation gates
+    WAITING_EXPERT_VALIDATION = "waiting_expert_validation"
+    WAITING_SDS_VALIDATION = "waiting_sds_validation"
+    WAITING_BUILD_VALIDATION = "waiting_build_validation"
 
 
 class Execution(Base):
@@ -59,6 +64,10 @@ class Execution(Base):
     execution_state = Column(String(60), default="draft", index=True)
     state_updated_at = Column(DateTime(timezone=True))
     state_history = Column(JSON, default=list)  # List of {from, to, at, metadata}
+
+    # P2-Full: Configurable validation gates
+    pending_validation = Column(JSONB, nullable=True)  # Current gate info when paused
+    validation_history = Column(JSONB, default=list)    # List of past validation decisions
 
     # Relationships
     project = relationship("Project", back_populates="executions")

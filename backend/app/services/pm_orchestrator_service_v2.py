@@ -2250,6 +2250,31 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     self._update_progress(execution, agent_id, "failed", 88, f"Skipped: {str(expert_result.get('error', 'Unknown'))[:50]}")
 
         # ========================================
+        # P2-Full: Configurable gate — after expert specs
+        # ========================================
+        from app.services.validation_gate_service import ValidationGateService
+        gate_service = ValidationGateService(self.db)
+        if gate_service.should_pause(execution_id, "after_expert_specs"):
+            expert_summary = {
+                "completed_experts": [
+                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                    if item.get("result", {}).get("success")
+                ],
+                "failed_experts": [
+                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                    if not item.get("result", {}).get("success")
+                ],
+                "phase": "Phase 4 — Expert Specifications",
+            }
+            gate_service.pause_for_validation(
+                execution_id=execution_id,
+                gate_name="after_expert_specs",
+                deliverables_summary=expert_summary,
+            )
+            logger.info(f"[Phase 4] ⏸️ Paused at after_expert_specs gate")
+            return results
+
+        # ========================================
         # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
         # ========================================
         sds_markdown = ""
@@ -2364,6 +2389,23 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         self._update_progress(execution, "research_analyst", "completed", 92, "SDS Document written")
         self._save_checkpoint(execution, "phase5_write_sds")
+
+        # ========================================
+        # P2-Full: Configurable gate — after SDS generation
+        # ========================================
+        if gate_service.should_pause(execution_id, "after_sds_generation"):
+            sds_summary = {
+                "sds_length": len(sds_markdown),
+                "has_annexe": bool(uc_section_3_content),
+                "phase": "Phase 5 — SDS Document Generation",
+            }
+            gate_service.pause_for_validation(
+                execution_id=execution_id,
+                gate_name="after_sds_generation",
+                deliverables_summary=sds_summary,
+            )
+            logger.info(f"[Phase 5] ⏸️ Paused at after_sds_generation gate")
+            return results
 
         # ========================================
         # PHASE 6: Export SDS to DOCX/PDF
