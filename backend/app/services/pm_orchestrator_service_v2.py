@@ -624,17 +624,123 @@ class PMOrchestratorServiceV2:
                         logger.info(f"[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
                         return results  # <-- PAUSE: execution stops here
 
-                    # ── Zone 3: FAIL (< 70%) ──
+                    # ── Zone 3: AUTO-REVISE (< 70%) ──
+                    # Marcus revises automatically, Emma re-validates. Loop up to MAX_ARCHITECTURE_REVISIONS.
                     else:
-                        logger.error(f"[Phase 3.3] ❌ Coverage {coverage_pct}% < {COVERAGE_MIN_PROCEED}% — architecture rejected")
-                        execution.status = ExecutionStatus.FAILED
-                        self._update_progress(execution, "research_analyst", "failed", 72,
-                                             f"Architecture coverage too low ({coverage_pct}%)")
-                        self.db.commit()
-                        raise Exception(
-                            f"Architecture coverage too low: {coverage_pct}% (minimum {COVERAGE_MIN_PROCEED}%). "
-                            f"{len(critical_gaps)} critical gaps, {len(uncovered_ucs)} uncovered use cases."
-                        )
+                        revision_count = 0
+                        current_coverage = coverage_pct
+                        current_gaps = critical_gaps
+                        current_uncovered = uncovered_ucs
+
+                        while current_coverage < COVERAGE_MIN_PROCEED and revision_count < MAX_ARCHITECTURE_REVISIONS:
+                            revision_count += 1
+                            logger.warning(
+                                f"[Phase 3.3] ⚠️ Coverage {current_coverage}% < {COVERAGE_MIN_PROCEED}% "
+                                f"— auto-revision {revision_count}/{MAX_ARCHITECTURE_REVISIONS}"
+                            )
+
+                            # Marcus revises with gap feedback
+                            self._update_progress(execution, "architect", "running", 68,
+                                                 f"Revising architecture (attempt {revision_count})...")
+
+                            revision_result = await self._run_agent(
+                                agent_id="architect",
+                                mode="design",
+                                input_data={
+                                    "project_summary": project.description or project.name or "",
+                                    "use_cases": all_use_cases,
+                                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                                    "coverage_gaps": current_gaps,
+                                    "uncovered_use_cases": current_uncovered,
+                                    "revision_request": (
+                                        f"Your previous architecture scored {current_coverage}% coverage. "
+                                        f"Please revise to address {len(current_gaps)} critical gaps: "
+                                        f"{', '.join(g.get('gap', g) if isinstance(g, dict) else str(g) for g in current_gaps[:5])}"
+                                    )
+                                },
+                                execution_id=execution_id,
+                                project_id=project_id
+                            )
+
+                            if revision_result.get("success"):
+                                results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
+                                architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
+                                self._save_deliverable(execution_id, "architect", f"solution_design_rev{revision_count}", revision_result["output"])
+                                logger.info(f"[Phase 3.3] Marcus revision {revision_count} completed")
+                            else:
+                                logger.warning(f"[Phase 3.3] Marcus revision {revision_count} failed, keeping previous")
+                                break
+
+                            # Emma re-validates
+                            self._update_progress(execution, "research_analyst", "running", 70,
+                                                 f"Re-validating coverage (attempt {revision_count})...")
+
+                            revalidate_result = await self._run_agent(
+                                agent_id="research_analyst",
+                                mode="validate",
+                                input_data={
+                                    "solution_design": results["artifacts"]["ARCHITECTURE"].get("content", {}),
+                                    "use_cases": all_use_cases,
+                                },
+                                execution_id=execution_id,
+                                project_id=project_id
+                            )
+
+                            if revalidate_result.get("success"):
+                                new_report = revalidate_result["output"].get("content", {})
+                                current_coverage = new_report.get("overall_coverage_score",
+                                                    new_report.get("coverage_percentage", 0))
+                                current_gaps = new_report.get("critical_gaps", new_report.get("gaps", []))
+                                current_uncovered = new_report.get("uncovered_use_cases", [])
+                                results["artifacts"]["COVERAGE"] = revalidate_result["output"]
+                                self._save_deliverable(execution_id, "research_analyst",
+                                                      f"coverage_report_rev{revision_count}", revalidate_result["output"])
+                                logger.info(f"[Phase 3.3] Re-validation: {current_coverage}%")
+                            else:
+                                logger.warning(f"[Phase 3.3] Re-validation failed, using previous score")
+                                break
+
+                        # After revision loop — apply zones again
+                        if current_coverage >= COVERAGE_AUTO_APPROVE:
+                            logger.info(f"[Phase 3.3] ✅ Architecture APPROVED after {revision_count} revision(s) — {current_coverage}%")
+                            self._update_progress(execution, "research_analyst", "completed", 72,
+                                                 f"Coverage {current_coverage}% — approved after revision")
+                        elif current_coverage >= COVERAGE_MIN_PROCEED:
+                            logger.info(f"[Phase 3.3] ⏸️ Coverage {current_coverage}% after revision — pausing for HITL")
+                            coverage_data = {
+                                "approval_type": "architecture_coverage",
+                                "coverage_score": current_coverage,
+                                "critical_gaps": current_gaps,
+                                "uncovered_use_cases": current_uncovered,
+                                "revision_count": revision_count,
+                                "max_revisions": MAX_ARCHITECTURE_REVISIONS,
+                            }
+                            if execution.agent_execution_status is None:
+                                execution.agent_execution_status = {}
+                            execution.agent_execution_status.setdefault("research_analyst", {})
+                            execution.agent_execution_status["research_analyst"]["state"] = "waiting_approval"
+                            execution.agent_execution_status["research_analyst"]["extra_data"] = coverage_data
+                            execution.agent_execution_status["research_analyst"]["message"] = (
+                                f"Coverage {current_coverage}% after {revision_count} revision(s) — awaiting validation"
+                            )
+                            flag_modified(execution, "agent_execution_status")
+                            execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                            self._save_checkpoint(execution, "phase3_3_coverage_gate")
+                            self.db.commit()
+                            return results
+                        else:
+                            logger.error(
+                                f"[Phase 3.3] ❌ Coverage still {current_coverage}% after "
+                                f"{revision_count} revision(s) — architecture rejected"
+                            )
+                            execution.status = ExecutionStatus.FAILED
+                            self._update_progress(execution, "research_analyst", "failed", 72,
+                                                 f"Architecture coverage too low ({current_coverage}%) after {revision_count} revision(s)")
+                            self.db.commit()
+                            raise Exception(
+                                f"Architecture coverage {current_coverage}% still below {COVERAGE_MIN_PROCEED}% "
+                                f"after {revision_count} revision(s). {len(current_gaps)} critical gaps remain."
+                            )
 
                 else:
                     logger.warning(f"[Phase 3.3] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
