@@ -41,10 +41,34 @@ interface ExecutionProgress {
   execution_id: number;
   project_id: number;
   status: string;
+  execution_state?: string;
   overall_progress: number;
   current_phase?: string;
   agent_progress: AgentProgress[];
   sds_document_path?: string;
+}
+
+interface BudgetInfo {
+  allowed: boolean;
+  execution_cost: number;
+  project_cost: number;
+  remaining_execution: number;
+  remaining_project: number;
+  limit_type?: string;
+  current?: number;
+  limit?: number;
+  message?: string;
+}
+
+// I1.4: Map execution_state to phase number for timeline
+function getPhaseFromState(state: string): number {
+  if (state.startsWith('sds_phase1') || state.startsWith('waiting_br')) return 1;
+  if (state.startsWith('sds_phase2')) return 2;  // includes 2_5
+  if (state.startsWith('sds_phase3') || state.startsWith('waiting_arch')) return 3;
+  if (state.startsWith('sds_phase4')) return 4;
+  if (state.startsWith('sds_phase5') || state === 'sds_complete') return 5;
+  if (state.startsWith('build')) return 6;
+  return 0;
 }
 
 export default function ExecutionMonitoringPage() {
@@ -72,13 +96,19 @@ export default function ExecutionMonitoringPage() {
   const [selectedPhase, setSelectedPhase] = useState<number | null>(null);
   const [allAgentsExpanded, setAllAgentsExpanded] = useState(false);
 
-  // FRNT-02: Compare progress to avoid unnecessary re-renders that cause scroll jumps
+  // I1.4: Budget tracking
+  const [budget, setBudget] = useState<BudgetInfo | null>(null);
+  const budgetPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // FRNT-02 + I1.4: Compare progress using execution_state first, fallback to agent-level diff
   const hasProgressChanged = (oldData: ExecutionProgress | null, newData: ExecutionProgress | null): boolean => {
     if (!oldData || !newData) return true;
     if (oldData.status !== newData.status) return true;
+    // I1.4: Primary comparison on execution_state
+    if (oldData.execution_state !== newData.execution_state) return true;
     if (oldData.overall_progress !== newData.overall_progress) return true;
     if (oldData.agent_progress?.length !== newData.agent_progress?.length) return true;
-    // Check if any agent status or progress changed
+    // Fallback: check agent-level changes
     for (let i = 0; i < (oldData.agent_progress?.length || 0); i++) {
       const oldAgent = oldData.agent_progress[i];
       const newAgent = newData.agent_progress?.find(a => a.agent_name === oldAgent.agent_name);
@@ -111,6 +141,11 @@ export default function ExecutionMonitoringPage() {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
           }
+          // Also stop budget polling on terminal states
+          if (budgetPollingRef.current && (data?.status === 'completed' || data?.status === 'failed' || data?.status === 'cancelled')) {
+            clearInterval(budgetPollingRef.current);
+            budgetPollingRef.current = null;
+          }
         }
       } catch (err: any) {
         console.error('Failed to fetch progress:', err);
@@ -131,6 +166,29 @@ export default function ExecutionMonitoringPage() {
     return () => {
       if (pollingRef.current) {
         clearInterval(pollingRef.current);
+      }
+    };
+  }, [executionId]);
+
+  // I1.4: Budget polling every 10 seconds
+  useEffect(() => {
+    if (!executionId) return;
+
+    const fetchBudget = async () => {
+      try {
+        const data = await executions.getBudget(Number(executionId));
+        setBudget(data);
+      } catch {
+        // Budget endpoint is optional — don't block UI
+      }
+    };
+
+    fetchBudget();
+    budgetPollingRef.current = setInterval(fetchBudget, 10000);
+
+    return () => {
+      if (budgetPollingRef.current) {
+        clearInterval(budgetPollingRef.current);
       }
     };
   }, [executionId]);
@@ -203,78 +261,130 @@ export default function ExecutionMonitoringPage() {
     return statusMap[status?.toUpperCase()] || status?.toLowerCase() || 'pending';
   };
 
-  // UX1: Map execution progress to timeline phases
+  // UX1 + I1.4: Map execution progress to timeline phases
+  // Uses execution_state (state machine) when available, falls back to agent-based logic
   const getPhaseStatus = (prog: ExecutionProgress): PhaseInfo[] => {
     const agentStatus = (name: string) =>
       prog.agent_progress?.find(a => a.agent_name.includes(name))?.status;
 
     const normalizedStatus = prog.status?.toLowerCase() || '';
+    const execState = prog.execution_state || '';
+    const statePhase = execState ? getPhaseFromState(execState) : 0;
+
+    // I1.4: State machine–driven phase status when execution_state is available
+    const phaseStatusFromState = (phaseNum: number): 'completed' | 'active' | 'waiting_hitl' | 'pending' | 'failed' => {
+      if (!execState || statePhase === 0) return 'pending'; // fallback handled below
+      if (execState === 'failed') return phaseNum <= statePhase ? 'failed' : 'pending';
+      if (execState === 'cancelled') return 'pending';
+
+      // HITL gates
+      if (execState === 'waiting_br_validation' && phaseNum === 1) return 'waiting_hitl';
+      if (execState === 'waiting_architecture_validation' && phaseNum === 3) return 'waiting_hitl';
+
+      if (phaseNum < statePhase) return 'completed';
+      if (phaseNum === statePhase) {
+        // Check if this phase is a "complete" state
+        if (execState.endsWith('_complete') || execState === 'sds_complete' || execState === 'build_complete') {
+          return 'completed';
+        }
+        return 'active';
+      }
+      return 'pending';
+    };
+
+    // Build phases array — use state machine when available
+    const useStateMachine = !!execState && statePhase > 0;
 
     const phases: PhaseInfo[] = [
       {
         number: 1,
         label: 'Business Req.',
         agents: 'Sophie',
-        status: normalizeStatus(agentStatus('Sophie') || '') === 'completed' ? 'completed' :
-                normalizedStatus === 'waiting_br_validation' ? 'waiting_hitl' :
-                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Sophie') || '')) ? 'active' : 'pending',
-        hasDeliverables: normalizeStatus(agentStatus('Sophie') || '') === 'completed',
+        status: useStateMachine ? phaseStatusFromState(1) : (
+          normalizeStatus(agentStatus('Sophie') || '') === 'completed' ? 'completed' :
+          normalizedStatus === 'waiting_br_validation' ? 'waiting_hitl' :
+          ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Sophie') || '')) ? 'active' : 'pending'
+        ),
+        hasDeliverables: useStateMachine ? statePhase > 1 : normalizeStatus(agentStatus('Sophie') || '') === 'completed',
       },
       {
         number: 2,
         label: 'Use Cases',
         agents: 'Olivia & Emma',
-        status: normalizeStatus(agentStatus('Olivia') || '') === 'completed' ? 'completed' :
-                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Olivia') || '')) ? 'active' : 'pending',
-        hasDeliverables: normalizeStatus(agentStatus('Olivia') || '') === 'completed',
+        status: useStateMachine ? phaseStatusFromState(2) : (
+          normalizeStatus(agentStatus('Olivia') || '') === 'completed' ? 'completed' :
+          ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Olivia') || '')) ? 'active' : 'pending'
+        ),
+        hasDeliverables: useStateMachine ? statePhase > 2 : normalizeStatus(agentStatus('Olivia') || '') === 'completed',
       },
       {
         number: 3,
         label: 'Architecture',
         agents: 'Marcus & Emma',
-        status: normalizeStatus(agentStatus('Marcus') || '') === 'completed' ? 'completed' :
-                normalizedStatus.includes('waiting_architecture') ? 'waiting_hitl' :
-                ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Marcus') || '')) ? 'active' : 'pending',
-        hasDeliverables: normalizeStatus(agentStatus('Marcus') || '') === 'completed',
+        status: useStateMachine ? phaseStatusFromState(3) : (
+          normalizeStatus(agentStatus('Marcus') || '') === 'completed' ? 'completed' :
+          normalizedStatus.includes('waiting_architecture') ? 'waiting_hitl' :
+          ['in_progress', 'running'].includes(normalizeStatus(agentStatus('Marcus') || '')) ? 'active' : 'pending'
+        ),
+        hasDeliverables: useStateMachine ? statePhase > 3 : normalizeStatus(agentStatus('Marcus') || '') === 'completed',
       },
       {
         number: 4,
         label: 'Expert Specs',
         agents: 'Elena, Jordan, Aisha, Lucas',
-        status: ['Elena', 'Jordan', 'Aisha', 'Lucas'].every(
-                  n => normalizeStatus(agentStatus(n) || '') === 'completed') ? 'completed' :
-                ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
-                  n => ['in_progress', 'running'].includes(normalizeStatus(agentStatus(n) || ''))) ? 'active' : 'pending',
-        hasDeliverables: ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
+        status: useStateMachine ? phaseStatusFromState(4) : (
+          ['Elena', 'Jordan', 'Aisha', 'Lucas'].every(
+            n => normalizeStatus(agentStatus(n) || '') === 'completed') ? 'completed' :
+          ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
+            n => ['in_progress', 'running'].includes(normalizeStatus(agentStatus(n) || ''))) ? 'active' : 'pending'
+        ),
+        hasDeliverables: useStateMachine ? statePhase > 4 : ['Elena', 'Jordan', 'Aisha', 'Lucas'].some(
                   n => normalizeStatus(agentStatus(n) || '') === 'completed'),
       },
       {
         number: 5,
         label: 'SDS Final',
         agents: 'Emma',
-        status: normalizedStatus === 'completed' ? 'completed' :
-                normalizeStatus(
-                  prog.agent_progress?.find(
-                    a => a.agent_name.includes('Emma') &&
-                    a.current_task?.toLowerCase().includes('sds'))?.status || ''
-                ) === 'in_progress' ? 'active' : 'pending',
-        hasDeliverables: normalizedStatus === 'completed',
+        status: useStateMachine ? phaseStatusFromState(5) : (
+          normalizedStatus === 'completed' ? 'completed' :
+          normalizeStatus(
+            prog.agent_progress?.find(
+              a => a.agent_name.includes('Emma') &&
+              a.current_task?.toLowerCase().includes('sds'))?.status || ''
+          ) === 'in_progress' ? 'active' : 'pending'
+        ),
+        hasDeliverables: useStateMachine
+          ? (execState === 'sds_complete' || statePhase > 5)
+          : normalizedStatus === 'completed',
       },
     ];
 
-    // Check for failed agents
-    for (const phase of phases) {
-      if (phase.status === 'pending' || phase.status === 'active') {
-        const phaseAgentNames: Record<number, string[]> = {
-          1: ['Sophie'],
-          2: ['Olivia'],
-          3: ['Marcus'],
-          4: ['Elena', 'Jordan', 'Aisha', 'Lucas'],
-          5: ['Emma'],
-        };
-        const agents = phaseAgentNames[phase.number] || [];
-        if (agents.some(n => normalizeStatus(agentStatus(n) || '') === 'failed')) {
-          phase.status = 'failed';
+    // I1.4: Add BUILD phase when state machine shows build activity
+    if (useStateMachine && statePhase >= 6) {
+      phases.push({
+        number: 6,
+        label: 'BUILD',
+        agents: 'Diego, Zara, Raj',
+        status: phaseStatusFromState(6),
+        hasDeliverables: execState === 'build_complete' || execState === 'deployed',
+      });
+    }
+
+    // Check for failed agents (fallback: only when not using state machine)
+    if (!useStateMachine) {
+      for (const phase of phases) {
+        if (phase.status === 'pending' || phase.status === 'active') {
+          const phaseAgentNames: Record<number, string[]> = {
+            1: ['Sophie'],
+            2: ['Olivia'],
+            3: ['Marcus'],
+            4: ['Elena', 'Jordan', 'Aisha', 'Lucas'],
+            5: ['Emma'],
+          };
+          const agents = phaseAgentNames[phase.number] || [];
+          if (agents.some(n => normalizeStatus(agentStatus(n) || '') === 'failed')) {
+            phase.status = 'failed';
+          }
         }
       }
     }
@@ -598,6 +708,20 @@ export default function ExecutionMonitoringPage() {
               style={{ width: `${effectiveProgress}%` }}
             />
           </div>
+          {/* I1.4: Cost badge */}
+          {budget && (
+            <div className="mt-2 flex items-center justify-end">
+              <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium ${
+                (budget.execution_cost || 0) > 40
+                  ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                  : (budget.execution_cost || 0) > 20
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'bg-slate-700/50 text-slate-400 border border-slate-600'
+              }`}>
+                Cost: ${(budget.execution_cost || 0).toFixed(2)} / $50.00
+              </span>
+            </div>
+          )}
           <div className="mt-4 flex items-center gap-2">
             {isCompleted && (
               <span className="inline-flex items-center gap-1 text-green-400 text-sm">

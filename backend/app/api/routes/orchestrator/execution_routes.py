@@ -220,6 +220,7 @@ def get_execution_progress(
         "execution_id": execution.id,
         "project_id": execution.project_id,
         "status": execution.status.value if hasattr(execution.status, "value") else str(execution.status),
+        "execution_state": execution.execution_state or "draft",
         "overall_progress": overall_progress,
         "current_phase": current_phase,
         "agent_progress": agent_progress,
@@ -281,6 +282,7 @@ async def stream_execution_progress(
             return {
                 "execution_id": execution.id,
                 "status": current_status,
+                "execution_state": execution.execution_state or "draft",
                 "overall_progress": overall,
                 "current_phase": phase,
                 "agent_progress": agent_prog,
