@@ -7,77 +7,20 @@
   "budget_before": null,
   "status": "PHASE_2_READY",
   "phases": {
-    "phase0_infra": {
-      "status": "PASS",
-      "completed_at": "11:42 UTC",
-      "items": {
-        "kill_old_vite": "PASS \u2014 killed PIDs 263705/263717/263718",
-        "restart_frontend": "PASS \u2014 new PID 408608 on port 3000",
-        "verify_port": "PASS \u2014 ss confirms single binding",
-        "backend_active": "PASS \u2014 Swagger on 8002",
-        "arq_worker": "PASS \u2014 active since 19:17 yesterday",
-        "redis": "PASS \u2014 PONG",
-        "postgresql": "PASS \u2014 active",
-        "ollama": "SKIP \u2014 inactive, not needed for SDS (uses Anthropic API)",
-        "git_clean": "PASS \u2014 main @ 5a365dc, only untracked archives/",
-        "branch_main": "PASS",
-        "nginx_proxy": "PASS \u2014 HTTP 200 on 72.61.161.222",
-        "budget_api": "PENDING \u2014 Sam adding $20"
-      }
-    },
-    "phase1_code": {
-      "status": "PASS",
-      "completed_at": "11:43 UTC",
-      "items": {
-        "app_main_import": "PASS",
-        "state_machine_import": "PASS",
-        "budget_service_import": "PASS",
-        "arq_tasks_import": "PASS",
-        "validation_gate_import": "PASS \u2014 via app.api.routes.orchestrator.validation_gate_routes",
-        "artifact_service_import": "PASS \u2014 ArtifactService OK",
-        "execution_routes_import": "PASS \u2014 via app.api.routes.orchestrator.execution_routes",
-        "frontend_build": "PASS \u2014 0 errors, 437KB JS, built in 4.84s",
-        "db_columns": "PASS \u2014 execution_state, state_history, state_updated_at present"
-      }
-    },
-    "phase2_launch": {
-      "status": "WAITING",
-      "items": {}
-    },
-    "phase3_pipeline": {
-      "status": "NOT_STARTED",
-      "items": {}
-    },
-    "phase4_new_features": {
-      "status": "NOT_STARTED",
-      "items": {}
-    },
-    "phase5_metrics": {
-      "status": "NOT_STARTED",
-      "metrics": {
-        "brs_extracted": null,
-        "ucs_generated": null,
-        "llm_calls_phase5": null,
-        "sds_size_chars": null,
-        "expert_sections": null,
-        "cost_usd": null,
-        "duration_min": null,
-        "frontend_accessible": null
-      }
-    },
-    "phase6_decision": {
-      "status": "NOT_STARTED",
-      "verdict": null
-    }
+    "phase0_infra": "PASS",
+    "phase1_code": "PASS",
+    "phase2_launch": "PASS (after BUG-001 fix)",
+    "phase3_pipeline": "IN PROGRESS \u2014 Sophie \u2705 Olivia \u2705 Emma \u26a1 Marcus \u23f3",
+    "phase4_output": "PENDING",
+    "phase5_metrics": "PENDING"
   },
   "issues_found": [
     {
       "id": "BUG-001",
       "severity": "BLOCKING",
       "phase": "phase2_launch",
-      "description": "P2-Full merge added validation_gates/pending_validation/validation_history columns to models but SQL migration was never run on DB",
-      "error": "psycopg2.errors.UndefinedColumn: column validation_gates of relation projects does not exist",
-      "fix": "ALTER TABLE projects ADD COLUMN validation_gates JSONB; ALTER TABLE executions ADD COLUMN pending_validation JSONB; ALTER TABLE executions ADD COLUMN validation_history JSONB;",
+      "description": "P2-Full validation_gates columns missing in PostgreSQL (projects.validation_gates, executions.pending_validation, executions.validation_history)",
+      "fix": "ALTER TABLE ADD COLUMN x3",
       "status": "FIXED",
       "fixed_at": "11:52 UTC"
     },
@@ -85,31 +28,125 @@
       "id": "BUG-002",
       "severity": "BLOCKING",
       "phase": "phase2_launch",
-      "description": "StateMachine.transition_to() uses SELECT FOR UPDATE but never commits, causing DB deadlock when audit_service tries INSERT with FK to executions",
-      "root_cause": "FOR UPDATE lock held indefinitely + audit_logs.execution_id FK check blocked by uncommitted transaction",
-      "fix": "Auto-commit in transition_to() after state update to release row lock immediately",
-      "file": "backend/app/services/execution_state.py",
+      "description": "StateMachine.transition_to() SELECT FOR UPDATE never commits \u2014 deadlock with audit_service FK insert",
+      "fix": "Auto-commit in transition_to() after state update",
       "status": "FIXED",
-      "fixed_at": "12:08 UTC"
+      "fixed_at": "12:08 UTC",
+      "file": "backend/app/services/execution_state.py"
+    },
+    {
+      "id": "BUG-002b",
+      "severity": "BLOCKING",
+      "phase": "phase3_pipeline",
+      "description": "Same deadlock when transition_to() rejects invalid transition \u2014 FOR UPDATE lock never released on error path",
+      "fix": "Added db.rollback() before raising InvalidTransitionError",
+      "status": "FIXED",
+      "fixed_at": "12:28 UTC",
+      "file": "backend/app/services/execution_state.py"
     },
     {
       "id": "BUG-003",
       "severity": "BLOCKING",
       "phase": "phase3_pipeline",
-      "description": "Agent subprocess uses bare python3 which resolves to system python, not venv. System python missing anthropic SDK.",
-      "fix": "Use sys.executable instead of python3 in _run_agent subprocess call",
-      "file": "backend/app/services/pm_orchestrator_service_v2.py:1215",
+      "description": "Agent subprocess uses bare \"python3\" \u2192 resolves to /usr/bin/python3.12 instead of venv \u2192 No module named anthropic",
+      "fix": "Use sys.executable instead of \"python3\" in _run_agent",
       "status": "FIXED",
-      "fixed_at": "12:12 UTC"
+      "fixed_at": "12:12 UTC",
+      "file": "backend/app/services/pm_orchestrator_service_v2.py:1215"
     },
     {
       "id": "BUG-004",
       "severity": "BLOCKING",
       "phase": "phase3_pipeline",
-      "description": "Worker systemd service missing EnvironmentFile \u2014 subprocess agents cannot see ANTHROPIC_API_KEY from .env",
-      "fix": "Added EnvironmentFile=/root/.../backend/.env to worker + backend systemd services",
+      "description": "Worker systemd service missing EnvironmentFile \u2014 subprocess agents cannot see ANTHROPIC_API_KEY",
+      "fix": "Added EnvironmentFile=.env to worker + backend systemd services",
       "status": "FIXED",
       "fixed_at": "12:16 UTC"
+    },
+    {
+      "id": "BUG-005",
+      "severity": "HIGH",
+      "phase": "phase3_pipeline",
+      "description": "PostgreSQL enum executionstatus missing waiting_* values causes KeyError crash on progress endpoint \u2014 frontend shows \"Request failed\"",
+      "fix": "Needs _map_to_legacy_status to only return known ExecutionStatus enum values, not raw state strings",
+      "status": "OPEN",
+      "category": "backend"
+    },
+    {
+      "id": "BUG-006",
+      "severity": "MEDIUM",
+      "phase": "phase3_pipeline",
+      "description": "_update_progress uses flush() not commit() \u2014 batch progress messages (e.g. \"Processing BR-005, BR-006 batch 3/15\") invisible to frontend polling",
+      "fix": "Replace flush() with commit() in _update_progress, or use SSE notifications",
+      "status": "OPEN",
+      "category": "backend/UX"
+    },
+    {
+      "id": "BUG-007",
+      "severity": "MEDIUM",
+      "phase": "phase3_pipeline",
+      "description": "Cost tracker shows $0.00 throughout execution \u2014 total_cost column never updated despite tokens being tracked per agent",
+      "fix": "Orchestrator needs to update execution.total_cost after each agent completes",
+      "status": "OPEN",
+      "category": "backend"
+    },
+    {
+      "id": "UX-001",
+      "severity": "LOW",
+      "phase": "phase3_pipeline",
+      "description": "Agent cards show stale status after resume \u2014 agent_execution_status not reinitialized on retry/resume",
+      "status": "OPEN",
+      "category": "frontend/backend"
+    },
+    {
+      "id": "UX-002",
+      "severity": "LOW",
+      "phase": "phase3_pipeline",
+      "description": "BR validation HITL screen missing \u2014 frontend has no UI for waiting_br_validation state, just crashes",
+      "status": "OPEN",
+      "category": "frontend"
+    },
+    {
+      "id": "UX-003",
+      "severity": "LOW",
+      "phase": "phase3_pipeline",
+      "description": "Active agent detail too sparse \u2014 no sub-task detail during execution (e.g. which batch, which BR, ETA)",
+      "status": "OPEN",
+      "category": "frontend/UX"
+    },
+    {
+      "id": "BACKLOG-H11",
+      "severity": "LOW",
+      "phase": "pre-e2e",
+      "description": "Auto-generation code projet \u2014 field is manual free-text, risk of duplicates",
+      "status": "BACKLOG"
+    },
+    {
+      "id": "BUG-008",
+      "severity": "LOW",
+      "phase": "phase3_pipeline",
+      "description": "Stale ARQ jobs in Redis survive worker restart \u2014 exec 140 ghost job ran in parallel with 141, wasting an Opus call",
+      "fix": "Flush Redis queue on worker restart or use job deduplication",
+      "status": "OPEN",
+      "category": "infra"
+    },
+    {
+      "id": "ARCH-001",
+      "severity": "HIGH",
+      "phase": "phase3_pipeline",
+      "description": "_get_salesforce_metadata() called before greenfield check \u2014 tries SFDX commands even when project is greenfield with no SF connection",
+      "fix": "Skip metadata retrieval if project.project_type==\"greenfield\" or project.sf_connected==False",
+      "status": "OPEN",
+      "category": "backend/architecture"
+    },
+    {
+      "id": "ARCH-002",
+      "severity": "CRITICAL",
+      "phase": "phase3_pipeline",
+      "description": "salesforce_config is a global singleton with hardcoded org credentials \u2014 no multi-tenant isolation. All projects/clients use same SF org. project.sf_instance_url and sf_username are stored but never used.",
+      "fix": "SalesforceConfig must be instantiated per-project using project.sf_* fields. _get_salesforce_metadata should receive project context.",
+      "status": "OPEN",
+      "category": "security/multi-tenancy"
     }
   ],
   "notes": [

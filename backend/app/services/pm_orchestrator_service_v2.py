@@ -761,7 +761,7 @@ class PMOrchestratorServiceV2:
                                     "revision_request": (
                                         f"Your previous architecture scored {current_coverage}% coverage. "
                                         f"Please revise to address {len(current_gaps)} critical gaps: "
-                                        f"{', '.join(g.get('gap', g) if isinstance(g, dict) else str(g) for g in current_gaps[:5])}"
+                                        f"{', '.join(str(g.get('gap', '')) or str(g.get('description', '')) or str(g) if isinstance(g, dict) else str(g) for g in current_gaps[:5])}"
                                     )
                                 },
                                 execution_id=execution_id,
