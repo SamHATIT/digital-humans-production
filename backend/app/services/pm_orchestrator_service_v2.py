@@ -28,6 +28,7 @@ Features:
 """
 
 import os
+import sys
 import json
 import asyncio
 import subprocess
@@ -1204,7 +1205,7 @@ class PMOrchestratorServiceV2:
             
             # Build command
             cmd = [
-                "python3",
+                sys.executable,
                 str(AGENTS_PATH / config["script"]),
                 "--input", str(input_file),
                 "--output", str(output_file),
