@@ -1,0 +1,121 @@
+{
+  "test_id": "E2E_140",
+  "date": "2026-02-10",
+  "started_at": "11:42 UTC",
+  "project_id": 92,
+  "execution_id": 141,
+  "budget_before": null,
+  "status": "PHASE_2_READY",
+  "phases": {
+    "phase0_infra": {
+      "status": "PASS",
+      "completed_at": "11:42 UTC",
+      "items": {
+        "kill_old_vite": "PASS \u2014 killed PIDs 263705/263717/263718",
+        "restart_frontend": "PASS \u2014 new PID 408608 on port 3000",
+        "verify_port": "PASS \u2014 ss confirms single binding",
+        "backend_active": "PASS \u2014 Swagger on 8002",
+        "arq_worker": "PASS \u2014 active since 19:17 yesterday",
+        "redis": "PASS \u2014 PONG",
+        "postgresql": "PASS \u2014 active",
+        "ollama": "SKIP \u2014 inactive, not needed for SDS (uses Anthropic API)",
+        "git_clean": "PASS \u2014 main @ 5a365dc, only untracked archives/",
+        "branch_main": "PASS",
+        "nginx_proxy": "PASS \u2014 HTTP 200 on 72.61.161.222",
+        "budget_api": "PENDING \u2014 Sam adding $20"
+      }
+    },
+    "phase1_code": {
+      "status": "PASS",
+      "completed_at": "11:43 UTC",
+      "items": {
+        "app_main_import": "PASS",
+        "state_machine_import": "PASS",
+        "budget_service_import": "PASS",
+        "arq_tasks_import": "PASS",
+        "validation_gate_import": "PASS \u2014 via app.api.routes.orchestrator.validation_gate_routes",
+        "artifact_service_import": "PASS \u2014 ArtifactService OK",
+        "execution_routes_import": "PASS \u2014 via app.api.routes.orchestrator.execution_routes",
+        "frontend_build": "PASS \u2014 0 errors, 437KB JS, built in 4.84s",
+        "db_columns": "PASS \u2014 execution_state, state_history, state_updated_at present"
+      }
+    },
+    "phase2_launch": {
+      "status": "WAITING",
+      "items": {}
+    },
+    "phase3_pipeline": {
+      "status": "NOT_STARTED",
+      "items": {}
+    },
+    "phase4_new_features": {
+      "status": "NOT_STARTED",
+      "items": {}
+    },
+    "phase5_metrics": {
+      "status": "NOT_STARTED",
+      "metrics": {
+        "brs_extracted": null,
+        "ucs_generated": null,
+        "llm_calls_phase5": null,
+        "sds_size_chars": null,
+        "expert_sections": null,
+        "cost_usd": null,
+        "duration_min": null,
+        "frontend_accessible": null
+      }
+    },
+    "phase6_decision": {
+      "status": "NOT_STARTED",
+      "verdict": null
+    }
+  },
+  "issues_found": [
+    {
+      "id": "BUG-001",
+      "severity": "BLOCKING",
+      "phase": "phase2_launch",
+      "description": "P2-Full merge added validation_gates/pending_validation/validation_history columns to models but SQL migration was never run on DB",
+      "error": "psycopg2.errors.UndefinedColumn: column validation_gates of relation projects does not exist",
+      "fix": "ALTER TABLE projects ADD COLUMN validation_gates JSONB; ALTER TABLE executions ADD COLUMN pending_validation JSONB; ALTER TABLE executions ADD COLUMN validation_history JSONB;",
+      "status": "FIXED",
+      "fixed_at": "11:52 UTC"
+    },
+    {
+      "id": "BUG-002",
+      "severity": "BLOCKING",
+      "phase": "phase2_launch",
+      "description": "StateMachine.transition_to() uses SELECT FOR UPDATE but never commits, causing DB deadlock when audit_service tries INSERT with FK to executions",
+      "root_cause": "FOR UPDATE lock held indefinitely + audit_logs.execution_id FK check blocked by uncommitted transaction",
+      "fix": "Auto-commit in transition_to() after state update to release row lock immediately",
+      "file": "backend/app/services/execution_state.py",
+      "status": "FIXED",
+      "fixed_at": "12:08 UTC"
+    },
+    {
+      "id": "BUG-003",
+      "severity": "BLOCKING",
+      "phase": "phase3_pipeline",
+      "description": "Agent subprocess uses bare python3 which resolves to system python, not venv. System python missing anthropic SDK.",
+      "fix": "Use sys.executable instead of python3 in _run_agent subprocess call",
+      "file": "backend/app/services/pm_orchestrator_service_v2.py:1215",
+      "status": "FIXED",
+      "fixed_at": "12:12 UTC"
+    },
+    {
+      "id": "BUG-004",
+      "severity": "BLOCKING",
+      "phase": "phase3_pipeline",
+      "description": "Worker systemd service missing EnvironmentFile \u2014 subprocess agents cannot see ANTHROPIC_API_KEY from .env",
+      "fix": "Added EnvironmentFile=/root/.../backend/.env to worker + backend systemd services",
+      "status": "FIXED",
+      "fixed_at": "12:16 UTC"
+    }
+  ],
+  "notes": [
+    "Double Vite process fixed at start \u2014 old PID from Feb 8 was squatting port 3000",
+    "Ollama inactive but not needed for SDS pipeline",
+    "First E2E since Horizon 2-3 mega-merge (10 commits, 7 parallel streams)",
+    "BUG-002: Critical deadlock fix in StateMachine - added auto-commit after transition_to()"
+  ]
+}
