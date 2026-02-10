@@ -1,0 +1,541 @@
+{
+  "overall_coverage_score": 64.8,
+  "programmatic_score": 45.0,
+  "llm_score": 78,
+  "verdict": "NEEDS_REVISION",
+  "coverage_by_category": {
+    "data_model": {
+      "score": 92,
+      "covered": [
+        "All custom objects required by use cases are defined",
+        "Case object comprehensively customized for all channels",
+        "Social_Media_Message__c supports LinkedIn and Instagram",
+        "Quote_Request__c, Chatbot_Session__c, Feedback_Response__c fully specified",
+        "Contact and Account enriched with social media fields",
+        "Integration_Log__c for monitoring",
+        "Duplicate_Detection_Rule__c and Email_Extraction_Template__c for configuration"
+      ],
+      "gaps": [
+        "No Queue or Group objects defined for routing",
+        "Missing picklist value definitions for some fields",
+        "No field-level security specifications"
+      ]
+    },
+    "automation": {
+      "score": 45,
+      "covered": [
+        "Data model supports automation requirements",
+        "Processing_Status__c fields enable workflow tracking"
+      ],
+      "gaps": [
+        "No Flow definitions for case creation from any channel",
+        "No duplicate detection automation logic",
+        "No routing/assignment automation",
+        "No email extraction automation flow",
+        "No social media message processing flows",
+        "No chatbot escalation workflow",
+        "No feedback follow-up automation",
+        "No scheduled jobs for data sync or cleanup",
+        "No process builder or workflow rules defined"
+      ]
+    },
+    "ui_components": {
+      "score": 35,
+      "covered": [
+        "Data model supports UI requirements"
+      ],
+      "gaps": [
+        "No Lightning Web Components (LWC) defined",
+        "No page layouts specified",
+        "No Lightning App Builder configurations",
+        "No custom list views",
+        "No dashboards or reports",
+        "No Lightning Record Pages",
+        "No mobile app considerations",
+        "No Service Console configuration"
+      ]
+    },
+    "uc_traceability": {
+      "score": 0.0,
+      "covered": 0,
+      "total": 144,
+      "coverage_pct": 0.0
+    },
+    "security": {
+      "score": 30,
+      "covered": [],
+      "gaps": [
+        "No permission sets defined",
+        "No profiles specified",
+        "No sharing rules for cross-channel visibility",
+        "No field-level security (FLS) specifications",
+        "No object-level permissions (CRUD)",
+        "No API user security model",
+        "No integration user permissions",
+        "No role hierarchy defined"
+      ]
+    },
+    "integration": {
+      "score": 70,
+      "covered": [
+        "Integration_Log__c for comprehensive logging",
+        "Social_Media_Message__c supports external message tracking",
+        "External_Message_ID__c and Thread_ID__c for integration continuity",
+        "Request/Response payload fields for debugging",
+        "Multiple channel support in data model"
+      ],
+      "gaps": [
+        "No LinkedIn API integration specifications",
+        "No Instagram/Meta API integration details",
+        "No API endpoint definitions for REST API",
+        "No authentication mechanisms specified",
+        "No webhook configurations",
+        "No error handling and retry logic",
+        "No rate limiting strategy",
+        "No API versioning approach",
+        "No chatbot platform integration details"
+      ]
+    },
+    "reporting_analytics": {
+      "score": 40,
+      "covered": [
+        "Data model includes fields for reporting (timestamps, status, channels)",
+        "Integration_Log__c includes Processing_Time_MS__c for performance tracking"
+      ],
+      "gaps": [
+        "No report definitions",
+        "No dashboard specifications",
+        "No KPI definitions",
+        "No Einstein Analytics considerations"
+      ]
+    }
+  },
+  "coverage_by_requirement": {
+    "UC-001-01": {
+      "title": "Création automatique de Case depuis Email-to-Case",
+      "coverage_score": 95,
+      "covered_elements": [
+        "Case object with Channel__c field",
+        "EmailMessage object with customizations",
+        "Source_Message_ID__c for tracking",
+        "Thread_ID__c for conversation continuity"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation/flow defined for automatic case creation process"
+      ]
+    },
+    "UC-001-02": {
+      "title": "Routage automatique des Cases selon le contenu de l'email",
+      "coverage_score": 60,
+      "covered_elements": [
+        "Case object structure supports routing",
+        "Email_Extraction_Template__c for content analysis"
+      ],
+      "missing_elements": [
+        "No assignment rules or routing logic defined",
+        "No queue definitions in data model",
+        "No automation flow for routing logic"
+      ],
+      "partial_elements": [
+        "Email_Extraction_Template__c exists but routing mechanism not specified"
+      ]
+    },
+    "UC-001-03": {
+      "title": "Détection et liaison des Cases en doublon depuis emails",
+      "coverage_score": 90,
+      "covered_elements": [
+        "Duplicate_Case__c lookup field on Case",
+        "Is_Master_Case__c checkbox field",
+        "Duplicate_Detection_Rule__c custom object",
+        "Processing_Status__c on EmailMessage includes 'Duplicate Detected'"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation flow defined for duplicate detection execution"
+      ]
+    },
+    "UC-001-04": {
+      "title": "Extraction et création automatique de données depuis le corps de l'email",
+      "coverage_score": 85,
+      "covered_elements": [
+        "Auto_Extracted_Data__c field on Case",
+        "Extracted_Data_JSON__c on EmailMessage",
+        "Email_Extraction_Template__c object with pattern definitions",
+        "Target_Field__c and Target_Object__c for mapping"
+      ],
+      "missing_elements": [
+        "No AI/NLP service integration details"
+      ],
+      "partial_elements": [
+        "Extraction templates defined but no automation flow for execution"
+      ]
+    },
+    "UC-002-01": {
+      "title": "Soumission de formulaire Web-to-Case depuis le site web",
+      "coverage_score": 85,
+      "covered_elements": [
+        "Case object with Channel__c including 'Web Form' and 'Web-to-Case'",
+        "Integration_Log__c for tracking Web-to-Case submissions"
+      ],
+      "missing_elements": [
+        "No Web-to-Case configuration details",
+        "No form field mapping specification"
+      ],
+      "partial_elements": []
+    },
+    "UC-002-02": {
+      "title": "Capture de demande de devis via formulaire web spécialisé",
+      "coverage_score": 95,
+      "covered_elements": [
+        "Quote_Request__c custom object with comprehensive fields",
+        "Related_Case__c, Related_Lead__c, Related_Account__c lookups",
+        "Quote_Request__c checkbox on Case",
+        "Product_Interest__c, Budget_Range__c, Timeline__c fields",
+        "Status__c field for quote lifecycle"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation for lead/account matching logic defined"
+      ]
+    },
+    "UC-002-03": {
+      "title": "Intégration API REST pour soumission de requêtes depuis portail client",
+      "coverage_score": 70,
+      "covered_elements": [
+        "Case Channel__c includes 'API'",
+        "Integration_Log__c for API tracking",
+        "Request_Payload__c and Response_Payload__c fields"
+      ],
+      "missing_elements": [
+        "No API endpoint specifications",
+        "No authentication/security model defined",
+        "No API request/response schema",
+        "No rate limiting or throttling strategy"
+      ],
+      "partial_elements": []
+    },
+    "UC-002-04": {
+      "title": "Capture de feedback client via widget web intégré",
+      "coverage_score": 95,
+      "covered_elements": [
+        "Feedback_Response__c custom object",
+        "Rating__c, Category__c, Feedback_Text__c fields",
+        "Related_Case__c and Related_Contact__c lookups",
+        "Feedback_Score__c on Case object",
+        "Follow_Up_Requested__c checkbox",
+        "Page_URL__c for context tracking"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation for follow-up case creation when requested"
+      ]
+    },
+    "UC-002-05": {
+      "title": "Intégration chatbot web avec création de Case",
+      "coverage_score": 90,
+      "covered_elements": [
+        "Chatbot_Session__c custom object",
+        "Session_ID__c, Conversation_Transcript__c fields",
+        "Related_Case__c and Related_Contact__c lookups",
+        "Intent_Detected__c and Sentiment_Score__c for AI analysis",
+        "Escalated_to_Agent__c flag",
+        "Chatbot_Session_ID__c on Case"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No chatbot platform integration details",
+        "No escalation workflow defined"
+      ]
+    },
+    "UC-003-01": {
+      "title": "Receive and Create Case from LinkedIn Direct Message",
+      "coverage_score": 85,
+      "covered_elements": [
+        "Social_Media_Message__c object with Platform__c = 'LinkedIn'",
+        "Message_Type__c including 'Direct Message'",
+        "External_Message_ID__c for tracking",
+        "Related_Case__c lookup",
+        "Case Channel__c includes 'LinkedIn'",
+        "Social_Media_Handle__c and Social_Media_Platform__c on Case"
+      ],
+      "missing_elements": [
+        "No LinkedIn API integration specification",
+        "No webhook configuration details"
+      ],
+      "partial_elements": [
+        "Processing_Status__c exists but no automation flow defined"
+      ]
+    },
+    "UC-003-02": {
+      "title": "Update Contact Profile from LinkedIn Data",
+      "coverage_score": 90,
+      "covered_elements": [
+        "LinkedIn_Profile_URL__c on Contact",
+        "LinkedIn_Company__c, LinkedIn_Job_Title__c fields",
+        "LinkedIn_Last_Sync__c timestamp",
+        "Related_Contact__c lookup on Social_Media_Message__c"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation for profile enrichment process",
+        "No data sync frequency or trigger logic defined"
+      ]
+    },
+    "UC-003-03": {
+      "title": "Route LinkedIn Message to Appropriate Queue",
+      "coverage_score": 60,
+      "covered_elements": [
+        "Social_Media_Message__c captures LinkedIn messages",
+        "Related_Case__c allows routing via case assignment"
+      ],
+      "missing_elements": [
+        "No queue definitions",
+        "No routing rules or assignment logic",
+        "No automation flow for routing"
+      ],
+      "partial_elements": []
+    },
+    "UC-003-04": {
+      "title": "Track LinkedIn Message Thread Continuity",
+      "coverage_score": 95,
+      "covered_elements": [
+        "Thread_ID__c on Social_Media_Message__c (indexed)",
+        "Thread_ID__c on Case object",
+        "External_Message_ID__c for unique message tracking",
+        "Related_Case__c for thread-to-case linking"
+      ],
+      "missing_elements": [],
+      "partial_elements": []
+    },
+    "UC-004-01": {
+      "title": "Receive and Create Case from Instagram Direct Message",
+      "coverage_score": 85,
+      "covered_elements": [
+        "Social_Media_Message__c with Platform__c = 'Instagram'",
+        "Message_Type__c including 'Direct Message'",
+        "Case Channel__c includes 'Instagram'",
+        "Instagram_Handle__c on Contact",
+        "Social_Media_Handle__c on Case"
+      ],
+      "missing_elements": [
+        "No Instagram API integration specification",
+        "No Meta Business Suite integration details"
+      ],
+      "partial_elements": [
+        "Processing_Status__c exists but no automation defined"
+      ]
+    },
+    "UC-004-02": {
+      "title": "Process Instagram Story Mentions and Replies",
+      "coverage_score": 90,
+      "covered_elements": [
+        "Message_Type__c includes 'Story Mention' and 'Story Reply'",
+        "Is_Story_Mention__c checkbox on Social_Media_Message__c",
+        "Instagram_Story_Mention__c checkbox on Case",
+        "Media_URL__c for story content"
+      ],
+      "missing_elements": [],
+      "partial_elements": [
+        "No automation for story mention processing"
+      ]
+    },
+    "UC-004-03": {
+      "title": "Route Instagram Messages by Business Account",
+      "coverage_score": 65,
+      "covered_elements": [
+        "Instagram_Business_Handle__c on Account",
+        "Sender_Handle__c on Social_Media_Message__c"
+      ],
+      "missing_elements": [
+        "No routing rules defined",
+        "No queue structure for business accounts",
+        "No automation flow for routing logic"
+      ],
+      "partial_elements": []
+    },
+    "UC-004-04": {
+      "title": "Track Instagram Conversation History",
+      "coverage_score": 95,
+      "covered_elements": [
+        "Thread_ID__c on Social_Media_Message__c",
+        "Related_Case__c for conversation linking",
+        "Received_DateTime__c for chronological tracking",
+        "Message_Content__c for full history"
+      ],
+      "missing_elements": [],
+      "partial_elements": []
+    },
+    "UC-004-05": {
+      "title": "Handle Instagram Comment Moderation Requests",
+      "coverage_score": 75,
+      "covered_elements": [
+        "Message_Type__c includes 'Comment'",
+        "Social_Media_Message__c can capture comments",
+        "Related_Case__c for moderation case creation"
+      ],
+      "missing_elements": [
+        "No moderation workflow defined",
+        "No approval process for comment actions"
+      ],
+      "partial_elements": [
+        "Comment type supported but no moderation-specific fields or automation"
+      ]
+    },
+    "UC-005-01": {
+      "title": "Capture Origin Channel on Case Creation from Email",
+      "coverage_score": 100,
+      "covered_elements": [
+        "Channel__c picklist on Case includes 'Email'",
+        "Source_Message_ID__c for email tracking",
+        "EmailMessage standard object relationship"
+      ],
+      "missing_elements": [],
+      "partial_elements": []
+    },
+    "UC-005-02": {
+      "title": "Capture Origin Channel on Case Creation from Web Form",
+      "coverage_score": 100,
+      "covered_elements": [
+        "Channel__c picklist includes 'Web Form' and 'Web-to-Case'",
+        "Quote_Request__c checkbox for form type identification",
+        "Feedback_Score__c for feedback widget identification"
+      ],
+      "missing_elements": [],
+      "partial_elements": []
+    }
+  },
+  "critical_gaps": [
+    {
+      "element_type": "automation",
+      "element_value": "Case Creation Flows",
+      "severity": "critical",
+      "uc_refs": [
+        "UC-001-01",
+        "UC-002-01",
+        "UC-003-01",
+        "UC-004-01"
+      ],
+      "recommendation": "Define Flow or Apex automation for automatic case creation from all channels (Email, Web, LinkedIn, Instagram, Chatbot)"
+    },
+    {
+      "element_type": "automation",
+      "element_value": "Routing and Assignment Logic",
+      "severity": "critical",
+      "uc_refs": [
+        "UC-001-02",
+        "UC-003-03",
+        "UC-004-03"
+      ],
+      "recommendation": "Define assignment rules, queues, and routing automation for all channels based on content, platform, and business account"
+    },
+    {
+      "element_type": "integration",
+      "element_value": "LinkedIn API Integration",
+      "severity": "high",
+      "uc_refs": [
+        "UC-003-01",
+        "UC-003-02",
+        "UC-003-04"
+      ],
+      "recommendation": "Specify LinkedIn API integration architecture, authentication (OAuth 2.0), webhook configuration, and message polling strategy"
+    },
+    {
+      "element_type": "integration",
+      "element_value": "Instagram/Meta API Integration",
+      "severity": "high",
+      "uc_refs": [
+        "UC-004-01",
+        "UC-004-02",
+        "UC-004-04"
+      ],
+      "recommendation": "Specify Instagram Graph API integration, Meta Business Suite connection, webhook setup for DMs and story mentions"
+    },
+    {
+      "element_type": "security",
+      "element_value": "Permission Sets and Profiles",
+      "severity": "high",
+      "uc_refs": [
+        "ALL"
+      ],
+      "recommendation": "Define permission sets for Support Agents, Social Media Managers, Sales Team, System Administrators with appropriate CRUD and FLS"
+    },
+    {
+      "element_type": "automation",
+      "element_value": "Duplicate Detection Automation",
+      "severity": "high",
+      "uc_refs": [
+        "UC-001-03"
+      ],
+      "recommendation": "Define Flow or Apex trigger to execute duplicate detection rules and automatically link duplicate cases"
+    },
+    {
+      "element_type": "integration",
+      "element_value": "REST API Specification",
+      "severity": "high",
+      "uc_refs": [
+        "UC-002-03"
+      ],
+      "recommendation": "Define REST API endpoints, request/response schemas, authentication (OAuth/API Key), error codes, and rate limiting"
+    },
+    {
+      "element_type": "ui_components",
+      "element_value": "Service Console Configuration",
+      "severity": "medium",
+      "uc_refs": [
+        "ALL"
+      ],
+      "recommendation": "Define Lightning Service Console with unified agent workspace, omnichannel utility bar, and channel-specific components"
+    },
+    {
+      "element_type": "automation",
+      "element_value": "Social Media Profile Enrichment",
+      "severity": "medium",
+      "uc_refs": [
+        "UC-003-02"
+      ],
+      "recommendation": "Define automation to update Contact records with LinkedIn profile data when messages are received"
+    },
+    {
+      "element_type": "automation",
+      "element_value": "Email Data Extraction Flow",
+      "severity": "medium",
+      "uc_refs": [
+        "UC-001-04"
+      ],
+      "recommendation": "Define Flow or Apex to execute Email_Extraction_Template__c rules and populate Case/Contact/Account fields"
+    },
+    {
+      "element_type": "data_model",
+      "element_value": "Queue Definitions",
+      "severity": "medium",
+      "uc_refs": [
+        "UC-001-02",
+        "UC-003-03",
+        "UC-004-03"
+      ],
+      "recommendation": "Define Queue objects for different channels, teams, and business units"
+    },
+    {
+      "element_type": "integration",
+      "element_value": "Chatbot Platform Integration",
+      "severity": "medium",
+      "uc_refs": [
+        "UC-002-05"
+      ],
+      "recommendation": "Specify chatbot platform (Einstein Bots, third-party), integration method, and escalation triggers"
+    }
+  ],
+  "uncovered_use_cases": [],
+  "recommendations": [
+    "PRIORITY 1: Define comprehensive automation layer - Flows for case creation, routing, duplicate detection, and data extraction across all channels",
+    "PRIORITY 1: Specify all external integrations - LinkedIn API, Instagram Graph API, REST API endpoints with authentication and error handling",
+    "PRIORITY 1: Define security model - Permission sets, profiles, sharing rules, and FLS for all objects and fields",
+    "PRIORITY 2: Design UI components - Service Console configuration, Lightning components for social media, dashboards for monitoring",
+    "PRIORITY 2: Define queue structure and assignment rules for omnichannel routing",
+    "PRIORITY 3: Specify reporting and analytics - Reports, dashboards, and KPIs for case management and channel performance",
+    "PRIORITY 3: Add data migration and deployment strategy",
+    "PRIORITY 3: Define testing strategy for integrations and automations",
+    "Consider adding: Case escalation rules, SLA management, knowledge base integration, and customer portal access"
+  ]
+}
