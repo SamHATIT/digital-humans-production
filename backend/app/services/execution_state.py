@@ -76,7 +76,7 @@ TRANSITIONS: Dict[str, List[str]] = {
     "queued":               ["sds_phase1_running", "failed", "cancelled"],
 
     "sds_phase1_running":   ["sds_phase1_complete", "waiting_br_validation", "failed"],
-    "sds_phase1_complete":  ["sds_phase2_running"],
+    "sds_phase1_complete":  ["sds_phase2_running", "waiting_br_validation"],
     "waiting_br_validation": ["sds_phase2_running", "cancelled"],
 
     "sds_phase2_running":   ["sds_phase2_complete", "failed"],
@@ -179,6 +179,7 @@ class ExecutionStateMachine:
         current = execution.execution_state or "draft"
 
         if target not in TRANSITIONS.get(current, []):
+            self.db.rollback()  # BUG-002b: release FOR UPDATE lock on invalid transition
             raise InvalidTransitionError(current, target)
 
         # Update state
