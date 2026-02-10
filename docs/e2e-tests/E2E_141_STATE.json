@@ -1,0 +1,146 @@
+{
+  "execution_id": 141,
+  "project_id": 92,
+  "project_name": "ImmoPrime",
+  "test_date": "2026-02-10",
+  "session_range": "12:28 - 14:42 UTC",
+  "final_status": "STUCK_PHASE5",
+  "last_known_state": {
+    "db_status": "WAITING_ARCHITECTURE_VALIDATION",
+    "db_execution_state": "sds_phase3_running",
+    "actual_state": "Phase 5 crashed after Phase 4 completed",
+    "progress_db": 74,
+    "current_agent_db": "architect",
+    "note": "DB state is stale due to BUG-006 (flush vs commit) and BUG-011 (missing phase4 transitions)"
+  },
+  "phases_completed": {
+    "phase1_br_extraction": {
+      "status": "PASS",
+      "agent": "Sophie (PM)",
+      "result": "30 BRs from existing validated set",
+      "note": "Re-used from execution 140"
+    },
+    "phase2_use_cases": {
+      "status": "PASS",
+      "agent": "Olivia (BA)",
+      "result": "136 UCs generated (15 batches)",
+      "note": "8 fewer than previous run (144) due to LLM non-determinism"
+    },
+    "phase2_5_uc_digest": {
+      "status": "PASS",
+      "agent": "Emma (Research Analyst)",
+      "result": "UC digest generated from 136 UCs"
+    },
+    "phase3_architecture": {
+      "status": "PASS_WITH_HITL",
+      "agent": "Marcus (Architect)",
+      "sub_phases": {
+        "as_is": "PASS",
+        "gap": "PASS",
+        "design": "PASS",
+        "wbs": "PASS",
+        "coverage_validation": {
+          "initial_score": 61.2,
+          "threshold": 70,
+          "auto_revisions": 2,
+          "final_score": 61.2,
+          "result": "HITL gate triggered, manually approved via API"
+        }
+      }
+    },
+    "phase3_post_approve": {
+      "status": "PASS",
+      "gap_analysis": "Completed (238s, 64K tokens)",
+      "wbs": "Completed (~5min)"
+    },
+    "phase4_expert_specs": {
+      "status": "PASS",
+      "agents_parallel": [
+        {"agent": "Lucas (Trainer)", "mode": "sds_strategy", "elapsed": "~1m30"},
+        {"agent": "Aisha (Data)", "mode": "data_spec", "elapsed": "~1m50"},
+        {"agent": "Jordan (DevOps)", "mode": "devops_spec", "elapsed": "~2m00"},
+        {"agent": "Elena (QA)", "mode": "qa_spec", "elapsed": "~2m20"}
+      ],
+      "note": "First time Phase 4 completed in E2E test series"
+    },
+    "phase5_sds_compilation": {
+      "status": "CRASHED",
+      "crash_point": "LLM call for sectioned SDS generation",
+      "error": "asyncio.run() cannot be called from a running event loop",
+      "detail": "LLM Router V3 failed, V1 fallback also failed due to async incompatibility",
+      "state_machine_error": "Invalid transition: sds_phase3_running → sds_phase5_running (missing phase4 transitions)"
+    }
+  },
+  "bugs_fixed_this_session": [
+    {
+      "id": "BUG-005",
+      "title": "_map_to_legacy_status returns raw strings instead of ExecutionStatus enum",
+      "commit": "860993e",
+      "verified": true,
+      "detail": "Progress endpoint crashed with LookupError when deserializing waiting_* states"
+    },
+    {
+      "id": "BUG-009",
+      "title": "Coverage gap join TypeError — gaps are dicts not strings",
+      "commit": "bc38da1",
+      "verified": true,
+      "detail": "Marcus revision prompt crashed when joining coverage gap dicts"
+    }
+  ],
+  "bugs_discovered_this_session": [
+    {
+      "id": "BUG-011",
+      "title": "State machine missing phase4 transitions in resume_from_architecture_validation",
+      "severity": "HIGH",
+      "detail": "resume_from_architecture_validation starts from sds_phase3_running but tries sds_phase4_running/sds_phase4_complete/sds_phase5_running — all blocked by state machine. Transitions VALID_TRANSITIONS needs: sds_phase3_running → sds_phase4_running → sds_phase4_complete → sds_phase5_running",
+      "file": "backend/app/services/execution_state.py (VALID_TRANSITIONS dict)"
+    },
+    {
+      "id": "BUG-012",
+      "title": "Phase 5 LLM call crash — asyncio.run() in active event loop",
+      "severity": "CRITICAL",
+      "detail": "Phase 5 (sectioned SDS) uses LLM Router V3 which calls asyncio.run() inside resume_from_architecture_validation (already async). V1 fallback also uses asyncio.run(). Result: silent crash, execution hangs.",
+      "file": "backend/app/services/llm_service.py:613"
+    },
+    {
+      "id": "ARCH-001",
+      "title": "Architecture revision feedback loop is empty",
+      "severity": "MEDIUM",
+      "detail": "Marcus receives coverage_gaps + revision_request text but: (1) called in mode=design (regenerates from scratch), (2) does not receive his previous architecture, (3) no structured checklist from Emma. Result: coverage stays at 61.2% across all revisions.",
+      "recommendation": "Create mode=revise, pass previous design + structured gap checklist"
+    }
+  ],
+  "bugs_still_open": [
+    {"id": "BUG-006", "title": "Progress flush vs commit — frontend shows stale state", "severity": "HIGH"},
+    {"id": "BUG-008", "title": "Ghost job retry — RQ retries completed/failed executions", "severity": "HIGH"},
+    {"id": "BUG-010", "title": "Resume always from phase2_ba — no granular checkpoint", "severity": "MEDIUM"},
+    {"id": "BUG-011", "title": "Missing phase4 state transitions", "severity": "HIGH"},
+    {"id": "BUG-012", "title": "Phase 5 async/sync LLM crash", "severity": "CRITICAL"}
+  ],
+  "cost_estimate": {
+    "this_session_usd": 5.50,
+    "cumulative_usd": 8.20,
+    "budget_usd": 20.00,
+    "remaining_usd": 11.80,
+    "note": "Includes ghost job waste (~$1.50). Actual useful work ~$4.00"
+  },
+  "next_steps": {
+    "option_1_quick": [
+      "Fix BUG-011: Add phase4 transitions to VALID_TRANSITIONS",
+      "Fix BUG-012: Use await instead of asyncio.run() in LLM Router fallback",
+      "Force execution 141 state to sds_phase4_complete",
+      "Resume Phase 5 only — no need to re-run Phase 1-4"
+    ],
+    "option_2_full_e2e": [
+      "Fix all open bugs (BUG-006, 008, 010, 011, 012)",
+      "New execution #142 from scratch",
+      "Full pipeline validation Phase 1→5"
+    ],
+    "recommended": "Option 1 first (complete 141), then Option 2 for clean validation"
+  },
+  "git_state": {
+    "branch": "main",
+    "last_commit": "860993e fix(BUG-005): _map_to_legacy_status returns ExecutionStatus enum not raw strings",
+    "uncommitted_changes": false
+  }
+}
