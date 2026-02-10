@@ -212,20 +212,25 @@ class ExecutionStateMachine:
         return target
 
     @staticmethod
-    def _map_to_legacy_status(state: str) -> str:
+    def _map_to_legacy_status(state: str):
         """Map granular state to legacy ExecutionStatus for backward compat."""
-        if state in ("draft",):
-            return "pending"
-        elif state in ("failed",):
-            return "failed"
-        elif state in ("cancelled",):
-            return "cancelled"
-        elif state.startswith("waiting_"):
-            return state
-        elif state in ("sds_complete", "build_complete", "deployed"):
-            return "completed"
-        else:
-            return "running"
+        from app.models.execution import ExecutionStatus
+        STATUS_MAP = {
+            "draft": ExecutionStatus.PENDING,
+            "failed": ExecutionStatus.FAILED,
+            "cancelled": ExecutionStatus.CANCELLED,
+            "waiting_br_validation": ExecutionStatus.WAITING_BR_VALIDATION,
+            "waiting_architecture_validation": ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION,
+            "waiting_expert_validation": ExecutionStatus.WAITING_EXPERT_VALIDATION,
+            "waiting_sds_validation": ExecutionStatus.WAITING_SDS_VALIDATION,
+            "waiting_build_validation": ExecutionStatus.WAITING_BUILD_VALIDATION,
+            "sds_complete": ExecutionStatus.COMPLETED,
+            "build_complete": ExecutionStatus.COMPLETED,
+            "deployed": ExecutionStatus.COMPLETED,
+        }
+        if state in STATUS_MAP:
+            return STATUS_MAP[state]
+        return ExecutionStatus.RUNNING
 
     def get_current_phase_number(self) -> int:
         """Get current SDS phase number (1-5) for frontend timeline."""
