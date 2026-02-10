@@ -154,5 +154,28 @@
     "Ollama inactive but not needed for SDS pipeline",
     "First E2E since Horizon 2-3 mega-merge (10 commits, 7 parallel streams)",
     "BUG-002: Critical deadlock fix in StateMachine - added auto-commit after transition_to()"
-  ]
+  ],
+  "cost_benchmarks": {
+    "measured_date": "2026-02-10",
+    "source": "Anthropic console actuals",
+    "feb9_2runs_actual": {
+      "sonnet_45": 5.91,
+      "sonnet_4": 0.73,
+      "opus_45": 0.22,
+      "haiku_45": 0.38,
+      "total": 7.24,
+      "per_run_avg": 3.62,
+      "projects": "ImmoPrime (456K tokens) + FormaPro (171K tokens)"
+    },
+    "feb10_current_run": {
+      "sonnet_45": 2.46,
+      "opus_45": 0.21,
+      "total_so_far": 2.67,
+      "note": "Run 2 in progress (re-doing Olivia after BUG-009 crash)"
+    },
+    "estimated_full_e2e": 3.62,
+    "budget_total": 20.0,
+    "spent_feb10": 2.67,
+    "remaining": 17.33
+  }
 }
