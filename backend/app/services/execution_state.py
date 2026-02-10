@@ -162,7 +162,7 @@ class ExecutionStateMachine:
 
     def transition_to(self, target: str, metadata: Optional[dict] = None) -> str:
         """
-        Transition to a new state. Transactional — caller must commit.
+        Transition to a new state. Auto-commits to release row lock.
 
         Args:
             target: Target state name
@@ -175,7 +175,7 @@ class ExecutionStateMachine:
             InvalidTransitionError: if transition is not allowed
             ValueError: if execution not found
         """
-        execution = self._get_execution()  # Row lock
+        execution = self._get_execution()  # Row lock (FOR UPDATE)
         current = execution.execution_state or "draft"
 
         if target not in TRANSITIONS.get(current, []):
@@ -189,6 +189,7 @@ class ExecutionStateMachine:
         execution.status = self._map_to_legacy_status(target)
 
         # Store transition in history
+        from sqlalchemy.orm.attributes import flag_modified
         history = list(execution.state_history or [])
         history.append({
             "from": current,
@@ -197,6 +198,12 @@ class ExecutionStateMachine:
             "metadata": metadata,
         })
         execution.state_history = history
+        flag_modified(execution, "state_history")
+
+        # BUG-002 fix: Auto-commit to release FOR UPDATE lock immediately.
+        # Prevents deadlocks with audit_service or other sessions that
+        # reference executions via FK constraints.
+        self.db.commit()
 
         logger.info(
             f"[StateMachine] Execution {self.execution_id}: {current} → {target}"
