@@ -2813,6 +2813,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         self._save_checkpoint(execution, "phase3_wbs")
         self._update_progress(execution, "architect", "completed", 78, "Architecture complete (resume)")
 
+        # BUG-011 fix: Transition to phase3_complete before entering phase4
+        try:
+            sm.transition_to("sds_phase3_complete")
+        except Exception as e:
+            logger.warning(f"[StateMachine] transition to sds_phase3_complete failed: {e}")
+
         # Continue with Phase 4, 5, 6 via extracted helper
         selected_agents = execution.selected_agents
         if isinstance(selected_agents, str):

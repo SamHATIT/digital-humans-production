@@ -639,6 +639,45 @@ class LLMRouterService:
             "error": response.error
         }
 
+    # BUG-012 fix: Async version of generate() for callers already in async context
+    async def generate_async(
+        self,
+        prompt: str,
+        agent_type: str = "worker",
+        system_prompt: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.3,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Async version of generate(). Calls self.complete() directly with await.
+        Use this from async contexts to avoid asyncio.run() crash (BUG-012).
+        """
+        request = LLMRequest(
+            prompt=prompt,
+            agent_type=agent_type,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            project_id=kwargs.get("project_id"),
+            execution_id=kwargs.get("execution_id")
+        )
+
+        response = await self.complete(request)
+
+        return {
+            "content": response.content,
+            "model": response.model_id,
+            "provider": response.provider,
+            "tokens_used": response.tokens_in + response.tokens_out,
+            "input_tokens": response.tokens_in,
+            "output_tokens": response.tokens_out,
+            "cost_usd": response.cost_usd,
+            "latency_ms": response.latency_ms,
+            "success": response.success,
+            "error": response.error
+        }
+
 
 # Singleton instance
 _router_instance: Optional[LLMRouterService] = None

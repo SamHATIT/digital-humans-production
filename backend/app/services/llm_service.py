@@ -625,6 +625,59 @@ def _generate_llm_response_inner(
     )
 
 
+# BUG-012 fix: Async version for callers already in async context (e.g. sds_section_writer)
+async def generate_llm_response_async(
+    prompt: str,
+    agent_type: str = "worker",
+    system_prompt: Optional[str] = None,
+    **kwargs
+) -> Dict[str, Any]:
+    """
+    Async version of generate_llm_response().
+    Uses router.generate_async() to avoid asyncio.run() crash in async contexts.
+    Falls back to running sync V1 in a thread if router V3 unavailable.
+    """
+    import asyncio
+
+    # --- P6: try Router V3 async ---
+    router = _get_router_v3()
+    if router is not None:
+        try:
+            kw = dict(kwargs)
+            kw.pop('model_override', None)
+            if 'model' in kw:
+                kw.pop('model')
+            if 'provider' in kw:
+                provider_val = kw.pop('provider')
+                provider_str = provider_val.value if hasattr(provider_val, 'value') else str(provider_val)
+
+            response = await router.generate_async(
+                prompt=prompt,
+                agent_type=agent_type,
+                system_prompt=system_prompt,
+                max_tokens=kw.pop('max_tokens', 16000),
+                temperature=kw.pop('temperature', 0.7),
+                **{k: v for k, v in kw.items() if k in ('project_id', 'execution_id')},
+            )
+            if response.get("success") is not False:
+                return response
+            logger.warning("Router V3 async returned success=False, falling back to V1 sync in thread")
+        except Exception as exc:
+            logger.warning("Router V3 async call failed, falling back to V1: %s", exc)
+
+    # --- V1 fallback: run sync version in thread to avoid loop conflict ---
+    if 'model' in kwargs:
+        kwargs['model_override'] = kwargs.pop('model')
+
+    return await asyncio.to_thread(
+        get_llm_service().generate,
+        prompt=prompt,
+        agent_type=agent_type,
+        system_prompt=system_prompt,
+        **kwargs
+    )
+
+
 if __name__ == "__main__":
     # Test the service
     logging.basicConfig(level=logging.INFO)

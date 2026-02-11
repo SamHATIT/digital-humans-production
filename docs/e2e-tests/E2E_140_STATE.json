@@ -68,8 +68,8 @@
       "severity": "HIGH",
       "phase": "phase3_pipeline",
       "description": "PostgreSQL enum executionstatus missing waiting_* values causes KeyError crash on progress endpoint \u2014 frontend shows \"Request failed\"",
-      "fix": "Needs _map_to_legacy_status to only return known ExecutionStatus enum values, not raw state strings",
-      "status": "OPEN",
+      "fix": "_map_to_legacy_status returns ExecutionStatus enum not raw strings (commit 860993e)",
+      "status": "FIXED",
       "category": "backend"
     },
     {
@@ -147,6 +147,22 @@
       "fix": "SalesforceConfig must be instantiated per-project using project.sf_* fields. _get_salesforce_metadata should receive project context.",
       "status": "OPEN",
       "category": "security/multi-tenancy"
+    },
+    {
+      "id": "UX-004",
+      "severity": "MEDIUM",
+      "phase": "phase3_pipeline",
+      "description": "HITL gates (BR, Architecture, Expert) need: 1) viewer showing agent output (architecture design, BRs, etc.) so user sees what they approve/revise, 2) text field for revision instructions passed to agent. Currently approve/revise are blind actions.",
+      "status": "BACKLOG",
+      "category": "frontend/UX"
+    },
+    {
+      "id": "ARCH-003",
+      "severity": "HIGH",
+      "phase": "phase3_pipeline",
+      "description": "Marcus revision loop ineffective \u2014 called in mode=design (regenerates from scratch) instead of mode=revise with previous output + structured checklist from Emma. Coverage stays identical (61.2%) across all revisions.",
+      "status": "BACKLOG",
+      "category": "backend/architecture"
     }
   ],
   "notes": [

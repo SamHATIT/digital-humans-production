@@ -68,7 +68,7 @@ async def generate_uc_section_batched(
     Returns:
         Dict with keys: content (str), tokens_used (int), batch_count (int)
     """
-    from app.services.llm_service import generate_llm_response
+    from app.services.llm_service import generate_llm_response_async
 
     total_ucs = len(all_ucs)
     total_batches = (total_ucs + UC_BATCH_SIZE - 1) // UC_BATCH_SIZE
@@ -138,7 +138,7 @@ Use Cases for this batch:
 {json.dumps(batch, indent=2, ensure_ascii=False)}
 """
         try:
-            response = generate_llm_response(
+            response = await generate_llm_response_async(
                 prompt=batch_prompt,
                 agent_type="research",
                 system_prompt=section_system_prompt,
