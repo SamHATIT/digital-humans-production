@@ -14,6 +14,13 @@ async def execute_sds_task(ctx, execution_id: int, project_id: int,
     """ARQ task: Execute SDS workflow in isolated worker process."""
     db = SessionLocal()
     try:
+        # BUG-008: Ghost job guard — skip if execution already completed/failed
+        from app.models.execution import Execution, ExecutionStatus
+        execution = db.query(Execution).get(execution_id)
+        if execution and execution.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED):
+            logger.warning(f"[ARQ] Ghost job detected for exec {execution_id} (status={execution.status.value}), skipping")
+            return {"skipped": True, "reason": "ghost_job", "execution_id": execution_id}
+
         service = PMOrchestratorServiceV2(db)
         result = await service.execute_workflow(
             execution_id=execution_id,
@@ -48,6 +55,13 @@ async def resume_architecture_task(ctx, execution_id: int, project_id: int, acti
     """ARQ task: Resume from architecture validation pause."""
     db = SessionLocal()
     try:
+        # BUG-008: Ghost job guard
+        from app.models.execution import Execution, ExecutionStatus
+        execution = db.query(Execution).get(execution_id)
+        if execution and execution.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED):
+            logger.warning(f"[ARQ] Ghost resume detected for exec {execution_id} (status={execution.status.value}), skipping")
+            return {"skipped": True, "reason": "ghost_job", "execution_id": execution_id}
+
         service = PMOrchestratorServiceV2(db)
         result = await service.resume_from_architecture_validation(
             execution_id=execution_id,

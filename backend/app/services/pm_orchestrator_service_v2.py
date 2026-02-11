@@ -250,6 +250,23 @@ class PMOrchestratorServiceV2:
                 }
             }
             
+            # BUG-010: Auto-resume from last checkpoint if execution was previously running
+            if not resume_from and execution.last_completed_phase:
+                last_phase = execution.last_completed_phase
+                # Map checkpoints to resume points
+                checkpoint_map = {
+                    "phase1_pm": "phase2",
+                    "phase2_ba": "phase3",
+                    "phase2_5_emma": "phase3",
+                    "phase3_3_coverage_gate": "phase3",  # complex, restart phase3
+                    "phase3_wbs": "phase4",
+                    "phase5_write_sds": "phase5",  # shouldn't happen but safety
+                }
+                auto_resume = checkpoint_map.get(last_phase)
+                if auto_resume:
+                    logger.info(f"[BUG-010] Auto-resuming from checkpoint '{last_phase}' → resume_from='{auto_resume}'")
+                    resume_from = auto_resume
+
             # Resume support: Phase 1 (BR validation)
             # Architecture validation resume uses dedicated resume_from_architecture_validation method
 
@@ -1332,7 +1349,7 @@ class PMOrchestratorServiceV2:
         flag_modified(execution, "agent_execution_status")
         # P7: Protect progress flush — rollback on failure to keep session usable
         try:
-            self.db.flush()
+            self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
         except Exception as e:
             logger.warning(f"Failed to flush progress update for {agent_id}: {e}")
             self.db.rollback()
@@ -1390,7 +1407,7 @@ class PMOrchestratorServiceV2:
                 created_at=datetime.now(timezone.utc)
             )
             self.db.add(deliverable)
-            self.db.flush()
+            self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
             logger.info(f"✅ Saved deliverable: {agent_id}_{deliverable_type} (execution {execution_id})")
         except Exception as e:
             logger.error(f"❌ Failed to save deliverable {agent_id}_{deliverable_type}: {e}")
@@ -1455,7 +1472,7 @@ class PMOrchestratorServiceV2:
                 execution_time_seconds=execution_time
             )
             self.db.add(item)
-            self.db.flush()
+            self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
             logger.debug(f"Saved item {item_id} (parse_success={parse_success})")
             return True
         except Exception as e:
@@ -1644,7 +1661,7 @@ class PMOrchestratorServiceV2:
                     created_at=datetime.now(timezone.utc)
                 )
                 self.db.add(gate)
-            self.db.flush()
+            self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
         except Exception as e:
             logger.warning(f"Could not initialize gates: {e}")
             self.db.rollback()
@@ -1671,7 +1688,7 @@ class PMOrchestratorServiceV2:
                 else:
                     gate.status = "in_progress"
 
-                self.db.flush()
+                self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
         except Exception as e:
             logger.warning(f"Gate update failed: {e}")
 
@@ -1848,7 +1865,7 @@ See WBS-001 artifact for details.
             self.db.add(br_record)
             saved_count += 1
 
-        self.db.flush()
+        self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
         logger.info(f"Saved {saved_count} BRs to database for validation")
         return saved_count
 
