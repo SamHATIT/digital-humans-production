@@ -63,7 +63,7 @@ except ImportError:
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC -> Architecture)
 # ============================================================================
-def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None) -> str:
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None, previous_design: dict = None) -> str:
     """
     Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
     UC Digest provides pre-analyzed, structured information about ALL use cases.
@@ -100,6 +100,24 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
                 revision_context += f"- ... and {len(uncovered_use_cases) - 5} more\n"
 
         revision_context += "\n**Instructions**: Update your solution design to ensure ALL above gaps are addressed.\n\n"
+
+        # ARCH-001: Inject previous design so Marcus revises instead of regenerating
+        if previous_design:
+            import json
+            prev_json = json.dumps(previous_design, indent=2, ensure_ascii=False)
+            # Truncate if very large (keep first 12K chars)
+            if len(prev_json) > 12000:
+                prev_json = prev_json[:12000] + "\n... [truncated]"
+            revision_context += f"""## YOUR PREVIOUS DESIGN (REVISE, do NOT regenerate from scratch)
+
+```json
+{prev_json}
+```
+
+CRITICAL: The JSON above is your previous output. UPDATE it by adding/fixing the elements listed in Coverage Gaps.
+Do NOT discard existing content — KEEP everything that was correct and ADD what is missing.
+
+"""
 
     # EMMA INTEGRATION: Use UC Digest if available (preferred)
     if uc_digest and uc_digest.get('by_requirement'):
@@ -197,42 +215,172 @@ Create a **High-Level Solution Design** from the Use Cases provided.
 {rag_section}
 
 ## OUTPUT FORMAT (JSON)
-Generate a solution design with:
-- "artifact_id": "ARCH-001"
-- "title": "Solution Design Specification"
-- "data_model": Object with:
-  - "standard_objects": Array of objects, each with: {{"api_name": "Case", "purpose": "...", "customizations": [...]}}
-  - "custom_objects": Array of objects, each with: {{"api_name": "Error_Log__c", "purpose": "...", "fields": [...]}}
-  - "relationships": Array of object relationships
-  - "erd_mermaid": ERD diagram in Mermaid syntax
-- "security_model": Object with:
-  - "profiles": Array of profiles needed
-  - "permission_sets": Array of permission sets
-  - "sharing_rules": Summary of sharing approach
-  - "field_level_security": Key FLS considerations
-- "automation_design": Object with:
-  - "flows": Array of Flows with purpose
-  - "triggers": Array of Apex triggers if needed
-  - "scheduled_jobs": Array of batch/scheduled processes
-- "integration_points": Array of external integrations with:
-  - "system": External system name
-  - "direction": Inbound/Outbound/Bidirectional
-  - "method": API type (REST, SOAP, etc.)
-  - "frequency": Real-time, Batch, etc.
-- "ui_components": Object with:
-  - "lightning_pages": Array of custom pages
-  - "lwc_components": Array of LWC needed
-  - "quick_actions": Array of actions
-- "technical_considerations": Array of key technical decisions
-- "risks": Array of technical risks identified
+
+Generate a solution design. Output ONLY valid JSON matching this structure:
+
+{{{{
+  "artifact_id": "ARCH-001",
+  "title": "Solution Design Specification",
+
+  "data_model": {{{{
+    "standard_objects": [
+      {{{{"api_name": "Case", "label": "...", "purpose": "...", "custom_fields": [{{{{"api_name": "Field__c", "type": "Picklist", "values": ["A","B"], "required": true, "description": "..."}}}}], "record_types": [{{{{"name": "...", "description": "..."}}}}]}}}}
+    ],
+    "custom_objects": [
+      {{{{"api_name": "Error_Log__c", "label": "...", "purpose": "...", "sharing_model": "Private", "fields": [{{{{"api_name": "...", "type": "Text(255)|Number(10,0)|Picklist|Lookup(Target)|LongTextArea(32000)|Checkbox|DateTime|Currency", "required": false, "description": "..."}}}}], "indexes": ["Field__c"], "relationships": [{{{{"field": "Related__c", "type": "Lookup|MasterDetail", "target": "Object", "cascade_delete": false}}}}]}}}}
+    ],
+    "relationships": [{{{{"from": "Child__c", "to": "Parent", "type": "Lookup", "field": "Parent__c", "cardinality": "Many-to-One"}}}}],
+    "erd_mermaid": "erDiagram\n  Parent ||--o{{ Child__c : has\n  ..."
+  }}}},
+
+  "security_model": {{{{
+    "profiles": [{{{{"name": "Service Agent", "description": "...", "license": "Salesforce"}}}}],
+    "permission_sets": [
+      {{{{
+        "api_name": "PS_Name",
+        "label": "...",
+        "description": "...",
+        "object_permissions": [
+          {{{{"object": "Custom_Object__c", "create": true, "read": true, "edit": true, "delete": false, "view_all": false, "modify_all": false}}}}
+        ],
+        "field_permissions": [
+          {{{{"object": "Case", "field": "Internal__c", "readable": true, "editable": false}}}}
+        ]
+      }}}}
+    ],
+    "sharing_rules": [{{{{"name": "...", "object": "Case", "type": "Criteria-Based", "criteria": "...", "shared_with": "...", "access": "Read/Write"}}}}],
+    "owd": [{{{{"object": "Case", "internal": "Private", "external": "Private"}}}}]
+  }}}},
+
+  "automation_design": {{{{
+    "flows": [
+      {{{{
+        "api_name": "Flow_API_Name",
+        "label": "...",
+        "type": "Record-Triggered Flow|Screen Flow|Scheduled Flow|Autolaunched Flow",
+        "trigger": {{{{"object": "Case", "event": "After Create|Before Save|Scheduled", "condition": "Status = 'New'"}}}},
+        "uc_refs": ["UC-001-01"],
+        "elements": [
+          {{{{"type": "Get Records", "object": "Object__c", "filter": "Active__c = true", "purpose": "..."}}}},
+          {{{{"type": "Decision", "name": "Check_Condition", "conditions": [{{{{"label": "Match", "criteria": "..."}}}}, {{{{"label": "Default", "criteria": "Default"}}}}]}}}},
+          {{{{"type": "Create Records", "object": "Case", "field_assignments": [{{{{"field": "Status", "value": "New"}}}}, {{{{"field": "Origin", "source": "$Record.Channel__c"}}}}]}}}},
+          {{{{"type": "Update Records", "object": "$Record", "field_assignments": [{{{{"field": "Processed__c", "value": "true"}}}}]}}}}
+        ],
+        "error_handling": "Fault path -> Create Error_Log__c with error details"
+      }}}}
+    ],
+    "apex_triggers": [
+      {{{{"name": "ObjectTrigger", "object": "Case", "events": ["before insert", "after insert"], "handler_class": "ObjectTriggerHandler", "uc_refs": ["UC-001-03"], "logic_summary": "..."}}}}
+    ],
+    "scheduled_jobs": [
+      {{{{"name": "CleanupJob", "type": "Schedulable Apex|Batch Apex", "schedule": "Daily 2:00 AM", "purpose": "...", "batch_size": 200}}}}
+    ],
+    "platform_events": [
+      {{{{"api_name": "Event__e", "purpose": "...", "fields": [{{{{"api_name": "Record_Id__c", "type": "Text(18)"}}}}]}}}}
+    ]
+  }}}},
+
+  "integration_points": [
+    {{{{
+      "name": "External System API",
+      "system": "System Name",
+      "direction": "Inbound|Outbound|Bidirectional",
+      "method": "REST|SOAP|Platform Event|Streaming",
+      "frequency": "Real-time|Batch|Scheduled",
+      "uc_refs": ["UC-003-01"],
+      "auth": {{{{"type": "OAuth 2.0|API Key|Certificate", "grant": "Authorization Code|Client Credentials", "scopes": ["scope1"]}}}},
+      "endpoint_spec": {{{{
+        "url_pattern": "/api/v1/resource",
+        "payload_format": "JSON|XML",
+        "key_fields": ["field1", "field2"],
+        "response_codes": {{{{"200": "Success", "400": "Bad Request", "401": "Auth Failed", "429": "Rate Limited"}}}}
+      }}}},
+      "error_handling": {{{{"retry_strategy": "Exponential backoff, max 3", "dead_letter": "Error_Log__c"}}}},
+      "rate_limits": {{{{"requests_per_day": 10000}}}},
+      "named_credential": "Credential_Name"
+    }}}}
+  ],
+
+  "ui_components": {{{{
+    "lightning_apps": [{{{{"name": "App_Name", "type": "Console App|Standard App", "tabs": ["Case", "Custom__c"], "utility_bar": ["History", "Macros"]}}}}],
+    "lightning_pages": [{{{{"name": "Record_Page", "type": "Record Page", "object": "Case", "layout": "2 regions description", "components": ["lwcName", "Related Lists"]}}}}],
+    "lwc_components": [
+      {{{{
+        "name": "componentName",
+        "purpose": "...",
+        "uc_refs": ["UC-001-01"],
+        "target": "lightning__RecordPage (Case)|lightning__AppPage|lightning__HomePage",
+        "api_properties": [
+          {{{{"name": "recordId", "type": "String", "decorator": "@api"}}}},
+          {{{{"name": "fieldValue", "type": "String", "wire": "getRecord(Object.Field__c)"}}}}
+        ],
+        "wire_adapters": ["getRecord|getRelatedListRecords|apex method"],
+        "events_fired": ["CustomEvent names"],
+        "events_handled": ["CustomEvent names"],
+        "child_components": ["childComponent"],
+        "design_notes": "Key implementation detail"
+      }}}}
+    ],
+    "quick_actions": [{{{{"name": "Object.Action_Name", "type": "Screen Flow|LWC", "flow_name": "Flow_Name"}}}}]
+  }}}},
+
+  "reporting": {{{{
+    "reports": [
+      {{{{"name": "Report_Name", "type": "Summary|Tabular|Matrix", "object": "Case", "grouping": ["Field1", "Field2"], "filters": ["CreatedDate = THIS_YEAR"], "charts": ["Bar Chart"]}}}},
+    ],
+    "dashboards": [
+      {{{{"name": "Dashboard_Name", "components": [{{{{"title": "...", "report": "Report_Name", "type": "Donut Chart|Gauge|Table"}}}}]}}}}
+    ]
+  }}}},
+
+  "uc_traceability": {{{{
+    "UC-001-01": ["Flow_Name (Flow)", "Field__c (Field)", "componentName (LWC)"],
+    "UC-002-01": ["ApexClass (Apex)", "PermissionSet (Security)"]
+  }}}},
+
+  "queues": [
+    {{{{"name": "Queue_Name", "object": "Case", "members_type": "Role|Public Group", "members": ["Role_Name"]}}}}
+  ],
+
+  "technical_considerations": [
+    {{{{"topic": "Governor Limits|Data Volume|Performance", "consideration": "...", "mitigation": "..."}}}}
+  ],
+
+  "risks": [
+    {{{{"risk": "...", "probability": "Low|Medium|High", "impact": "Low|Medium|High", "mitigation": "...", "uc_refs": ["UC-001-01"]}}}}
+  ]
+}}}}
+
+## DEPTH REQUIREMENTS — CRITICAL
+
+Your architecture MUST be detailed enough for BUILD agents using Haiku to implement WITHOUT improvising.
+
+### What scores 90%+ (REQUIRED):
+1. **Flows**: MUST include `elements` array with specific types (Get Records, Decision, Create Records, Update Records, Assignment). Each element: object, filter/criteria, field_assignments.
+2. **LWC**: MUST include `api_properties` with decorators (@api/@wire/@track), `wire_adapters`, events, child components.
+3. **Security**: MUST include `object_permissions` with CRUD booleans per object per permission set. MUST include `owd` per object.
+4. **Integrations**: MUST include `auth`, `endpoint_spec` (URL, payload, response codes), `error_handling`, `rate_limits`.
+5. **Reporting**: At least 3 reports with object/grouping/filters. At least 1 dashboard.
+6. **UC Traceability**: `uc_traceability` mapping EVERY UC-ID to implementing components. No orphan UCs.
+7. **Queues**: Define all queues referenced by routing flows.
+
+### What scores below 50% (AVOID):
+- `"flows": [{{"name": "Process", "purpose": "Process things"}}]` — NO elements, NO trigger
+- `"permission_sets": ["Manager"]` — Just a name, no CRUD matrix
+- `"lwc_components": ["indicator"]` — No properties, no wire, no target
+- `"integration_points": [{{"system": "API", "method": "REST"}}]` — No auth, no endpoints
 
 ## RULES
 1. Use Salesforce standard objects before creating custom ones
 2. Prefer declarative (Flows) over code (Apex) where possible
-3. Follow Salesforce naming conventions
+3. Follow Salesforce naming conventions (API names with __c suffix for custom)
 4. Consider governor limits in design
 5. ERD must use valid Mermaid erDiagram syntax
-6. Be specific about object and field API names
+6. Be specific about object and field API names — never use placeholders
+7. EVERY Flow must have an `elements` array — never just a name and purpose
+8. EVERY LWC must have `api_properties` — never just a name
+9. EVERY integration must have `auth` and `endpoint_spec`
+10. EVERY UC must appear in `uc_traceability`
 
 ---
 
@@ -431,41 +579,61 @@ Each task MUST have validation criteria and clear agent assignment.
 
 ## OUTPUT FORMAT (JSON - STRICT)
 
-```json
 {{
   "artifact_id": "WBS-001",
   "title": "Work Breakdown Structure",
   "phases": [
     {{
       "id": "PHASE-01",
-      "name": "Phase name",
+      "name": "Foundation — Data Model & Security",
       "duration_weeks": 2,
+      "entry_criteria": "Scratch Org provisioned, SFDX project initialized",
+      "exit_criteria": "All objects deployed, SOQL queries return expected schema",
       "tasks": [
         {{
           "id": "TASK-001",
-          "name": "Task name (action verb + object)",
-          "description": "Brief description (1-2 sentences max)",
+          "name": "Create Custom_Object__c object with N fields",
           "task_type": "dev_data_model",
           "gap_refs": ["GAP-001-01"],
+          "uc_refs": ["UC-001-01", "UC-001-02"],
           "assigned_agent": "Raj",
-          "effort_days": 2,
+          "effort_days": 1.5,
           "dependencies": [],
-          "deliverables": ["Deliverable 1"],
+          "priority": "P1",
+          "implementation_spec": {{
+            "object_api_name": "Custom_Object__c",
+            "label": "Custom Object",
+            "sharing_model": "Private|ControlledByParent|ReadWrite",
+            "fields": [
+              {{"api_name": "Field__c", "type": "Picklist", "values": ["A","B","C"], "required": true}},
+              {{"api_name": "Ref__c", "type": "Lookup(Parent)", "required": false}},
+              {{"api_name": "Body__c", "type": "LongTextArea(32000)", "required": false}}
+            ],
+            "indexes": ["External_ID__c"],
+            "page_layout": "Default with field groupings"
+          }},
+          "deliverables": ["Object with N fields deployed", "Page layout configured"],
           "validation_criteria": [
-            "DONE WHEN: [specific measurable outcome]",
-            "VERIFIED BY: [how Elena/reviewer checks it]"
+            "DONE WHEN: All N fields visible in Object Manager with correct types",
+            "VERIFIED BY: SFDX force:source:retrieve, check metadata XML"
           ],
-          "test_approach": "Unit test / Manual test / UAT"
+          "test_approach": "Manual verification in Setup + SOQL"
         }}
       ]
     }}
   ],
-  "milestones": [...],
-  "resource_allocation": {{...}},
-  "critical_path": ["TASK-001", "TASK-005", ...],
-  "risks_and_mitigations": [...]
+  "milestones": [
+    {{"id": "MS-01", "name": "Data Model Complete", "target_date": "End of Phase 1", "criteria": "All objects deployed"}}
+  ],
+  "resource_allocation": {{
+    "Raj": {{"task_count": 18, "effort_days": 15, "percentage": "35%"}},
+    "Diego": {{"task_count": 8, "effort_days": 12, "percentage": "20%"}}
+  }},
+  "critical_path": ["TASK-001", "TASK-005", "TASK-015"],
+  "risks_and_mitigations": [
+    {{"risk": "...", "probability": "Medium", "impact": "High", "mitigation": "..."}}
+  ]
 }}
-```
 
 ## AVAILABLE AGENTS (ONLY these 8)
 
@@ -535,16 +703,42 @@ Each task MUST have 1-3 validation_criteria using this format:
 - "DONE WHEN: Task is complete" (too vague)
 - "VERIFIED BY: Check it works" (not specific)
 
+## IMPLEMENTATION_SPEC RULES — CRITICAL FOR BUILD AGENTS
+
+Each task MUST include an `implementation_spec` with enough detail for Haiku to implement WITHOUT improvising:
+
+**dev_data_model**: Full field list (api_name, type, picklist values, required, indexes, relationships, page_layout)
+**dev_flow**: flow_api_name, type, trigger (object/event/condition), `elements_sequence` array with EVERY element in order (type, label, object, filter, field_assignments), fault_path
+**dev_lwc**: component_name, target, api_properties (name/type/decorator), wire_adapters (adapter/object/fields), computed_properties, html_structure, css_notes, test_coverage
+**dev_apex**: class_name, type (REST Resource/Trigger Handler/Batch/Schedulable), processing_logic (numbered steps), error_handling, test_class with test_scenarios, governor_considerations
+**config_profiles**: permission_set_api_name, object_permissions (CRUD matrix with 6 booleans per object), field_permissions, tab_visibility
+**dev_validation**: rule_name, object, formula, error_message, active_flag
+**config_sharing**: rule details, criteria, access level
+**config_reports**: report_name, type, object, grouping, filters, charts
+
+### What Haiku CANNOT do (spec must be explicit):
+1. Invent field names — if spec lacks field_assignments, Haiku uses random names
+2. Choose Flow elements — if spec says "Process X" without Get Records/Decision/Create, Haiku skips steps
+3. Design CRUD matrices — if spec says "Create permission set", Haiku grants all or misses objects
+4. Map wire adapters — if spec says "Create LWC" without fields, Haiku won't wire correctly
+5. Handle errors — if spec omits fault_path/try-catch, Haiku won't add them
+
+### Task naming: action verb + specific object
+GOOD: "Create Property__c object with 12 fields", "Build Email_Processing Record-Triggered Flow"
+BAD: "Set up the data model", "Create flows"
+
 ## GENERAL RULES
 
 1. **Every task has task_type** - MUST be one from the TASK TYPES table above
-2. **30-60 tasks** total - fewer means too coarse, more means micromanagement
-2. **Max 10 tasks per phase** - split large phases
-3. **Every task has validation_criteria** - NO exceptions
-4. **Respect dependencies** - no circular refs
-5. **Balance workload** - no agent should have >40% of tasks
-6. **Include test tasks** - at least 15% of tasks should be Elena's
-7. **Include deploy tasks** - at least 5% of tasks should be Jordan's
+2. **Every task has implementation_spec** - NO exceptions, this is what BUILD agents receive
+3. **Every task has uc_refs** - traceability to Use Cases
+4. **30-60 tasks** total - fewer means too coarse, more means micromanagement
+5. **Max 10 tasks per phase** - split large phases
+6. **Every task has validation_criteria** - NO exceptions
+7. **Respect dependencies** - no circular refs
+8. **Balance workload** - no agent should have >40% of tasks
+9. **Include test tasks** - at least 15% of tasks should be Elena's
+10. **Include deploy tasks** - at least 5% of tasks should be Jordan's
 
 ---
 
@@ -774,8 +968,10 @@ class SolutionArchitectAgent:
         logger.info(f"Mode: {mode}, prompt size: {len(prompt)} characters")
 
         # Call LLM
+        # V4: design/wbs/fix_gaps need more tokens for enriched output
+        max_out = 32000 if mode in ('design', 'wbs', 'fix_gaps') else 16000
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.4,
+            prompt, system_prompt, max_tokens=max_out, temperature=0.4,
             execution_id=execution_id
         )
 
@@ -837,11 +1033,13 @@ class SolutionArchitectAgent:
             else:
                 logger.info(f"No UC Digest, using raw UCs ({len(use_cases)} UCs)")
 
+            previous_design = input_data.get('previous_design', None)
             prompt = get_design_prompt(
                 use_cases, project_summary, rag_context, uc_digest,
                 coverage_gaps=coverage_gaps,
                 uncovered_use_cases=uncovered_use_cases,
-                revision_request=revision_request
+                revision_request=revision_request,
+                previous_design=previous_design
             )
             return prompt, "solution_design", "ARCH"
 

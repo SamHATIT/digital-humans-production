@@ -2651,19 +2651,26 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             self._update_progress(execution, "architect", "running", 70,
                                  f"Revising design (revision {revision_count})...")
 
+            # ARCH-001 fix: pass previous design + actual use cases for informed revision
+            previous_design = results["artifacts"].get("ARCHITECTURE", {}).get("content", {})
+            all_ucs_for_revision = self._get_use_cases(execution_id, limit=50)
+
             revision_result = await self._run_agent(
                 agent_id="architect",
                 mode="design",
                 input_data={
                     "project_summary": project.description or project.name or "",
-                    "use_cases": [],
+                    "use_cases": all_ucs_for_revision,
                     "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
                     "coverage_gaps": critical_gaps,
                     "uncovered_use_cases": uncovered_ucs,
+                    "previous_design": previous_design,
                     "revision_request": (
-                        f"Please revise the solution design to address "
-                        f"{len(critical_gaps)} coverage gaps affecting "
-                        f"{len(uncovered_ucs)} use cases."
+                        f"REVISION {revision_count}: Address these {len(critical_gaps)} coverage gaps "
+                        f"affecting {len(uncovered_ucs)} use cases. "
+                        f"Your previous design scored below threshold. "
+                        f"DO NOT regenerate from scratch — UPDATE the design in 'previous_design' "
+                        f"by adding the missing elements for each gap."
                     )
                 },
                 execution_id=execution_id,
