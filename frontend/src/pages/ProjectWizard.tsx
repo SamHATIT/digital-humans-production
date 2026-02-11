@@ -463,13 +463,13 @@ function Step1BasicInfo({ data, updateField }: { data: WizardData; updateField: 
         </div>
 
         <div>
-          <label className="block text-sm text-slate-400 mb-2">Code projet</label>
+          <label className="block text-sm text-slate-400 mb-2">Code projet <span className="text-slate-500">(auto-généré si vide)</span></label>
           <input
             type="text"
             value={data.project_code}
             onChange={(e) => updateField('project_code', e.target.value)}
             className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="PRJ-2025-001"
+            placeholder="Auto-généré (ex: PRJ-2026-093)"
           />
         </div>
 

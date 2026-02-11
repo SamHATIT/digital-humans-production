@@ -100,11 +100,18 @@ async def create_wizard_project(
     Create a new project and start the wizard.
     This creates the project with Step 1 data.
     """
+    # Auto-generate project_code if not provided
+    project_code = data.project_code
+    if not project_code:
+        from sqlalchemy import func
+        max_id = db.query(func.max(Project.id)).scalar() or 0
+        project_code = f"PRJ-{datetime.utcnow().strftime('%Y')}-{max_id + 1:03d}"
+
     project = Project(
         user_id=current_user.id,
         name=data.name,
         description=data.description,
-        project_code=data.project_code,
+        project_code=project_code,
         client_name=data.client_name,
         client_contact_name=data.client_contact_name,
         client_contact_email=data.client_contact_email,
