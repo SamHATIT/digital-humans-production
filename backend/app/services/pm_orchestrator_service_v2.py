@@ -772,6 +772,8 @@ class PMOrchestratorServiceV2:
                                 input_data={
                                     "project_summary": project.description or project.name or "",
                                     "use_cases": all_use_cases,
+                                    "uc_digest": uc_digest,  # ARCH-002: Full UC context for revision
+                                    "previous_design": results["artifacts"]["ARCHITECTURE"].get("content", {}),  # ARCH-002: Previous design to revise
                                     "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
                                     "coverage_gaps": current_gaps,
                                     "uncovered_use_cases": current_uncovered,
@@ -855,21 +857,36 @@ class PMOrchestratorServiceV2:
                             self._save_checkpoint(execution, "phase3_3_coverage_gate")
                             return results
                         else:
-                            logger.error(
-                                f"[Phase 3.3] ❌ Coverage still {current_coverage}% after "
-                                f"{revision_count} revision(s) — architecture rejected"
+                            # BUG-013: HITL instead of crash — let user decide to proceed or reject
+                            logger.warning(
+                                f"[Phase 3.3] ⏸️ Coverage {current_coverage}% after "
+                                f"{revision_count} revision(s) — pausing for HITL approval"
                             )
+                            coverage_data = {
+                                "approval_type": "architecture_coverage",
+                                "coverage_score": current_coverage,
+                                "critical_gaps": current_gaps,
+                                "uncovered_use_cases": current_uncovered,
+                                "revision_count": revision_count,
+                                "max_revisions": MAX_ARCHITECTURE_REVISIONS,
+                                "below_minimum": True,
+                            }
+                            if execution.agent_execution_status is None:
+                                execution.agent_execution_status = {}
+                            execution.agent_execution_status.setdefault("research_analyst", {})
+                            execution.agent_execution_status["research_analyst"]["state"] = "waiting_approval"
+                            execution.agent_execution_status["research_analyst"]["extra_data"] = coverage_data
+                            execution.agent_execution_status["research_analyst"]["message"] = (
+                                f"Coverage {current_coverage}% after {revision_count} revision(s) — awaiting validation"
+                            )
+                            flag_modified(execution, "agent_execution_status")
                             try:
-                                sm.transition_to("failed")
+                                sm.transition_to("waiting_architecture_validation")
                             except Exception as e:
                                 logger.warning(f"[StateMachine] transition failed: {e}")
-                                execution.status = ExecutionStatus.FAILED
-                            self._update_progress(execution, "research_analyst", "failed", 72,
-                                                 f"Architecture coverage too low ({current_coverage}%) after {revision_count} revision(s)")
-                            raise Exception(
-                                f"Architecture coverage {current_coverage}% still below {COVERAGE_MIN_PROCEED}% "
-                                f"after {revision_count} revision(s). {len(current_gaps)} critical gaps remain."
-                            )
+                                execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
+                            self._save_checkpoint(execution, "phase3_3_coverage_gate_low")
+                            return results
 
                 else:
                     logger.warning(f"[Phase 3.3] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")

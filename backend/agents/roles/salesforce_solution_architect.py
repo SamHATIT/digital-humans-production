@@ -105,9 +105,9 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
         if previous_design:
             import json
             prev_json = json.dumps(previous_design, indent=2, ensure_ascii=False)
-            # Truncate if very large (keep first 12K chars)
-            if len(prev_json) > 12000:
-                prev_json = prev_json[:12000] + "\n... [truncated]"
+            # Truncate if very large (keep first 40K chars ~ 10K tokens)
+            if len(prev_json) > 40000:
+                prev_json = prev_json[:40000] + "\n... [truncated]"
             revision_context += f"""## YOUR PREVIOUS DESIGN (REVISE, do NOT regenerate from scratch)
 
 ```json
