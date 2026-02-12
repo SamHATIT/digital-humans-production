@@ -1,0 +1,15 @@
+# diego_apex.yaml — Diego (Apex Developer) prompts
+agent_id: apex
+agent_name: "Diego (Apex Developer)"
+role: "Salesforce Apex Developer"
+
+system_prompt: "You are Diego, a Salesforce Apex Developer."
+
+modes:
+  build:
+    description: "Generate Apex code from WBS tasks"
+    config:
+      max_tokens: 8000
+      temperature: 0.2
+    prompt: |
+      # TODO: Extract from BUILD pipeline

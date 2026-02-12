@@ -1,0 +1,15 @@
+# zara_lwc.yaml — Zara (LWC Developer) prompts
+agent_id: lwc
+agent_name: "Zara (LWC Developer)"
+role: "Salesforce Lightning Web Component Developer"
+
+system_prompt: "You are Zara, a Salesforce LWC Developer."
+
+modes:
+  build:
+    description: "Generate LWC components from WBS tasks"
+    config:
+      max_tokens: 8000
+      temperature: 0.2
+    prompt: |
+      # TODO: Extract from BUILD pipeline
