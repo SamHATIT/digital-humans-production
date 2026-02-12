@@ -425,11 +425,14 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
             sd_automations.add(flow.get('name', '').lower())
         elif isinstance(flow, str):
             sd_automations.add(flow.lower())
-    for trigger in automation.get('triggers', []):
+    for trigger in automation.get('apex_triggers', automation.get('triggers', [])):
         if isinstance(trigger, dict):
             sd_automations.add(trigger.get('name', '').lower())
         elif isinstance(trigger, str):
             sd_automations.add(trigger.lower())
+    for job in automation.get('scheduled_jobs', []):
+        if isinstance(job, dict):
+            sd_automations.add(job.get('name', '').lower())
 
     ui = solution_design.get('ui_components', {})
     sd_ui = set()
@@ -447,30 +450,85 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
     total_ucs = len(use_cases)
 
     for uc in use_cases:
+        # Support BOTH formats: nested salesforce_components{} AND flat sf_objects/sf_automation
         sf = uc.get('salesforce_components', {})
         uc_objs = set()
-        for obj in sf.get('objects', []):
-            obj_lower = obj.lower() if isinstance(obj, str) else ''
-            uc_objects.add(obj_lower)
-            uc_objs.add(obj_lower)
-        for auto in sf.get('automation', []):
-            auto_lower = auto.lower() if isinstance(auto, str) else ''
-            uc_automations.add(auto_lower)
-        for comp in sf.get('ui_components', sf.get('components', [])):
-            comp_lower = comp.lower() if isinstance(comp, str) else ''
-            uc_ui.add(comp_lower)
+        
+        # Objects: salesforce_components.objects OR sf_objects (Olivia format)
+        obj_list = sf.get('objects', []) or []
+        if not obj_list:
+            obj_list = uc.get('sf_objects', []) or []
+        for obj in obj_list:
+            obj_lower = obj.lower().strip() if isinstance(obj, str) else ''
+            if obj_lower:
+                uc_objects.add(obj_lower)
+                uc_objs.add(obj_lower)
+        
+        # Automations: salesforce_components.automation OR sf_automation
+        auto_list = sf.get('automation', []) or []
+        if not auto_list:
+            sf_auto = uc.get('sf_automation', [])
+            if isinstance(sf_auto, list):
+                auto_list = sf_auto
+            elif isinstance(sf_auto, str) and sf_auto.lower() not in ('none', '', 'n/a'):
+                auto_list = [sf_auto]
+        for auto in auto_list:
+            auto_lower = auto.lower().strip() if isinstance(auto, str) else ''
+            if auto_lower:
+                uc_automations.add(auto_lower)
+        
+        # UI: salesforce_components.ui_components OR sf_ui_components
+        ui_list = sf.get('ui_components', sf.get('components', [])) or []
+        if not ui_list:
+            ui_list = uc.get('sf_ui_components', uc.get('ui_components', [])) or []
+        for comp in ui_list:
+            comp_lower = comp.lower().strip() if isinstance(comp, str) else ''
+            if comp_lower:
+                uc_ui.add(comp_lower)
 
-        # Check if this UC is covered (at least one object in solution)
-        if uc_objs & sd_objects:
+        # Check if this UC is covered by solution design
+        # Method 1: object overlap
+        obj_covered = bool(uc_objs & sd_objects)
+        # Method 2: UC ID in traceability map
+        uc_id = uc.get('id', '')
+        trace_covered = uc_id in solution_design.get('uc_traceability', {})
+        if obj_covered or trace_covered:
             covered_ucs += 1
 
     # Calculate scores
-    obj_coverage = len(uc_objects & sd_objects) / max(len(uc_objects), 1) * 100
-    auto_coverage = len(uc_automations & sd_automations) / max(len(uc_automations), 1) * 100 if uc_automations else 100
+    # Filter out standard SF infra objects that don't belong in data_model
+    SF_INFRA_OBJECTS = {
+        'user', 'group', 'queue', 'queuesobject', 'report', 'dashboard',
+        'emailtemplate', 'listview', 'attachment', 'businesshours',
+        'namedcredential', 'processinstance', 'processinstanceworkitem',
+        'pendingservicerouting', 'agentwork', 'servicechannel',
+        'externalserviceregistration', 'datacategoryselection',
+        'personaccount', 'individual', 'campaign', 'campaignmember',
+        'contract', 'order', 'slaprocess', 'milestone', 'milestonetype',
+    }
+    uc_objects_filtered = uc_objects - SF_INFRA_OBJECTS
+    obj_coverage = len(uc_objects_filtered & sd_objects) / max(len(uc_objects_filtered), 1) * 100
+    # If UCs don't specify automation requirements (empty set), default to 100%
+    # Also ignore empty strings and generic type names (flow, apex, etc.)
+    uc_automations.discard('')
+    sd_automations.discard('')
+    GENERIC_AUTO_TYPES = {'flow', 'apex', 'validation rule', 'process builder', 'workflow', 'trigger', 'batch', 'scheduled'}
+    uc_automations_specific = uc_automations - GENERIC_AUTO_TYPES
+    # If UCs only list generic types, check that SD has SOME automations of those types
+    if not uc_automations_specific and uc_automations:
+        # UCs say "needs Flow/Apex" — check if SD has any flows/triggers
+        has_flows = bool(solution_design.get('automation_design', {}).get('flows', []))
+        has_triggers = bool(solution_design.get('automation_design', {}).get('apex_triggers', []))
+        auto_coverage = 100.0 if (has_flows or has_triggers) else 0.0
+    else:
+        auto_coverage = len(uc_automations_specific & sd_automations) / max(len(uc_automations_specific), 1) * 100 if uc_automations_specific else 100
     ui_coverage = len(uc_ui & sd_ui) / max(len(uc_ui), 1) * 100 if uc_ui else 100
     uc_coverage = covered_ucs / max(total_ucs, 1) * 100
 
-    overall = (obj_coverage * 0.35 + auto_coverage * 0.25 + ui_coverage * 0.2 + uc_coverage * 0.2)
+    # Rebalanced weights: traceability is the most meaningful metric
+    # Old: obj=0.35, auto=0.25, ui=0.20, trace=0.20
+    # New: obj=0.20, auto=0.15, ui=0.10, trace=0.55
+    overall = (obj_coverage * 0.20 + auto_coverage * 0.15 + ui_coverage * 0.10 + uc_coverage * 0.55)
 
     return {
         "overall_score": round(overall, 1),
