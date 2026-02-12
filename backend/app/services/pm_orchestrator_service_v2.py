@@ -260,7 +260,8 @@ class PMOrchestratorServiceV2:
                     "phase2_5_emma": "phase2",   # BUG-010: re-run Phase 2+2.5
                     "phase3_3_coverage_gate": None,  # Handled by resume_from_architecture_validation
                     "phase3_wbs": "phase4",      # BUG-010: skip to Phase 4 (artifacts in DB)
-                    "phase5_write_sds": "phase4",  # BUG-010: skip to Phase 4 (Phase 4 done, 5 re-runs)
+                    "phase4_experts": "phase5",   # BUG-010: skip to Phase 5 (Phase 4 done, experts in DB)
+                    "phase5_write_sds": "phase5", # BUG-010: re-run Phase 5 only (SDS generation)
                     "phase6_export": "phase4",   # BUG-010: skip to Phase 4 (export re-runs)
                 }
                 auto_resume = checkpoint_map.get(last_phase)
@@ -275,6 +276,15 @@ class PMOrchestratorServiceV2:
             # PHASE 1: Sophie PM - Extract BRs (skip if resuming)
             # ========================================
             if resume_from and resume_from not in (None, "phase1", "phase1_pm"):
+                # UX-001: Reset stale agent cards on resume so frontend shows fresh status
+                if execution.agent_execution_status:
+                    for aid, st in execution.agent_execution_status.items():
+                        if st.get("state") not in ("completed",):
+                            st["state"] = "waiting"
+                            st["message"] = "Waiting..."
+                    flag_modified(execution, "agent_execution_status")
+                    self.db.commit()
+
                 # Resuming after BR validation or architecture validation
                 logger.info(f"[Phase 1] SKIPPED - Resuming from {resume_from} with validated BRs")
                 business_requirements = self._get_validated_brs(project_id, execution_id=execution_id)
@@ -377,8 +387,18 @@ class PMOrchestratorServiceV2:
                 self._update_progress(execution, "architect", "completed", 75, "Skipped (resume)")
                 loaded_artifacts = self._load_existing_artifacts(execution_id)
                 results["artifacts"].update(loaded_artifacts)
+                # BUG-011: Ensure state machine reaches sds_phase3_complete before Phase 4
+                try:
+                    sm.transition_to("sds_phase3_running")
+                except Exception:
+                    pass
+                try:
+                    sm.transition_to("sds_phase3_complete")
+                except Exception:
+                    pass
                 return await self._execute_from_phase4(
-                    project, execution, execution_id, project_id, results, selected_agents
+                    project, execution, execution_id, project_id, results, selected_agents,
+                    skip_phase4=(resume_from == "phase5")
                 )
 
             # ========================================
@@ -558,16 +578,23 @@ class PMOrchestratorServiceV2:
             except Exception as e:
                 logger.warning(f"[StateMachine] transition failed: {e}")
             
-            # 3.0: Get Salesforce org metadata FIRST
-            sf_metadata_result = await self._get_salesforce_metadata(execution_id, project=project)
-            if sf_metadata_result["success"]:
-                org_metadata = sf_metadata_result["full_metadata"]
-                org_summary = sf_metadata_result["summary"]
-                logger.info(f"[Phase 3.0] ✅ Salesforce metadata retrieved: {org_summary.get('org_edition', 'Unknown')} edition")
-            else:
+            # 3.0: Get Salesforce org metadata (skip for greenfield projects)
+            # ARCH-001 fix: Don't attempt SFDX commands for greenfield projects
+            is_greenfield = project and project.project_type == "greenfield"
+            if is_greenfield:
                 org_metadata = {}
-                org_summary = {"note": "Metadata retrieval failed - proceeding with empty state"}
-                logger.warning(f"[Phase 3.0] ⚠️ Metadata retrieval failed: {sf_metadata_result.get('error', 'Unknown')}")
+                org_summary = {"note": "Greenfield project — no existing org to analyze"}
+                logger.info("[Phase 3.0] ✅ Greenfield mode — skipping Salesforce metadata retrieval")
+            else:
+                sf_metadata_result = await self._get_salesforce_metadata(execution_id, project=project)
+                if sf_metadata_result["success"]:
+                    org_metadata = sf_metadata_result["full_metadata"]
+                    org_summary = sf_metadata_result["summary"]
+                    logger.info(f"[Phase 3.0] ✅ Salesforce metadata retrieved: {org_summary.get('org_edition', 'Unknown')} edition")
+                else:
+                    org_metadata = {}
+                    org_summary = {"note": "Metadata retrieval failed - proceeding with empty state"}
+                    logger.warning(f"[Phase 3.0] ⚠️ Metadata retrieval failed: {sf_metadata_result.get('error', 'Unknown')}")
             
             self._update_progress(execution, "architect", "running", 48, "Starting architecture analysis...")
             architect_tokens = 0
@@ -593,7 +620,7 @@ class PMOrchestratorServiceV2:
             
             # 3.1: As-Is Analysis
             # Check if greenfield — use standard As-Is instead of analyzing org
-            if project and project.project_type == "greenfield":
+            if is_greenfield:
                 # Load standard Salesforce As-Is (no org to analyze)
                 standard_asis_path = Path(__file__).parent.parent.parent / "data" / "standard_salesforce_asis.json"
                 with open(standard_asis_path) as f:
@@ -2339,7 +2366,8 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         execution_id: int,
         project_id: int,
         results: Dict[str, Any],
-        selected_agents: List[str]
+        selected_agents: List[str],
+        skip_phase4: bool = False
     ) -> Dict[str, Any]:
         """
         Execute Phases 4, 5, 6, and Finalize.
@@ -2352,14 +2380,34 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # PHASE 4: SDS Expert Agents (Conditional)
         # ========================================
-        try:
-            sm.transition_to("sds_phase4_running")
-        except Exception as e:
-            logger.warning(f"[StateMachine] transition failed: {e}")
+        # BUG-010: Skip Phase 4 experts if resuming from Phase 5
+        if skip_phase4:
+            logger.info("[Phase 4] SKIPPED — resuming from Phase 5 checkpoint")
+            try:
+                sm.transition_to("sds_phase4_running")
+                sm.transition_to("sds_phase4_complete")
+            except Exception as e:
+                logger.warning(f"[StateMachine] skip transition: {e}")
+            # Load expert outputs from DB
+            loaded_artifacts = self._load_existing_artifacts(execution_id)
+            results["artifacts"].update(loaded_artifacts)
+            results["agent_outputs"].update({
+                k.replace("_SPECS", "").lower(): v 
+                for k, v in loaded_artifacts.items() 
+                if k.endswith("_SPECS")
+            })
+        else:
+            try:
+                sm.transition_to("sds_phase4_running")
+            except Exception as e:
+                logger.warning(f"[StateMachine] transition failed: {e}")
 
         ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
 
-        if selected_agents:
+        if skip_phase4:
+            SDS_EXPERTS = []  # Skip all experts — outputs loaded from DB above
+            expert_results = []
+        elif selected_agents:
             SDS_EXPERTS = [agent for agent in ALL_SDS_EXPERTS if agent in selected_agents]
             skipped = [agent for agent in ALL_SDS_EXPERTS if agent not in selected_agents]
             if skipped:
@@ -2458,6 +2506,9 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             sm.transition_to("sds_phase4_complete")
         except Exception as e:
             logger.warning(f"[StateMachine] transition failed: {e}")
+
+        # BUG-010: Save checkpoint after Phase 4 so Phase 5 crash resumes here
+        self._save_checkpoint(execution, "phase4_experts")
 
         # ========================================
         # P2-Full: Configurable gate — after expert specs

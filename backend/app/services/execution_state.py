@@ -108,7 +108,10 @@ TRANSITIONS: Dict[str, List[str]] = {
 
     "deploying":            ["deployed", "failed"],
     "deployed":             [],
-    "failed":               ["queued"],
+    # BUG-011: Allow resume from failed to any running phase (enables resume after crash)
+    "failed":               ["queued", "sds_phase1_running", "sds_phase2_running", "sds_phase2_5_running",
+                             "sds_phase3_running", "sds_phase4_running", "sds_phase5_running",
+                             "build_queued", "build_running"],
     "cancelled":            ["queued"],
 }
 

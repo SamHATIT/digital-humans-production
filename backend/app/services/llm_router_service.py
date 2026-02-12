@@ -596,8 +596,23 @@ class LLMRouterService:
     
     # Synchronous wrapper for backward compatibility
     def complete_sync(self, request: LLMRequest) -> LLMResponse:
-        """Synchronous wrapper for complete()"""
-        return asyncio.run(self.complete(request))
+        """Synchronous wrapper for complete().
+        BUG-012 fix: detects active event loop to avoid asyncio.run() crash.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            # We're inside an async context (e.g. FastAPI route, ARQ worker)
+            # Run sync in a new thread to avoid blocking/crashing
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, self.complete(request))
+                return future.result(timeout=300)
+        else:
+            return asyncio.run(self.complete(request))
     
     # Convenience method matching old LLMService interface
     def generate(
