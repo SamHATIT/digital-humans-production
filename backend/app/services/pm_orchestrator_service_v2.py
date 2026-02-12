@@ -515,7 +515,7 @@ class PMOrchestratorServiceV2:
             emma_tokens = 0
             
             if emma_result.get("success"):
-                uc_digest = emma_result["output"].get("content", {}).get("digest", {})
+                uc_digest = emma_result["output"].get("content", {})
                 emma_tokens = emma_result["output"].get("metadata", {}).get("tokens_used", 0)
                 
                 # Save Emma's deliverable
