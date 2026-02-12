@@ -2705,6 +2705,18 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         logger.info(f"[Architecture Resume] action={action}, execution={execution_id}")
 
+        # UX-001: Reset stale agent card states so frontend shows fresh status
+        if execution.agent_execution_status:
+            for agent_id, status in execution.agent_execution_status.items():
+                if status.get("state") in ("completed", "failed", "waiting_approval"):
+                    # Keep completed phases, only reset active/stale states
+                    pass
+                else:
+                    status["state"] = "waiting"
+                    status["message"] = "Waiting..."
+            flag_modified(execution, "agent_execution_status")
+            self.db.commit()
+
         sm = ExecutionStateMachine(self.db, execution_id)
         try:
             sm.transition_to("sds_phase3_running")
