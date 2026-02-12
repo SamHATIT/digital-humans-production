@@ -39,6 +39,13 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # PROMPTS
@@ -208,8 +215,17 @@ class DevOpsAgent:
         # Get RAG context for spec mode
         rag_context = self._get_rag_context(project_id=project_id)
 
-        # Build prompt
-        prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        # Build prompt - try PromptService first, fallback to constant
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("jordan_devops", "spec", {
+                    "requirements": input_content[:25000],
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for jordan_devops/spec: {e}")
+                prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        else:
+            prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
         if rag_context:
             prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
 
@@ -283,13 +299,30 @@ class DevOpsAgent:
         components = input_data.get('components', [])
         target_env = input_data.get('target_env', 'UAT')
 
-        # Build prompt
-        prompt = DEPLOY_PROMPT.format(
-            task_id=task_id,
-            task_name=task_name,
-            components=json.dumps(components, indent=2),
-            target_env=target_env,
-        )
+        # Build prompt - try PromptService first, fallback to constant
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("jordan_devops", "deploy", {
+                    "task_id": task_id,
+                    "task_name": task_name,
+                    "components": json.dumps(components, indent=2),
+                    "target_env": target_env,
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for jordan_devops/deploy: {e}")
+                prompt = DEPLOY_PROMPT.format(
+                    task_id=task_id,
+                    task_name=task_name,
+                    components=json.dumps(components, indent=2),
+                    target_env=target_env,
+                )
+        else:
+            prompt = DEPLOY_PROMPT.format(
+                task_id=task_id,
+                task_name=task_name,
+                components=json.dumps(components, indent=2),
+                target_env=target_env,
+            )
 
         logger.info(f"DevOpsAgent mode=deploy, task_id={task_id}, prompt_size={len(prompt)} chars")
 

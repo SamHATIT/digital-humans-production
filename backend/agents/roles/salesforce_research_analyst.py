@@ -53,6 +53,13 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # JSON PARSING UTILITIES
@@ -673,11 +680,28 @@ class ResearchAnalystAgent:
                         uc_text += f"  - {c}\n"
 
         timestamp = datetime.now().isoformat()
-        prompt = ANALYZE_PROMPT.format(
-            use_cases_text=uc_text,
-            timestamp=timestamp,
-            uc_count=len(use_cases)
-        )
+
+        # Try external prompt
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("emma_research", "uc_digest", {
+                    "use_cases_text": uc_text,
+                    "timestamp": timestamp,
+                    "uc_count": str(len(use_cases)),
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for emma_research/uc_digest: {e}")
+                prompt = ANALYZE_PROMPT.format(
+                    use_cases_text=uc_text,
+                    timestamp=timestamp,
+                    uc_count=len(use_cases)
+                )
+        else:
+            prompt = ANALYZE_PROMPT.format(
+                use_cases_text=uc_text,
+                timestamp=timestamp,
+                uc_count=len(use_cases)
+            )
 
         system_prompt = "You are Emma, a Research Analyst. Generate a UC Digest. Output ONLY valid JSON."
 
@@ -762,12 +786,31 @@ class ResearchAnalystAgent:
         uc_digest_text = json.dumps(uc_digest, indent=2, ensure_ascii=False)[:5000] if uc_digest else "Not available"
 
         timestamp = datetime.now().isoformat()
-        prompt = VALIDATE_PROMPT.format(
-            solution_design_text=solution_text,
-            use_cases_text=uc_text,
-            uc_digest_text=uc_digest_text,
-            timestamp=timestamp
-        )
+
+        # Try external prompt
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("emma_research", "coverage_review", {
+                    "solution_design_text": solution_text,
+                    "use_cases_text": uc_text,
+                    "uc_digest_text": uc_digest_text,
+                    "timestamp": timestamp,
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for emma_research/coverage_review: {e}")
+                prompt = VALIDATE_PROMPT.format(
+                    solution_design_text=solution_text,
+                    use_cases_text=uc_text,
+                    uc_digest_text=uc_digest_text,
+                    timestamp=timestamp
+                )
+        else:
+            prompt = VALIDATE_PROMPT.format(
+                solution_design_text=solution_text,
+                use_cases_text=uc_text,
+                uc_digest_text=uc_digest_text,
+                timestamp=timestamp
+            )
 
         system_prompt = "You are Emma, a Research Analyst. Validate coverage. Output ONLY valid JSON."
 
@@ -872,20 +915,54 @@ class ResearchAnalystAgent:
                 val = json.dumps(val, indent=2, ensure_ascii=False)
             return str(val)[:max_len] if val else "Not provided"
 
-        prompt = WRITE_SDS_PROMPT.format(
-            project_name=project_name,
-            timestamp=timestamp,
-            br_content=safe_content('business_requirements', 6000),
-            uc_content=safe_content('use_cases', 8000),
-            uc_digest_content=safe_content('uc_digest', 5000),
-            solution_design_content=safe_content('solution_design', 10000),
-            gap_analysis_content=safe_content('gap_analysis', 6000),
-            wbs_content=safe_content('wbs', 6000),
-            qa_content=safe_content('qa_plan', 4000),
-            devops_content=safe_content('devops_plan', 3000),
-            training_content=safe_content('training_plan', 3000),
-            data_migration_content=safe_content('data_migration_plan', 3000),
-        )
+        # Try external prompt
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("emma_research", "write_sds", {
+                    "project_name": project_name,
+                    "timestamp": timestamp,
+                    "br_content": safe_content('business_requirements', 6000),
+                    "uc_content": safe_content('use_cases', 8000),
+                    "uc_digest_content": safe_content('uc_digest', 5000),
+                    "solution_design_content": safe_content('solution_design', 10000),
+                    "gap_analysis_content": safe_content('gap_analysis', 6000),
+                    "wbs_content": safe_content('wbs', 6000),
+                    "qa_content": safe_content('qa_plan', 4000),
+                    "devops_content": safe_content('devops_plan', 3000),
+                    "training_content": safe_content('training_plan', 3000),
+                    "data_migration_content": safe_content('data_migration_plan', 3000),
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for emma_research/write_sds: {e}")
+                prompt = WRITE_SDS_PROMPT.format(
+                    project_name=project_name,
+                    timestamp=timestamp,
+                    br_content=safe_content('business_requirements', 6000),
+                    uc_content=safe_content('use_cases', 8000),
+                    uc_digest_content=safe_content('uc_digest', 5000),
+                    solution_design_content=safe_content('solution_design', 10000),
+                    gap_analysis_content=safe_content('gap_analysis', 6000),
+                    wbs_content=safe_content('wbs', 6000),
+                    qa_content=safe_content('qa_plan', 4000),
+                    devops_content=safe_content('devops_plan', 3000),
+                    training_content=safe_content('training_plan', 3000),
+                    data_migration_content=safe_content('data_migration_plan', 3000),
+                )
+        else:
+            prompt = WRITE_SDS_PROMPT.format(
+                project_name=project_name,
+                timestamp=timestamp,
+                br_content=safe_content('business_requirements', 6000),
+                uc_content=safe_content('use_cases', 8000),
+                uc_digest_content=safe_content('uc_digest', 5000),
+                solution_design_content=safe_content('solution_design', 10000),
+                gap_analysis_content=safe_content('gap_analysis', 6000),
+                wbs_content=safe_content('wbs', 6000),
+                qa_content=safe_content('qa_plan', 4000),
+                devops_content=safe_content('devops_plan', 3000),
+                training_content=safe_content('training_plan', 3000),
+                data_migration_content=safe_content('data_migration_plan', 3000),
+            )
 
         system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
 

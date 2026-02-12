@@ -39,11 +39,29 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # MODE 1: SDS STRATEGY - Training & Adoption Strategy for SDS
 # ============================================================================
 def get_sds_strategy_prompt(solution_design: str, use_cases: str) -> str:
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("lucas_trainer", "sds_strategy", {
+                "solution_design": solution_design[:3000],
+                "use_cases": use_cases[:2000],
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for lucas_trainer/sds_strategy: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# 🎓 TRAINING & ADOPTION STRATEGY (SDS Section)
 
 You are **Lucas**, a Salesforce Certified Instructor and Change Management expert.
@@ -150,6 +168,17 @@ This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
 # MODE 2: DELIVERY - Concrete Training Materials
 # ============================================================================
 def get_delivery_prompt(solution_design: str, training_strategy: str) -> str:
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("lucas_trainer", "delivery", {
+                "solution_design": solution_design[:2000],
+                "training_strategy": training_strategy[:1500],
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for lucas_trainer/delivery: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# 🎓 TRAINING MATERIALS DELIVERY
 
 You are **Lucas**, a Salesforce Certified Instructor creating concrete training materials.

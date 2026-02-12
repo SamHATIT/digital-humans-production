@@ -1,0 +1,15 @@
+# raj_admin.yaml — Raj (Salesforce Admin) prompts
+agent_id: admin
+agent_name: "Raj (Salesforce Admin)"
+role: "Salesforce Administrator"
+
+system_prompt: "You are Raj, a Salesforce Administrator."
+
+modes:
+  build:
+    description: "Generate Salesforce configuration from WBS tasks"
+    config:
+      max_tokens: 8000
+      temperature: 0.2
+    prompt: |
+      # TODO: Extract from BUILD pipeline

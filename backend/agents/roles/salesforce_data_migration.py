@@ -38,6 +38,13 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # PROMPTS
@@ -308,8 +315,17 @@ class DataMigrationAgent:
         # Get RAG context
         rag_context = self._get_rag_context(project_id=project_id)
 
-        # Build prompt
-        prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        # Build prompt - try PromptService first, fallback to constant
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("aisha_data", "spec", {
+                    "requirements": input_content[:25000],
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for aisha_data/spec: {e}")
+                prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        else:
+            prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
         if rag_context:
             prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
 
@@ -400,13 +416,30 @@ Elena (QA) found issues:
 FIX THESE ISSUES.
 """
 
-        # Build prompt
-        prompt = BUILD_PROMPT.format(
-            task_id=task_id,
-            task_name=task_name,
-            task_description=task_description,
-            architecture_context=architecture_context[:10000],
-        )
+        # Build prompt - try PromptService first, fallback to constant
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("aisha_data", "build", {
+                    "task_id": task_id,
+                    "task_name": task_name,
+                    "task_description": task_description,
+                    "architecture_context": architecture_context[:10000],
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for aisha_data/build: {e}")
+                prompt = BUILD_PROMPT.format(
+                    task_id=task_id,
+                    task_name=task_name,
+                    task_description=task_description,
+                    architecture_context=architecture_context[:10000],
+                )
+        else:
+            prompt = BUILD_PROMPT.format(
+                task_id=task_id,
+                task_name=task_name,
+                task_description=task_description,
+                architecture_context=architecture_context[:10000],
+            )
         if rag_context:
             prompt += f"\n\n## MIGRATION BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
 

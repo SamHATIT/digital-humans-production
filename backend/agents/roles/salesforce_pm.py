@@ -34,11 +34,28 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # PROMPT 1: EXTRACT BUSINESS REQUIREMENTS
 # ============================================================================
 def get_extract_br_prompt(requirements: str) -> str:
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("sophie_pm", "br_extraction", {
+                "requirements": requirements,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for sophie_pm/br_extraction: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# BUSINESS REQUIREMENTS EXTRACTION
 
 You are **Sophie**, a Senior Project Manager specialized in requirements analysis.
@@ -102,6 +119,16 @@ Output should include:
 '''
 
 def get_consolidate_sds_prompt(artifacts: str) -> str:
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("sophie_pm", "consolidate_sds", {
+                "artifacts": artifacts,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for sophie_pm/consolidate_sds: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# SOLUTION DESIGN SPECIFICATION - FINAL DOCUMENT
 
 You are **Sophie**, a Senior Project Manager creating the final SDS document.
