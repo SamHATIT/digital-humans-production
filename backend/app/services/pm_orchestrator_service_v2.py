@@ -665,11 +665,12 @@ class PMOrchestratorServiceV2:
             # Gap success handling moved to Phase 3.4
             
             # ========================================
-            # 3.2: Solution Design (Design target architecture) - REORDERED
+            # 3.2: Solution Design — SPLIT INTO 2 CALLS (TRUNC-001)
             # ========================================
-            # Marcus designs the solution BEFORE gap analysis
-            # This way Gap Analysis compares As-Is vs a defined target
-            self._update_progress(execution, "architect", "running", 56, "Designing solution architecture...")
+            # Call 1: Core (data_model, security, queues, reporting)
+            # Call 2: Technical (automation, integration, UI, traceability)
+            # Then deep-merge both results
+            self._update_progress(execution, "architect", "running", 56, "Designing core data model & security...")
             
             # Use valid digest or fallback to raw UCs
             design_uc_digest = uc_digest if uc_digest_valid else None
@@ -680,24 +681,111 @@ class PMOrchestratorServiceV2:
             else:
                 logger.info(f"[Phase 3.2] Using raw UCs ({len(design_use_cases)} UCs)")
             
-            design_result = await self._run_agent(
+            design_input_base = {
+                "project_summary": br_result["output"]["content"].get("project_summary", ""),
+                "uc_digest": design_uc_digest,
+                "use_cases": design_use_cases,
+                "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
+            }
+            
+            # --- Call 1: Core architecture (data model, security, queues, reporting) ---
+            logger.info("[Phase 3.2a] Marcus designing CORE architecture (data model + security)...")
+            core_result = await self._run_agent(
                 agent_id="architect",
                 mode="design",
-                input_data={
-                    "project_summary": br_result["output"]["content"].get("project_summary", ""),
-                    "uc_digest": design_uc_digest,
-                    "use_cases": design_use_cases,
-                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})
-                },
+                input_data={**design_input_base, "design_focus": "core"},
                 execution_id=execution_id,
                 project_id=project_id
             )
             
+            if not core_result.get("success"):
+                logger.error(f"[Phase 3.2a] ❌ Core design failed: {core_result.get('error')}")
+                # Fallback: try single-shot (old behavior)
+                logger.info("[Phase 3.2] Falling back to single-shot design...")
+                design_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="design",
+                    input_data=design_input_base,
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                if design_result.get("success"):
+                    results["artifacts"]["ARCHITECTURE"] = design_result["output"]
+                    architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
+                    self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
+                    logger.info(f"[Phase 3.2] ✅ Solution Design (single-shot fallback)")
+            else:
+                core_content = core_result["output"].get("content", {})
+                core_tokens = core_result["output"]["metadata"].get("tokens_used", 0)
+                architect_tokens += core_tokens
+                logger.info(f"[Phase 3.2a] ✅ Core design: {len(str(core_content))} chars, {core_tokens} tokens")
+                
+                # --- Call 2: Technical architecture (automation, integration, UI) ---
+                self._update_progress(execution, "architect", "running", 60, "Designing automation, integrations & UI...")
+                logger.info("[Phase 3.2b] Marcus designing TECHNICAL architecture (automation + UI)...")
+                
+                tech_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="design",
+                    input_data={
+                        **design_input_base,
+                        "design_focus": "technical",
+                        "data_model_context": {
+                            "data_model": core_content.get("data_model", {}),
+                            "security_model": core_content.get("security_model", {}),
+                            "queues": core_content.get("queues", []),
+                        }
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                
+                if tech_result.get("success"):
+                    tech_content = tech_result["output"].get("content", {})
+                    tech_tokens = tech_result["output"]["metadata"].get("tokens_used", 0)
+                    architect_tokens += tech_tokens
+                    logger.info(f"[Phase 3.2b] ✅ Technical design: {len(str(tech_content))} chars, {tech_tokens} tokens")
+                    
+                    # --- Deep merge: core sections + tech sections ---
+                    merged_design = {}
+                    # Core sections (from call 1)
+                    for key in ("data_model", "security_model", "queues", "reporting"):
+                        if core_content.get(key):
+                            merged_design[key] = core_content[key]
+                    # Technical sections (from call 2)
+                    for key in ("automation_design", "integration_points", "ui_components", 
+                                "uc_traceability", "technical_considerations", "risks"):
+                        if tech_content.get(key):
+                            merged_design[key] = tech_content[key]
+                    # Copy any remaining keys from either
+                    for src in (core_content, tech_content):
+                        for key, val in src.items():
+                            if key not in merged_design and val:
+                                merged_design[key] = val
+                    
+                    # Build merged output
+                    merged_output = {
+                        "content": merged_design,
+                        "metadata": {
+                            "tokens_used": core_tokens + tech_tokens,
+                            "model_used": core_result["output"]["metadata"].get("model_used", "unknown"),
+                            "design_mode": "split_2_calls",
+                        }
+                    }
+                    results["artifacts"]["ARCHITECTURE"] = merged_output
+                    self._save_deliverable(execution_id, "architect", "solution_design", merged_output)
+                    logger.info(f"[Phase 3.2] ✅ Solution Design MERGED (core+tech, {core_tokens + tech_tokens} total tokens)")
+                else:
+                    # Tech call failed — use core only (partial but better than nothing)
+                    logger.warning(f"[Phase 3.2b] ⚠️ Technical design failed, using core-only design")
+                    results["artifacts"]["ARCHITECTURE"] = core_result["output"]
+                    self._save_deliverable(execution_id, "architect", "solution_design", core_result["output"])
+                    logger.info(f"[Phase 3.2] ⚠️ Solution Design PARTIAL (core only)")
+            
+            design_result = {"success": bool(results["artifacts"].get("ARCHITECTURE"))}
+            
             if design_result.get("success"):
-                results["artifacts"]["ARCHITECTURE"] = design_result["output"]
-                architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
-                logger.info(f"[Phase 3.2] ✅ Solution Design (ARCH-001)")
+                logger.info(f"[Phase 3.2] ✅ Solution Design complete (TRUNC-001 split)")
                 
                 # ========================================
                 # PHASE 3.3: Emma Validate — HITL Coverage Gate (H12)
@@ -1481,13 +1569,19 @@ class PMOrchestratorServiceV2:
 
     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
         """Track tokens per agent and accumulate cost on execution"""
-        tokens = output.get("metadata", {}).get("tokens_used", 0)
-        model = output.get("metadata", {}).get("model", "")
+        metadata = output.get("metadata", {})
+        tokens = metadata.get("tokens_used", 0)
+        model = metadata.get("model", "")
         results["metrics"]["tokens_by_agent"][agent_id] = tokens
         results["metrics"]["total_tokens"] += tokens
-        # BUG-007: Accumulate cost on execution record
+        # COST-001: Use real cost_usd from LLM router if available, else estimate
         if tokens > 0:
-            cost = self._calculate_cost(tokens, model)
+            real_cost = metadata.get("cost_usd", 0.0)
+            cost = real_cost if real_cost > 0 else self._calculate_cost(tokens, model)
+            if real_cost > 0:
+                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (real from router)")
+            else:
+                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (estimated 70/30)")
             execution = self.db.query(Execution).filter(
                 Execution.id == results["execution_id"]
             ).first()

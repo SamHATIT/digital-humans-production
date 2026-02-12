@@ -70,7 +70,7 @@ except ImportError:
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC -> Architecture)
 # ============================================================================
-def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None, previous_design: dict = None) -> str:
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None, previous_design: dict = None, design_focus: str = None, data_model_context: dict = None) -> str:
     """
     Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
     UC Digest provides pre-analyzed, structured information about ALL use cases.
@@ -145,7 +145,61 @@ Do NOT discard existing content — KEEP everything that was correct and ADD wha
 
 """
 
-    # EMMA INTEGRATION: Use UC Digest if available (preferred)
+    # TRUNC-001: Design focus — split large designs into 2 calls
+    focus_instruction = ""
+    if design_focus == "core":
+        focus_instruction = """
+## DESIGN FOCUS: CORE ARCHITECTURE ONLY
+
+Generate ONLY the following sections with full detail:
+- data_model (standard_objects, custom_objects, relationships, erd_mermaid)
+- security_model (profiles, permission_sets, sharing_rules, owd)
+- queues
+- reporting (reports, dashboards)
+
+Set these sections to EMPTY objects/arrays (they will be generated in a second pass):
+- automation_design: {}
+- integration_points: []
+- ui_components: {}
+- uc_traceability: {}
+- technical_considerations: []
+- risks: []
+
+This lets you use your FULL token budget for data model and security detail.
+
+"""
+    elif design_focus == "technical":
+        import json as _json
+        dm_json = _json.dumps(data_model_context, indent=2, ensure_ascii=False)[:30000] if data_model_context else "{}"
+        focus_instruction = f"""
+## DESIGN FOCUS: TECHNICAL ARCHITECTURE ONLY
+
+The DATA MODEL and SECURITY MODEL are already designed (see below). Reference them for consistency.
+
+### EXISTING DATA MODEL (DO NOT REGENERATE)
+```json
+{dm_json}
+```
+
+Generate ONLY the following sections with full detail:
+- automation_design (flows with elements array, apex_triggers, scheduled_jobs, platform_events)
+- integration_points (with auth, endpoint_spec, error_handling)
+- ui_components (lightning_apps, lightning_pages, lwc_components with api_properties/wire_adapters, quick_actions)
+- uc_traceability (map EVERY UC to implementing components)
+- technical_considerations
+- risks
+
+Set these sections to EMPTY (they are already generated):
+- data_model: {{}}
+- security_model: {{}}
+- queues: []
+- reporting: {{}}
+
+"""
+    if focus_instruction:
+        revision_context = focus_instruction + revision_context
+
+        # EMMA INTEGRATION: Use UC Digest if available (preferred)
     if uc_digest and uc_digest.get('by_requirement'):
         uc_text = "\n## ANALYZED USE CASE DIGEST (from Emma)\n"
         uc_text += "This digest contains pre-analyzed information from ALL Use Cases, grouped by Business Requirement.\n"
@@ -1067,8 +1121,8 @@ class SolutionArchitectAgent:
 
         # Call LLM
         # V4: design/wbs/fix_gaps need more tokens for enriched output
-        max_out = 32000 if mode in ('design', 'wbs', 'fix_gaps') else 16000
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+        max_out = 32000 if mode in ('design', 'wbs', 'fix_gaps', 'gap') else 16000
+        content, tokens_used, input_tokens, model_used, provider_used, cost_usd = self._call_llm(
             prompt, system_prompt, max_tokens=max_out, temperature=0.4,
             execution_id=execution_id
         )
@@ -1105,6 +1159,8 @@ class SolutionArchitectAgent:
             "content": parsed_content,
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": cost_usd,
+                "input_tokens": input_tokens,
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
@@ -1132,12 +1188,16 @@ class SolutionArchitectAgent:
                 logger.info(f"No UC Digest, using raw UCs ({len(use_cases)} UCs)")
 
             previous_design = input_data.get('previous_design', None)
+            design_focus = input_data.get('design_focus', None)
+            data_model_context = input_data.get('data_model_context', None)
             prompt = get_design_prompt(
                 use_cases, project_summary, rag_context, uc_digest,
                 coverage_gaps=coverage_gaps,
                 uncovered_use_cases=uncovered_use_cases,
                 revision_request=revision_request,
-                previous_design=previous_design
+                previous_design=previous_design,
+                design_focus=design_focus,
+                data_model_context=data_model_context
             )
             return prompt, "solution_design", "ARCH"
 
@@ -1253,8 +1313,9 @@ class SolutionArchitectAgent:
             input_tokens = response.get("input_tokens", 0)
             model_used = response["model"]
             provider_used = response["provider"]
-            logger.info(f"Using {provider_used} / {model_used}")
-            return content, tokens_used, input_tokens, model_used, provider_used
+            cost_usd = response.get("cost_usd", 0.0)
+            logger.info(f"Using {provider_used} / {model_used} (cost: ${cost_usd:.4f})")
+            return content, tokens_used, input_tokens, model_used, provider_used, cost_usd
 
         # Fallback to direct Anthropic
         logger.info("Calling Anthropic API directly...")
@@ -1273,7 +1334,7 @@ class SolutionArchitectAgent:
         content = response.content[0].text
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         input_tokens = response.usage.input_tokens
-        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic", 0.0
 
     def _get_rag_context(self, input_data: dict, project_id: int = 0) -> str:
         """Fetch RAG context for design mode with dynamic query based on project objects."""
