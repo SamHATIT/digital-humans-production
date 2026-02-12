@@ -1,0 +1,62 @@
+{
+  "execution_id": 142,
+  "date": "2026-02-11",
+  "status": "COMPLETED",
+  "execution_state": "sds_complete",
+  "progress": 98,
+  "sds_document_path": "/app/outputs/SDS_Exec142.docx",
+  "sds_stats": {
+    "paragraphs": 2884,
+    "tables": 0,
+    "placeholders": 0,
+    "use_cases_detailed": 10,
+    "use_cases_condensed": "~155 (batch 2 truncated)"
+  },
+  "timeline": {
+    "phase1_sophie": { "start": "10:18 UTC", "end": "11:24 UTC", "result": "33 BRs validated" },
+    "phase2_olivia": { "start": "11:24 UTC", "end": "11:49 UTC", "result": "165 UCs in 17 batches" },
+    "phase2_5_emma_validate": { "start": "11:48 UTC", "end": "11:54 UTC", "result": "Coverage 61.2% (programmatic 45%, LLM 72%)" },
+    "phase3_marcus_design": { "start": "11:54 UTC", "end": "12:08 UTC", "result": "Design v1 truncated at 32K tokens" },
+    "phase3_marcus_revisions": { "start": "12:08 UTC", "end": "12:16 UTC", "result": "2 revisions, score stuck at 61.2%" },
+    "phase3_hitl_approve": { "start": "~12:16 UTC", "end": "~12:20 UTC", "result": "Manual approval (BUG-013 HITL working)" },
+    "phase3_gap_analysis": { "start": "12:22 UTC", "end": "12:23 UTC", "result": "Gap analysis truncated at 16K tokens" },
+    "phase3_wbs": { "start": "12:23 UTC", "end": "12:29 UTC", "result": "WBS generated (32K output)" },
+    "phase4_experts": { "start": "12:31 UTC", "end": "12:33 UTC", "result": "All 4 experts completed (Elena, Jordan, Aisha, Lucas)" },
+    "phase5_section3_batch1": { "start": "12:36 UTC", "end": "12:41 UTC", "result": "100 UCs, 10,808 tokens OK" },
+    "phase5_section3_batch2": { "start": "12:41 UTC", "end": "12:53 UTC", "result": "65 UCs, truncated at 16K + 3 continuations" },
+    "phase5_write_sds": { "start": "12:43 UTC", "end": "12:57 UTC", "result": "SDS document written + DOCX exported" }
+  },
+  "api_costs": {
+    "estimated_session_total": "$13.59",
+    "model_breakdown": {
+      "claude_sonnet_4_5": "$13.08",
+      "claude_sonnet_4": "$0.30",
+      "claude_opus_4_5": "$0.14",
+      "claude_haiku_4_5": "$0.07"
+    }
+  },
+  "coverage_details": {
+    "overall_score": 61.2,
+    "programmatic_score": 45,
+    "llm_score": 72,
+    "critical_gaps": 3,
+    "high_gaps": 4,
+    "medium_gaps": 2,
+    "revisions_attempted": 2,
+    "approved_via": "HITL manual approval"
+  },
+  "bugs_discovered": ["BUG-014", "BUG-015", "BUG-016", "UX-003", "UX-004"],
+  "bugs_fixed_during": ["ARCH-002", "ARCH-002b", "BUG-013"],
+  "key_findings": [
+    "First complete E2E run through all 5 phases",
+    "BUG-013 HITL works — user can approve/reject architecture",
+    "Marcus design truncated at 32K tokens (scope too large for single call)",
+    "Gap analysis capped at 16K tokens (BUG-016: mode 'gap' not in 32K list)",
+    "uc_digest always empty because of wrong key extraction (BUG-015)",
+    "Section writer batch 2 truncated at 16K + 3 continuations wasting tokens",
+    "Phase 4 experts mix models: Haiku 4.5, Sonnet 4, Sonnet 4.5",
+    "Duplicate parallel executions caused double API costs (~$0.50 wasted)",
+    "Cost counter always shows $0.00 (COST-001)",
+    "Active Agent shows only first running agent, not all parallel (UX-004)"
+  ]
+}

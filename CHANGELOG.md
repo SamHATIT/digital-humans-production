@@ -1,0 +1,128 @@
+# Changelog — Digital Humans Production
+
+All notable changes to this project are documented in this file.
+Format: [ID] Description | Commit | Date
+
+---
+
+## [2026-02-11] Session E2E #142 — First Complete Run
+
+### Context
+E2E #142 is the first execution to complete all 5 SDS phases (P1→P5).
+Preceded by E2E #140 (P0+P1 only) and E2E #141 (crashed P5 on BUG-011/012).
+
+### Fixes Deployed Before Run
+| ID | Description | Commit | Impact |
+|----|-------------|--------|--------|
+| BUG-012 | Async LLM path for Phase 5 | e02f102 | Phase 5 no longer crashes |
+| BUG-011 | phase3_complete transition in resume | e02f102 | Resume flow works |
+| PROMPT-V4 | Enriched Marcus design/WBS prompts | e7f1451 | Better architecture quality |
+| ARCH-001 | Revision feedback loop for Marcus | e7f1451 | Marcus gets revision context |
+| BUG-006 | flush→commit DB fix | 86aa448 | DB state consistency |
+| BUG-008 | Ghost job guard | 86aa448 | Prevents duplicate workers |
+| BUG-010 | Auto-resume checkpoints | 86aa448 | Granular resume support |
+
+### Fixes Applied During Run
+| ID | Description | Commit | Status |
+|----|-------------|--------|--------|
+| ARCH-002 | Pass uc_digest + previous_design to Marcus revision | 84b33e0 | ✅ Deployed |
+| ARCH-002b | Truncation limit 12K→40K for previous_design | 84b33e0 | ✅ Deployed |
+| BUG-013 | HITL instead of crash when coverage < 70% | 84b33e0 | ✅ Deployed + validated |
+
+### Fixes Identified, Committed Post-Run (not yet active in E2E #142)
+| ID | Description | Commit | Status |
+|----|-------------|--------|--------|
+| BUG-015 | uc_digest extraction: `.get("digest")` → `.get("content")` directly | fe0cb64 | Committed, needs deploy |
+| BUG-016 | Section writer max_tokens 16K→16384 | f225baf | Committed, needs deploy |
+| BUG-007 | Accumulate LLM cost on execution | 861d24d | Committed, needs deploy |
+| BUG-014 | Granular progress updates Phase 5 | 61fb0f2 | Committed, needs deploy |
+
+### Bugs Discovered (Backlog)
+| ID | Description | Severity | Status |
+|----|-------------|----------|--------|
+| BUG-014b | Resume phase3 replays Phase 2 (checkpoint_map not checked) | MEDIUM | Backlog |
+| BUG-016b | Gap analysis mode uses 16K max_tokens (not in 32K list) | MEDIUM | Backlog |
+| UX-003 | Coverage gaps show only severity, no detail text | MINOR | Backlog |
+| UX-004 | Active Agent uses .find() — only shows 1 agent in parallel | MINOR | Backlog |
+| COST-001 | Cost counter always $0.00 (tokens_used=0 everywhere) | MINOR | Backlog |
+| COST-002 | Budget $50 hardcoded | MINOR | Backlog |
+| PROMPT-001 | Emma recommends Einstein Bots (hallucination) | MINOR | Backlog |
+| ROUTER-001 | Phase 4 experts mix models (Haiku/Sonnet4/Sonnet4.5) | MINOR | Backlog |
+
+### Results
+- **Status**: COMPLETED (sds_complete, 98%)
+- **SDS**: 2,884 paragraphs, 0 tables, 0 placeholders
+- **Coverage score**: 61.2% (approved via HITL)
+- **API cost**: ~$13.59 (Feb 11 total)
+- **Duration**: ~2h40 (10:18→12:57 UTC)
+
+---
+
+## [2026-02-10] E2E #141 — Phase 4 Pass, Phase 5 Crash
+
+### Fixes Applied
+| ID | Description | Commit |
+|----|-------------|--------|
+| BUG-009 | TypeError in coverage gap join | bc38da1 |
+| BUG-005 | _map_to_legacy_status returns enum | 860993e |
+
+### Results
+- Phase 4 experts all completed successfully
+- Phase 5 crashed: BUG-011 (phase3_complete missing) + BUG-012 (sync LLM in async)
+- Coverage: 62% (same ceiling as E2E #140)
+- State documented in docs/e2e-tests/E2E_141_STATE.json
+
+---
+
+## [2026-02-10] E2E #140 — First Post-Refactoring Test
+
+### Context
+First execution after Horizons 2+3 merge (10 parallel streams).
+
+### Results
+- Phase 0+1 completed successfully
+- State documented in docs/e2e-tests/E2E_140_STATE.json
+
+---
+
+## [2026-02-09 → 2026-02-10] Sprint H — Horizons 2+3 Merge
+
+### Major Changes
+Merged 10 parallel development streams into main:
+
+| Stream | Description | Commit |
+|--------|-------------|--------|
+| Sprint 0 | P0 async fix + P1 dead code + P2 path centralization | 0559a76 |
+| Sprint 1 | P3 subprocess→import (11/11 agents) | 943a8c2 |
+| Sprint 2 | P4 fat controller split + P7 atomic transactions | f0eeafd |
+| Sprint 3 | P5 logging + P6 LLM router bridge + P8 secrets | c80e942 |
+| I1.1+I1.3 | ARQ workers for async execution | 708d32e |
+| I1.2 | State machine (24 states, 45 tests) | 6324165 |
+| P1.1+P1.2 | BudgetService + CircuitBreaker | 4c28752 |
+| I1.4+I2 | Frontend async state + BUILD ARQ | 7840844 |
+| P1.3+P1.4 | Static analysis PMD+ESLint | c099ff5 |
+| P2-Full | Configurable validation gates | ccfe3d9 |
+| P3 | RAG dynamic isolation | 85aad21 |
+| UX1 | Timeline stepper + deliverable viewer | e8372c6 |
+
+---
+
+## [2026-02-08] Sprint I — E2E Preparation
+
+### Changes
+- H1+H2+H15+H21: Orchestrator data quality + progress + zombie cleanup
+- H13: UCs moved to Annexe A with sub-batching
+- H12: Coverage score display + auto-revision loop
+- H14+H17: Service cleanup + greenfield template
+- H15-FE: Phase 5 progress + HITL polish
+
+---
+
+## [2026-02-07] Pre-E2E Wiring
+
+### Changes
+- State Machine integration (25 transitions)
+- Budget tracking (11 agents)
+- CircuitBreaker activation
+- UC_BATCH_SIZE 35→100
+
