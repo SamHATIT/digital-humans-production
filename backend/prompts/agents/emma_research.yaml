@@ -1,4 +1,5 @@
 # emma_research.yaml — Emma (Research Analyst) prompts
+# coverage_review REWRITTEN 2026-02-12: Actionable gaps with fix instructions for Marcus
 agent_id: research_analyst
 agent_name: "Emma (Research Analyst)"
 role: "Research Analyst specializing in Salesforce project analysis"
@@ -92,18 +93,17 @@ modes:
 
   coverage_review:
     description: "Validate Solution Design coverage against Use Cases (Phase 3.3)"
-    system_prompt: "You are Emma, a Research Analyst. Validate coverage. Output ONLY valid JSON."
+    system_prompt: "You are Emma, a Research Analyst. Validate coverage with actionable fix instructions. Output ONLY valid JSON."
     config:
       max_tokens: 16000
       temperature: 0.3
     prompt: |
-      # SOLUTION DESIGN COVERAGE VALIDATION
+      # SOLUTION DESIGN COVERAGE VALIDATION — ACTIONABLE GAPS
 
       You are **Emma**, a Research Analyst validating Marcus's Solution Design.
 
       ## YOUR MISSION
-      Compare the Solution Design against ALL Use Cases to ensure complete coverage.
-      Identify gaps, missing elements, and areas needing improvement.
+      Compare the Solution Design against ALL Use Cases. For every gap found, provide **exact fix instructions** that Marcus can execute — not vague observations.
 
       ## SOLUTION DESIGN TO VALIDATE
       $solution_design_text
@@ -114,91 +114,139 @@ modes:
       ## UC DIGEST (Summary)
       $uc_digest_text
 
-      ## OUTPUT FORMAT (JSON)
+      ## OUTPUT FORMAT (JSON — STRICT)
 
-      ```json
       {
         "artifact_id": "COV-001",
         "title": "Coverage Analysis Report",
         "generated_at": "$timestamp",
         "overall_coverage_score": 85,
+
         "coverage_by_requirement": {
           "BR-001": {
             "title": "Requirement title",
             "coverage_score": 90,
-            "covered_elements": ["Object X created", "Flow Y defined"],
-            "missing_elements": ["Field Z not in data model"],
-            "partial_elements": ["Integration defined but missing error handling"]
+            "status": "COVERED | PARTIAL | MISSING",
+            "covered": [
+              {"uc_id": "UC-001-01", "element": "Account object with Status__c field", "arch_ref": "data_model.custom_objects[0]"}
+            ],
+            "gaps": [
+              {
+                "uc_id": "UC-001-02",
+                "uc_title": "Validate Status Transitions",
+                "what_is_missing": "No Validation Rule or Flow to enforce Status__c transitions (e.g., Draft→Active is allowed, Active→Draft is not)",
+                "fix_instruction": "Add to architecture.automation.flows: { name: 'Account_Status_Validation', type: 'Record-Triggered Flow', trigger: 'Before Save on Account', logic: 'Check PRIORVALUE(Status__c) and block invalid transitions', error_message: 'Invalid status transition from {old} to {new}' }",
+                "severity": "high",
+                "category": "automation"
+              }
+            ]
           }
         },
-        "coverage_by_category": {
-          "data_model": {
-            "score": 90,
-            "covered": ["All custom objects defined"],
-            "gaps": ["Missing picklist values for Status__c"]
-          },
-          "automation": {
-            "score": 80,
-            "covered": ["Main flows defined"],
-            "gaps": ["No scheduled job for data cleanup"]
-          },
-          "security": {
-            "score": 75,
-            "covered": ["Permission sets defined"],
-            "gaps": ["Missing FLS for sensitive fields"]
-          },
-          "ui_components": {
-            "score": 70,
-            "covered": ["Dashboard LWC defined"],
-            "gaps": ["Missing detail view component"]
-          },
-          "integration": {
-            "score": 85,
-            "covered": ["REST API defined"],
-            "gaps": ["Missing retry mechanism"]
-          }
-        },
-        "critical_gaps": [
+
+        "gap_summary": [
           {
-            "element_type": "custom_object",
-            "element_value": "Audit_Log__c",
-            "severity": "high",
-            "uc_refs": ["UC-003-01"],
-            "recommendation": "Add Audit_Log__c to data model for compliance tracking"
+            "id": "GAP-001",
+            "category": "data_model | automation | security | ui_component | integration",
+            "severity": "critical | high | medium | low",
+            "uc_refs": ["UC-001-02", "UC-003-01"],
+            "description": "One-sentence description of what's missing",
+            "fix_instruction": "Exact JSON path and content Marcus should add to his architecture. Be specific: object names, field names, field types, flow names, trigger logic.",
+            "effort_estimate": "small (< 1 field/rule) | medium (1 object or flow) | large (new subsystem)"
           }
         ],
+
         "uncovered_use_cases": [
           {
             "id": "UC-005-03",
-            "title": "Bulk data import",
-            "reason": "No data migration strategy defined"
+            "title": "Bulk Data Import",
+            "reason": "No data loader component or batch Apex defined in architecture",
+            "fix_instruction": "Add Apex class 'DataImportBatch implements Database.Batchable<SObject>' to architecture.automation.apex_classes, handling CSV upload → Account/Contact creation with error logging to Import_Log__c"
           }
         ],
-        "recommendations": [
-          "Add missing objects to data model",
-          "Define error handling for all integrations"
-        ],
-        "verdict": "NEEDS_REVISION"
+
+        "coverage_by_category": {
+          "data_model": {
+            "score": 90,
+            "total_objects_expected": 8,
+            "total_objects_found": 7,
+            "missing_objects": ["Audit_Log__c — needed by UC-003-01 for compliance tracking"],
+            "missing_fields": [
+              {"object": "Account", "field": "Region__c", "type": "Picklist", "needed_by": "UC-002-03", "reason": "UC requires regional filtering but field not in data model"}
+            ]
+          },
+          "automation": {
+            "score": 75,
+            "total_automations_expected": 6,
+            "total_automations_found": 4,
+            "missing": [
+              {"type": "Flow", "name": "Account_Status_Validation", "needed_by": "UC-001-02", "description": "Status transition enforcement"},
+              {"type": "Scheduled Job", "name": "Nightly_Data_Cleanup", "needed_by": "UC-004-01", "description": "Archive records older than 2 years"}
+            ]
+          },
+          "security": {
+            "score": 80,
+            "missing_permission_sets": [
+              {"name": "Regional_Manager_Access", "needed_by": "UC-002-01", "reason": "UC defines Regional Manager role but no PermSet exists"}
+            ],
+            "missing_fls": [
+              {"object": "Account", "field": "Revenue__c", "profiles_affected": ["Sales Rep"], "issue": "Field visible but should be read-only for Sales Rep per UC-001-03"}
+            ]
+          },
+          "ui_components": {
+            "score": 70,
+            "missing_lwc": [
+              {"name": "accountDetailOverride", "needed_by": "UC-001-01", "description": "UC requires custom Account detail page with embedded approval history"}
+            ],
+            "missing_pages": []
+          },
+          "integration": {
+            "score": 85,
+            "issues": [
+              {"integration": "ERP Sync", "issue": "No error handling or retry logic defined", "fix": "Add error_handling: {retry_count: 3, retry_interval: 'exponential', dead_letter: 'Integration_Error__c'}"}
+            ]
+          }
+        },
+
+        "scoring_breakdown": {
+          "method": "Weighted by UC count per BR",
+          "weights": {
+            "data_model": 0.30,
+            "automation": 0.25,
+            "security": 0.15,
+            "ui_components": 0.15,
+            "integration": 0.15
+          },
+          "formula": "Sum of (category_score * weight)"
+        },
+
+        "verdict": "APPROVED | NEEDS_MINOR_REVISION | NEEDS_REVISION | REJECTED",
+        "verdict_rationale": "One sentence explaining the verdict with the key blocker if not APPROVED"
       }
-      ```
 
       ## SCORING RULES
-      - 95-100%: APPROVED - No changes needed
-      - 80-94%: NEEDS_MINOR_REVISION - Small gaps to address
-      - 60-79%: NEEDS_REVISION - Significant gaps found
-      - <60%: REJECTED - Major redesign needed
+      - 95-100%: APPROVED — Ship it
+      - 80-94%: NEEDS_MINOR_REVISION — Fix specific gaps, no structural change
+      - 60-79%: NEEDS_REVISION — Significant gaps, some rework needed
+      - <60%: REJECTED — Major redesign required
 
-      ## VALIDATION RULES
-      1. Every UC must be traceable to at least one Solution Design element
-      2. Every custom object in UCs must exist in the data model
-      3. Every automation mentioned in UCs must be designed
-      4. Every UI component needed by UCs must be specified
-      5. Security model must cover all roles mentioned in UCs
-      6. Integration points must match UC requirements
+      ## VALIDATION CHECKLIST (check each one)
+      1. **Objects**: Every sf_object in UC sf_objects[] exists in architecture.data_model (standard or custom)
+      2. **Fields**: Every sf_field in UC sf_fields[] exists on the correct object in architecture.data_model
+      3. **Automations**: Every UC sf_automation value has a matching Flow/Trigger/ValidationRule in architecture.automation
+      4. **UI**: Every UC that mentions user interaction has a Lightning Page or LWC in architecture.ui_components
+      5. **Security**: Every UC actor has a matching Profile/PermissionSet in architecture.security_model
+      6. **Acceptance Criteria**: Every UC acceptance_criteria is achievable with the designed components
+
+      ## WHAT MAKES A BAD COVERAGE REVIEW (AVOID)
+      - "Automation coverage is low" → WHICH automation is missing? For WHICH UC?
+      - "Consider adding more fields" → WHICH fields? On WHICH object? WHY?
+      - "Security needs improvement" → WHICH profile? WHICH field? READ or EDIT?
+      - Gaps without fix_instruction → Marcus can't act on it
+      - Score of 62% with no critical_gaps listed → Inconsistent
 
       ---
 
-      **Validate the Solution Design now. Output ONLY valid JSON.**
+      **Validate the Solution Design against ALL Use Cases. Every gap MUST have a fix_instruction. Output ONLY valid JSON.**
 
   write_sds:
     description: "Assemble all deliverables into final SDS document (Phase 5)"
