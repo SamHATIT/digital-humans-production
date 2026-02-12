@@ -624,29 +624,39 @@ Each gap represents work needed to transform the current org into the target arc
 # ============================================================================
 # PROMPT 4: WBS (GAP -> Tasks + Planning)
 # ============================================================================
-def get_wbs_prompt(gap_analysis: str, project_constraints: str = "") -> str:
+def get_wbs_prompt(gap_analysis: str, project_constraints: str = "", architecture_context: str = "") -> str:
     # Try external prompt first
     if PROMPT_SERVICE:
         try:
             return PROMPT_SERVICE.render("marcus_architect", "wbs", {
                 "gap_analysis": gap_analysis,
                 "project_constraints": project_constraints if project_constraints else "Standard Salesforce implementation timeline",
+                "architecture_context": architecture_context if architecture_context else "No architecture provided — use gap descriptions for implementation details.",
             })
         except Exception as e:
             logger.warning(f"PromptService fallback for marcus_architect/wbs: {e}")
 
     # FALLBACK: original f-string prompt
+    arch_section = ""
+    if architecture_context:
+        arch_section = f"""
+## ARCHITECTURE REFERENCE (USE THIS FOR implementation_spec)
+Reference the EXACT object names, field names, flow elements, LWC properties from this architecture.
+
+{architecture_context[:30000]}
+
+"""
     return f'''# WORK BREAKDOWN STRUCTURE - ENRICHED
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
 
 ## MISSION
 Create a detailed Work Breakdown Structure from the Gap Analysis.
-Each task MUST have validation criteria and clear agent assignment.
+Each task MUST have validation criteria, clear agent assignment, and implementation_spec with REAL component names from the architecture.
 
 ## GAP ANALYSIS
 {gap_analysis}
-
+{arch_section}
 ## PROJECT CONSTRAINTS
 {project_constraints if project_constraints else "Standard Salesforce implementation timeline"}
 
@@ -1148,7 +1158,10 @@ class SolutionArchitectAgent:
         elif mode == 'wbs':
             gap_analysis = json.dumps(input_data.get('gaps', input_data), indent=2)
             constraints = input_data.get('constraints', '')
-            prompt = get_wbs_prompt(gap_analysis, constraints)
+            # PROMPTS-005: Pass architecture to WBS so implementation_specs can reference real components
+            architecture = input_data.get('architecture', {})
+            architecture_str = json.dumps(architecture, indent=2) if architecture else ""
+            prompt = get_wbs_prompt(gap_analysis, constraints, architecture_context=architecture_str)
             return prompt, "work_breakdown_structure", "WBS"
 
         elif mode == 'fix_gaps':

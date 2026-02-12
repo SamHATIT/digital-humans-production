@@ -358,10 +358,15 @@ modes:
 
       ## MISSION
       Create a detailed Work Breakdown Structure from the Gap Analysis.
-      Each task MUST have validation criteria and clear agent assignment.
+      Each task MUST have validation criteria, clear agent assignment, and **implementation_spec with REAL component names from the architecture**.
 
       ## GAP ANALYSIS
       $gap_analysis
+
+      ## ARCHITECTURE REFERENCE (USE THIS FOR implementation_spec)
+      The following is your own Solution Design (ARCH-001). When writing implementation_spec for each task, reference the EXACT object names, field names, flow elements, LWC properties, and permission sets from this architecture.
+
+      $architecture_context
 
       ## PROJECT CONSTRAINTS
       $project_constraints
