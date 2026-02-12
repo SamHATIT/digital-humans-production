@@ -227,6 +227,7 @@
   .tag-medium { background: var(--purple-dim); color: var(--purple); }
   .tag-done { background: var(--green-dim); color: var(--green); }
   .tag-pending { background: rgba(107,114,128,0.15); color: var(--text-dim); }
+  .tag-active { background: var(--orange-dim); color: var(--orange); }
 
   /* Tables */
   table {
@@ -1032,12 +1033,14 @@ flowchart TB
     <h3>Planning</h3>
     <table>
       <tr><th>Semaine</th><th>Phase</th><th>Actions</th><th>Statut</th></tr>
-      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse et documentation complète</td><td><span class="tag tag-pending">Planifié</span></td></tr>
-      <tr><td>S2</td><td>Phase 2a</td><td>Stabilizer : P0 (async fix) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
-      <tr><td>S3</td><td>Phase 2b + 2c</td><td>Refactorer agents 1-4 + Modernizer P4/P7</td><td><span class="tag tag-pending">Planifié</span></td></tr>
-      <tr><td>S4</td><td>Phase 2b</td><td>Refactorer agents 5-8 + <b>P9 SDS Sections</b> (4j)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
-      <tr><td>S5</td><td>Phase 2b</td><td>Refactorer agents 9-11 (complexes)</td><td><span class="tag tag-pending">Planifié</span></td></tr>
-      <tr><td>S6</td><td>Phase 3</td><td>Intégrateur + P5 + P6 + P8 + validation finale</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse et documentation complète (5 docs référence)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S2</td><td>Sprint 0</td><td>Stabilizer : P0 (async fix) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S3</td><td>Sprint 1+2</td><td>Refactorer P3 (11/11 agents importables) + Modernizer P4/P7</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S4</td><td>Sprint 3</td><td>P5 logging + P6 LLM router bridge + P8 secrets</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S5</td><td>Horizons 2+3</td><td>10 streams parallèles : State Machine, ARQ, Budget, RAG, UX, HITL, Prompts</td><td><span class="tag tag-done">✅ Mergé (10 fév)</span></td></tr>
+      <tr><td>S6</td><td>Sprint I</td><td>E2E #140→#141→#142 + 16 bug fixes + HITL coverage gate</td><td><span class="tag tag-done">✅ Terminé (11 fév)</span></td></tr>
+      <tr><td>S7</td><td>E2E #143+</td><td>Deploy BUG-015/016/007, fix truncation, stabiliser coverage ≥70%</td><td><span class="tag tag-active">🔄 En cours</span></td></tr>
+      <tr><td>S8</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class, contracts communs</td><td><span class="tag tag-pending">Planifié</span></td></tr>
     </table>
 
     <h3>Dépendances</h3>
@@ -1107,20 +1110,45 @@ flowchart LR
         <div class="timeline-title">Correction rôles agents + P9 SDS Sections</div>
         <div class="timeline-desc">Analyse du code révèle : Olivia=BA, Marcus=Architect (inversés dans la doc initiale). Pipeline SDS corrigé (6 étapes). Découverte troncature critique : Emma perd 50-77% des livrables experts dans write_sds. Spec P9 formalisée : génération séquencée en 11 sections, 0% troncature.</div>
       </div>
-      <div class="timeline-item active">
+      <div class="timeline-item done">
         <div class="timeline-date">7 février 2026</div>
-        <div class="timeline-title">Documentation mise Ã  jour</div>
+        <div class="timeline-title">Documentation mise à jour</div>
         <div class="timeline-desc">CLAUDE.md + mini-site HTML corrigés : rôles agents, pipeline SDS, P9 ajouté au graphe de dépendances et tableau des problèmes.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">7-8 février 2026</div>
+        <div class="timeline-title">Sprints 0→3 — Refonte backend complète</div>
+        <div class="timeline-desc">Sprint 0 : P0 async fix (19 routes), P1 dead code removal, P2 path centralization (20+ occurrences). Sprint 1 : P3 subprocess→import (11/11 agents migrés). Sprint 2 : P4 fat controller split + P7 atomic transactions. Sprint 3 : P5 logging JSON, P6 LLM router bridge, P8 secrets.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">8-9 février 2026</div>
+        <div class="timeline-title">Sprint H — Horizons 2+3 (10 streams parallèles)</div>
+        <div class="timeline-desc">State Machine (24 états, 45 tests), ARQ workers async, BudgetService + CircuitBreaker, RAG isolation par projet, UX Timeline Stepper, HITL routes (chat, CR, versions), PromptService YAML (11 agents), composants frontend (Mermaid, Gantt, Metrics, SDS Preview, DiffViewer).</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">10 février 2026</div>
+        <div class="timeline-title">Sprint I — E2E #140 + #141</div>
+        <div class="timeline-desc">E2E #140 : premier test post-merge, P0+P1 passent. E2E #141 : Phase 4 (experts) passe, Phase 5 crash (BUG-011 transition + BUG-012 async LLM). Analyse coverage Emma : score plafonné à 62% — architecture Marcus manque de profondeur.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">11 février 2026</div>
+        <div class="timeline-title">🎉 E2E #142 — Premier run complet (Phases 1→5)</div>
+        <div class="timeline-desc">Première exécution complète de bout en bout. 33 BRs → 165 UCs → Architecture (61.2%) → 4 experts parallèles → SDS final (2,884 paragraphes). HITL coverage gate fonctionnel (BUG-013 fixé). Bugs découverts : BUG-015 (uc_digest vide), BUG-016 (truncation 16K). Coût API : ~$13.59. Score bloqué à 61.2% — uc_digest jamais transmis à Marcus.</div>
+      </div>
+      <div class="timeline-item active">
+        <div class="timeline-date">12 février 2026</div>
+        <div class="timeline-title">Stabilisation — vers E2E #143</div>
+        <div class="timeline-desc">Déploiement BUG-015 (uc_digest) + BUG-016 (max_tokens) + BUG-007 (coûts). Objectif : coverage ≥70% et élimination des truncations. Documentation rattrapage (CHANGELOG, BACKLOG, mini-site).</div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-date">Février 2026</div>
+        <div class="timeline-title">P10 — Agent Architecture Debt</div>
+        <div class="timeline-desc">Création d'une BaseAgent class pour établir des contrats communs (_call_llm, execution_id, logging) sur les 11 agents. Premier sprint post-E2E testing.</div>
       </div>
       <div class="timeline-item">
         <div class="timeline-date">Fin février 2026</div>
-        <div class="timeline-title">Phase 1 — Analyse architecte</div>
-        <div class="timeline-desc">Chargement du repo entier dans Opus 4.6 (1M context). Production des documents de référence.</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-date">Mars 2026</div>
-        <div class="timeline-title">Phases 2 & 3 — Exécution refonte</div>
-        <div class="timeline-desc">Agent Teams en parallèle. 6 semaines de travail. Validation finale et tag git.</div>
+        <div class="timeline-title">Phase finale — Refonte architecturale via Agent Teams</div>
+        <div class="timeline-desc">Chargement du repo dans Opus 4.6 (1M context). Agent Teams en 3 phases : Architecte → Spécialistes parallèles → Intégrateur.</div>
       </div>
     </div>
   </div>
