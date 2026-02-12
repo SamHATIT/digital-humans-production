@@ -13,6 +13,8 @@ from app.models.change_request import ChangeRequest
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.sds_version import SDSVersion
+from app.models.artifact import ExecutionArtifact
+from app.models.project_conversation import ProjectConversation
 from app.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
@@ -381,3 +383,110 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
             self.db.commit()
             
             return {"success": False, "error": str(e)}
+
+    def create_from_chat(
+        self,
+        message: str,
+        execution_id: int,
+        deliverable_id: Optional[int] = None,
+        user_id: Optional[int] = None,
+    ) -> Optional[ChangeRequest]:
+        """
+        Create a ChangeRequest from a chat conversation when Sophie detects
+        that the user's message implies a modification.
+
+        Uses Claude to determine category, priority and title from the message.
+        """
+        logger.info(f"[CR Service] create_from_chat: execution_id={execution_id}, deliverable_id={deliverable_id}")
+
+        # Load execution to get project_id
+        execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+        if not execution:
+            logger.error(f"[CR Service] Execution {execution_id} not found")
+            return None
+
+        project_id = execution.project_id
+
+        # Build context for classification prompt
+        deliverable_context = ""
+        if deliverable_id:
+            deliverable = self.db.query(AgentDeliverable).filter(
+                AgentDeliverable.id == deliverable_id
+            ).first()
+            if deliverable:
+                content_preview = (deliverable.content or "")[:500]
+                deliverable_context = f"Livrable concerné ({deliverable.deliverable_type}): {content_preview}"
+
+        classify_prompt = f"""Analyse ce message utilisateur et détermine s'il constitue une demande de modification (Change Request).
+
+Message utilisateur: "{message}"
+
+{deliverable_context}
+
+Retourne UNIQUEMENT un JSON valide:
+{{
+    "is_change_request": true/false,
+    "category": "business_rule|data_model|process|ui_ux|integration|security|other",
+    "title": "Titre court de la modification",
+    "description": "Description détaillée de la modification demandée",
+    "priority": "low|medium|high|critical"
+}}
+"""
+
+        system_prompt = (
+            "Tu es Sophie, PM Salesforce. Analyse si le message est une demande de modification. "
+            "Retourne UNIQUEMENT du JSON valide."
+        )
+
+        try:
+            response = self.llm_service.generate(
+                prompt=classify_prompt,
+                agent_type="sophie",
+                system_prompt=system_prompt,
+                max_tokens=500,
+                temperature=0.2,
+            )
+
+            parsed = self._parse_impact_json(response["content"])
+            if not parsed or not parsed.get("is_change_request"):
+                logger.info("[CR Service] Message not classified as a change request")
+                return None
+
+            # Generate CR number
+            from sqlalchemy import func as sa_func
+            count = self.db.query(sa_func.count(ChangeRequest.id)).filter(
+                ChangeRequest.project_id == project_id
+            ).scalar()
+            cr_number = f"CR-{str(count + 1).zfill(3)}"
+
+            cr = ChangeRequest(
+                project_id=project_id,
+                execution_id=execution_id,
+                cr_number=cr_number,
+                category=parsed.get("category", "other"),
+                title=parsed.get("title", message[:100]),
+                description=parsed.get("description", message),
+                priority=parsed.get("priority", "medium"),
+                status="draft",
+                created_by=user_id,
+            )
+            self.db.add(cr)
+            self.db.commit()
+            self.db.refresh(cr)
+
+            logger.info(f"[CR Service] Created CR {cr.cr_number} from chat message")
+            return cr
+
+        except Exception as e:
+            logger.error(f"[CR Service] create_from_chat failed: {e}")
+            return None
+
+    async def execute_cr(self, cr_id: int) -> Dict[str, Any]:
+        """
+        Execute an approved CR: launch concerned agents and create a new SDSVersion.
+
+        Delegates to process_change_request which handles the full lifecycle.
+        Returns dict with success status and new SDS version info.
+        """
+        logger.info(f"[CR Service] execute_cr called for CR {cr_id}")
+        return await self.process_change_request(cr_id)
