@@ -22,7 +22,21 @@ class SalesforceConfig:
     sfdx_project_path: str = field(default_factory=lambda: str(settings.SFDX_PROJECT_PATH))
     force_app_path: str = field(default_factory=lambda: str(settings.FORCE_APP_PATH))
 
-# Singleton instance
+    @classmethod
+    def from_project(cls, project) -> "SalesforceConfig":
+        """ARCH-002: Create a per-project config from a Project model instance.
+
+        Falls back to the default singleton values when the project does not
+        provide its own Salesforce credentials.
+        """
+        return cls(
+            org_alias=getattr(project, 'sf_org_id', None) or cls.org_alias,
+            username=getattr(project, 'sf_username', None) or cls.username,
+            org_id=getattr(project, 'sf_org_id', None) or cls.org_id,
+            instance_url=getattr(project, 'sf_instance_url', None) or cls.instance_url,
+        )
+
+# Singleton instance (default, used when no project context is available)
 salesforce_config = SalesforceConfig()
 
 # Agent-specific paths

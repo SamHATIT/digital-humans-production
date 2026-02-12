@@ -1063,8 +1063,16 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] Skipping SF metadata: project_type={getattr(project, 'project_type', 'unknown')}, sf_connected={getattr(project, 'sf_connected', False)}")
                 return {"success": False, "error": "greenfield_or_not_connected", "full_metadata": {}, "summary": {}}
 
+        # ARCH-002: Per-project SF config instead of global singleton
+        if project and getattr(project, 'sf_instance_url', None):
+            from app.salesforce_config import SalesforceConfig
+            sf_cfg = SalesforceConfig.from_project(project)
+            logger.info(f"[Metadata] Using per-project SF config: {sf_cfg.instance_url}")
+        else:
+            sf_cfg = salesforce_config  # Fallback to global singleton
+
         logger.info(f"[Metadata] Retrieving Salesforce org metadata...")
-        
+
         metadata = {
             "org_info": {},
             "metadata_types": [],
@@ -1076,7 +1084,7 @@ class PMOrchestratorServiceV2:
         
         try:
             # 1. Get org info (edition, version, features)
-            org_cmd = f"sf org display --target-org {salesforce_config.org_alias} --json"
+            org_cmd = f"sf org display --target-org {sf_cfg.org_alias} --json"
             org_result = subprocess.run(org_cmd, shell=True, capture_output=True, text=True, timeout=30)
             if org_result.returncode == 0:
                 org_data = json.loads(org_result.stdout)
@@ -1084,7 +1092,7 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ Org info retrieved: {metadata['org_info'].get('edition', 'Unknown')} edition")
             
             # 2. List available metadata types
-            types_cmd = f"sf org list metadata-types --api-version {salesforce_config.api_version} --target-org {salesforce_config.org_alias} --json"
+            types_cmd = f"sf org list metadata-types --api-version {sf_cfg.api_version} --target-org {sf_cfg.org_alias} --json"
             types_result = subprocess.run(types_cmd, shell=True, capture_output=True, text=True, timeout=60)
             if types_result.returncode == 0:
                 types_data = json.loads(types_result.stdout)
@@ -1092,7 +1100,7 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['metadata_types'])} metadata types available")
             
             # 3. List all objects (standard + custom)
-            objects_cmd = f"sf sobject list --sobject-type all --target-org {salesforce_config.org_alias} --json"
+            objects_cmd = f"sf sobject list --sobject-type all --target-org {sf_cfg.org_alias} --json"
             objects_result = subprocess.run(objects_cmd, shell=True, capture_output=True, text=True, timeout=60)
             if objects_result.returncode == 0:
                 objects_data = json.loads(objects_result.stdout)
@@ -1101,7 +1109,7 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['objects'])} objects ({custom_count} custom)")
             
             # 4. List installed packages (ISV)
-            pkg_cmd = f"sf package installed list --target-org {salesforce_config.org_alias} --json"
+            pkg_cmd = f"sf package installed list --target-org {sf_cfg.org_alias} --json"
             pkg_result = subprocess.run(pkg_cmd, shell=True, capture_output=True, text=True, timeout=30)
             if pkg_result.returncode == 0:
                 pkg_data = json.loads(pkg_result.stdout)
@@ -1109,7 +1117,7 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['installed_packages'])} installed packages")
             
             # 5. Get org limits
-            limits_cmd = f"sf limits api display --target-org {salesforce_config.org_alias} --json"
+            limits_cmd = f"sf limits api display --target-org {sf_cfg.org_alias} --json"
             limits_result = subprocess.run(limits_cmd, shell=True, capture_output=True, text=True, timeout=30)
             if limits_result.returncode == 0:
                 limits_data = json.loads(limits_result.stdout)
@@ -1125,7 +1133,7 @@ class PMOrchestratorServiceV2:
             metadata["object_fields"] = {}
             for obj_name in key_objects:
                 try:
-                    describe_cmd = f"sf sobject describe --sobject {obj_name} --target-org {salesforce_config.org_alias} --json"
+                    describe_cmd = f"sf sobject describe --sobject {obj_name} --target-org {sf_cfg.org_alias} --json"
                     describe_result = subprocess.run(describe_cmd, shell=True, capture_output=True, text=True, timeout=30)
                     if describe_result.returncode == 0:
                         describe_data = json.loads(describe_result.stdout)
@@ -1182,7 +1190,7 @@ class PMOrchestratorServiceV2:
         summary = {
             "org_edition": org_info.get("edition", "Unknown"),
             "org_type": org_info.get("instanceName", "Unknown"),
-            "api_version": org_info.get("apiVersion", salesforce_config.api_version),
+            "api_version": org_info.get("apiVersion", sf_cfg.api_version),
             "username": org_info.get("username", ""),
             "instance_url": org_info.get("instanceUrl", ""),
             
