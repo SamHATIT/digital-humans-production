@@ -51,6 +51,7 @@ async def generate_uc_section_batched(
     all_ucs: List[Dict[str, Any]],
     project_name: str = "",
     project_context: dict = None,
+    progress_callback=None,
 ) -> Dict[str, Any]:
     """
     Generate SDS Section 3 (Use Case Specifications) in sub-batches.
@@ -156,6 +157,12 @@ Use Cases for this batch:
                     f"[P9] Section 3 batch {batch_num}/{total_batches}: "
                     f"OK ({batch_tokens} tokens)"
                 )
+                # BUG-014: Report progress per batch
+                if progress_callback:
+                    try:
+                        progress_callback(batch_num, total_batches)
+                    except Exception:
+                        pass
             else:
                 error_msg = response.get("error", "Unknown error")
                 logger.warning(

@@ -2486,9 +2486,18 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 f"({UC_BATCH_SIZE}), generating Section 3 in sub-batches"
             )
             self._update_progress(
-                execution, "research_analyst", "running", 82,
+                execution, "research_analyst", "running", 86,
                 f"Generating UC specs in batches ({len(all_use_cases_for_sds)} UCs)..."
             )
+
+            # BUG-014: Progress callback for per-batch visibility (86% → 89%)
+            def _batch_progress(batch_num, total_batches):
+                pct = 86 + int((batch_num / total_batches) * 3)  # 86-89%
+                self._update_progress(
+                    execution, "research_analyst", "running", pct,
+                    f"UC batch {batch_num}/{total_batches} done"
+                )
+
             section_3_result = await generate_uc_section_batched(
                 all_ucs=all_use_cases_for_sds,
                 project_name=project.name,
@@ -2498,6 +2507,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     "salesforce_product": getattr(project, 'salesforce_product', '') or "",
                     "organization_type": getattr(project, 'project_type', 'existing') or "existing",
                 },
+                progress_callback=_batch_progress,
             )
             uc_section_3_content = section_3_result["content"]
             uc_section_3_tokens = section_3_result["tokens_used"]
@@ -2538,6 +2548,9 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             )
         else:
             emma_write_input["use_cases"] = all_use_cases_for_sds
+
+        # BUG-014: progress update before the main LLM call
+        self._update_progress(execution, "research_analyst", "running", 90, "Emma generating SDS document...")
 
         emma_write_result = await self._run_agent(
             agent_id="research_analyst",
