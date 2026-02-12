@@ -1,0 +1,718 @@
+{
+  "id": 143,
+  "status": "ExecutionStatus.FAILED",
+  "execution_state": "failed",
+  "progress": 70,
+  "total_cost": 0.752088,
+  "started_at": "2026-02-12 20:00:16.300845+00:00",
+  "completed_at": "2026-02-12 21:07:20.271868+00:00",
+  "agent_status": {
+    "pm": {
+      "state": "completed",
+      "progress": 15,
+      "message": "Using 28 validated BRs",
+      "started_at": null,
+      "completed_at": "2026-02-12T20:00:16.335441+00:00",
+      "tokens_used": 0,
+      "updated_at": "2026-02-12T20:00:16.335441+00:00"
+    },
+    "ba": {
+      "state": "completed",
+      "progress": 42,
+      "message": "Generated 83 UCs",
+      "started_at": "2026-02-12T20:00:16.347269+00:00",
+      "completed_at": "2026-02-12T20:16:01.917943+00:00",
+      "tokens_used": 0,
+      "updated_at": "2026-02-12T20:16:01.917943+00:00"
+    },
+    "research_analyst": {
+      "state": "waiting_approval",
+      "progress": 70,
+      "message": "Coverage 54.8% after 2 revision(s) \u2014 awaiting validation",
+      "started_at": "2026-02-12T20:16:01.939816+00:00",
+      "completed_at": "2026-02-12T20:18:28.755227+00:00",
+      "tokens_used": 0,
+      "updated_at": "2026-02-12T20:56:34.369731+00:00",
+      "extra_data": {
+        "approval_type": "architecture_coverage",
+        "coverage_score": 54.8,
+        "critical_gaps": [
+          {
+            "element_type": "object",
+            "element_value": "processinstanceworkitem",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contact",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "invoice__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "sla_alert__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "messagingsession",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "processinstance",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "datacategoryselection",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "interaction__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "servicechannel",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "userservicepresence",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "data_subject_request__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "casehistory",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "pendingservicerouting",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "knowledge__kav",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "casecomment",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "duplicaterecorditem",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "casemilestone",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "queue",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "case",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_interaction_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "socialpost",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "skill_mapping_rule__mdt",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "audit_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "user",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "knowledge__ka",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "integration_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "agent_performance_metrics__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "case_activity_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "compliance_reports__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "emailtemplate",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contract",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "businesshours",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "knowledge_usage__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "duplicate_match__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_exception_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "agent_quality_evaluation__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "skillrequirement",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "serviceresourceskill",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "slaprocess",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_conversation__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "data_deletion_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "namedcredential",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_conversation_transcript__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contentdocument",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "agent_skill__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "attachment",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "serviceresource",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contactpointconsent",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "individual",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "livechattranscript",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "listview",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "data_retention_matrix__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_training_data__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "agentwork",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "opportunity",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "casearticle",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "queuesobject",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contentdocumentlink",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "duplicaterecordset",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_intent_log__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "case_knowledge_article__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "milestonetype",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "consent_record__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "task",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "channel_response_configuration__mdt",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "campaignmember",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "survey_response__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "order",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "social_media_message__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "entitlement",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_agent_interaction__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "dashboard",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "personaccount",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "externalserviceregistration",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "survey_request__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "linkedin_response_queue__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "account",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "agent_availability__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "report",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "feeditem",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "entitlementprocess",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "campaign",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "ai_agent_metrics__c",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "group",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "contentversion",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "milestone",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "emailmessage",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "intent_action_mapping__mdt",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "object",
+            "element_value": "lead",
+            "severity": "high",
+            "category": "DATA_MODEL"
+          },
+          {
+            "element_type": "automation",
+            "element_value": "apex",
+            "severity": "medium",
+            "category": "AUTOMATION"
+          },
+          {
+            "element_type": "automation",
+            "element_value": "flow",
+            "severity": "medium",
+            "category": "AUTOMATION"
+          },
+          {
+            "element_type": "automation",
+            "element_value": "validation rule",
+            "severity": "medium",
+            "category": "AUTOMATION"
+          }
+        ],
+        "uncovered_use_cases": [],
+        "revision_count": 2,
+        "max_revisions": 2,
+        "below_minimum": true
+      }
+    },
+    "architect": {
+      "state": "running",
+      "progress": 68,
+      "message": "Revising architecture (attempt 2)...",
+      "started_at": "2026-02-12T20:18:28.767196+00:00",
+      "completed_at": null,
+      "tokens_used": 0,
+      "updated_at": "2026-02-12T20:48:52.792623+00:00"
+    },
+    "data": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "trainer": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "qa": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "devops": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "apex": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "lwc": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    },
+    "admin": {
+      "state": "waiting",
+      "progress": 0,
+      "message": "Waiting...",
+      "started_at": null,
+      "completed_at": null,
+      "tokens_used": 0
+    }
+  },
+  "coverage_scores": [
+    "45.0% (initial)",
+    "64.8% (rev1)",
+    "54.8% (rev2)"
+  ],
+  "coverage_after_fix": "90.3% (same initial design)",
+  "bugs_found": [
+    "COVERAGE-001 UC format mismatch",
+    "COVERAGE-002 weight imbalance",
+    "COVERAGE-003 automation type mismatch"
+  ],
+  "deliverables": [
+    {
+      "type": "pm_br_extraction",
+      "size_chars": 20765
+    },
+    {
+      "type": "ba_use_cases",
+      "size_chars": 153
+    },
+    {
+      "type": "research_analyst_uc_digest",
+      "size_chars": 27130
+    },
+    {
+      "type": "architect_as_is",
+      "size_chars": 4450
+    },
+    {
+      "type": "architect_solution_design",
+      "size_chars": 122281
+    },
+    {
+      "type": "research_analyst_coverage_report",
+      "size_chars": 2042
+    },
+    {
+      "type": "architect_solution_design_rev1",
+      "size_chars": 77082
+    },
+    {
+      "type": "research_analyst_coverage_report_rev1",
+      "size_chars": 36747
+    },
+    {
+      "type": "architect_solution_design_rev2",
+      "size_chars": 155739
+    },
+    {
+      "type": "research_analyst_coverage_report_rev2",
+      "size_chars": 40619
+    }
+  ]
+}
