@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck, ChevronDown, ChevronUp, MessageCircle, BarChart3 } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
@@ -9,6 +9,9 @@ import SDSv3Generator from '../components/SDSv3Generator';
 import TimelineStepper from '../components/TimelineStepper';
 import DeliverableViewer from '../components/DeliverableViewer';
 import ValidationGatePanel from '../components/ValidationGatePanel';
+import ArchitectureReviewPanel from '../components/ArchitectureReviewPanel';
+import ExecutionMetrics from '../components/ExecutionMetrics';
+import ChatSidebar from '../components/ChatSidebar';
 import { AGENTS } from '../constants';
 import type { PhaseInfo } from '../components/TimelineStepper';
 
@@ -103,6 +106,10 @@ export default function ExecutionMonitoringPage() {
   // I1.4: Budget tracking
   const [budget, setBudget] = useState<BudgetInfo | null>(null);
   const budgetPollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Chat sidebar + Metrics panel
+  const [chatOpen, setChatOpen] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
 
   // FRNT-02 + I1.4: Compare progress using execution_state first, fallback to agent-level diff
   const hasProgressChanged = (oldData: ExecutionProgress | null, newData: ExecutionProgress | null): boolean => {
@@ -568,15 +575,45 @@ export default function ExecutionMonitoringPage() {
             </p>
           </div>
 
-          {canDownload && (
+          <div className="flex items-center gap-3">
+            {/* Metrics toggle */}
             <button
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25"
+              onClick={() => setShowMetrics(!showMetrics)}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-medium transition-all ${
+                showMetrics
+                  ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                  : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white hover:border-slate-600'
+              }`}
             >
-              <Download className="w-5 h-5" />
-              Download SDS
+              <BarChart3 className="w-4 h-4" />
+              Metrics
             </button>
-          )}
+
+            {/* Chat toggle */}
+            {progress?.execution_id && (
+              <button
+                onClick={() => setChatOpen(!chatOpen)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 border rounded-xl text-sm font-medium transition-all ${
+                  chatOpen
+                    ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
+                    : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:text-white hover:border-slate-600'
+                }`}
+              >
+                <MessageCircle className="w-4 h-4" />
+                Chat
+              </button>
+            )}
+
+            {canDownload && (
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25"
+              >
+                <Download className="w-5 h-5" />
+                Download SDS
+              </button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -615,114 +652,23 @@ export default function ExecutionMonitoringPage() {
           </div>
         )}
 
-        {/* H12: Architecture Coverage Validation */}
-        {isWaitingArchitectureValidation && (
-          <div className="mb-6 bg-blue-500/10 border border-blue-500/30 rounded-xl p-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                <ShieldCheck className="w-6 h-6 text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-blue-400 mb-2">
-                  Architecture Coverage Validation
-                </h3>
-                <p className="text-slate-300 mb-4">
-                  Emma (Research Analyst) has validated the solution architecture against your use cases.
-                  The coverage score is between 70-94%. Please review and decide whether to approve or request a revision.
-                </p>
-
-                {/* Coverage info from agent progress */}
-                {(() => {
-                  const researchAgent = getArchitectureCoverageData();
-                  const extraData = researchAgent?.extra_data;
-                  const score = extraData?.coverage_score ?? null;
-                  const criticalGaps = extraData?.critical_gaps || [];
-                  const uncoveredUCs = extraData?.uncovered_use_cases || [];
-                  const revisionCount = extraData?.revision_count ?? 0;
-
-                  return (
-                    <div className="mb-4 space-y-3">
-                      {score !== null && (
-                        <div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-slate-400">
-                              {revisionCount > 0
-                                ? `Score after ${revisionCount} revision${revisionCount > 1 ? 's' : ''}:`
-                                : 'Coverage Score:'}
-                            </span>
-                            <span className={`text-2xl font-bold ${
-                              score >= 85 ? 'text-green-400' : score >= 70 ? 'text-orange-400' : 'text-red-400'
-                            }`}>
-                              {Math.round(score)}%
-                            </span>
-                          </div>
-                          <p className={`text-sm mt-1 ${
-                            score >= 85 ? 'text-green-400' : score >= 70 ? 'text-orange-400' : 'text-red-400'
-                          }`}>
-                            {score >= 85
-                              ? 'Good coverage'
-                              : score >= 70
-                              ? 'Acceptable — review gaps below'
-                              : 'Insufficient — revision recommended'}
-                          </p>
-                        </div>
-                      )}
-                      {criticalGaps.length > 0 && (
-                        <div>
-                          <p className="text-slate-400 text-sm font-medium mb-1">Critical Gaps ({criticalGaps.length}):</p>
-                          <ul className="space-y-1">
-                            {criticalGaps.map((gap, i) => (
-                              <li key={i} className="text-slate-300 text-sm flex items-start gap-2">
-                                <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
-                                  gap.severity === 'high' ? 'bg-red-400' : gap.severity === 'medium' ? 'bg-orange-400' : 'bg-yellow-400'
-                                }`} />
-                                <span>
-                                  <span className={`font-medium ${
-                                    gap.severity === 'high' ? 'text-red-400' : gap.severity === 'medium' ? 'text-orange-400' : 'text-yellow-400'
-                                  }`}>[{gap.severity}]</span>{' '}
-                                  {gap.gap}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {uncoveredUCs.length > 0 && (
-                        <div>
-                          <p className="text-slate-400 text-sm font-medium mb-1">Uncovered Use Cases ({uncoveredUCs.length}):</p>
-                          <ul className="space-y-1">
-                            {uncoveredUCs.map((uc, i) => (
-                              <li key={i} className="text-slate-300 text-sm">&bull; {uc}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleArchitectureAction('approve_architecture')}
-                    disabled={isArchAction}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-medium rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/25 disabled:opacity-50"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {isArchAction ? 'Processing...' : 'Approve Architecture'}
-                  </button>
-                  <button
-                    onClick={() => handleArchitectureAction('revise_architecture')}
-                    disabled={isArchAction}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50"
-                  >
-                    <RefreshCcw className="w-4 h-4" />
-                    {isArchAction ? 'Processing...' : 'Revise Architecture'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* HITL-1: Architecture Review Panel */}
+        {isWaitingArchitectureValidation && progress?.execution_id && (() => {
+          const researchAgent = getArchitectureCoverageData();
+          const extraData = researchAgent?.extra_data;
+          return (
+            <ArchitectureReviewPanel
+              executionId={progress.execution_id}
+              onApprove={() => handleArchitectureAction('approve_architecture')}
+              onRevise={() => handleArchitectureAction('revise_architecture')}
+              isActioning={isArchAction}
+              coverageScore={extraData?.coverage_score ?? null}
+              criticalGaps={extraData?.critical_gaps || []}
+              uncoveredUseCases={extraData?.uncovered_use_cases || []}
+              revisionCount={extraData?.revision_count ?? 0}
+            />
+          );
+        })()}
 
         {/* P2-Full: Configurable validation gate panel */}
         {isWaitingConfigurableGate && pendingGateData && progress?.execution_id && (
@@ -961,6 +907,22 @@ export default function ExecutionMonitoringPage() {
             </div>
           )}
         </div>
+
+        {/* U3-2: Execution Metrics panel */}
+        {showMetrics && progress?.agent_progress && (
+          <div className="mt-8">
+            <ExecutionMetrics
+              agents={progress.agent_progress.map((a) => ({
+                agent_name: a.agent_name,
+                tokens_used: (a as any).tokens_used || 0,
+                cost: (a as any).cost || 0,
+                duration_seconds: (a as any).duration_seconds || 0,
+                status: a.status,
+              }))}
+              totalCost={budget?.execution_cost}
+            />
+          </div>
+        )}
       </main>
 
       {/* Agent Thought Modal */}
@@ -972,6 +934,15 @@ export default function ExecutionMonitoringPage() {
           currentTask={selectedAgentTask}
           outputSummary={selectedAgentOutput}
           status={selectedAgentStatus}
+        />
+      )}
+
+      {/* HITL-3: Chat Sidebar */}
+      {progress?.execution_id && (
+        <ChatSidebar
+          executionId={progress.execution_id}
+          isOpen={chatOpen}
+          onClose={() => setChatOpen(false)}
         />
       )}
     </div>

@@ -75,6 +75,8 @@ export default function BRValidationPage() {
   
   // Modal states
   const [editingBR, setEditingBR] = useState<BusinessRequirement | null>(null);
+  const [inlineEditId, setInlineEditId] = useState<number | null>(null);
+  const [inlineEditData, setInlineEditData] = useState<Partial<BusinessRequirement>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newBR, setNewBR] = useState({ category: '', requirement: '', priority: 'should' as 'must' | 'should' | 'could' | 'wont', client_notes: '' });
   
@@ -170,6 +172,38 @@ export default function BRValidationPage() {
   const handleExportCSV = () => {
     const token = localStorage.getItem('token');
     window.open(`/api/br/${projectId}/export?token=${token}`, '_blank');
+  };
+
+  const startInlineEdit = (br: BusinessRequirement) => {
+    setInlineEditId(br.id);
+    setInlineEditData({
+      category: br.category,
+      requirement: br.requirement,
+      priority: br.priority,
+      client_notes: br.client_notes,
+    });
+  };
+
+  const saveInlineEdit = async () => {
+    if (inlineEditId === null) return;
+    try {
+      await api.put(`/api/br/item/${inlineEditId}`, {
+        category: inlineEditData.category,
+        requirement: inlineEditData.requirement,
+        priority: inlineEditData.priority,
+        client_notes: inlineEditData.client_notes,
+      });
+      setInlineEditId(null);
+      setInlineEditData({});
+      fetchBRs();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save changes');
+    }
+  };
+
+  const cancelInlineEdit = () => {
+    setInlineEditId(null);
+    setInlineEditData({});
   };
 
   // Filter BRs
@@ -276,66 +310,157 @@ export default function BRValidationPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden mb-8">
-          <table className="w-full">
-            <thead className="bg-slate-900/50 border-b border-slate-700">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">ID</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Category</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Requirement</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-slate-400">Priority</th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-slate-400">Status</th>
-                <th className="px-4 py-3 text-center text-sm font-medium text-slate-400">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-700">
-              {filteredBRs.map((br) => (
-                <tr key={br.id} className="hover:bg-slate-700/30 transition-colors">
-                  <td className="px-4 py-3 text-sm font-mono text-cyan-400">{br.br_id}</td>
-                  <td className="px-4 py-3 text-sm text-slate-300">{br.category || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-white max-w-md">
-                    <div className="line-clamp-2">{br.requirement}</div>
-                    {br.client_notes && (
-                      <div className="text-xs text-slate-500 mt-1">📝 {br.client_notes}</div>
+        {/* Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          {filteredBRs.map((br) => {
+            const isEditing = inlineEditId === br.id;
+
+            return (
+              <div
+                key={br.id}
+                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-all group"
+              >
+                {/* Card header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-mono text-cyan-400">{br.br_id}</span>
+                    <span className="text-lg">{STATUS_ICONS[br.status]}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {!isEditing && (
+                      <>
+                        <button
+                          onClick={() => startInlineEdit(br)}
+                          className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-all"
+                          title="Edit inline"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBR(br.id)}
+                          className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-all"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[br.priority]}`}>
-                      {br.priority.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg">
-                    {STATUS_ICONS[br.status]}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => setEditingBR(br)}
-                        className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-700 rounded transition-colors"
-                        title="Edit"
+                  </div>
+                </div>
+
+                {/* Priority + Category badges */}
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  {isEditing ? (
+                    <>
+                      <select
+                        value={inlineEditData.priority || 'should'}
+                        onChange={(e) => setInlineEditData({ ...inlineEditData, priority: e.target.value as any })}
+                        className="bg-slate-700 border border-slate-600 text-white rounded px-2 py-1 text-xs"
                       >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteBR(br.id)}
-                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition-colors"
-                        title="Delete"
+                        {(['must', 'should', 'could', 'wont'] as const).map(p => (
+                          <option key={p} value={p}>{p.toUpperCase()}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={inlineEditData.category || ''}
+                        onChange={(e) => setInlineEditData({ ...inlineEditData, category: e.target.value })}
+                        className="bg-slate-700 border border-slate-600 text-white rounded px-2 py-1 text-xs"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {filteredBRs.length === 0 && (
-            <div className="p-8 text-center text-slate-400">
-              No requirements found. {filterCategory || filterStatus ? 'Try adjusting filters.' : ''}
-            </div>
-          )}
+                        <option value="">No Category</option>
+                        {CATEGORIES.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_COLORS[br.priority]}`}>
+                        {br.priority.toUpperCase()}
+                      </span>
+                      {br.category && (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-700/50 text-slate-300 border border-slate-600">
+                          {br.category}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Requirement text */}
+                {isEditing ? (
+                  <textarea
+                    value={inlineEditData.requirement || ''}
+                    onChange={(e) => setInlineEditData({ ...inlineEditData, requirement: e.target.value })}
+                    rows={3}
+                    className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm mb-2 resize-y"
+                  />
+                ) : (
+                  <p className="text-sm text-white mb-2 leading-relaxed">{br.requirement}</p>
+                )}
+
+                {/* Notes */}
+                {isEditing ? (
+                  <textarea
+                    value={inlineEditData.client_notes || ''}
+                    onChange={(e) => setInlineEditData({ ...inlineEditData, client_notes: e.target.value })}
+                    rows={1}
+                    placeholder="Notes (optional)..."
+                    className="w-full bg-slate-700 border border-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs mb-2 resize-y"
+                  />
+                ) : (
+                  br.client_notes && (
+                    <p className="text-xs text-slate-500 mb-2">Note: {br.client_notes}</p>
+                  )
+                )}
+
+                {/* Inline edit actions */}
+                {isEditing && (
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
+                    <button
+                      onClick={saveInlineEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-colors"
+                    >
+                      <Save className="w-3 h-3" />
+                      Save
+                    </button>
+                    <button
+                      onClick={cancelInlineEdit}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-lg transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </button>
+                  </div>
+                )}
+
+                {/* Source indicator */}
+                {br.source === 'extracted' && (
+                  <div className="mt-2 pt-2 border-t border-slate-700/50">
+                    <span className="text-[10px] text-slate-600">Extracted by Sophie</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {filteredBRs.length === 0 && (
+          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 mb-8 text-center text-slate-400">
+            No requirements found. {filterCategory || filterStatus ? 'Try adjusting filters.' : ''}
+          </div>
+        )}
+
+        {/* Add BR Card */}
+        <div className="mb-8">
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="w-full bg-slate-800/30 border-2 border-dashed border-slate-700 hover:border-cyan-500/50 rounded-xl p-6 text-center transition-colors group"
+          >
+            <Plus className="w-6 h-6 text-slate-500 group-hover:text-cyan-400 mx-auto mb-2 transition-colors" />
+            <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors">
+              Add a new Business Requirement
+            </span>
+          </button>
         </div>
 
         {/* Action Buttons */}

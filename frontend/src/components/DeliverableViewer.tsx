@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronDown, ChevronUp, FileText, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
+import MermaidRenderer, { extractMermaidBlocks } from './MermaidRenderer';
+import SDSPreview from './SDSPreview';
 
 interface DeliverablePreview {
   id: number;
@@ -206,11 +208,23 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                         <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
                         <span className="text-slate-400 text-sm">Loading full content...</span>
                       </div>
-                    ) : (
-                      <pre className="text-sm text-slate-300 whitespace-pre-wrap break-words max-h-96 overflow-y-auto font-mono bg-slate-950/50 rounded-lg p-4">
-                        {fullContents[d.id] || d.content_preview}
-                      </pre>
-                    )}
+                    ) : (() => {
+                      const text = fullContents[d.id] || d.content_preview;
+                      const hasMermaid = extractMermaidBlocks(text).some(b => b.type === 'mermaid');
+                      const isSDS = d.deliverable_type.includes('sds');
+                      if (isSDS && text.length > 500) {
+                        return <SDSPreview content={text} title={formatDeliverableType(d.deliverable_type)} />;
+                      }
+                      return hasMermaid ? (
+                        <div className="max-h-[600px] overflow-y-auto bg-slate-950/50 rounded-lg p-4">
+                          <MermaidRenderer content={text} />
+                        </div>
+                      ) : (
+                        <pre className="text-sm text-slate-300 whitespace-pre-wrap break-words max-h-96 overflow-y-auto font-mono bg-slate-950/50 rounded-lg p-4">
+                          {text}
+                        </pre>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
