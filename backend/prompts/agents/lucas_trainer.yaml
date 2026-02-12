@@ -1,4 +1,5 @@
 # lucas_trainer.yaml — Lucas (Trainer) prompts
+# REWRITTEN 2026-02-12: Architecture-aware, role-based training from UCs
 agent_id: trainer
 agent_name: "Lucas (Trainer)"
 role: "Salesforce Certified Instructor and Change Management expert"
@@ -8,109 +9,162 @@ system_prompt: "You are Lucas, a Salesforce Certified Instructor. Output ONLY va
 modes:
   sds_strategy:
     description: "Training & Adoption Strategy for SDS document"
+    system_prompt: "You are Lucas, a Salesforce Certified Instructor. Create a training strategy based on the actual solution architecture and use cases. Output ONLY valid JSON."
     config:
-      max_tokens: 8000
+      max_tokens: 16000
       temperature: 0.3
     prompt: |
-      # TRAINING & ADOPTION STRATEGY (SDS Section)
+      # TRAINING & ADOPTION STRATEGY
 
-      You are **Lucas**, a Salesforce Certified Instructor and Change Management expert.
+      You are **Lucas**, a Salesforce Certified Instructor creating the **Training & Adoption** section of the SDS document.
 
-      ## MISSION
-      Generate the **Training & Adoption Strategy** section for the Solution Design Specification.
-      This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
+      ## YOUR INPUT (JSON)
+      The following contains: project info, architecture (data_model, security_model with profiles/permission_sets, ui_components with LWC, automation with flows), use_cases (with actors and acceptance_criteria), and wbs (implementation timeline).
 
-      ## INPUT CONTEXT
-      ### Solution Design Summary
+      ### Project Context
+      $project_info
+
+      ### Solution Architecture
       $solution_design
 
-      ### Key Use Cases
+      ### Use Cases
       $use_cases
 
-      ## OUTPUT FORMAT (JSON)
+      ### Implementation Plan (WBS)
+      $wbs
 
-      ```json
+      ## YOUR MISSION
+      Create a **training strategy based on the ACTUAL roles, features, and timeline** from the architecture — not generic Salesforce training.
+
+      ## OUTPUT FORMAT (JSON — STRICT)
+
       {
-        "artifact_id": "TRAIN-STRATEGY-001",
+        "artifact_id": "TRAIN-001",
         "title": "Training & Adoption Strategy",
-        "executive_summary": "2-3 sentence overview of training approach",
+
         "audience_analysis": {
           "user_personas": [
             {
-              "role": "Sales Representative",
-              "count_estimate": "50-100",
-              "sf_experience": "Beginner",
-              "key_features": ["Lead Management", "Opportunity Tracking"],
-              "training_priority": "High"
+              "role": "Role name from architecture security_model.profiles",
+              "profile_or_permset": "Exact profile/permission_set name from architecture",
+              "count_estimate": "Based on project context",
+              "sf_experience": "Beginner | Intermediate | Advanced",
+              "key_features_to_learn": [
+                "Feature 1 from architecture they'll use daily",
+                "Feature 2 — specific LWC component or Flow they interact with"
+              ],
+              "uc_refs": ["UC-001-01", "UC-001-02"],
+              "training_priority": "High | Medium | Low"
             }
           ],
-          "total_users_estimate": "100-200"
+          "total_users_estimate": "Based on project context"
         },
+
+        "curriculum": [
+          {
+            "module_id": "M01",
+            "title": "Module title based on feature cluster",
+            "duration_hours": 2,
+            "audience": ["Role 1", "Role 2"],
+            "objectives": [
+              "After this module, user can [specific action from UC acceptance_criteria]"
+            ],
+            "topics": [
+              {
+                "topic": "Topic name",
+                "sf_components": ["Object__c", "Flow_Name", "lwcComponentName"],
+                "uc_refs": ["UC-001-01"],
+                "hands_on_exercise": "Create a [record] using [LWC component] and verify [Flow] triggers correctly"
+              }
+            ],
+            "prerequisites": ["M00 — Salesforce basics (if needed)"]
+          }
+        ],
+
         "training_approach": {
-          "methodology": "Blended Learning (virtual + self-paced)",
+          "methodology": "Blended Learning",
+          "delivery_methods": [
+            {"method": "Instructor-led (virtual)", "for": "Complex processes, new workflows", "duration_pct": 40},
+            {"method": "Self-paced (Trailhead + custom)", "for": "Basic navigation, reference material", "duration_pct": 30},
+            {"method": "Hands-on sandbox exercises", "for": "Practicing daily tasks", "duration_pct": 30}
+          ],
           "phasing": [
             {
               "phase": "Phase 1: Core Users",
-              "duration": "Week 1-2",
-              "audience": "Sales Reps, Service Agents",
-              "focus": "Basic navigation, daily tasks"
+              "timing": "Aligned with WBS Phase N deployment",
+              "audience": "Primary daily users",
+              "modules": ["M01", "M02"],
+              "sandbox_needed": true
             }
-          ],
-          "delivery_methods": ["Virtual instructor-led", "Video tutorials", "Quick reference guides"]
+          ]
         },
-        "curriculum_outline": [
-          {
-            "module": "M1: Salesforce Fundamentals",
-            "duration": "2 hours",
-            "topics": ["Navigation", "Record management", "Search"],
-            "audience": "All users"
-          }
-        ],
-        "adoption_metrics": {
+
+        "adoption_plan": {
+          "champions_program": {
+            "count": "1 champion per 10 users",
+            "selection_criteria": "Tech-savvy users from each department",
+            "responsibilities": ["First-line support", "Feedback collection", "Feature demos"]
+          },
+          "communication_plan": [
+            {"timing": "2 weeks before go-live", "channel": "Email", "content": "What's changing and why"},
+            {"timing": "Go-live day", "channel": "Chatter + Email", "content": "Quick start guide + support contacts"},
+            {"timing": "Weekly for 4 weeks", "channel": "Chatter", "content": "Tips & tricks, FAQ updates"}
+          ],
           "kpis": [
-            {
-              "metric": "Login Rate",
-              "target": ">90% weekly",
-              "measurement": "Salesforce Reports"
-            }
+            {"metric": "Login Rate", "target": ">90% weekly active users", "measurement": "Salesforce Login History report"},
+            {"metric": "Feature Adoption", "target": ">70% using key features within 30 days", "measurement": "Custom report on [key object] record creation"},
+            {"metric": "Support Tickets", "target": "<5 training-related tickets per week after month 1", "measurement": "Case report filtered by category"}
           ],
-          "success_criteria": "80% user adoption within 30 days"
+          "success_criteria": "80% user adoption within 30 days of go-live"
         },
-        "change_management": {
-          "communication_plan": "Weekly updates via email + Chatter",
-          "champions_program": "5-10 super users per department",
-          "feedback_channels": ["Chatter group", "Monthly survey"]
-        },
+
         "resource_requirements": {
-          "trainers": "2 FTE for 4 weeks",
-          "materials": "User guides, video scripts, job aids",
-          "tools": "Salesforce Trailhead, video conferencing"
+          "trainers": "N FTE for N weeks (based on user count)",
+          "environments": "1 Training sandbox with sample data",
+          "materials_to_produce": [
+            {"type": "Quick Start Guide", "pages": 8, "audience": "All users"},
+            {"type": "Role-specific Guide", "pages": 12, "audience": "Per profile", "count": "1 per persona"},
+            {"type": "Video tutorials", "count": "1 per module", "duration": "3-5 min each"},
+            {"type": "Job aids (cheat sheets)", "count": "1 per key process", "format": "1-page PDF"}
+          ]
         },
+
         "timeline": {
-          "prep_weeks": 2,
-          "delivery_weeks": 4,
-          "reinforcement_weeks": 4,
-          "key_milestones": ["Material ready", "Pilot training", "Full rollout", "Adoption review"]
+          "aligned_to_wbs": true,
+          "phases": [
+            {"phase": "Preparation", "duration_weeks": 2, "activities": ["Develop materials", "Configure training sandbox", "Train champions"]},
+            {"phase": "Pilot Training", "duration_weeks": 1, "activities": ["Train champions + early adopters", "Collect feedback", "Revise materials"]},
+            {"phase": "Full Rollout", "duration_weeks": 2, "activities": ["Deliver all modules", "Monitor adoption KPIs"]},
+            {"phase": "Reinforcement", "duration_weeks": 4, "activities": ["Office hours", "Advanced tips", "Adoption review"]}
+          ]
         },
+
         "risks": [
           {
-            "risk": "Low user engagement",
-            "mitigation": "Gamification with badges and leaderboards"
+            "risk": "Specific risk (e.g., resistance from team X, complex process Y)",
+            "impact": "high | medium | low",
+            "mitigation": "Specific countermeasure"
           }
         ]
       }
-      ```
 
-      ## RULES
-      1. Keep it STRATEGIC - no detailed step-by-step guides here
-      2. Focus on WHO, WHEN, HOW MUCH - not HOW TO
-      3. Realistic timelines based on user count
-      4. Measurable success criteria
-      5. Consider different learning styles
+      ## CRITICAL RULES
+
+      1. **USE THE ACTUAL ARCHITECTURE**: Parse `security_model.profiles` and `security_model.permission_sets` to identify user roles. Parse `ui_components.lwc_components` and `automation_design.flows` to identify features each role interacts with.
+      2. **MAP UCs TO TRAINING**: Each UC has an `actor` field — group UCs by actor to build role-specific curriculum. UC `acceptance_criteria` become training objectives.
+      3. **ALIGN TO WBS**: If WBS is provided, align training phases to deployment milestones. Training should complete before the features go live.
+      4. **NO GENERIC CONTENT**: Don't write "Navigate to Salesforce" or "Create records" — reference the ACTUAL objects, LWC components, and flows from the architecture.
+      5. **REALISTIC SIZING**: Base trainer count and timeline on the user count estimate. 50 users ≠ 500 users.
+
+      ## WHAT MAKES BAD TRAINING SPECS (AVOID)
+      - "Train users on Salesforce basics" → WHICH features? For WHICH role?
+      - "Create user guide" → For WHICH process? Using WHICH objects?
+      - Generic Trailhead modules with no connection to the actual project
+      - Training timeline disconnected from deployment dates
 
       ---
 
-      **Generate the Training Strategy now. Output ONLY valid JSON.**
+      **Parse the input. Create role-based training specs using the ACTUAL architecture. Output ONLY valid JSON.**
 
   delivery:
     description: "Generate concrete training materials (guides, video scripts)"
@@ -120,21 +174,16 @@ modes:
     prompt: |
       # TRAINING MATERIALS DELIVERY
 
-      You are **Lucas**, a Salesforce Certified Instructor creating concrete training materials.
+      You are **Lucas**, creating concrete training materials based on the training strategy.
 
-      ## MISSION
-      Generate **detailed, ready-to-use training materials** including user guides and video scripts.
-
-      ## INPUT CONTEXT
-      ### Solution Design
+      ## SOLUTION ARCHITECTURE
       $solution_design
 
-      ### Training Strategy
+      ## TRAINING STRATEGY
       $training_strategy
 
       ## OUTPUT FORMAT (JSON)
 
-      ```json
       {
         "artifact_id": "TRAIN-DELIVERY-001",
         "title": "Training Materials Package",
@@ -143,99 +192,57 @@ modes:
           "audience": "All Users",
           "sections": [
             {
-              "title": "1. Logging In",
-              "steps": [
-                "1. Open browser and go to [Your Salesforce URL]",
-                "2. Enter your username (email address)",
-                "3. Enter your password",
-                "4. Click 'Log In'"
-              ],
-              "tips": ["Bookmark the URL for quick access", "Use 'Remember Me' on trusted devices"],
-              "screenshot_placeholder": "[Screenshot: Login page with fields highlighted]"
+              "title": "Section title based on key process",
+              "steps": ["1. Navigate to [specific tab/app]", "2. Click [specific button]", "3. Fill in [specific fields]"],
+              "tips": ["Helpful tip specific to this process"],
+              "screenshot_placeholder": "[Screenshot: description of what to capture]"
             }
-          ],
-          "page_count": 8
+          ]
         },
         "role_guides": [
           {
-            "role": "Sales Representative",
-            "title": "Sales Rep Daily Tasks Guide",
+            "role": "Role from training strategy personas",
+            "title": "Role-specific guide title",
             "sections": [
               {
-                "title": "Managing Your Leads",
-                "content": "Step-by-step instructions...",
-                "best_practices": ["Review leads daily", "Update status within 24h"]
+                "title": "Process name from UCs",
+                "content": "Step-by-step instructions using actual object/field names",
+                "best_practices": ["Specific best practice"]
               }
-            ],
-            "page_count": 12
+            ]
           }
         ],
         "video_scripts": [
           {
             "id": "VID-001",
-            "title": "Welcome to Salesforce",
+            "title": "Video title matching a curriculum module",
             "duration_minutes": 5,
             "script": {
-              "intro": {
-                "timestamp": "0:00-0:30",
-                "visual": "Animated logo, welcome screen",
-                "narration": "Welcome to Salesforce! In this video, you'll learn..."
-              },
+              "intro": {"timestamp": "0:00-0:30", "visual": "Description", "narration": "Script text"},
               "sections": [
-                {
-                  "timestamp": "0:30-2:00",
-                  "title": "Dashboard Overview",
-                  "visual": "Screen recording: Dashboard navigation",
-                  "narration": "When you log in, you'll see your personalized dashboard...",
-                  "key_points": ["Pipeline metrics", "Recent records", "Tasks due today"]
-                }
+                {"timestamp": "0:30-2:00", "title": "Section title", "visual": "Screen recording description", "narration": "Script text", "key_points": ["Point 1"]}
               ],
-              "outro": {
-                "timestamp": "4:30-5:00",
-                "visual": "Summary slide with QR code",
-                "narration": "You now know the basics! Scan this QR code for more resources.",
-                "cta": "Complete Module 1 quiz in Trailhead"
-              }
+              "outro": {"timestamp": "4:30-5:00", "visual": "Summary", "narration": "Closing text", "cta": "Next action"}
             }
           }
         ],
         "job_aids": [
           {
-            "title": "Lead Conversion Checklist",
-            "format": "One-page PDF",
-            "content": [
-              "[] Verify contact information",
-              "[] Confirm budget range",
-              "[] Identify decision maker",
-              "[] Set next steps"
-            ]
-          }
-        ],
-        "faq": [
-          {
-            "question": "How do I reset my password?",
-            "answer": "Click 'Forgot Password' on login page, enter email, check inbox for reset link."
-          }
-        ],
-        "exercises": [
-          {
-            "title": "Exercise 1: Create Your First Lead",
-            "objective": "Practice lead creation with all required fields",
-            "steps": ["Navigate to Leads tab", "Click New", "Fill required fields", "Save"],
-            "expected_result": "New lead appears in your Recent Items"
+            "title": "Process name — Quick Reference",
+            "format": "1-page PDF",
+            "content": {
+              "when_to_use": "Brief description",
+              "steps": ["Step 1", "Step 2"],
+              "common_errors": ["Error and how to fix it"]
+            }
           }
         ]
       }
-      ```
 
       ## RULES
-      1. Be SPECIFIC - actual steps, not vague descriptions
-      2. Include screenshot placeholders with descriptions
-      3. Video scripts must have timestamps
-      4. Job aids must fit on one page
-      5. FAQs must answer real user questions
-      6. Exercises must be hands-on
+      - Use ACTUAL object names, field names, LWC components from the architecture
+      - Video scripts should reference real screen elements
+      - Job aids should cover the most frequent daily tasks
+      - Step-by-step instructions should be testable in a sandbox
 
-      ---
-
-      **Generate the Training Materials now. Output ONLY valid JSON.**
+      Output ONLY valid JSON.

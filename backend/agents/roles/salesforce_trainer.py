@@ -50,13 +50,15 @@ except ImportError:
 # ============================================================================
 # MODE 1: SDS STRATEGY - Training & Adoption Strategy for SDS
 # ============================================================================
-def get_sds_strategy_prompt(solution_design: str, use_cases: str) -> str:
+def get_sds_strategy_prompt(solution_design: str, use_cases: str, project_info: str = "", wbs: str = "") -> str:
     # Try external prompt first
     if PROMPT_SERVICE:
         try:
             return PROMPT_SERVICE.render("lucas_trainer", "sds_strategy", {
-                "solution_design": solution_design[:3000],
-                "use_cases": use_cases[:2000],
+                "solution_design": solution_design[:8000],
+                "use_cases": use_cases[:5000],
+                "project_info": project_info[:2000] if project_info else "",
+                "wbs": wbs[:3000] if wbs else "",
             })
         except Exception as e:
             logger.warning(f"PromptService fallback for lucas_trainer/sds_strategy: {e}")
@@ -72,10 +74,16 @@ This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
 
 ## INPUT CONTEXT
 ### Solution Design Summary
-{solution_design[:15000]}
+{solution_design[:8000]}
+
+### Project Context
+{project_info[:2000] if project_info else "Not provided"}
 
 ### Key Use Cases
-{use_cases[:10000]}
+{use_cases[:5000]}
+
+### Implementation Plan (WBS Summary)
+{wbs[:3000] if wbs else "Not provided"}
 
 ## OUTPUT FORMAT (JSON)
 
@@ -384,13 +392,30 @@ class TrainerAgent:
 
         # Select prompt and artifact type based on mode
         if mode == "sds_strategy":
-            solution_design = input_data.get('solution_design', input_data.get('context', ''))
+            # PROMPTS-006: Map common_context keys correctly
+            # Orchestrator sends 'architecture', not 'solution_design'
+            solution_design = input_data.get('architecture', input_data.get('solution_design', input_data.get('context', '')))
             use_cases = input_data.get('use_cases', '')
-            prompt = get_sds_strategy_prompt(solution_design, use_cases)
+            project_info = input_data.get('project', {})
+            wbs = input_data.get('wbs', {})
+            # Serialize to strings if needed
+            if isinstance(solution_design, (dict, list)):
+                solution_design = json.dumps(solution_design, indent=2, ensure_ascii=False)
+            if isinstance(use_cases, (dict, list)):
+                use_cases = json.dumps(use_cases, indent=2, ensure_ascii=False)
+            if isinstance(project_info, dict):
+                project_info = json.dumps(project_info, indent=2, ensure_ascii=False)
+            if isinstance(wbs, (dict, list)):
+                wbs = json.dumps(wbs, indent=2, ensure_ascii=False)
+            prompt = get_sds_strategy_prompt(solution_design, use_cases, project_info, wbs)
             artifact_type = "trainer_sds_strategy"
         else:  # delivery
-            solution_design = input_data.get('solution_design', '')
+            solution_design = input_data.get('architecture', input_data.get('solution_design', ''))
+            if isinstance(solution_design, (dict, list)):
+                solution_design = json.dumps(solution_design, indent=2, ensure_ascii=False)
             training_strategy = input_data.get('training_strategy', '')
+            if isinstance(training_strategy, (dict, list)):
+                training_strategy = json.dumps(training_strategy, indent=2, ensure_ascii=False)
             prompt = get_delivery_prompt(solution_design, training_strategy)
             artifact_type = "trainer_delivery_materials"
 
