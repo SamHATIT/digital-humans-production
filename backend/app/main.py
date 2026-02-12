@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
 from app.database import Base, engine
@@ -81,6 +81,9 @@ app.include_router(business_requirements.router)
 app.include_router(project_chat.router)
 app.include_router(sds_versions.router)
 app.include_router(change_requests.router)
+
+# HITL: Contextual chat, CR lifecycle, versions/diff, metrics
+app.include_router(hitl_routes.router)
 
 # CORE-001: Audit logging API
 app.include_router(audit.router, prefix=settings.API_V1_PREFIX)
