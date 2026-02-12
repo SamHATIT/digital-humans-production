@@ -142,6 +142,7 @@ Use Cases for this batch:
                 prompt=batch_prompt,
                 agent_type="research",
                 system_prompt=section_system_prompt,
+                max_tokens=16384,
             )
 
             if response.get("success") is not False and response.get("content"):
