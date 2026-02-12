@@ -133,8 +133,8 @@ AGENT_TIER_MAP = {
     "elena": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
     "devops": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
     "jordan": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
-    "data_migration": AgentTier.WORKER,
-    "aisha": AgentTier.WORKER,
+    "data_migration": AgentTier.ANALYST,  # CRIT-02: Upgraded like other experts
+    "aisha": AgentTier.ANALYST,  # CRIT-02: Upgraded like other experts
     "trainer": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
     "lucas": AgentTier.ANALYST,  # CRIT-02: Upgraded for long outputs
 }

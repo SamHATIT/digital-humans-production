@@ -317,7 +317,7 @@ class DataMigrationAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=8000, temperature=0.3, execution_id=execution_id
+            prompt, max_tokens=16000, temperature=0.3, execution_id=execution_id
         )
 
         execution_time = time.time() - start_time

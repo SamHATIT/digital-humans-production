@@ -54,10 +54,10 @@ This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
 
 ## INPUT CONTEXT
 ### Solution Design Summary
-{solution_design[:3000]}
+{solution_design[:15000]}
 
 ### Key Use Cases
-{use_cases[:2000]}
+{use_cases[:10000]}
 
 ## OUTPUT FORMAT (JSON)
 
@@ -440,7 +440,7 @@ class TrainerAgent:
         """
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service")
-            response = generate_llm_response(prompt, max_tokens=8000, temperature=0.3, execution_id=execution_id)
+            response = generate_llm_response(prompt, max_tokens=16000, temperature=0.3, execution_id=execution_id)
             return (
                 response.get('content', ''),
                 response.get('tokens_used', 0),
