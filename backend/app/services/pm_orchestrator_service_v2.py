@@ -550,7 +550,7 @@ class PMOrchestratorServiceV2:
                 logger.warning(f"[StateMachine] transition failed: {e}")
             
             # 3.0: Get Salesforce org metadata FIRST
-            sf_metadata_result = await self._get_salesforce_metadata(execution_id)
+            sf_metadata_result = await self._get_salesforce_metadata(execution_id, project=project)
             if sf_metadata_result["success"]:
                 org_metadata = sf_metadata_result["full_metadata"]
                 org_summary = sf_metadata_result["summary"]
@@ -1034,16 +1034,26 @@ class PMOrchestratorServiceV2:
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
 
 
-    async def _get_salesforce_metadata(self, execution_id: int) -> Dict[str, Any]:
+    async def _get_salesforce_metadata(self, execution_id: int, project: "Project" = None) -> Dict[str, Any]:
         """
         Retrieve Salesforce org metadata for Marcus as_is analysis.
-        
+
         Returns:
             Dict with:
             - summary: Condensed info for Marcus prompt
             - full_metadata: Complete data stored in DB
             - success: bool
         """
+        # ARCH-001: Skip metadata retrieval for greenfield or non-connected orgs
+        if project is None:
+            execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+            if execution:
+                project = self.db.query(Project).filter(Project.id == execution.project_id).first()
+        if project:
+            if getattr(project, 'project_type', '') == 'greenfield' or not getattr(project, 'sf_connected', False):
+                logger.info(f"[Metadata] Skipping SF metadata: project_type={getattr(project, 'project_type', 'unknown')}, sf_connected={getattr(project, 'sf_connected', False)}")
+                return {"success": False, "error": "greenfield_or_not_connected", "full_metadata": {}, "summary": {}}
+
         logger.info(f"[Metadata] Retrieving Salesforce org metadata...")
         
         metadata = {
