@@ -439,6 +439,7 @@ class PMOrchestratorServiceV2:
                     
                     ba_ucs_saved += saved
                     ba_tokens_total += tokens_used
+                    self._accumulate_cost(execution, tokens_used, model_used)
                     logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
                 else:
                     logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get("error")}")
@@ -524,7 +525,8 @@ class PMOrchestratorServiceV2:
                 results["agent_outputs"]["research_analyst"] = emma_result["output"]
                 results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
                 results["metrics"]["total_tokens"] += emma_tokens
-                
+                self._accumulate_cost(execution, emma_tokens, emma_result["output"].get("metadata", {}).get("model", ""))
+
                 logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
                 self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
                 self._save_checkpoint(execution, "phase2_5_emma")
@@ -964,7 +966,8 @@ class PMOrchestratorServiceV2:
             }
             results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
             results["metrics"]["total_tokens"] += architect_tokens
-            
+            self._accumulate_cost(execution, architect_tokens, "")  # BUG-007: model unknown at aggregate, uses default pricing
+
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             self._save_checkpoint(execution, "phase3_wbs")
             try:
@@ -1398,11 +1401,59 @@ class PMOrchestratorServiceV2:
         except Exception as e:
             logger.debug(f"Notification failed (non-critical): {e}")
 
+    @staticmethod
+    def _calculate_cost(tokens_used: int, model: str) -> float:
+        """BUG-007: Estimate cost from total tokens and model name.
+
+        Uses the same pricing table as BudgetService.
+        Since agent output only provides total tokens (not input/output split),
+        assumes a 70/30 input/output ratio typical of LLM conversations.
+        """
+        from app.services.budget_service import MODEL_PRICING
+        pricing = MODEL_PRICING.get(model)
+        if not pricing:
+            # Try matching by substring (e.g. "opus", "sonnet", "haiku")
+            model_lower = (model or "").lower()
+            if "opus" in model_lower:
+                pricing = {"input": 15.0, "output": 75.0}
+            elif "haiku" in model_lower:
+                pricing = {"input": 0.25, "output": 1.25}
+            else:
+                pricing = MODEL_PRICING["default"]  # Sonnet-level
+        input_tokens = int(tokens_used * 0.7)
+        output_tokens = tokens_used - input_tokens
+        cost = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
+        return round(cost, 6)
+
     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
-        """Track tokens per agent"""
+        """Track tokens per agent and accumulate cost on execution"""
         tokens = output.get("metadata", {}).get("tokens_used", 0)
+        model = output.get("metadata", {}).get("model", "")
         results["metrics"]["tokens_by_agent"][agent_id] = tokens
         results["metrics"]["total_tokens"] += tokens
+        # BUG-007: Accumulate cost on execution record
+        if tokens > 0:
+            cost = self._calculate_cost(tokens, model)
+            execution = self.db.query(Execution).filter(
+                Execution.id == results["execution_id"]
+            ).first()
+            if execution:
+                execution.total_cost = (execution.total_cost or 0.0) + cost
+                try:
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+
+    def _accumulate_cost(self, execution: Execution, tokens: int, model: str):
+        """BUG-007: Add cost for tokens to execution.total_cost and commit."""
+        if tokens <= 0:
+            return
+        cost = self._calculate_cost(tokens, model)
+        execution.total_cost = (execution.total_cost or 0.0) + cost
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
 
     def _save_deliverable(self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict):
         """Save agent deliverable to database"""
@@ -2516,6 +2567,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             results["artifacts"]["SDS"] = emma_output
             results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
             results["metrics"]["total_tokens"] += emma_write_tokens
+            self._accumulate_cost(execution, emma_write_tokens, emma_output.get("metadata", {}).get("model", ""))
             logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
         else:
             error_msg = emma_write_result.get('error', 'Unknown error')
@@ -2850,6 +2902,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
         results["metrics"]["total_tokens"] += architect_tokens
+        self._accumulate_cost(execution, architect_tokens, "")  # BUG-007
 
         self._save_checkpoint(execution, "phase3_wbs")
         self._update_progress(execution, "architect", "completed", 78, "Architecture complete (resume)")
