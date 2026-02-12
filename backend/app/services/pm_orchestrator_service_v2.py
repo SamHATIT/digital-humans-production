@@ -256,11 +256,12 @@ class PMOrchestratorServiceV2:
                 # Map checkpoints to resume points
                 checkpoint_map = {
                     "phase1_pm": "phase2",
-                    "phase2_ba": "phase3",
-                    "phase2_5_emma": "phase3",
-                    "phase3_3_coverage_gate": "phase3",  # complex, restart phase3
-                    "phase3_wbs": "phase4",
-                    "phase5_write_sds": "phase5",  # shouldn't happen but safety
+                    "phase2_ba": "phase2",       # BUG-010: re-run Phase 2 (UCs in DB, safe to redo)
+                    "phase2_5_emma": "phase2",   # BUG-010: re-run Phase 2+2.5
+                    "phase3_3_coverage_gate": None,  # Handled by resume_from_architecture_validation
+                    "phase3_wbs": "phase4",      # BUG-010: skip to Phase 4 (artifacts in DB)
+                    "phase5_write_sds": "phase4",  # BUG-010: skip to Phase 4 (Phase 4 done, 5 re-runs)
+                    "phase6_export": "phase4",   # BUG-010: skip to Phase 4 (export re-runs)
                 }
                 auto_resume = checkpoint_map.get(last_phase)
                 if auto_resume:
@@ -367,11 +368,19 @@ class PMOrchestratorServiceV2:
                     execution.status = ExecutionStatus.FAILED
                 raise Exception("No Business Requirements available. Please ensure Sophie extracts BRs first.")
             logger.info(f"[GATE] ✅ {len(business_requirements)} BRs available - proceeding to Phase 2")
-            
 
-            
-            
-            # ========================================
+            # BUG-010: Skip to later phases when resuming past phase 2/3
+            if resume_from in ("phase4", "phase5"):
+                logger.info(f"[BUG-010] Skipping Phases 2-3 — resuming from {resume_from}")
+                self._update_progress(execution, "ba", "completed", 42, "Skipped (resume)")
+                self._update_progress(execution, "research_analyst", "completed", 45, "Skipped (resume)")
+                self._update_progress(execution, "architect", "completed", 75, "Skipped (resume)")
+                loaded_artifacts = self._load_existing_artifacts(execution_id)
+                results["artifacts"].update(loaded_artifacts)
+                return await self._execute_from_phase4(
+                    project, execution, execution_id, project_id, results, selected_agents
+                )
+
             # ========================================
             # PHASE 2: Olivia BA - Generate UCs per BR (DATABASE-FIRST)
             # ========================================
@@ -2092,6 +2101,10 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 # Map deliverable_type to artifact key
                 if "br_extraction" in d.deliverable_type:
                     artifacts["BR_EXTRACTION"] = content
+                elif "uc_digest" in d.deliverable_type:
+                    artifacts["UC_DIGEST"] = content
+                elif "coverage_report" in d.deliverable_type:
+                    artifacts["COVERAGE"] = content
                 elif "use_cases" in d.deliverable_type:
                     artifacts["USE_CASES"] = content
                 elif "as_is" in d.deliverable_type:
