@@ -47,6 +47,13 @@ try:
 except ImportError:
     RAG_AVAILABLE = False
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 # ============================================================================
 # PROMPT: BR -> USE CASES (~100 lines)
 def get_uc_generation_prompt(br: dict, rag_context: str = "") -> str:
@@ -77,6 +84,23 @@ def get_uc_generation_prompt(br: dict, rag_context: str = "") -> str:
 {rag_context[:1500]}
 """
 
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("olivia_ba", "generate", {
+                "br_id": br_id,
+                "br_title": br_title,
+                "br_category": br_category,
+                "br_stakeholder": br_stakeholder,
+                "br_description": br_description,
+                "metadata_section": metadata_section,
+                "rag_section": rag_section,
+                "br_id_suffix": br_id[3:] if len(br_id) > 3 else "XXX",
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for olivia_ba/generate: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# USE CASE GENERATION - COMPACT FORMAT
 
 You are **Olivia**, Senior Salesforce Business Analyst.
@@ -181,6 +205,18 @@ def get_uc_generation_prompt_batch(brs: list, rag_context: str = "") -> str:
 
     rag_section = f"\n## SALESFORCE CONTEXT\n{rag_context[:1200]}\n" if rag_context else ""
 
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("olivia_ba", "generate_batch", {
+                "br_count": str(br_count),
+                "brs_text": brs_text,
+                "rag_section": rag_section,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for olivia_ba/generate_batch: {e}")
+
+    # FALLBACK: original f-string prompt
     return f"""# USE CASE GENERATION - {br_count} BR{"s" if br_count > 1 else ""}
 
 You are **Olivia**, Senior Salesforce Business Analyst.

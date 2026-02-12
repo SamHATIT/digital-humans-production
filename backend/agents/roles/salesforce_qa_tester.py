@@ -41,6 +41,13 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # PROMPTS
@@ -427,11 +434,27 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     else:
         criteria_text = str(validation_criteria)
 
-    prompt = CODE_REVIEW_PROMPT.format(
-        code_content=code_content[:80000],  # Increased limit
-        task_info=json.dumps(task_info, indent=2),
-        validation_criteria=criteria_text
-    )
+    # Try external prompt via PromptService, fallback to constant
+    if PROMPT_SERVICE:
+        try:
+            prompt = PROMPT_SERVICE.render("elena_qa", "code_review", {
+                "code_content": code_content[:80000],
+                "task_info": json.dumps(task_info, indent=2),
+                "validation_criteria": criteria_text,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for elena_qa/code_review: {e}")
+            prompt = CODE_REVIEW_PROMPT.format(
+                code_content=code_content[:80000],
+                task_info=json.dumps(task_info, indent=2),
+                validation_criteria=criteria_text
+            )
+    else:
+        prompt = CODE_REVIEW_PROMPT.format(
+            code_content=code_content[:80000],  # Increased limit
+            task_info=json.dumps(task_info, indent=2),
+            validation_criteria=criteria_text
+        )
 
     logger.info(f"  Prompt length: {len(prompt)} chars")
 
@@ -621,8 +644,17 @@ class QATesterAgent:
         # Get RAG context for spec mode only
         rag_context = self._get_rag_context(project_id=project_id)
 
-        # Build prompt
-        prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        # Build prompt - try PromptService first, fallback to constant
+        if PROMPT_SERVICE:
+            try:
+                prompt = PROMPT_SERVICE.render("elena_qa", "spec", {
+                    "requirements": input_content[:25000],
+                })
+            except Exception as e:
+                logger.warning(f"PromptService fallback for elena_qa/spec: {e}")
+                prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        else:
+            prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
         if rag_context:
             prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
 

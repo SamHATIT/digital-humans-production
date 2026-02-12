@@ -59,6 +59,13 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
+# Prompt Service for externalized prompts
+try:
+    from prompts.prompt_service import PromptService
+    PROMPT_SERVICE = PromptService()
+except ImportError:
+    PROMPT_SERVICE = None
+
 
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC -> Architecture)
@@ -200,6 +207,19 @@ Do NOT discard existing content — KEEP everything that was correct and ADD wha
 
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
 
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("marcus_architect", "design", {
+                "revision_context": revision_context,
+                "project_summary": project_summary,
+                "uc_text": uc_text,
+                "rag_section": rag_section,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for marcus_architect/design: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''{revision_context}# SOLUTION DESIGN SPECIFICATION
 
 You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
@@ -392,6 +412,17 @@ Your architecture MUST be detailed enough for BUILD agents using Haiku to implem
 # ============================================================================
 def get_as_is_prompt(sfdx_metadata: str) -> str:
     sfdx_metadata_truncated = sfdx_metadata[:15000] if len(sfdx_metadata) > 15000 else sfdx_metadata
+
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("marcus_architect", "as_is", {
+                "sfdx_metadata": sfdx_metadata_truncated,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for marcus_architect/as_is: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# AS-IS ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
@@ -469,6 +500,18 @@ Use the EXACT object and component names from this design.
 
 """
 
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("marcus_architect", "gap", {
+                "design_section": design_section,
+                "uc_section": uc_section,
+                "asis_summary": asis_summary,
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for marcus_architect/gap: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# GAP ANALYSIS
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
@@ -563,6 +606,17 @@ Each gap represents work needed to transform the current org into the target arc
 # PROMPT 4: WBS (GAP -> Tasks + Planning)
 # ============================================================================
 def get_wbs_prompt(gap_analysis: str, project_constraints: str = "") -> str:
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("marcus_architect", "wbs", {
+                "gap_analysis": gap_analysis,
+                "project_constraints": project_constraints if project_constraints else "Standard Salesforce implementation timeline",
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for marcus_architect/wbs: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# WORK BREAKDOWN STRUCTURE - ENRICHED
 
 You are **Marcus**, a Salesforce Certified Technical Architect.
@@ -786,6 +840,21 @@ def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_u
         if len(uncovered_use_cases) > 10:
             uncovered_text += f"... and {len(uncovered_use_cases) - 10} more\n"
 
+    # Try external prompt first
+    if PROMPT_SERVICE:
+        try:
+            return PROMPT_SERVICE.render("marcus_architect", "fix_gaps", {
+                "iteration": str(iteration),
+                "solution_json": solution_json[:15000],
+                "gap_count": str(len(coverage_gaps)),
+                "gaps_text": gaps_text,
+                "uncovered_text": uncovered_text if uncovered_text else "None specified",
+                "next_iteration": str(iteration + 1),
+            })
+        except Exception as e:
+            logger.warning(f"PromptService fallback for marcus_architect/fix_gaps: {e}")
+
+    # FALLBACK: original f-string prompt
     return f'''# SOLUTION DESIGN REVISION (Iteration {iteration})
 
 ## CONTEXT
