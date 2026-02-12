@@ -534,65 +534,106 @@ modes:
       **Generate the WBS now. Output ONLY valid JSON, no markdown fences.**
 
   fix_gaps:
-    description: "Fix coverage gaps in existing design"
+    description: "Fix coverage gaps using Emma's actionable fix instructions"
     config:
       max_tokens: 32000
       temperature: 0.4
     prompt: |
-      # SOLUTION DESIGN REVISION (Iteration $iteration)
+      # SOLUTION DESIGN REVISION — CHECKLIST-DRIVEN (Iteration $iteration)
 
-      ## CONTEXT
-      Emma (Research Analyst) has analyzed your solution design and found coverage gaps.
-      Your task is to revise the solution to address ALL identified gaps.
+      You are **Marcus**, a Salesforce CTA. Emma has reviewed your architecture and found $gap_count gaps with **exact fix instructions**.
 
-      ## CURRENT SOLUTION
-      ```json
+      ## YOUR CURRENT SOLUTION (REVISE, DO NOT REGENERATE)
+
       $solution_json
-      ```
 
-      ## COVERAGE GAPS TO ADDRESS ($gap_count gaps)
+      ## EMMA'S GAP REPORT — APPLY EACH FIX
+
       $gaps_text
 
-      ## UNCOVERED USE CASES
+      ## UNCOVERED USE CASES — ADD COMPONENTS
+
       $uncovered_text
 
-      ## REVISION INSTRUCTIONS
+      ## REVISION PROCEDURE (FOLLOW THIS ORDER)
 
-      1. **Preserve existing elements** - Do not remove elements that are working
-      2. **Add missing elements** - For each gap, add the necessary Salesforce component
-      3. **Update related elements** - If adding a field, update relevant automations
-      4. **Maintain consistency** - Ensure naming conventions and relationships are consistent
+      ### Step 1: Data Model Gaps
+      For each gap where category = "data_model":
+      - If fix says "Add object X": add to `custom_objects` with ALL fields, sharing_model, indexes
+      - If fix says "Add field Y to Object Z": find Z in standard_objects or custom_objects, append field
+      - If fix says "Add relationship": add to `relationships` array AND add the lookup field on the child object
 
-      ## OUTPUT FORMAT
+      ### Step 2: Automation Gaps
+      For each gap where category = "automation":
+      - If fix says "Add Flow X": add to `automation_design.flows` with FULL `elements` array (Get Records, Decision, Create/Update Records, fault_path)
+      - If fix says "Add Trigger": add to `apex_triggers` with handler_class and logic_summary
+      - If fix says "Add Scheduled Job": add to `scheduled_jobs` with schedule and batch_size
 
-      Return the COMPLETE revised solution design in the same JSON structure:
+      ### Step 3: Security Gaps
+      For each gap where category = "security":
+      - If fix says "Add PermissionSet": add to `permission_sets` with object_permissions CRUD matrix
+      - If fix says "Add FLS": add to the relevant permission_set's `field_permissions`
+      - If fix says "Update OWD": update `owd` entry for that object
+
+      ### Step 4: UI Gaps
+      For each gap where category = "ui_component":
+      - If fix says "Add LWC": add to `lwc_components` with api_properties, wire_adapters, target, events
+      - If fix says "Add Lightning Page": add to `lightning_pages` with layout and components
+
+      ### Step 5: Integration Gaps
+      For each gap where category = "integration":
+      - Apply the specific fix (add error_handling, add auth, add endpoint_spec)
+
+      ### Step 6: Update Traceability
+      After ALL fixes applied:
+      - Update `uc_traceability` — every UC must map to at least one component
+      - Update `erd_mermaid` if new objects/relationships were added
+
+      ## DEPTH CHECK — EVERY ADDED COMPONENT MUST MEET THESE MINIMUMS
+
+      | Component | Minimum Required Fields |
+      |---|---|
+      | Flow | api_name, label, type, trigger (object/event/condition), elements (array with >=2 elements), error_handling |
+      | LWC | name, purpose, target, api_properties (>=1), wire_adapters, uc_refs |
+      | PermissionSet | api_name, label, object_permissions (CRUD matrix per object) |
+      | Custom Object | api_name, label, purpose, sharing_model, fields (array), relationships |
+      | Integration | name, method, auth, endpoint_spec, error_handling |
+
+      If you add a component that doesn't meet the minimum, Emma will flag it again → wasted iteration.
+
+      ## OUTPUT FORMAT (JSON — STRICT)
+
       {
-          "artifact_id": "ARCH-001-v$next_iteration",
-          "title": "Revised Solution Design v$next_iteration",
-          "revision_notes": {
-              "iteration": $next_iteration,
-              "gaps_addressed": [],
-              "changes_made": []
-          },
-          "data_model": {
-              "standard_objects": [],
-              "custom_objects": [],
-              "relationships": [],
-              "erd_mermaid": "..."
-          },
-          "security_model": {},
-          "automation_design": {
-              "flows": [],
-              "triggers": [],
-              "scheduled_jobs": []
-          },
-          "integration_points": [],
-          "ui_components": {},
-          "technical_considerations": [],
-          "risks": []
+        "artifact_id": "ARCH-001-v$next_iteration",
+        "title": "Revised Solution Design v$next_iteration",
+        "revision_notes": {
+          "iteration": $next_iteration,
+          "previous_score": "$previous_score%",
+          "gaps_addressed": [
+            {"gap_id": "GAP-001", "action_taken": "Added Flow Account_Status_Validation to automation_design.flows", "status": "FIXED"}
+          ],
+          "changes_summary": "Added N objects, N fields, N flows, N LWC, N permission sets"
+        },
+        "data_model": { "...COMPLETE revised data_model..." },
+        "security_model": { "...COMPLETE revised security_model..." },
+        "automation_design": { "...COMPLETE revised automation_design..." },
+        "integration_points": [ "...COMPLETE revised integrations..." ],
+        "ui_components": { "...COMPLETE revised ui_components..." },
+        "reporting": { "...COMPLETE revised reporting..." },
+        "uc_traceability": { "...UPDATED traceability mapping..." },
+        "queues": [ "...if applicable..." ],
+        "technical_considerations": [ "..." ],
+        "risks": [ "..." ]
       }
 
-      **IMPORTANT**:
-      - Address ALL gaps listed above
-      - Output ONLY valid JSON, no markdown fences
-      - Include revision_notes explaining what was changed
+      ## CRITICAL RULES
+
+      1. **KEEP EVERYTHING THAT WORKS** — Do NOT remove existing objects, fields, flows, LWC. Only ADD or MODIFY.
+      2. **APPLY EVERY FIX** — Each gap with a fix_instruction MUST appear in revision_notes.gaps_addressed. If you skip one, coverage won't improve.
+      3. **FULL DEPTH** — Every new component must meet the minimum fields table above. Shallow additions will be caught in the next review.
+      4. **COMPLETE JSON** — Output the ENTIRE architecture, not just the changes. Emma needs the full document to re-validate.
+      5. **NO HALLUCINATION** — Only add components that are requested by the gap report. Do not invent new features.
+
+      ---
+
+      **Apply ALL fixes from Emma's gap report. Output the COMPLETE revised architecture as valid JSON.**

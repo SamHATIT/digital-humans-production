@@ -92,7 +92,18 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
 """
         for i, gap in enumerate(coverage_gaps[:10], 1):
             if isinstance(gap, dict):
-                revision_context += f"{i}. **{gap.get('category', 'Gap')}**: {gap.get('description', str(gap))}\n"
+                category = gap.get('category', 'Gap')
+                description = gap.get('description', str(gap))
+                fix_instruction = gap.get('fix_instruction', '')
+                severity = gap.get('severity', '')
+                uc_refs = gap.get('uc_refs', [])
+
+                revision_context += f"{i}. **[{severity.upper()}] {category}**: {description}\n"
+                if uc_refs:
+                    revision_context += f"   - UCs affected: {', '.join(str(r) for r in uc_refs)}\n"
+                if fix_instruction:
+                    revision_context += f"   - **FIX**: {fix_instruction}\n"
+                revision_context += "\n"
             else:
                 revision_context += f"{i}. {gap}\n"
 
@@ -100,13 +111,21 @@ The following gaps were identified by Emma (Research Analyst) and MUST be addres
             revision_context += f"\n### Uncovered Use Cases ({len(uncovered_use_cases)})\n"
             for uc in uncovered_use_cases[:5]:
                 if isinstance(uc, dict):
-                    revision_context += f"- {uc.get('id', 'UC')}: {uc.get('title', str(uc))}\n"
+                    uc_id = uc.get('id', 'UC')
+                    uc_title = uc.get('title', str(uc))
+                    uc_reason = uc.get('reason', '')
+                    uc_fix = uc.get('fix_instruction', '')
+                    revision_context += f"- **{uc_id}**: {uc_title}\n"
+                    if uc_reason:
+                        revision_context += f"  Reason: {uc_reason}\n"
+                    if uc_fix:
+                        revision_context += f"  **FIX**: {uc_fix}\n"
                 else:
                     revision_context += f"- {uc}\n"
             if len(uncovered_use_cases) > 5:
                 revision_context += f"- ... and {len(uncovered_use_cases) - 5} more\n"
 
-        revision_context += "\n**Instructions**: Update your solution design to ensure ALL above gaps are addressed.\n\n"
+        revision_context += "\n**CRITICAL**: For each gap above with a FIX instruction, apply it EXACTLY as specified. Add the described component to the correct section of your JSON.\n\n"
 
         # ARCH-001: Inject previous design so Marcus revises instead of regenerating
         if previous_design:
