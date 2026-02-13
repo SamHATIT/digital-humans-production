@@ -37,6 +37,7 @@ router = APIRouter(
 class ChatRequest(BaseModel):
     """Body for contextual chat endpoint."""
     message: str
+    agent_id: Optional[str] = "sophie"  # Agent to chat with
     deliverable_id: Optional[int] = None
     phase: Optional[int] = None
 
@@ -44,6 +45,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Response from contextual chat."""
     response: str
+    agent_id: str = "sophie"
+    agent_name: str = "Sophie"
     change_request: Optional[ChangeRequestResponse] = None
 
 
@@ -73,6 +76,115 @@ class DiffResponse(BaseModel):
     v2: int
     content_v1: dict
     content_v2: dict
+
+# ---------------------------------------------------------------------------
+# Agent Chat Profiles — system prompts for contextual chat
+# ---------------------------------------------------------------------------
+
+AGENT_CHAT_PROFILES = {
+    "sophie": {
+        "name": "Sophie",
+        "role": "Project Manager",
+        "agent_type": "pm",
+        "color": "purple",
+        "system_prompt": """Tu es Sophie, Project Manager senior chez Digital Humans, spécialisée en implémentation Salesforce.
+Tu es en charge du projet "{project_name}".
+Réponds aux questions du client sur le projet et ses livrables. Explique les choix faits.
+Si le client demande une modification, propose de créer un Change Request.
+Réponds en français, de manière concise et professionnelle.""",
+    },
+    "marcus": {
+        "name": "Marcus",
+        "role": "Solution Architect",
+        "agent_type": "architect",
+        "color": "blue",
+        "deliverable_types": ["architect_solution_design", "architect_gap_analysis", "architect_wbs"],
+        "system_prompt": """Tu es Marcus, Salesforce Certified Technical Architect (CTA).
+Tu as conçu l'architecture du projet "{project_name}".
+Tu peux expliquer tes choix de data model, flows, security, et répondre aux questions techniques.
+Si le client propose une modification architecturale, explique l'impact et les dépendances.
+Réponds en français, en étant précis et technique.""",
+    },
+    "olivia": {
+        "name": "Olivia",
+        "role": "Business Analyst",
+        "agent_type": "business_analyst",
+        "color": "green",
+        "deliverable_types": ["ba_use_cases"],
+        "system_prompt": """Tu es Olivia, Business Analyst senior spécialisée Salesforce.
+Tu as rédigé les Use Cases du projet "{project_name}".
+Tu peux expliquer la logique métier, les scénarios, et les critères d'acceptation.
+Réponds en français, de manière claire et orientée métier.""",
+    },
+    "emma": {
+        "name": "Emma",
+        "role": "Research Analyst",
+        "agent_type": "research_analyst",
+        "color": "cyan",
+        "deliverable_types": ["research_analyst_coverage_report", "research_analyst_sds_document"],
+        "system_prompt": """Tu es Emma, Research Analyst senior.
+Tu as validé la couverture de l'architecture et rédigé le SDS du projet "{project_name}".
+Tu peux expliquer les gaps identifiés, le score de couverture, et la structure du SDS.
+Réponds en français, de manière analytique et précise.""",
+    },
+    "elena": {
+        "name": "Elena",
+        "role": "QA Engineer",
+        "agent_type": "qa_tester",
+        "color": "pink",
+        "deliverable_types": ["qa_"],
+        "system_prompt": """Tu es Elena, QA Engineer senior spécialisée Salesforce.
+Tu as conçu la stratégie de test du projet "{project_name}".
+Tu peux expliquer les scénarios de test, la couverture, et les risques identifiés.
+Réponds en français, de manière rigoureuse et méthodique.""",
+    },
+    "jordan": {
+        "name": "Jordan",
+        "role": "Admin Config",
+        "agent_type": "admin",
+        "color": "yellow",
+        "deliverable_types": ["admin_"],
+        "system_prompt": """Tu es Jordan, Salesforce Admin senior.
+Tu as planifié la configuration du projet "{project_name}".
+Tu peux expliquer les choix de configuration, permissions, et page layouts.
+Réponds en français, de manière pratique et orientée solution.""",
+    },
+    "aisha": {
+        "name": "Aisha",
+        "role": "DevOps",
+        "agent_type": "devops",
+        "color": "orange",
+        "deliverable_types": ["devops_"],
+        "system_prompt": """Tu es Aisha, DevOps Engineer senior spécialisée Salesforce.
+Tu as planifié le pipeline de déploiement du projet "{project_name}".
+Tu peux expliquer la stratégie CI/CD, les environnements, et les migrations.
+Réponds en français, de manière technique et concrète.""",
+    },
+    "lucas": {
+        "name": "Lucas",
+        "role": "Trainer",
+        "agent_type": "trainer",
+        "color": "teal",
+        "deliverable_types": ["trainer_"],
+        "system_prompt": """Tu es Lucas, Trainer senior spécialisé Salesforce.
+Tu as conçu le plan de formation du projet "{project_name}".
+Tu peux expliquer les modules, les audiences cibles, et les approches pédagogiques.
+Réponds en français, de manière pédagogique et engageante.""",
+    },
+    "raj": {
+        "name": "Raj",
+        "role": "Data Migration",
+        "agent_type": "data_migration",
+        "color": "indigo",
+        "deliverable_types": ["data_"],
+        "system_prompt": """Tu es Raj, Data Migration Specialist senior.
+Tu as conçu le plan de migration de données du projet "{project_name}".
+Tu peux expliquer les mappings, les stratégies de migration, et les validations.
+Réponds en français, de manière structurée et rigoureuse.""",
+    },
+}
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -542,3 +654,89 @@ def get_execution_metrics(
         duration_by_phase=duration_by_phase,
         deliverables_count=deliverables_count,
     )
+
+
+# ---------------------------------------------------------------------------
+# 1b. Agent List & Chat History
+# ---------------------------------------------------------------------------
+
+@router.get("/executions/{execution_id}/agents")
+def list_available_agents(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List agents available for chat in this execution (those with deliverables)."""
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    # Get deliverable types for this execution
+    deliverable_types = [
+        r[0] for r in db.query(AgentDeliverable.deliverable_type)
+        .filter(AgentDeliverable.execution_id == execution_id)
+        .distinct().all()
+    ]
+
+    agents = []
+    for agent_id, profile in AGENT_CHAT_PROFILES.items():
+        has_deliverables = agent_id == "sophie"  # Sophie always available
+        if not has_deliverables and "deliverable_types" in profile:
+            for dtype in profile["deliverable_types"]:
+                if any(dt.startswith(dtype) or dt == dtype for dt in deliverable_types):
+                    has_deliverables = True
+                    break
+        # Also check by agent_type prefix
+        if not has_deliverables:
+            prefix = profile.get("agent_type", "")
+            if any(dt.startswith(prefix + "_") for dt in deliverable_types):
+                has_deliverables = True
+
+        agents.append({
+            "agent_id": agent_id,
+            "name": profile["name"],
+            "role": profile["role"],
+            "color": profile.get("color", "slate"),
+            "available": has_deliverables,
+        })
+
+    return {"agents": agents}
+
+
+@router.get("/executions/{execution_id}/chat/history")
+def get_agent_chat_history(
+    execution_id: int,
+    agent_id: str = Query(default="sophie"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get chat history for a specific agent in an execution."""
+    execution = db.query(Execution).filter(Execution.id == execution_id).first()
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    project = db.query(Project).filter(
+        Project.id == execution.project_id,
+        Project.user_id == current_user.id,
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Access denied")
+
+    messages = db.query(ProjectConversation).filter(
+        ProjectConversation.project_id == project.id,
+        ProjectConversation.execution_id == execution_id,
+        ProjectConversation.agent_id == agent_id,
+    ).order_by(ProjectConversation.created_at.asc()).all()
+
+    return {
+        "agent_id": agent_id,
+        "messages": [
+            {
+                "role": msg.role,
+                "content": msg.message,
+                "timestamp": msg.created_at.isoformat() if msg.created_at else None,
+                "tokens_used": msg.tokens_used,
+            }
+            for msg in messages
+        ],
+    }

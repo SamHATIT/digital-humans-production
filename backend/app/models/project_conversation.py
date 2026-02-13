@@ -14,6 +14,7 @@ class ProjectConversation(Base):
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     execution_id = Column(Integer, ForeignKey("executions.id", ondelete="SET NULL"), nullable=True)
     
+    agent_id = Column(String(30), default="sophie")  # which agent is chatting
     role = Column(String(20), nullable=False)  # 'user' or 'assistant'
     message = Column(Text, nullable=False)
     
