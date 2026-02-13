@@ -40,11 +40,8 @@ except ImportError:
     def log_llm_interaction(*args, **kwargs): pass
 
 # Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -197,8 +194,6 @@ class DevOpsAgent:
         try:
             if mode == "spec":
                 return self._execute_spec(input_content, execution_id, project_id)
-            else:
-                return self._execute_deploy(input_content, execution_id, project_id)
         except Exception as e:
             logger.error(f"DevOpsAgent error in mode '{mode}': {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -216,16 +211,9 @@ class DevOpsAgent:
         rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt - try PromptService first, fallback to constant
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("jordan_devops", "spec", {
-                    "requirements": input_content[:25000],
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for jordan_devops/spec: {e}")
-                prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
-        else:
-            prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        prompt = PROMPT_SERVICE.render("jordan_devops", "spec", {
+            "requirements": input_content[:25000],
+        })
         if rag_context:
             prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
 
@@ -300,31 +288,12 @@ class DevOpsAgent:
         target_env = input_data.get('target_env', 'UAT')
 
         # Build prompt - try PromptService first, fallback to constant
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("jordan_devops", "deploy", {
-                    "task_id": task_id,
-                    "task_name": task_name,
-                    "components": json.dumps(components, indent=2),
-                    "target_env": target_env,
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for jordan_devops/deploy: {e}")
-                prompt = DEPLOY_PROMPT.format(
-                    task_id=task_id,
-                    task_name=task_name,
-                    components=json.dumps(components, indent=2),
-                    target_env=target_env,
-                )
-        else:
-            prompt = DEPLOY_PROMPT.format(
-                task_id=task_id,
-                task_name=task_name,
-                components=json.dumps(components, indent=2),
-                target_env=target_env,
-            )
-
-        logger.info(f"DevOpsAgent mode=deploy, task_id={task_id}, prompt_size={len(prompt)} chars")
+        prompt = PROMPT_SERVICE.render("jordan_devops", "deploy", {
+            "task_id": task_id,
+            "task_name": task_name,
+            "components": json.dumps(components, indent=2),
+            "target_env": target_env,
+        })
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
@@ -417,25 +386,6 @@ class DevOpsAgent:
                 response.get('model', 'claude-sonnet-4-20250514'),
                 response.get('provider', 'anthropic'),
             )
-        else:
-            # Fallback to direct OpenAI API (original behavior)
-            logger.warning("llm_service unavailable, falling back to direct OpenAI API")
-            try:
-                from openai import OpenAI
-                client = OpenAI()
-                resp = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    max_tokens=max_tokens,
-                )
-                content = resp.choices[0].message.content
-                tokens_used = resp.usage.total_tokens
-                input_tokens = resp.usage.prompt_tokens
-                return (content, tokens_used, input_tokens, "gpt-4o-mini", "openai")
-            except Exception as e:
-                logger.error(f"OpenAI fallback failed: {e}")
-                return ('{"error": "LLM service not available"}', 0, 0, "none", "none")
-
     def _parse_files(self, content: str) -> Dict[str, str]:
         """Parse deployment files from LLM response using code block patterns."""
         files = {}

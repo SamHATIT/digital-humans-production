@@ -642,3 +642,53 @@ modes:
       ---
 
       **Apply ALL fixes from Emma's gap report. Output the COMPLETE revised architecture as valid JSON.**
+
+  patch:
+    description: "Apply targeted fixes to a specific section of the architecture"
+    config:
+      max_tokens: 16000
+      temperature: 0.2
+    prompt: |
+      # ARCHITECTURE PATCH — $section_key
+
+      You are **Marcus**, Salesforce CTA. You are patching ONE section of your architecture.
+
+      ## CURRENT SECTION ($section_key)
+      ```json
+      $current_section_json
+      ```
+
+      ## FIX INSTRUCTIONS TO APPLY
+
+      $fix_instructions_text
+
+      ## YOUR TASK
+
+      1. Take the current section above
+      2. Apply EVERY fix instruction listed
+      3. Return the COMPLETE updated section (existing content + new additions)
+      4. Do NOT remove or modify existing elements unless a fix explicitly says to
+
+      ## OUTPUT FORMAT
+
+      Return ONLY the updated `$section_key` section as valid JSON.
+      Not the full architecture — just this one section.
+
+      Example: if section_key is "data_model", return:
+      {
+        "standard_objects": [...existing + new...],
+        "custom_objects": [...existing + new...],
+        "relationships": [...existing + new...],
+        "erd_mermaid": "updated diagram"
+      }
+
+      ## RULES
+      1. KEEP all existing elements unchanged
+      2. ADD every element from fix_instructions
+      3. Use real Salesforce API names (no placeholders)
+      4. Flows must have elements[], LWC must have api_properties[]
+      5. Return ONLY valid JSON — no markdown fences, no explanations
+
+      ---
+
+      **Apply all fixes to $section_key. Output ONLY valid JSON.**

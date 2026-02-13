@@ -35,11 +35,8 @@ except ImportError:
     def log_llm_interaction(*args, **kwargs): pass
 
 # Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -47,13 +44,9 @@ except ImportError:
 # ============================================================================
 def get_extract_br_prompt(requirements: str) -> str:
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("sophie_pm", "br_extraction", {
-                "requirements": requirements,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for sophie_pm/br_extraction: {e}")
+    return PROMPT_SERVICE.render("sophie_pm", "br_extraction", {
+        "requirements": requirements,
+    })
 
     # FALLBACK: original f-string prompt
     return f'''# BUSINESS REQUIREMENTS EXTRACTION
@@ -120,13 +113,9 @@ Output should include:
 
 def get_consolidate_sds_prompt(artifacts: str) -> str:
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("sophie_pm", "consolidate_sds", {
-                "artifacts": artifacts,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for sophie_pm/consolidate_sds: {e}")
+    return PROMPT_SERVICE.render("sophie_pm", "consolidate_sds", {
+        "artifacts": artifacts,
+    })
 
     # FALLBACK: original f-string prompt
     return f'''# SOLUTION DESIGN SPECIFICATION - FINAL DOCUMENT
@@ -464,27 +453,6 @@ class PMAgent:
                 response["model"],
                 response["provider"],
             )
-        else:
-            # Fallback to direct Anthropic API
-            logger.warning("llm_service unavailable, falling back to direct Anthropic API")
-            from anthropic import Anthropic
-
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY not set and llm_service unavailable")
-
-            client = Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=max_tokens,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.content[0].text
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens
-            input_tokens = response.usage.input_tokens
-            return (content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic")
-
     def _parse_response(self, mode: str, content: str) -> Any:
         """Parse LLM response based on mode."""
         if mode == "extract_br":
@@ -604,10 +572,6 @@ if __name__ == "__main__":
             logger.info("SUCCESS: Output saved to %s", args.output)
             print(json.dumps(result, indent=2, ensure_ascii=False))
             sys.exit(0)
-        else:
-            logger.error("ERROR: %s", result.get('error'))
-            sys.exit(1)
-
     except Exception as e:
         logger.error("ERROR: %s", str(e), exc_info=True)
         sys.exit(1)

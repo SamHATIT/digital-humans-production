@@ -42,11 +42,8 @@ except ImportError:
     def log_llm_interaction(*args, **kwargs): pass
 
 # Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -378,9 +375,6 @@ async def review_phase_output(
             f"=== {path} ===\n{content}"
             for path, content in list(files.items())[:20]  # Limite 20 fichiers
         ])
-    else:
-        code_content = "Aucun contenu a revoir"
-
     # Step 3: Generer le prompt adapte a la phase
     prompt = get_phase_review_prompt(phase, code_content, context)
 
@@ -431,31 +425,12 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     # Format validation criteria
     if isinstance(validation_criteria, list):
         criteria_text = "\n".join(f"- {c}" for c in validation_criteria)
-    else:
-        criteria_text = str(validation_criteria)
-
     # Try external prompt via PromptService, fallback to constant
-    if PROMPT_SERVICE:
-        try:
-            prompt = PROMPT_SERVICE.render("elena_qa", "code_review", {
-                "code_content": code_content[:80000],
-                "task_info": json.dumps(task_info, indent=2),
-                "validation_criteria": criteria_text,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for elena_qa/code_review: {e}")
-            prompt = CODE_REVIEW_PROMPT.format(
-                code_content=code_content[:80000],
-                task_info=json.dumps(task_info, indent=2),
-                validation_criteria=criteria_text
-            )
-    else:
-        prompt = CODE_REVIEW_PROMPT.format(
-            code_content=code_content[:80000],  # Increased limit
-            task_info=json.dumps(task_info, indent=2),
-            validation_criteria=criteria_text
-        )
-
+    prompt = PROMPT_SERVICE.render("elena_qa", "code_review", {
+        "code_content": code_content[:80000],
+        "task_info": json.dumps(task_info, indent=2),
+        "validation_criteria": criteria_text,
+    })
     logger.info(f"  Prompt length: {len(prompt)} chars")
 
     tokens_used = 0
@@ -471,23 +446,6 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         review_text = response.get('content', '{}')
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
-    else:
-        try:
-            from openai import OpenAI
-            client = OpenAI()
-            model_used = "gpt-4o-mini"
-            resp = client.chat.completions.create(
-                model=model_used,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=4000,
-            )
-            review_text = resp.choices[0].message.content
-            tokens_used = resp.usage.total_tokens
-            input_tokens = resp.usage.prompt_tokens
-        except Exception as e:
-            logger.error(f"LLM call failed: {e}")
-            raise
-
     execution_time = round(time.time() - start_time, 2)
 
     # Parse response
@@ -623,8 +581,6 @@ class QATesterAgent:
         try:
             if mode == "spec":
                 return self._execute_spec(input_content, execution_id, project_id)
-            else:
-                return self._execute_test(input_content, execution_id, project_id)
         except Exception as e:
             logger.error(f"QATesterAgent error in mode '{mode}': {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -645,16 +601,9 @@ class QATesterAgent:
         rag_context = self._get_rag_context(project_id=project_id)
 
         # Build prompt - try PromptService first, fallback to constant
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("elena_qa", "spec", {
-                    "requirements": input_content[:25000],
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for elena_qa/spec: {e}")
-                prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
-        else:
-            prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        prompt = PROMPT_SERVICE.render("elena_qa", "spec", {
+            "requirements": input_content[:25000],
+        })
         if rag_context:
             prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
 

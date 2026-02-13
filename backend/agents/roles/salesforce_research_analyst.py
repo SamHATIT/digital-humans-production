@@ -53,12 +53,9 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
-# Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+# Prompt Service — MANDATORY, no fallback
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -92,295 +89,21 @@ def parse_json_response(content: str) -> dict:
 # ============================================================================
 # MODE 1: ANALYZE (Phase 2.5) - UC Digest Generation
 # ============================================================================
-
-ANALYZE_PROMPT = """# UC DIGEST GENERATION
-
-You are **Emma**, a Research Analyst specializing in Salesforce project analysis.
-
-## YOUR MISSION
-Analyze ALL the Use Cases and create a structured UC Digest that will help Marcus (Solution Architect) design the best architecture.
-
-## USE CASES TO ANALYZE
-
-{use_cases_text}
-
-## OUTPUT FORMAT (JSON)
-Generate a UC Digest with this EXACT structure:
-
-```json
-{{
-  "artifact_id": "UCD-001",
-  "title": "Use Case Digest",
-  "generated_at": "{timestamp}",
-  "total_use_cases_analyzed": {uc_count},
-  "by_requirement": {{
-    "BR-001": {{
-      "title": "Business Requirement title",
-      "uc_count": 5,
-      "sf_objects": ["Account", "Contact", "CustomObj__c"],
-      "sf_fields": {{
-        "Account": ["Name", "Industry", "Custom_Field__c"],
-        "Contact": ["Email", "Phone"]
-      }},
-      "automations": [
-        {{"type": "Flow", "purpose": "Auto-create contact on account creation"}},
-        {{"type": "Trigger", "purpose": "Validate email format before save"}}
-      ],
-      "ui_components": ["accountDashboard", "contactList"],
-      "key_acceptance_criteria": [
-        "User can create a new account with all required fields",
-        "Contact is auto-created with default values"
-      ]
-    }}
-  }},
-  "cross_cutting_concerns": {{
-    "shared_objects": [
-      {{"object": "Account", "usage": "Used in BR-001, BR-002, BR-003"}}
-    ],
-    "integration_points": [
-      {{"name": "ERP Sync", "systems": ["SAP"], "direction": "Bidirectional"}}
-    ],
-    "security_requirements": [
-      "Role-based access to sensitive fields",
-      "Record-level sharing for regional data"
-    ]
-  }},
-  "recommendations": [
-    "Consider Master-Detail relationship between X and Y",
-    "Use Platform Events for real-time notifications"
-  ],
-  "data_volume_estimates": {{
-    "Account": "10K-50K records",
-    "Contact": "50K-100K records"
-  }}
-}}
-```
-
-## ANALYSIS RULES
-1. Group analysis BY BUSINESS REQUIREMENT (BR)
-2. Extract ALL Salesforce objects mentioned (standard + custom)
-3. Identify ALL fields per object
-4. List ALL automations (Flows, Triggers, Scheduled Jobs)
-5. Extract UI component needs (LWC, Lightning Pages)
-6. Note cross-cutting concerns (shared objects, integrations)
-7. Provide actionable recommendations for Marcus
-8. Estimate data volumes where possible
-
----
-
-**Analyze ALL Use Cases now. Output ONLY valid JSON.**
-"""
+# Prompt loaded from YAML: emma_research.yaml -> uc_digest
 
 
 # ============================================================================
 # MODE 2: VALIDATE (Phase 3.3) - Coverage Analysis
 # ============================================================================
 
-VALIDATE_PROMPT = """# SOLUTION DESIGN COVERAGE VALIDATION
-
-You are **Emma**, a Research Analyst validating Marcus's Solution Design.
-
-## YOUR MISSION
-Compare the Solution Design against ALL Use Cases to ensure complete coverage.
-Identify gaps, missing elements, and areas needing improvement.
-
-## SOLUTION DESIGN TO VALIDATE
-{solution_design_text}
-
-## USE CASES TO CHECK AGAINST
-{use_cases_text}
-
-## UC DIGEST (Summary)
-{uc_digest_text}
-
-## OUTPUT FORMAT (JSON)
-
-```json
-{{
-  "artifact_id": "COV-001",
-  "title": "Coverage Analysis Report",
-  "generated_at": "{timestamp}",
-  "overall_coverage_score": 85,
-  "coverage_by_requirement": {{
-    "BR-001": {{
-      "title": "Requirement title",
-      "coverage_score": 90,
-      "covered_elements": ["Object X created", "Flow Y defined"],
-      "missing_elements": ["Field Z not in data model"],
-      "partial_elements": ["Integration defined but missing error handling"]
-    }}
-  }},
-  "coverage_by_category": {{
-    "data_model": {{
-      "score": 90,
-      "covered": ["All custom objects defined"],
-      "gaps": ["Missing picklist values for Status__c"]
-    }},
-    "automation": {{
-      "score": 80,
-      "covered": ["Main flows defined"],
-      "gaps": ["No scheduled job for data cleanup"]
-    }},
-    "security": {{
-      "score": 75,
-      "covered": ["Permission sets defined"],
-      "gaps": ["Missing FLS for sensitive fields"]
-    }},
-    "ui_components": {{
-      "score": 70,
-      "covered": ["Dashboard LWC defined"],
-      "gaps": ["Missing detail view component"]
-    }},
-    "integration": {{
-      "score": 85,
-      "covered": ["REST API defined"],
-      "gaps": ["Missing retry mechanism"]
-    }}
-  }},
-  "critical_gaps": [
-    {{
-      "element_type": "custom_object",
-      "element_value": "Audit_Log__c",
-      "severity": "high",
-      "uc_refs": ["UC-003-01"],
-      "recommendation": "Add Audit_Log__c to data model for compliance tracking"
-    }}
-  ],
-  "uncovered_use_cases": [
-    {{
-      "id": "UC-005-03",
-      "title": "Bulk data import",
-      "reason": "No data migration strategy defined"
-    }}
-  ],
-  "recommendations": [
-    "Add missing objects to data model",
-    "Define error handling for all integrations"
-  ],
-  "verdict": "NEEDS_REVISION"
-}}
-```
-
-## SCORING RULES
-- 95-100%: APPROVED - No changes needed
-- 80-94%: NEEDS_MINOR_REVISION - Small gaps to address
-- 60-79%: NEEDS_REVISION - Significant gaps found
-- <60%: REJECTED - Major redesign needed
-
-## VALIDATION RULES
-1. Every UC must be traceable to at least one Solution Design element
-2. Every custom object in UCs must exist in the data model
-3. Every automation mentioned in UCs must be designed
-4. Every UI component needed by UCs must be specified
-5. Security model must cover all roles mentioned in UCs
-6. Integration points must match UC requirements
-
----
-
-**Validate the Solution Design now. Output ONLY valid JSON.**
-"""
+# Prompt loaded from YAML: emma_research.yaml -> coverage_review (now fix_instructions)
 
 
 # ============================================================================
 # MODE 3: WRITE_SDS (Phase 5) - Final SDS Document Assembly
 # ============================================================================
 
-WRITE_SDS_PROMPT = """# SDS DOCUMENT GENERATION
-
-You are **Emma**, a Research Analyst writing the final Solution Design Specification (SDS) document.
-
-## YOUR MISSION
-Assemble ALL deliverables from all agents into a cohesive, professional SDS document in Markdown.
-
-## PROJECT INFORMATION
-**Project Name:** {project_name}
-**Generated:** {timestamp}
-
-## DELIVERABLES TO ASSEMBLE
-
-### Business Requirements (Sophie - PM)
-{br_content}
-
-### Use Cases (Olivia - BA)
-{uc_content}
-
-### UC Digest (Emma - Research Analyst)
-{uc_digest_content}
-
-### Solution Design (Marcus - Solution Architect)
-{solution_design_content}
-
-### Gap Analysis (Marcus)
-{gap_analysis_content}
-
-### WBS (Marcus)
-{wbs_content}
-
-### QA Test Plan (Elena - QA)
-{qa_content}
-
-### DevOps Plan (Jordan - DevOps)
-{devops_content}
-
-### Training Plan (Lucas - Trainer)
-{training_content}
-
-### Data Migration Plan (Aisha - Data Migration)
-{data_migration_content}
-
-## SDS DOCUMENT STRUCTURE
-
-Generate a complete SDS with these sections:
-
-1. **Executive Summary** - Project overview, scope, objectives
-2. **Business Requirements** - Validated BRs from Sophie
-3. **Use Case Analysis** - Key UCs from Olivia, organized by BR
-4. **Solution Architecture**
-   - 4.1 Data Model (objects, fields, relationships, ERD)
-   - 4.2 Security Model (profiles, permissions, sharing)
-   - 4.3 Automation Design (flows, triggers, scheduled jobs)
-   - 4.4 Integration Architecture (APIs, external systems)
-   - 4.5 UI/UX Design (Lightning pages, LWC components)
-5. **Gap Analysis Summary** - Key gaps and resolution approach
-6. **Implementation Plan** (WBS summary)
-   - 6.1 Phases and Milestones
-   - 6.2 Resource Allocation
-   - 6.3 Critical Path
-7. **Quality Assurance**
-   - 7.1 Test Strategy
-   - 7.2 Test Scenarios
-8. **DevOps & Deployment**
-   - 8.1 Environment Strategy
-   - 8.2 CI/CD Pipeline
-   - 8.3 Release Plan
-9. **Training & Adoption**
-   - 9.1 Training Plan
-   - 9.2 User Documentation
-10. **Data Migration**
-    - 10.1 Data Mapping
-    - 10.2 Migration Strategy
-    - 10.3 Validation Plan
-11. **Risks & Mitigations**
-12. **Appendices**
-    - A. Glossary
-    - B. Reference Documents
-    - C. Change Log
-
-## WRITING RULES
-1. Use professional, clear language
-2. Include specific Salesforce terminology
-3. Reference deliverables by artifact ID (ARCH-001, GAP-001, etc.)
-4. Include tables for structured data
-5. Use Mermaid diagrams where available
-6. Cross-reference between sections
-7. Highlight risks and dependencies
-8. Keep each section concise but complete
-9. Use consistent formatting throughout
-
----
-
-**Write the complete SDS document now. Output ONLY Markdown.**
-"""
+# Prompt loaded from YAML: emma_research.yaml -> write_sds
 
 
 # ============================================================================
@@ -701,65 +424,60 @@ class ResearchAnalystAgent:
         if not use_cases:
             return {"success": False, "error": "No use_cases provided for analyze mode"}
 
-        # Build UC text for prompt
+        # Build UC text for prompt — reads Olivia's actual output format
         uc_text = ""
         for i, uc in enumerate(use_cases):
             uc_id = uc.get('id', f'UC-{i+1:03d}')
             uc_title = uc.get('title', 'Untitled')
             uc_actor = uc.get('actor', 'User')
-            uc_description = uc.get('description', '')
+            parent_br = uc.get('parent_br', uc.get('br_ref', uc.get('requirement_id', '')))
 
             uc_text += f"\n### {uc_id}: {uc_title}\n"
             uc_text += f"- **Actor**: {uc_actor}\n"
-            if uc_description:
-                uc_text += f"- **Description**: {uc_description[:500]}\n"
+            if parent_br:
+                uc_text += f"- **Business Requirement**: {parent_br}\n"
 
-            sf = uc.get('salesforce_components', {})
-            if sf:
-                objects = sf.get('objects', [])
-                if objects:
-                    uc_text += f"- **Objects**: {', '.join(objects)}\n"
-                automation = sf.get('automation', [])
-                if automation:
-                    uc_text += f"- **Automation**: {', '.join(automation)}\n"
+            # Trigger
+            trigger = uc.get('trigger', '')
+            if trigger:
+                uc_text += f"- **Trigger**: {trigger}\n"
 
-            # BR reference
-            br_ref = uc.get('br_ref', uc.get('requirement_id', ''))
-            if br_ref:
-                uc_text += f"- **Business Requirement**: {br_ref}\n"
+            # SF Objects (Olivia format: flat list)
+            sf_objects = uc.get('sf_objects', [])
+            if sf_objects:
+                uc_text += f"- **SF Objects**: {', '.join(sf_objects)}\n"
 
+            # SF Fields (Olivia format: ["Object.Field", ...])
+            sf_fields = uc.get('sf_fields', [])
+            if sf_fields:
+                uc_text += f"- **SF Fields**: {', '.join(sf_fields[:10])}\n"
+
+            # SF Automation (Olivia format: string, not list)
+            sf_auto = uc.get('sf_automation', '')
+            if sf_auto and str(sf_auto).lower() not in ('none', 'n/a', ''):
+                uc_text += f"- **Automation**: {sf_auto}\n"
+
+            # Main flow (summary)
+            main_flow = uc.get('main_flow', [])
+            if main_flow:
+                uc_text += f"- **Main Flow**: {' → '.join(str(s)[:60] for s in main_flow[:4])}\n"
+
+            # Acceptance criteria (max 3)
             criteria = uc.get('acceptance_criteria', [])
             if criteria:
                 uc_text += "- **Acceptance Criteria**:\n"
                 for c in criteria[:3]:
-                    if isinstance(c, dict):
-                        uc_text += f"  - {c.get('description', str(c))}\n"
-                    else:
-                        uc_text += f"  - {c}\n"
+                    c_text = c.get('description', str(c)) if isinstance(c, dict) else str(c)
+                    uc_text += f"  - {c_text[:150]}\n"
 
         timestamp = datetime.now().isoformat()
 
-        # Try external prompt
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("emma_research", "uc_digest", {
-                    "use_cases_text": uc_text,
-                    "timestamp": timestamp,
-                    "uc_count": str(len(use_cases)),
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for emma_research/uc_digest: {e}")
-                prompt = ANALYZE_PROMPT.format(
-                    use_cases_text=uc_text,
-                    timestamp=timestamp,
-                    uc_count=len(use_cases)
-                )
-        else:
-            prompt = ANALYZE_PROMPT.format(
-                use_cases_text=uc_text,
-                timestamp=timestamp,
-                uc_count=len(use_cases)
-            )
+        # Render prompt from YAML — no fallback
+        prompt = PROMPT_SERVICE.render("emma_research", "uc_digest", {
+            "use_cases_text": uc_text,
+            "timestamp": timestamp,
+            "uc_count": str(len(use_cases)),
+        })
 
         system_prompt = "You are Emma, a Research Analyst. Generate a UC Digest. Output ONLY valid JSON."
 
@@ -813,108 +531,92 @@ class ResearchAnalystAgent:
         execution_id: int,
         project_id: int,
     ) -> Dict[str, Any]:
-        """Validate Solution Design coverage against Use Cases."""
+        """
+        Validate Solution Design coverage against Use Cases.
+        
+        OPTION C Architecture:
+        - Score = 100% programmatic (deterministic, no LLM)
+        - If score < 95%: LLM generates fix_instructions for Marcus (no LLM scoring)
+        """
         start_time = time.time()
 
         solution_design = input_data.get('solution_design', input_data.get('architecture', {}))
         use_cases = input_data.get('use_cases', [])
-        uc_digest = input_data.get('uc_digest', {})
 
         if not solution_design:
             return {"success": False, "error": "No solution_design provided for validate mode"}
 
-        # Step 1: Programmatic coverage analysis
+        # ── STEP 1: 100% programmatic score (SOLE decision maker) ──
         prog_report = generate_coverage_report_programmatic(solution_design, use_cases)
-        prog_score = prog_report.get('overall_score', 0)
+        score = prog_report.get('overall_score', 0)
+        verdict = prog_report.get('verdict', 'UNKNOWN')
 
-        logger.info(f"Programmatic coverage score: {prog_score}%")
+        logger.info(f"[Coverage] Programmatic score: {score}% — {verdict}")
 
-        # Step 2: LLM-based qualitative analysis
-        solution_text = json.dumps(solution_design, indent=2, ensure_ascii=False)[:12000]
+        # ── STEP 2: If < 95%, call LLM for fix_instructions only ──
+        llm_gaps = []
+        llm_tokens = 0
+        llm_model = None
+        llm_provider = None
+        llm_called = False
 
-        uc_text = ""
-        for uc in use_cases[:20]:
-            uc_text += f"- {uc.get('id', 'UC')}: {uc.get('title', '')}\n"
-            sf = uc.get('salesforce_components', {})
-            if sf:
-                objects = sf.get('objects', [])
-                if objects:
-                    uc_text += f"  Objects: {', '.join(objects[:5])}\n"
+        if score < 95:
+            llm_called = True
+            llm_input = self._build_fix_instructions_input(prog_report, solution_design, use_cases)
 
-        uc_digest_text = json.dumps(uc_digest, indent=2, ensure_ascii=False)[:5000] if uc_digest else "Not available"
-
-        timestamp = datetime.now().isoformat()
-
-        # Try external prompt
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("emma_research", "coverage_review", {
-                    "solution_design_text": solution_text,
-                    "use_cases_text": uc_text,
-                    "uc_digest_text": uc_digest_text,
-                    "timestamp": timestamp,
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for emma_research/coverage_review: {e}")
-                prompt = VALIDATE_PROMPT.format(
-                    solution_design_text=solution_text,
-                    use_cases_text=uc_text,
-                    uc_digest_text=uc_digest_text,
-                    timestamp=timestamp
-                )
-        else:
-            prompt = VALIDATE_PROMPT.format(
-                solution_design_text=solution_text,
-                use_cases_text=uc_text,
-                uc_digest_text=uc_digest_text,
-                timestamp=timestamp
+            prompt = PROMPT_SERVICE.render("emma_research", "fix_instructions", llm_input)
+            system_prompt = (
+                "You are Emma, a Research Analyst. Generate actionable fix instructions "
+                "for each gap. Output ONLY valid JSON."
             )
 
-        system_prompt = "You are Emma, a Research Analyst. Validate coverage. Output ONLY valid JSON."
+            logger.info(f"[Coverage] Score {score}% < 95% — calling LLM for fix_instructions")
 
-        logger.info(f"VALIDATE mode: {len(use_cases)} UCs, prompt size: {len(prompt)} chars")
+            content, llm_tokens, input_tokens, llm_model, llm_provider = self._call_llm(
+                prompt, system_prompt, max_tokens=16000, temperature=0.3,
+                execution_id=execution_id
+            )
 
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.3,
-            execution_id=execution_id
-        )
+            self._log_interaction(
+                mode="fix_instructions", prompt=prompt, content=content,
+                execution_id=execution_id, input_tokens=input_tokens,
+                tokens_used=llm_tokens, model_used=llm_model,
+                provider_used=llm_provider, execution_time=time.time() - start_time,
+            )
 
+            llm_result = parse_json_response(content)
+            llm_gaps = llm_result.get('gaps', [])
+            logger.info(f"[Coverage] LLM produced {len(llm_gaps)} fix_instructions")
+
+        # ── STEP 3: Build uncovered UCs list ──
+        covered_uc_ids = set(solution_design.get('uc_traceability', {}).keys())
+        uncovered_ucs = []
+        for uc in use_cases:
+            uc_id = uc.get('id', '')
+            # Check both traceability and object overlap
+            sf_objs = set(o.lower() for o in uc.get('sf_objects', []))
+            sd_objs = set()
+            dm = solution_design.get('data_model', {})
+            for o in dm.get('standard_objects', []):
+                sd_objs.add((o.get('api_name', '') if isinstance(o, dict) else str(o)).lower())
+            for o in dm.get('custom_objects', []):
+                sd_objs.add((o.get('api_name', '') if isinstance(o, dict) else str(o)).lower())
+            obj_covered = bool(sf_objs & sd_objs)
+            trace_covered = uc_id in covered_uc_ids
+
+            if not (obj_covered or trace_covered):
+                uncovered_ucs.append({
+                    "id": uc_id,
+                    "title": uc.get('title', ''),
+                    "parent_br": uc.get('parent_br', ''),
+                })
+
+        # ── STEP 4: Assemble final report ──
         execution_time = time.time() - start_time
+        timestamp = datetime.now().isoformat()
 
-        # Log interaction
-        self._log_interaction(
-            mode="validate", prompt=prompt, content=content,
-            execution_id=execution_id, input_tokens=input_tokens,
-            tokens_used=tokens_used, model_used=model_used,
-            provider_used=provider_used, execution_time=execution_time,
-        )
-
-        # Parse LLM response
-        llm_report = parse_json_response(content)
-
-        # Merge programmatic + LLM results
-        # Use LLM score if available, otherwise use programmatic
-        llm_score = llm_report.get('overall_coverage_score', prog_score)
-        final_score = (llm_score * 0.6 + prog_score * 0.4)  # Weighted average
-
-        # Determine verdict
-        if final_score >= 95:
-            verdict = "APPROVED"
-        elif final_score >= 80:
-            verdict = "NEEDS_MINOR_REVISION"
-        elif final_score >= 60:
-            verdict = "NEEDS_REVISION"
-        else:
-            verdict = "REJECTED"
-
-        # Combine critical gaps from both sources
-        all_gaps = prog_report.get('critical_gaps', [])
-        llm_gaps = llm_report.get('critical_gaps', [])
-        if isinstance(llm_gaps, list):
-            all_gaps.extend(llm_gaps)
-
-        # Combine uncovered UCs
-        uncovered_ucs = llm_report.get('uncovered_use_cases', [])
+        # Use LLM gaps if available, otherwise programmatic gaps
+        final_gaps = llm_gaps if llm_gaps else prog_report.get('critical_gaps', [])
 
         return {
             "success": True,
@@ -926,32 +628,91 @@ class ResearchAnalystAgent:
             "deliverable_type": "coverage_analysis",
             "artifact_id": "COV-001",
             "content": {
-                "overall_coverage_score": round(final_score, 1),
-                "programmatic_score": prog_score,
-                "llm_score": llm_score,
-                "verdict": verdict,
-                "coverage_by_category": {
-                    **prog_report.get('by_category', {}),
-                    **(llm_report.get('coverage_by_category', {}))
-                },
-                "coverage_by_requirement": llm_report.get('coverage_by_requirement', {}),
-                "critical_gaps": all_gaps,
+                "overall_coverage_score": score,       # 100% programmatic
+                "verdict": verdict,                     # 100% programmatic
+                "scoring_method": "programmatic_only",  # Traceability
+                "by_category": prog_report.get('by_category', {}),
+                "critical_gaps": final_gaps,
                 "uncovered_use_cases": uncovered_ucs,
-                "recommendations": llm_report.get('recommendations', [])
             },
             "metadata": {
-                "tokens_used": tokens_used,
-                "model": model_used,
-                "provider": provider_used,
+                "tokens_used": llm_tokens,
+                "model": llm_model,
+                "provider": llm_provider,
                 "execution_time_seconds": round(execution_time, 2),
                 "use_cases_count": len(use_cases),
+                "llm_called": llm_called,
                 "generated_at": timestamp
             }
         }
 
-    # ------------------------------------------------------------------
-    # MODE 3: WRITE_SDS (Phase 5) - Final SDS Document
-    # ------------------------------------------------------------------
+    def _build_fix_instructions_input(self, prog_report: dict, solution_design: dict, use_cases: list) -> dict:
+        """Build targeted input for LLM fix_instructions prompt."""
+        by_cat = prog_report.get('by_category', {})
+
+        missing_objects = by_cat.get('data_model', {}).get('missing', [])
+        missing_autos = by_cat.get('automation', {}).get('missing', [])
+        missing_ui = by_cat.get('ui_components', {}).get('missing', [])
+
+        # Identify uncovered UCs
+        covered_uc_ids = set(solution_design.get('uc_traceability', {}).keys())
+        uncovered_ucs = []
+        for uc in use_cases:
+            uc_id = uc.get('id', '')
+            if uc_id and uc_id not in covered_uc_ids:
+                uncovered_ucs.append({
+                    "id": uc_id,
+                    "title": uc.get('title', ''),
+                    "parent_br": uc.get('parent_br', ''),
+                    "sf_objects": uc.get('sf_objects', []),
+                    "sf_automation": uc.get('sf_automation', ''),
+                    "main_flow_summary": ' → '.join(
+                        str(s)[:40] for s in uc.get('main_flow', [])[:3]
+                    )
+                })
+
+        # Existing architecture elements for context
+        arch_context = {}
+        dm = solution_design.get('data_model', {})
+        existing_std = [o.get('api_name', str(o)) for o in dm.get('standard_objects', []) if isinstance(o, dict)]
+        existing_cust = [o.get('api_name', str(o)) for o in dm.get('custom_objects', []) if isinstance(o, dict)]
+        arch_context['existing_objects'] = existing_std + existing_cust
+
+        auto = solution_design.get('automation_design', {})
+        existing_flows = [f.get('api_name', f.get('name', '')) for f in auto.get('flows', []) if isinstance(f, dict)]
+        existing_triggers = [t.get('name', '') for t in auto.get('apex_triggers', []) if isinstance(t, dict)]
+        arch_context['existing_automations'] = existing_flows + existing_triggers
+
+        # Format texts for prompt template
+        missing_objects_text = '\n'.join(f"- {obj}" for obj in missing_objects) if missing_objects else "None"
+        missing_autos_text = '\n'.join(f"- {a}" for a in missing_autos) if missing_autos else "None"
+        missing_ui_text = '\n'.join(f"- {u}" for u in missing_ui) if missing_ui else "None"
+
+        uncovered_text = ""
+        for uc in uncovered_ucs[:15]:
+            uncovered_text += f"- **{uc['id']}**: {uc['title']} (BR: {uc['parent_br']})"
+            uncovered_text += f"\n  Objects: {', '.join(uc['sf_objects'][:5])}"
+            uncovered_text += f"\n  Automation: {uc['sf_automation']}"
+            uncovered_text += f"\n  Flow: {uc['main_flow_summary']}\n"
+        if not uncovered_text:
+            uncovered_text = "None"
+
+        return {
+            "score": str(prog_report.get('overall_score', 0)),
+            "verdict": prog_report.get('verdict', 'UNKNOWN'),
+            "missing_objects_text": missing_objects_text,
+            "missing_object_count": str(len(missing_objects)),
+            "missing_automations_text": missing_autos_text,
+            "missing_automation_count": str(len(missing_autos)),
+            "missing_ui_text": missing_ui_text,
+            "missing_ui_count": str(len(missing_ui)),
+            "uncovered_ucs_text": uncovered_text,
+            "uncovered_count": str(len(uncovered_ucs)),
+            "arch_context": json.dumps(arch_context, ensure_ascii=False),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+
     def _execute_write_sds(
         self,
         input_data: dict,
@@ -973,54 +734,21 @@ class ResearchAnalystAgent:
                 val = json.dumps(val, indent=2, ensure_ascii=False)
             return str(val)[:max_len] if val else "Not provided"
 
-        # Try external prompt
-        if PROMPT_SERVICE:
-            try:
-                prompt = PROMPT_SERVICE.render("emma_research", "write_sds", {
-                    "project_name": project_name,
-                    "timestamp": timestamp,
-                    "br_content": safe_content('business_requirements', 6000),
-                    "uc_content": safe_content('use_cases', 8000),
-                    "uc_digest_content": safe_content('uc_digest', 5000),
-                    "solution_design_content": safe_content('solution_design', 10000),
-                    "gap_analysis_content": safe_content('gap_analysis', 6000),
-                    "wbs_content": safe_content('wbs', 6000),
-                    "qa_content": safe_content('qa_plan', 4000),
-                    "devops_content": safe_content('devops_plan', 3000),
-                    "training_content": safe_content('training_plan', 3000),
-                    "data_migration_content": safe_content('data_migration_plan', 3000),
-                })
-            except Exception as e:
-                logger.warning(f"PromptService fallback for emma_research/write_sds: {e}")
-                prompt = WRITE_SDS_PROMPT.format(
-                    project_name=project_name,
-                    timestamp=timestamp,
-                    br_content=safe_content('business_requirements', 6000),
-                    uc_content=safe_content('use_cases', 8000),
-                    uc_digest_content=safe_content('uc_digest', 5000),
-                    solution_design_content=safe_content('solution_design', 10000),
-                    gap_analysis_content=safe_content('gap_analysis', 6000),
-                    wbs_content=safe_content('wbs', 6000),
-                    qa_content=safe_content('qa_plan', 4000),
-                    devops_content=safe_content('devops_plan', 3000),
-                    training_content=safe_content('training_plan', 3000),
-                    data_migration_content=safe_content('data_migration_plan', 3000),
-                )
-        else:
-            prompt = WRITE_SDS_PROMPT.format(
-                project_name=project_name,
-                timestamp=timestamp,
-                br_content=safe_content('business_requirements', 6000),
-                uc_content=safe_content('use_cases', 8000),
-                uc_digest_content=safe_content('uc_digest', 5000),
-                solution_design_content=safe_content('solution_design', 10000),
-                gap_analysis_content=safe_content('gap_analysis', 6000),
-                wbs_content=safe_content('wbs', 6000),
-                qa_content=safe_content('qa_plan', 4000),
-                devops_content=safe_content('devops_plan', 3000),
-                training_content=safe_content('training_plan', 3000),
-                data_migration_content=safe_content('data_migration_plan', 3000),
-            )
+        # Render prompt from YAML — no fallback
+        prompt = PROMPT_SERVICE.render("emma_research", "write_sds", {
+            "project_name": project_name,
+            "timestamp": timestamp,
+            "br_content": safe_content('business_requirements', 6000),
+            "uc_content": safe_content('use_cases', 8000),
+            "uc_digest_content": safe_content('uc_digest', 5000),
+            "solution_design_content": safe_content('solution_design', 10000),
+            "gap_analysis_content": safe_content('gap_analysis', 6000),
+            "wbs_content": safe_content('wbs', 6000),
+            "qa_content": safe_content('qa_plan', 4000),
+            "devops_content": safe_content('devops_plan', 3000),
+            "training_content": safe_content('training_plan', 3000),
+            "data_migration_content": safe_content('data_migration_plan', 3000),
+        })
 
         system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
 

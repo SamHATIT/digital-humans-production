@@ -40,11 +40,8 @@ except ImportError:
     def log_llm_interaction(*args, **kwargs): pass
 
 # Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -52,16 +49,12 @@ except ImportError:
 # ============================================================================
 def get_sds_strategy_prompt(solution_design: str, use_cases: str, project_info: str = "", wbs: str = "") -> str:
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("lucas_trainer", "sds_strategy", {
-                "solution_design": solution_design[:8000],
-                "use_cases": use_cases[:5000],
-                "project_info": project_info[:2000] if project_info else "",
-                "wbs": wbs[:3000] if wbs else "",
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for lucas_trainer/sds_strategy: {e}")
+    return PROMPT_SERVICE.render("lucas_trainer", "sds_strategy", {
+        "solution_design": solution_design[:8000],
+        "use_cases": use_cases[:5000],
+        "project_info": project_info[:2000] if project_info else "",
+        "wbs": wbs[:3000] if wbs else "",
+    })
 
     # FALLBACK: original f-string prompt
     return f'''# 🎓 TRAINING & ADOPTION STRATEGY (SDS Section)
@@ -177,14 +170,10 @@ This is a HIGH-LEVEL strategic plan, NOT detailed training materials.
 # ============================================================================
 def get_delivery_prompt(solution_design: str, training_strategy: str) -> str:
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("lucas_trainer", "delivery", {
-                "solution_design": solution_design[:2000],
-                "training_strategy": training_strategy[:1500],
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for lucas_trainer/delivery: {e}")
+    return PROMPT_SERVICE.render("lucas_trainer", "delivery", {
+        "solution_design": solution_design[:2000],
+        "training_strategy": training_strategy[:1500],
+    })
 
     # FALLBACK: original f-string prompt
     return f'''# 🎓 TRAINING MATERIALS DELIVERY
@@ -502,10 +491,6 @@ class TrainerAgent:
                 response.get('model', 'unknown'),
                 response.get('provider', 'unknown'),
             )
-        else:
-            logger.error("LLM service not available")
-            return ('{"error": "LLM service not available"}', 0, 0, "none", "none")
-
     def _parse_response(self, content: str) -> Any:
         """Parse JSON from LLM response, stripping code fences if present."""
         try:
@@ -617,10 +602,6 @@ if __name__ == "__main__":
             logger.info("SUCCESS: Output saved to %s", args.output)
             print(json.dumps(result, indent=2, ensure_ascii=False))
             sys.exit(0)
-        else:
-            logger.error("ERROR: %s", result.get('error'))
-            sys.exit(1)
-
     except Exception as e:
         logger.error("ERROR: %s", str(e), exc_info=True)
         sys.exit(1)

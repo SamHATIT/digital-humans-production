@@ -350,3 +350,121 @@ modes:
       ---
 
       **Write the complete SDS document now. Output ONLY Markdown.**
+
+  fix_instructions:
+    description: "Generate actionable fix instructions for Marcus based on programmatic gaps (Phase 3.3 Option C)"
+    system_prompt: "You are Emma, a Research Analyst. Generate actionable fix instructions. Output ONLY valid JSON."
+    config:
+      max_tokens: 16000
+      temperature: 0.3
+    prompt: |
+      # ARCHITECTURE GAP FIX INSTRUCTIONS
+
+      You are **Emma**, Research Analyst. The architecture scored **$score%** ($verdict).
+
+      Your job is NOT to score. The score is final. Your job is to produce **exact fix instructions**
+      that Marcus (Solution Architect) can apply to his JSON architecture.
+
+      ## GAPS IDENTIFIED (by programmatic analysis)
+
+      ### Missing Salesforce Objects ($missing_object_count)
+      $missing_objects_text
+
+      ### Missing Automations ($missing_automation_count)
+      $missing_automations_text
+
+      ### Missing UI Components ($missing_ui_count)
+      $missing_ui_text
+
+      ### Uncovered Use Cases ($uncovered_count total, showing first 15)
+      $uncovered_ucs_text
+
+      ## EXISTING ARCHITECTURE CONTEXT
+      $arch_context
+
+      ## OUTPUT FORMAT (JSON — STRICT)
+
+      {
+        "gaps": [
+          {
+            "id": "GAP-001",
+            "category": "data_model",
+            "severity": "high",
+            "what_is_missing": "Object Audit_Log__c needed by UC-003-01 for compliance tracking",
+            "fix_instruction": {
+              "action": "ADD_OBJECT",
+              "target_path": "data_model.custom_objects",
+              "content": {
+                "api_name": "Audit_Log__c",
+                "label": "Audit Log",
+                "purpose": "Track all record changes for compliance",
+                "sharing_model": "Private",
+                "fields": [
+                  {"api_name": "Action__c", "type": "Picklist", "values": ["Create","Update","Delete"], "required": true},
+                  {"api_name": "Record_Id__c", "type": "Text(18)", "required": true}
+                ]
+              },
+              "uc_refs": ["UC-003-01"]
+            }
+          },
+          {
+            "id": "GAP-002",
+            "category": "automation",
+            "severity": "high",
+            "what_is_missing": "No Flow for Case routing based on Priority (UC-028-03)",
+            "fix_instruction": {
+              "action": "ADD_FLOW",
+              "target_path": "automation_design.flows",
+              "content": {
+                "api_name": "Case_Priority_Routing",
+                "label": "Route Case by Priority",
+                "type": "Record-Triggered Flow",
+                "trigger": {"object": "Case", "event": "After Create", "condition": "Priority != null"},
+                "elements": [
+                  {"type": "Decision", "name": "Check_Priority", "conditions": [
+                    {"label": "Critical", "criteria": "Priority = 'Critical'"},
+                    {"label": "Default", "criteria": "Default"}
+                  ]},
+                  {"type": "Update Records", "object": "$Record", "field_assignments": [
+                    {"field": "OwnerId", "value": "Queue based on priority"}
+                  ]}
+                ]
+              },
+              "uc_refs": ["UC-028-03"]
+            }
+          },
+          {
+            "id": "GAP-003",
+            "category": "uc_traceability",
+            "severity": "medium",
+            "what_is_missing": "UC-012-02 has no implementing components in uc_traceability",
+            "fix_instruction": {
+              "action": "ADD_TRACEABILITY",
+              "target_path": "uc_traceability",
+              "content": {
+                "UC-012-02": ["Report_Name (Report)", "componentName (LWC)"]
+              },
+              "uc_refs": ["UC-012-02"]
+            }
+          }
+        ],
+        "summary": "X gaps found: N missing objects, N missing automations, N missing UI, N uncovered UCs",
+        "priority_order": ["GAP-001", "GAP-003", "GAP-002"]
+      }
+
+      ## RULES
+
+      1. **Every gap MUST have a fix_instruction with actual JSON content** — not prose
+      2. **fix_instruction.content** must match Marcus's architecture schema exactly
+      3. **action** must be one of: ADD_OBJECT, ADD_FIELD, ADD_FLOW, ADD_TRIGGER, ADD_LWC, ADD_INTEGRATION, ADD_PERMISSION_SET, ADD_TRACEABILITY, ADD_REPORT
+      4. **target_path** indicates where in Marcus's JSON the content goes
+      5. **uc_refs** links each gap to the Use Cases that require it
+      6. **Do NOT invent gaps** — only address elements listed above as missing
+      7. **Do NOT re-score** — the score is $score%, that is final
+      8. **Use real Salesforce API names** — no placeholders
+      9. **Flows must have elements[]** with types: Decision, Get Records, Create Records, Update Records
+      10. **LWC must have api_properties[]** — @api recordId at minimum
+
+      ---
+
+      **Generate fix instructions for ALL gaps listed above. Output ONLY valid JSON.**

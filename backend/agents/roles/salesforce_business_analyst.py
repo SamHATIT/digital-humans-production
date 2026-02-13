@@ -48,11 +48,8 @@ except ImportError:
     RAG_AVAILABLE = False
 
 # Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 # ============================================================================
 # PROMPT: BR -> USE CASES (~100 lines)
@@ -85,20 +82,16 @@ def get_uc_generation_prompt(br: dict, rag_context: str = "") -> str:
 """
 
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("olivia_ba", "generate", {
-                "br_id": br_id,
-                "br_title": br_title,
-                "br_category": br_category,
-                "br_stakeholder": br_stakeholder,
-                "br_description": br_description,
-                "metadata_section": metadata_section,
-                "rag_section": rag_section,
-                "br_id_suffix": br_id[3:] if len(br_id) > 3 else "XXX",
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for olivia_ba/generate: {e}")
+    return PROMPT_SERVICE.render("olivia_ba", "generate", {
+        "br_id": br_id,
+        "br_title": br_title,
+        "br_category": br_category,
+        "br_stakeholder": br_stakeholder,
+        "br_description": br_description,
+        "metadata_section": metadata_section,
+        "rag_section": rag_section,
+        "br_id_suffix": br_id[3:] if len(br_id) > 3 else "XXX",
+    })
 
     # FALLBACK: original f-string prompt
     return f'''# USE CASE GENERATION - COMPACT FORMAT
@@ -206,15 +199,11 @@ def get_uc_generation_prompt_batch(brs: list, rag_context: str = "") -> str:
     rag_section = f"\n## SALESFORCE CONTEXT\n{rag_context[:1200]}\n" if rag_context else ""
 
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("olivia_ba", "generate_batch", {
-                "br_count": str(br_count),
-                "brs_text": brs_text,
-                "rag_section": rag_section,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for olivia_ba/generate_batch: {e}")
+    return PROMPT_SERVICE.render("olivia_ba", "generate_batch", {
+        "br_count": str(br_count),
+        "brs_text": brs_text,
+        "rag_section": rag_section,
+    })
 
     # FALLBACK: original f-string prompt
     return f"""# USE CASE GENERATION - {br_count} BR{"s" if br_count > 1 else ""}
@@ -335,9 +324,6 @@ class BusinessAnalystAgent:
         # Build prompt (single or batch)
         if batch_mode:
             prompt = get_uc_generation_prompt_batch(brs, rag_context)
-        else:
-            prompt = get_uc_generation_prompt(br, rag_context)
-
         logger.info(f"BusinessAnalystAgent prompt_size={len(prompt)} chars")
 
         # Call LLM
@@ -458,26 +444,6 @@ class BusinessAnalystAgent:
                 response["model"],
                 response["provider"],
             )
-        else:
-            # Fallback to direct Anthropic API
-            logger.warning("llm_service unavailable, falling back to direct Anthropic API")
-            api_key = os.environ.get('ANTHROPIC_API_KEY')
-            if not api_key:
-                raise ValueError("ANTHROPIC_API_KEY not set and llm_service unavailable")
-
-            from anthropic import Anthropic
-            client = Anthropic(api_key=api_key)
-            response = client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=8000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            content = response.content[0].text
-            tokens_used = response.usage.input_tokens + response.usage.output_tokens
-            input_tokens = response.usage.input_tokens
-            return (content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic")
-
     def _parse_response(self, content: str, br_id: str, br_ids: list, batch_mode: bool) -> tuple:
         """
         Parse JSON from LLM response with json_cleaner and batch support (F-081).
@@ -491,14 +457,6 @@ class BusinessAnalystAgent:
                 parsed_content, parse_error = clean_llm_json_response(content)
                 if parsed_content is None:
                     raise json.JSONDecodeError(parse_error or "Parse error", content, 0)
-            else:
-                clean_content = content.strip()
-                if clean_content.startswith('```'):
-                    clean_content = clean_content.split('\n', 1)[1] if '\n' in clean_content else clean_content[3:]
-                if clean_content.endswith('```'):
-                    clean_content = clean_content[:-3]
-                parsed_content = json.loads(clean_content.strip())
-
             # F-081: Handle batch response format {"results": [...]}
             if 'results' in parsed_content and isinstance(parsed_content['results'], list):
                 # Batch response - flatten all use_cases with their parent_br
@@ -511,11 +469,6 @@ class BusinessAnalystAgent:
                 parsed_content = {"use_cases": all_use_cases, "batch_mode": True, "parent_brs": br_ids}
                 uc_count = len(all_use_cases)
                 logger.info(f"Batch mode: Generated {uc_count} Use Cases for {len(br_ids)} BRs")
-            else:
-                # Single BR response
-                uc_count = len(parsed_content.get('use_cases', []))
-                logger.info(f"Generated {uc_count} Use Cases for {br_id}")
-
             return parsed_content, uc_count
 
         except json.JSONDecodeError as e:
@@ -622,10 +575,6 @@ if __name__ == "__main__":
             logger.info("SUCCESS: Output saved to %s", args.output)
             print(json.dumps(result, indent=2, ensure_ascii=False))
             sys.exit(0)
-        else:
-            logger.error("ERROR: %s", result.get('error'))
-            sys.exit(1)
-
     except Exception as e:
         logger.error("ERROR: %s", str(e), exc_info=True)
         sys.exit(1)

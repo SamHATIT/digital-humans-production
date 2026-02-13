@@ -59,12 +59,9 @@ except ImportError:
     JSON_CLEANER_AVAILABLE = False
     def clean_llm_json_response(s): return None, "JSON cleaner not available"
 
-# Prompt Service for externalized prompts
-try:
-    from prompts.prompt_service import PromptService
-    PROMPT_SERVICE = PromptService()
-except ImportError:
-    PROMPT_SERVICE = None
+# Prompt Service — MANDATORY, no fallback
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
 
 
 # ============================================================================
@@ -281,204 +278,13 @@ Set these sections to EMPTY (they are already generated):
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
 
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("marcus_architect", "design", {
-                "revision_context": revision_context,
-                "project_summary": project_summary,
-                "uc_text": uc_text,
-                "rag_section": rag_section,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for marcus_architect/design: {e}")
+    return PROMPT_SERVICE.render("marcus_architect", "design", {
+        "revision_context": revision_context,
+        "project_summary": project_summary,
+        "uc_text": uc_text,
+        "rag_section": rag_section,
+    })
 
-    # FALLBACK: original f-string prompt
-    return f'''{revision_context}# SOLUTION DESIGN SPECIFICATION
-
-You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
-
-## YOUR MISSION
-Create a **High-Level Solution Design** from the Use Cases provided.
-
-## PROJECT CONTEXT
-{project_summary}
-
-## USE CASES TO ARCHITECT
-{uc_text}
-{rag_section}
-
-## OUTPUT FORMAT (JSON)
-
-Generate a solution design. Output ONLY valid JSON matching this structure:
-
-{{{{
-  "artifact_id": "ARCH-001",
-  "title": "Solution Design Specification",
-
-  "data_model": {{{{
-    "standard_objects": [
-      {{{{"api_name": "Case", "label": "...", "purpose": "...", "custom_fields": [{{{{"api_name": "Field__c", "type": "Picklist", "values": ["A","B"], "required": true, "description": "..."}}}}], "record_types": [{{{{"name": "...", "description": "..."}}}}]}}}}
-    ],
-    "custom_objects": [
-      {{{{"api_name": "Error_Log__c", "label": "...", "purpose": "...", "sharing_model": "Private", "fields": [{{{{"api_name": "...", "type": "Text(255)|Number(10,0)|Picklist|Lookup(Target)|LongTextArea(32000)|Checkbox|DateTime|Currency", "required": false, "description": "..."}}}}], "indexes": ["Field__c"], "relationships": [{{{{"field": "Related__c", "type": "Lookup|MasterDetail", "target": "Object", "cascade_delete": false}}}}]}}}}
-    ],
-    "relationships": [{{{{"from": "Child__c", "to": "Parent", "type": "Lookup", "field": "Parent__c", "cardinality": "Many-to-One"}}}}],
-    "erd_mermaid": "erDiagram\n  Parent ||--o{{ Child__c : has\n  ..."
-  }}}},
-
-  "security_model": {{{{
-    "profiles": [{{{{"name": "Service Agent", "description": "...", "license": "Salesforce"}}}}],
-    "permission_sets": [
-      {{{{
-        "api_name": "PS_Name",
-        "label": "...",
-        "description": "...",
-        "object_permissions": [
-          {{{{"object": "Custom_Object__c", "create": true, "read": true, "edit": true, "delete": false, "view_all": false, "modify_all": false}}}}
-        ],
-        "field_permissions": [
-          {{{{"object": "Case", "field": "Internal__c", "readable": true, "editable": false}}}}
-        ]
-      }}}}
-    ],
-    "sharing_rules": [{{{{"name": "...", "object": "Case", "type": "Criteria-Based", "criteria": "...", "shared_with": "...", "access": "Read/Write"}}}}],
-    "owd": [{{{{"object": "Case", "internal": "Private", "external": "Private"}}}}]
-  }}}},
-
-  "automation_design": {{{{
-    "flows": [
-      {{{{
-        "api_name": "Flow_API_Name",
-        "label": "...",
-        "type": "Record-Triggered Flow|Screen Flow|Scheduled Flow|Autolaunched Flow",
-        "trigger": {{{{"object": "Case", "event": "After Create|Before Save|Scheduled", "condition": "Status = 'New'"}}}},
-        "uc_refs": ["UC-001-01"],
-        "elements": [
-          {{{{"type": "Get Records", "object": "Object__c", "filter": "Active__c = true", "purpose": "..."}}}},
-          {{{{"type": "Decision", "name": "Check_Condition", "conditions": [{{{{"label": "Match", "criteria": "..."}}}}, {{{{"label": "Default", "criteria": "Default"}}}}]}}}},
-          {{{{"type": "Create Records", "object": "Case", "field_assignments": [{{{{"field": "Status", "value": "New"}}}}, {{{{"field": "Origin", "source": "$Record.Channel__c"}}}}]}}}},
-          {{{{"type": "Update Records", "object": "$Record", "field_assignments": [{{{{"field": "Processed__c", "value": "true"}}}}]}}}}
-        ],
-        "error_handling": "Fault path -> Create Error_Log__c with error details"
-      }}}}
-    ],
-    "apex_triggers": [
-      {{{{"name": "ObjectTrigger", "object": "Case", "events": ["before insert", "after insert"], "handler_class": "ObjectTriggerHandler", "uc_refs": ["UC-001-03"], "logic_summary": "..."}}}}
-    ],
-    "scheduled_jobs": [
-      {{{{"name": "CleanupJob", "type": "Schedulable Apex|Batch Apex", "schedule": "Daily 2:00 AM", "purpose": "...", "batch_size": 200}}}}
-    ],
-    "platform_events": [
-      {{{{"api_name": "Event__e", "purpose": "...", "fields": [{{{{"api_name": "Record_Id__c", "type": "Text(18)"}}}}]}}}}
-    ]
-  }}}},
-
-  "integration_points": [
-    {{{{
-      "name": "External System API",
-      "system": "System Name",
-      "direction": "Inbound|Outbound|Bidirectional",
-      "method": "REST|SOAP|Platform Event|Streaming",
-      "frequency": "Real-time|Batch|Scheduled",
-      "uc_refs": ["UC-003-01"],
-      "auth": {{{{"type": "OAuth 2.0|API Key|Certificate", "grant": "Authorization Code|Client Credentials", "scopes": ["scope1"]}}}},
-      "endpoint_spec": {{{{
-        "url_pattern": "/api/v1/resource",
-        "payload_format": "JSON|XML",
-        "key_fields": ["field1", "field2"],
-        "response_codes": {{{{"200": "Success", "400": "Bad Request", "401": "Auth Failed", "429": "Rate Limited"}}}}
-      }}}},
-      "error_handling": {{{{"retry_strategy": "Exponential backoff, max 3", "dead_letter": "Error_Log__c"}}}},
-      "rate_limits": {{{{"requests_per_day": 10000}}}},
-      "named_credential": "Credential_Name"
-    }}}}
-  ],
-
-  "ui_components": {{{{
-    "lightning_apps": [{{{{"name": "App_Name", "type": "Console App|Standard App", "tabs": ["Case", "Custom__c"], "utility_bar": ["History", "Macros"]}}}}],
-    "lightning_pages": [{{{{"name": "Record_Page", "type": "Record Page", "object": "Case", "layout": "2 regions description", "components": ["lwcName", "Related Lists"]}}}}],
-    "lwc_components": [
-      {{{{
-        "name": "componentName",
-        "purpose": "...",
-        "uc_refs": ["UC-001-01"],
-        "target": "lightning__RecordPage (Case)|lightning__AppPage|lightning__HomePage",
-        "api_properties": [
-          {{{{"name": "recordId", "type": "String", "decorator": "@api"}}}},
-          {{{{"name": "fieldValue", "type": "String", "wire": "getRecord(Object.Field__c)"}}}}
-        ],
-        "wire_adapters": ["getRecord|getRelatedListRecords|apex method"],
-        "events_fired": ["CustomEvent names"],
-        "events_handled": ["CustomEvent names"],
-        "child_components": ["childComponent"],
-        "design_notes": "Key implementation detail"
-      }}}}
-    ],
-    "quick_actions": [{{{{"name": "Object.Action_Name", "type": "Screen Flow|LWC", "flow_name": "Flow_Name"}}}}]
-  }}}},
-
-  "reporting": {{{{
-    "reports": [
-      {{{{"name": "Report_Name", "type": "Summary|Tabular|Matrix", "object": "Case", "grouping": ["Field1", "Field2"], "filters": ["CreatedDate = THIS_YEAR"], "charts": ["Bar Chart"]}}}},
-    ],
-    "dashboards": [
-      {{{{"name": "Dashboard_Name", "components": [{{{{"title": "...", "report": "Report_Name", "type": "Donut Chart|Gauge|Table"}}}}]}}}}
-    ]
-  }}}},
-
-  "uc_traceability": {{{{
-    "UC-001-01": ["Flow_Name (Flow)", "Field__c (Field)", "componentName (LWC)"],
-    "UC-002-01": ["ApexClass (Apex)", "PermissionSet (Security)"]
-  }}}},
-
-  "queues": [
-    {{{{"name": "Queue_Name", "object": "Case", "members_type": "Role|Public Group", "members": ["Role_Name"]}}}}
-  ],
-
-  "technical_considerations": [
-    {{{{"topic": "Governor Limits|Data Volume|Performance", "consideration": "...", "mitigation": "..."}}}}
-  ],
-
-  "risks": [
-    {{{{"risk": "...", "probability": "Low|Medium|High", "impact": "Low|Medium|High", "mitigation": "...", "uc_refs": ["UC-001-01"]}}}}
-  ]
-}}}}
-
-## DEPTH REQUIREMENTS — CRITICAL
-
-Your architecture MUST be detailed enough for BUILD agents using Haiku to implement WITHOUT improvising.
-
-### What scores 90%+ (REQUIRED):
-1. **Flows**: MUST include `elements` array with specific types (Get Records, Decision, Create Records, Update Records, Assignment). Each element: object, filter/criteria, field_assignments.
-2. **LWC**: MUST include `api_properties` with decorators (@api/@wire/@track), `wire_adapters`, events, child components.
-3. **Security**: MUST include `object_permissions` with CRUD booleans per object per permission set. MUST include `owd` per object.
-4. **Integrations**: MUST include `auth`, `endpoint_spec` (URL, payload, response codes), `error_handling`, `rate_limits`.
-5. **Reporting**: At least 3 reports with object/grouping/filters. At least 1 dashboard.
-6. **UC Traceability**: `uc_traceability` mapping EVERY UC-ID to implementing components. No orphan UCs.
-7. **Queues**: Define all queues referenced by routing flows.
-
-### What scores below 50% (AVOID):
-- `"flows": [{{"name": "Process", "purpose": "Process things"}}]` — NO elements, NO trigger
-- `"permission_sets": ["Manager"]` — Just a name, no CRUD matrix
-- `"lwc_components": ["indicator"]` — No properties, no wire, no target
-- `"integration_points": [{{"system": "API", "method": "REST"}}]` — No auth, no endpoints
-
-## RULES
-1. Use Salesforce standard objects before creating custom ones
-2. Prefer declarative (Flows) over code (Apex) where possible
-3. Follow Salesforce naming conventions (API names with __c suffix for custom)
-4. Consider governor limits in design
-5. ERD must use valid Mermaid erDiagram syntax
-6. Be specific about object and field API names — never use placeholders
-7. EVERY Flow must have an `elements` array — never just a name and purpose
-8. EVERY LWC must have `api_properties` — never just a name
-9. EVERY integration must have `auth` and `endpoint_spec`
-10. EVERY UC must appear in `uc_traceability`
-
----
-
-**Generate the Solution Design now. Output ONLY valid JSON.**
-'''
 
 # ============================================================================
 # PROMPT 2: AS-IS ANALYSIS (SFDX -> Summary)
@@ -487,62 +293,10 @@ def get_as_is_prompt(sfdx_metadata: str) -> str:
     sfdx_metadata_truncated = sfdx_metadata[:15000] if len(sfdx_metadata) > 15000 else sfdx_metadata
 
     # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("marcus_architect", "as_is", {
-                "sfdx_metadata": sfdx_metadata_truncated,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for marcus_architect/as_is: {e}")
+    return PROMPT_SERVICE.render("marcus_architect", "as_is", {
+        "sfdx_metadata": sfdx_metadata_truncated,
+    })
 
-    # FALLBACK: original f-string prompt
-    return f'''# AS-IS ANALYSIS
-
-You are **Marcus**, a Salesforce Certified Technical Architect.
-
-## YOUR MISSION
-Analyze the existing Salesforce org metadata and create a structured summary.
-
-## SFDX METADATA EXTRACT
-{sfdx_metadata_truncated}  <!-- Truncate to avoid token overflow -->
-
-## OUTPUT FORMAT (JSON)
-Generate an As-Is analysis with:
-- "artifact_id": "ASIS-001"
-- "title": "Current State Analysis"
-- "data_model_summary": Object with:
-  - "custom_objects_count": Number
-  - "key_objects": Array of main objects with field counts
-  - "relationships_summary": Brief description
-- "automation_summary": Object with:
-  - "flows_count": Number
-  - "triggers_count": Number
-  - "key_automations": Array of main automations
-- "security_summary": Object with:
-  - "profiles_count": Number
-  - "permission_sets_count": Number
-  - "sharing_model": Brief description
-- "integration_summary": Object with:
-  - "connected_apps": Array
-  - "named_credentials": Array
-  - "external_services": Array
-- "ui_summary": Object with:
-  - "lightning_pages_count": Number
-  - "lwc_components": Array
-  - "custom_tabs": Array
-- "technical_debt": Array of issues identified
-- "recommendations": Array of quick wins
-
-## RULES
-1. Focus on summarizing, not listing everything
-2. Identify patterns and anti-patterns
-3. Highlight technical debt
-4. Note deprecated features in use
-
----
-
-**Generate the As-Is Analysis now. Output ONLY valid JSON.**
-'''
 
 # ============================================================================
 # PROMPT 3: GAP ANALYSIS (SOLUTION DESIGN + ASIS -> Implementation Gaps)
@@ -573,314 +327,22 @@ Use the EXACT object and component names from this design.
 
 """
 
-    # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("marcus_architect", "gap", {
-                "design_section": design_section,
-                "uc_section": uc_section,
-                "asis_summary": asis_summary,
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for marcus_architect/gap: {e}")
+    return PROMPT_SERVICE.render("marcus_architect", "gap", {
+        "design_section": design_section,
+        "uc_section": uc_section,
+        "asis_summary": asis_summary,
+    })
 
-    # FALLBACK: original f-string prompt
-    return f'''# GAP ANALYSIS
-
-You are **Marcus**, a Salesforce Certified Technical Architect.
-
-## YOUR MISSION
-Compare the **Current State (As-Is)** with the **Target Architecture (Solution Design)** to identify ALL implementation gaps.
-Each gap represents work needed to transform the current org into the target architecture.
-
-**CRITICAL RULES**:
-1. ONLY create gaps for components defined in the Solution Design
-2. Use the EXACT object names from the Solution Design (e.g., Property__c, Lease__c)
-3. DO NOT invent objects or components not in the Solution Design
-4. Every UI component (LWC, Screen Flow) in the Solution Design MUST have a corresponding gap
-{design_section}{uc_section}
-## CURRENT STATE (ASIS-001)
-{asis_summary}
-
-## AVAILABLE AGENTS (assign gaps to the RIGHT agent)
-
-| Agent | Role | Handles |
-|-------|------|---------|
-| Diego | Apex Developer | Apex classes, triggers, batch jobs, schedulable, REST/SOAP integrations |
-| Zara | LWC Developer | Lightning Web Components, Aura components, custom UI components |
-| Raj | SF Admin | Objects, fields, page layouts, flows, validation rules, profiles, permission sets |
-| Elena | QA Engineer | Test plans, test cases, UAT scenarios |
-| Jordan | DevOps | CI/CD, deployments, environments |
-| Aisha | Data Migration | Data mapping, ETL, migration scripts |
-| Lucas | Trainer | Training materials, user guides, documentation |
-| Marcus | Architect | Architecture reviews only |
-
-## AGENT ASSIGNMENT RULES (STRICT)
-
-- **Lightning Web Components (LWC)** -> **Zara** (NOT Raj, NOT Diego)
-- **Aura components** -> **Zara**
-- **Custom UI with JavaScript** -> **Zara**
-- **Screen Flows** -> **Raj** (declarative, no code)
-- **Record-Triggered Flows** -> **Raj**
-- **Validation Rules** -> **Raj**
-- **Objects, Fields, Layouts** -> **Raj**
-- **Apex classes/triggers** -> **Diego**
-- **Apex integration code** -> **Diego**
-
-## OUTPUT FORMAT (JSON)
-
-```json
-{{{{
-  "artifact_id": "GAP-001",
-  "title": "Gap Analysis",
-  "gaps": [
-    {{{{
-      "id": "GAP-001-01",
-      "category": "DATA_MODEL | AUTOMATION | SECURITY | INTEGRATION | UI | OTHER",
-      "uc_refs": ["UC-001-01", "UC-001-02"],
-      "current_state": "What exists now (or 'None' if greenfield)",
-      "target_state": "What is needed - be specific about component type",
-      "gap_description": "Clear description of the delta",
-      "complexity": "LOW | MEDIUM | HIGH",
-      "effort_days": 2,
-      "dependencies": ["GAP-001-XX"],
-      "assigned_agent": "Raj | Diego | Zara | Elena | Jordan | Aisha | Lucas | Marcus"
-    }}}}
-  ],
-  "summary": {{{{
-    "total_gaps": 50,
-    "by_category": {{{{"DATA_MODEL": 15, "AUTOMATION": 20, "UI": 8}}}},
-    "by_complexity": {{{{"LOW": 20, "MEDIUM": 25, "HIGH": 5}}}},
-    "by_agent": {{{{"Raj": 25, "Diego": 10, "Zara": 8}}}},
-    "total_effort_days": 120
-  }}}},
-  "migration_considerations": ["..."],
-  "risk_areas": ["..."]
-}}}}
-```
-
-## RULES
-
-1. **Match Solution Design exactly** - use the SAME object/field names as in ARCH-001
-2. **EVERY component in Solution Design** needs a gap if it doesn't exist in As-Is
-3. **uc_refs is MANDATORY** - each gap must reference which UCs it addresses
-4. **Be specific** about component types (e.g., "LWC propertyCard" not just "component")
-5. **Realistic effort estimates** - include time for testing
-6. **No orphan UCs** - every UC must be covered by at least one gap
-7. **Correct agent assignment** - LWC/Aura always to Zara, never to Raj or Diego
-8. **NO HALLUCINATION** - ONLY include components from Solution Design, never invent new ones
-
----
-
-**Generate the Gap Analysis now. Output ONLY valid JSON.**
-'''
 
 # ============================================================================
 # PROMPT 4: WBS (GAP -> Tasks + Planning)
 # ============================================================================
 def get_wbs_prompt(gap_analysis: str, project_constraints: str = "", architecture_context: str = "") -> str:
-    # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("marcus_architect", "wbs", {
-                "gap_analysis": gap_analysis,
-                "project_constraints": project_constraints if project_constraints else "Standard Salesforce implementation timeline",
-                "architecture_context": architecture_context if architecture_context else "No architecture provided — use gap descriptions for implementation details.",
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for marcus_architect/wbs: {e}")
-
-    # FALLBACK: original f-string prompt
-    arch_section = ""
-    if architecture_context:
-        arch_section = f"""
-## ARCHITECTURE REFERENCE (USE THIS FOR implementation_spec)
-Reference the EXACT object names, field names, flow elements, LWC properties from this architecture.
-
-{architecture_context[:30000]}
-
-"""
-    return f'''# WORK BREAKDOWN STRUCTURE - ENRICHED
-
-You are **Marcus**, a Salesforce Certified Technical Architect.
-
-## MISSION
-Create a detailed Work Breakdown Structure from the Gap Analysis.
-Each task MUST have validation criteria, clear agent assignment, and implementation_spec with REAL component names from the architecture.
-
-## GAP ANALYSIS
-{gap_analysis}
-{arch_section}
-## PROJECT CONSTRAINTS
-{project_constraints if project_constraints else "Standard Salesforce implementation timeline"}
-
-## OUTPUT FORMAT (JSON - STRICT)
-
-{{
-  "artifact_id": "WBS-001",
-  "title": "Work Breakdown Structure",
-  "phases": [
-    {{
-      "id": "PHASE-01",
-      "name": "Foundation — Data Model & Security",
-      "duration_weeks": 2,
-      "entry_criteria": "Scratch Org provisioned, SFDX project initialized",
-      "exit_criteria": "All objects deployed, SOQL queries return expected schema",
-      "tasks": [
-        {{
-          "id": "TASK-001",
-          "name": "Create Custom_Object__c object with N fields",
-          "task_type": "dev_data_model",
-          "gap_refs": ["GAP-001-01"],
-          "uc_refs": ["UC-001-01", "UC-001-02"],
-          "assigned_agent": "Raj",
-          "effort_days": 1.5,
-          "dependencies": [],
-          "priority": "P1",
-          "implementation_spec": {{
-            "object_api_name": "Custom_Object__c",
-            "label": "Custom Object",
-            "sharing_model": "Private|ControlledByParent|ReadWrite",
-            "fields": [
-              {{"api_name": "Field__c", "type": "Picklist", "values": ["A","B","C"], "required": true}},
-              {{"api_name": "Ref__c", "type": "Lookup(Parent)", "required": false}},
-              {{"api_name": "Body__c", "type": "LongTextArea(32000)", "required": false}}
-            ],
-            "indexes": ["External_ID__c"],
-            "page_layout": "Default with field groupings"
-          }},
-          "deliverables": ["Object with N fields deployed", "Page layout configured"],
-          "validation_criteria": [
-            "DONE WHEN: All N fields visible in Object Manager with correct types",
-            "VERIFIED BY: SFDX force:source:retrieve, check metadata XML"
-          ],
-          "test_approach": "Manual verification in Setup + SOQL"
-        }}
-      ]
-    }}
-  ],
-  "milestones": [
-    {{"id": "MS-01", "name": "Data Model Complete", "target_date": "End of Phase 1", "criteria": "All objects deployed"}}
-  ],
-  "resource_allocation": {{
-    "Raj": {{"task_count": 18, "effort_days": 15, "percentage": "35%"}},
-    "Diego": {{"task_count": 8, "effort_days": 12, "percentage": "20%"}}
-  }},
-  "critical_path": ["TASK-001", "TASK-005", "TASK-015"],
-  "risks_and_mitigations": [
-    {{"risk": "...", "probability": "Medium", "impact": "High", "mitigation": "..."}}
-  ]
-}}
-
-## AVAILABLE AGENTS (ONLY these 8)
-
-| Agent | Role | Handles |
-|-------|------|---------|
-| Diego | Apex Developer | Apex classes, triggers, batch, integration code |
-| Zara | LWC Developer | LWC, Aura, custom UI components |
-| Raj | SF Admin | Objects, fields, flows, validation rules, profiles |
-| Elena | QA Engineer | Test plans, test execution, UAT, bugs |
-| Jordan | DevOps | CI/CD, deployments, environments, releases |
-| Aisha | Data Migration | Data mapping, ETL, migration, data validation |
-| Lucas | Trainer | Training docs, user guides, training sessions |
-| Marcus | Architect | Architecture reviews, design oversight |
-
-## TASK TYPES (REQUIRED - use exact values)
-
-| Type | Agent | Description |
-|------|-------|-------------|
-| setup_environment | MANUAL | Sandbox/SFDX setup |
-| setup_repository | MANUAL | Git repo setup |
-| setup_permissions | Raj | Initial profiles/permissions |
-| dev_data_model | Raj | Objects, fields, relationships |
-| dev_apex | Diego | Apex classes, triggers |
-| dev_lwc | Zara | Lightning Web Components |
-| dev_flow | Raj | Flows, automation |
-| dev_validation | Raj | Validation rules |
-| dev_formula | Raj | Formula fields |
-| config_profiles | Raj | Profile configuration |
-| config_sharing | Raj | Sharing rules, OWD |
-| config_layouts | Raj | Page layouts |
-| config_apps | Raj | Lightning apps |
-| config_reports | Raj | Reports/dashboards |
-| test_unit | Elena | Apex unit tests |
-| test_integration | Elena | Integration tests |
-| test_uat | MANUAL | User acceptance tests |
-| deploy_prepare | Jordan | Package preparation |
-| deploy_execute | Jordan | Deployment |
-| deploy_validate | Jordan | Post-deploy validation |
-| doc_technical | Lucas | Technical docs |
-| doc_user | Lucas | User documentation |
-| doc_training | Lucas | Training materials |
-
-## TASK ASSIGNMENT RULES (STRICT)
-
-- **Config (no code)** -> Raj: objects, fields, page layouts, flows, validation rules, profiles, permission sets
-- **Apex code** -> Diego: classes, triggers, batch, schedulable, REST/SOAP
-- **UI code** -> Zara: LWC, Aura, Lightning pages
-- **Testing** -> Elena: ALL test tasks (unit, integration, UAT)
-- **Deploy** -> Jordan: ALL deployment/pipeline tasks
-- **Data** -> Aisha: ALL data migration tasks
-- **Docs** -> Lucas: ALL training/documentation tasks
-- **Review** -> Marcus: architecture reviews only
-
-## VALIDATION CRITERIA FORMAT (REQUIRED for each task)
-
-Each task MUST have 1-3 validation_criteria using this format:
-- "DONE WHEN: [specific outcome that can be verified]"
-- "VERIFIED BY: [how the reviewer/Elena checks this is complete]"
-
-**Good examples:**
-- "DONE WHEN: Custom object Account_Score__c created with 5 fields"
-- "VERIFIED BY: Run SOQL query, check field count in Setup"
-- "DONE WHEN: All unit tests pass with >80% coverage"
-- "VERIFIED BY: Deploy to scratch org, run apex:test:run"
-
-**Bad examples (avoid):**
-- "DONE WHEN: Task is complete" (too vague)
-- "VERIFIED BY: Check it works" (not specific)
-
-## IMPLEMENTATION_SPEC RULES — CRITICAL FOR BUILD AGENTS
-
-Each task MUST include an `implementation_spec` with enough detail for Haiku to implement WITHOUT improvising:
-
-**dev_data_model**: Full field list (api_name, type, picklist values, required, indexes, relationships, page_layout)
-**dev_flow**: flow_api_name, type, trigger (object/event/condition), `elements_sequence` array with EVERY element in order (type, label, object, filter, field_assignments), fault_path
-**dev_lwc**: component_name, target, api_properties (name/type/decorator), wire_adapters (adapter/object/fields), computed_properties, html_structure, css_notes, test_coverage
-**dev_apex**: class_name, type (REST Resource/Trigger Handler/Batch/Schedulable), processing_logic (numbered steps), error_handling, test_class with test_scenarios, governor_considerations
-**config_profiles**: permission_set_api_name, object_permissions (CRUD matrix with 6 booleans per object), field_permissions, tab_visibility
-**dev_validation**: rule_name, object, formula, error_message, active_flag
-**config_sharing**: rule details, criteria, access level
-**config_reports**: report_name, type, object, grouping, filters, charts
-
-### What Haiku CANNOT do (spec must be explicit):
-1. Invent field names — if spec lacks field_assignments, Haiku uses random names
-2. Choose Flow elements — if spec says "Process X" without Get Records/Decision/Create, Haiku skips steps
-3. Design CRUD matrices — if spec says "Create permission set", Haiku grants all or misses objects
-4. Map wire adapters — if spec says "Create LWC" without fields, Haiku won't wire correctly
-5. Handle errors — if spec omits fault_path/try-catch, Haiku won't add them
-
-### Task naming: action verb + specific object
-GOOD: "Create Property__c object with 12 fields", "Build Email_Processing Record-Triggered Flow"
-BAD: "Set up the data model", "Create flows"
-
-## GENERAL RULES
-
-1. **Every task has task_type** - MUST be one from the TASK TYPES table above
-2. **Every task has implementation_spec** - NO exceptions, this is what BUILD agents receive
-3. **Every task has uc_refs** - traceability to Use Cases
-4. **30-60 tasks** total - fewer means too coarse, more means micromanagement
-5. **Max 10 tasks per phase** - split large phases
-6. **Every task has validation_criteria** - NO exceptions
-7. **Respect dependencies** - no circular refs
-8. **Balance workload** - no agent should have >40% of tasks
-9. **Include test tasks** - at least 15% of tasks should be Elena's
-10. **Include deploy tasks** - at least 5% of tasks should be Jordan's
-
----
-
-**Generate the WBS now. Output ONLY valid JSON, no markdown fences.**
-'''
+    return PROMPT_SERVICE.render("marcus_architect", "wbs", {
+        "gap_analysis": gap_analysis,
+        "project_constraints": project_constraints if project_constraints else "Standard Salesforce implementation timeline",
+        "architecture_context": architecture_context if architecture_context else "No architecture provided — use gap descriptions for implementation details.",
+    })
 
 
 # ============================================================================
@@ -923,79 +385,14 @@ def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_u
         if len(uncovered_use_cases) > 10:
             uncovered_text += f"... and {len(uncovered_use_cases) - 10} more\n"
 
-    # Try external prompt first
-    if PROMPT_SERVICE:
-        try:
-            return PROMPT_SERVICE.render("marcus_architect", "fix_gaps", {
-                "iteration": str(iteration),
-                "solution_json": solution_json[:15000],
-                "gap_count": str(len(coverage_gaps)),
-                "gaps_text": gaps_text,
-                "uncovered_text": uncovered_text if uncovered_text else "None specified",
-                "next_iteration": str(iteration + 1),
-            })
-        except Exception as e:
-            logger.warning(f"PromptService fallback for marcus_architect/fix_gaps: {e}")
-
-    # FALLBACK: original f-string prompt
-    return f'''# SOLUTION DESIGN REVISION (Iteration {iteration})
-
-## CONTEXT
-Emma (Research Analyst) has analyzed your solution design and found coverage gaps.
-Your task is to revise the solution to address ALL identified gaps.
-
-## CURRENT SOLUTION
-```json
-{solution_json[:15000]}
-```
-
-## COVERAGE GAPS TO ADDRESS ({len(coverage_gaps)} gaps)
-{gaps_text}
-
-## UNCOVERED USE CASES
-{uncovered_text if uncovered_text else "None specified"}
-
-## REVISION INSTRUCTIONS
-
-1. **Preserve existing elements** - Do not remove elements that are working
-2. **Add missing elements** - For each gap, add the necessary Salesforce component
-3. **Update related elements** - If adding a field, update relevant automations
-4. **Maintain consistency** - Ensure naming conventions and relationships are consistent
-
-## OUTPUT FORMAT
-
-Return the COMPLETE revised solution design in the same JSON structure:
-{{
-    "artifact_id": "ARCH-001-v{iteration + 1}",
-    "title": "Revised Solution Design v{iteration + 1}",
-    "revision_notes": {{
-        "iteration": {iteration + 1},
-        "gaps_addressed": [/* list of addressed gaps */],
-        "changes_made": [/* list of changes */]
-    }},
-    "data_model": {{
-        "standard_objects": [...],
-        "custom_objects": [...],
-        "relationships": [...],
-        "erd_mermaid": "..."
-    }},
-    "security_model": {{...}},
-    "automation_design": {{
-        "flows": [...],
-        "triggers": [...],
-        "scheduled_jobs": [...]
-    }},
-    "integration_points": [...],
-    "ui_components": {{...}},
-    "technical_considerations": [...],
-    "risks": [...]
-}}
-
-**IMPORTANT**:
-- Address ALL gaps listed above
-- Output ONLY valid JSON, no markdown fences
-- Include revision_notes explaining what was changed
-'''
+    return PROMPT_SERVICE.render("marcus_architect", "fix_gaps", {
+        "iteration": str(iteration),
+        "solution_json": solution_json[:15000],
+        "gap_count": str(len(coverage_gaps)),
+        "gaps_text": gaps_text,
+        "uncovered_text": uncovered_text if uncovered_text else "None specified",
+        "next_iteration": str(iteration + 1),
+    })
 
 
 # ============================================================================
@@ -1027,11 +424,41 @@ def _parse_json_content(content: str) -> dict:
 
 
 # ============================================================================
+# MODE: PATCH — Apply targeted fixes to one architecture section
+# ============================================================================
+def get_patch_prompt(section_key: str, current_section: dict, fix_instructions: list) -> str:
+    """Build patch prompt for a single architecture section. YAML only, no fallback."""
+    current_json = json.dumps(current_section, indent=2, ensure_ascii=False)
+
+    # Format fix instructions
+    fix_text = ""
+    for i, gap in enumerate(fix_instructions, 1):
+        fix_text += f"\n### Fix {i}: {gap.get('what_is_missing', 'Gap')}\n"
+        fi = gap.get('fix_instruction', {})
+        if isinstance(fi, dict):
+            action = fi.get('action', 'ADD')
+            fi_content = fi.get('content', {})
+            fix_text += f"- **Action**: {action}\n"
+            fix_text += f"- **Content to add**:\n```json\n{json.dumps(fi_content, indent=2, ensure_ascii=False)}\n```\n"
+            uc_refs = fi.get('uc_refs', [])
+            if uc_refs:
+                fix_text += f"- **Required by**: {', '.join(uc_refs)}\n"
+        else:
+            fix_text += f"- {fi}\n"
+
+    return PROMPT_SERVICE.render("marcus_architect", "patch", {
+        "section_key": section_key,
+        "current_section_json": current_json,
+        "fix_instructions_text": fix_text,
+    })
+
+
+# ============================================================================
 # SOLUTION ARCHITECT AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
 class SolutionArchitectAgent:
     """
-    Marcus (Solution Architect) Agent - 5 modes.
+    Marcus (Solution Architect) Agent - 6 modes (design, as_is, gap, wbs, fix_gaps, patch).
 
     P3 refactoring: importable class replacing subprocess-only script.
     Used by agent_executor.py for direct invocation (no subprocess overhead).
@@ -1055,7 +482,7 @@ class SolutionArchitectAgent:
     direct import by tests.
     """
 
-    VALID_MODES = ("design", "as_is", "gap", "wbs", "fix_gaps")
+    VALID_MODES = ("design", "as_is", "gap", "wbs", "fix_gaps", "patch")
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
@@ -1231,6 +658,13 @@ class SolutionArchitectAgent:
             iteration = input_data.get('iteration', 1)
             prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration)
             return prompt, f"solution_design_v{iteration + 1}", "ARCH"
+
+        elif mode == 'patch':
+            section_key = input_data.get('section_key', 'unknown')
+            current_section = input_data.get('current_section', {})
+            fix_instructions = input_data.get('fix_instructions', [])
+            prompt = get_patch_prompt(section_key, current_section, fix_instructions)
+            return prompt, f"solution_design_patch_{section_key}", "ARCH"
 
         raise ValueError(f"Unknown mode: {mode}")
 
