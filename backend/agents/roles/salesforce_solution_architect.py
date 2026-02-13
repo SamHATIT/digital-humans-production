@@ -548,7 +548,7 @@ class SolutionArchitectAgent:
 
         # Call LLM
         # V4: design/wbs/fix_gaps need more tokens for enriched output
-        max_out = 32000 if mode in ('design', 'wbs', 'fix_gaps', 'gap') else 16000
+        max_out = 64000 if mode in ('design', 'wbs', 'fix_gaps', 'gap') else 16000
         content, tokens_used, input_tokens, model_used, provider_used, cost_usd = self._call_llm(
             prompt, system_prompt, max_tokens=max_out, temperature=0.4,
             execution_id=execution_id

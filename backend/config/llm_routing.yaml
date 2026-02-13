@@ -1,9 +1,27 @@
 # LLM Router Configuration - Digital Humans Platform
+# Updated: 2026-02-13 — Marcus → Opus 4.6, agent routing map
+
 default_routing:
   simple: local/mistral:7b-instruct
   medium: anthropic/claude-haiku
   complex: anthropic/claude-sonnet
-  critical: anthropic/claude-sonnet
+  critical: anthropic/claude-opus
+
+# Agent → complexity mapping (used by _select_provider)
+agent_complexity_map:
+  # SDS Core pipeline — Opus for architect, Sonnet for others
+  pm: critical              # Sophie — BR extraction (uses Opus)
+  architect: critical       # Marcus — design, WBS, gap analysis → Opus 4.6
+  business_analyst: complex # Olivia — UC generation
+  research_analyst: complex # Emma — analyze, validate, SDS
+  # Expert agents — all Sonnet 4.5
+  devops: complex           # Aisha
+  admin: complex            # Jordan
+  qa: complex               # Elena
+  data: complex             # Raj
+  trainer: complex          # Lucas
+  developer_apex: complex   # Diego
+  developer_lwc: complex    # Zara
 
 pricing:
   local/mistral:7b-instruct:
@@ -13,11 +31,14 @@ pricing:
     input: 0.0
     output: 0.0
   anthropic/claude-haiku:
-    input: 0.25
-    output: 1.25
+    input: 1.0
+    output: 5.0
   anthropic/claude-sonnet:
     input: 3.0
     output: 15.0
+  anthropic/claude-opus:
+    input: 5.0
+    output: 25.0
 
 providers:
   ollama:
@@ -38,6 +59,8 @@ providers:
         model_id: "claude-haiku-4-5-20251001"
       claude-sonnet:
         model_id: "claude-sonnet-4-5-20250929"
+      claude-opus:
+        model_id: "claude-opus-4-6"
   openai:
     enabled: true
     api_key_env: "OPENAI_API_KEY"
