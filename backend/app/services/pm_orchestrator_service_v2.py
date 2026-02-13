@@ -2740,7 +2740,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         if emma_write_result.get("success"):
             emma_output = emma_write_result["output"]
             emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
-            sds_markdown = emma_output.get("content", {}).get("document", "")
+            sds_markdown = emma_output.get("content", {}).get("raw_markdown", "") or emma_output.get("content", {}).get("document", "")
 
             # H13: Append pre-generated UCs as Annexe A
             if uc_section_3_content:
