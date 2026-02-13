@@ -894,20 +894,13 @@ class PMOrchestratorServiceV2:
 
                             revision_result = await self._run_agent(
                                 agent_id="architect",
-                                mode="design",
+                                mode="fix_gaps",
                                 input_data={
-                                    "project_summary": project.description or project.name or "",
-                                    "use_cases": all_use_cases,
-                                    "uc_digest": uc_digest,  # ARCH-002: Full UC context for revision
-                                    "previous_design": results["artifacts"]["ARCHITECTURE"].get("content", {}),  # ARCH-002: Previous design to revise
-                                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                                    "current_solution": results["artifacts"]["ARCHITECTURE"].get("content", {}),
                                     "coverage_gaps": current_gaps,
                                     "uncovered_use_cases": current_uncovered,
-                                    "revision_request": (
-                                        f"Your previous architecture scored {current_coverage}% coverage. "
-                                        f"Please revise to address {len(current_gaps)} critical gaps: "
-                                        f"{', '.join(str(g.get('gap', '')) or str(g.get('description', '')) or str(g) if isinstance(g, dict) else str(g) for g in current_gaps[:5])}"
-                                    )
+                                    "iteration": revision_count,
+                                    "previous_score": current_coverage,
                                 },
                                 execution_id=execution_id,
                                 project_id=project_id
@@ -2939,27 +2932,17 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             self._update_progress(execution, "architect", "running", 70,
                                  f"Revising design (revision {revision_count})...")
 
-            # ARCH-001 fix: pass previous design + actual use cases for informed revision
             previous_design = results["artifacts"].get("ARCHITECTURE", {}).get("content", {})
-            all_ucs_for_revision = self._get_use_cases(execution_id, limit=50)
 
             revision_result = await self._run_agent(
                 agent_id="architect",
-                mode="design",
+                mode="fix_gaps",
                 input_data={
-                    "project_summary": project.description or project.name or "",
-                    "use_cases": all_ucs_for_revision,
-                    "as_is": results["artifacts"].get("AS_IS", {}).get("content", {}),
+                    "current_solution": previous_design,
                     "coverage_gaps": critical_gaps,
                     "uncovered_use_cases": uncovered_ucs,
-                    "previous_design": previous_design,
-                    "revision_request": (
-                        f"REVISION {revision_count}: Address these {len(critical_gaps)} coverage gaps "
-                        f"affecting {len(uncovered_ucs)} use cases. "
-                        f"Your previous design scored below threshold. "
-                        f"DO NOT regenerate from scratch — UPDATE the design in 'previous_design' "
-                        f"by adding the missing elements for each gap."
-                    )
+                    "iteration": revision_count,
+                    "previous_score": extra_data.get("coverage_score", 0),
                 },
                 execution_id=execution_id,
                 project_id=project_id

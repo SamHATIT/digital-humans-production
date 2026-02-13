@@ -349,49 +349,61 @@ def get_wbs_prompt(gap_analysis: str, project_constraints: str = "", architectur
 # MODE FIX_GAPS - Revision de solution pour corriger les gaps de couverture
 # ============================================================================
 
-def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_use_cases: list = None, iteration: int = 1) -> str:
+def get_fix_gaps_prompt(current_solution: dict, coverage_gaps: list, uncovered_use_cases: list = None, iteration: int = 1, previous_score: float = 0) -> str:
     """
     Generate prompt for fix_gaps mode.
 
     This mode receives the current solution and coverage gaps from Emma validate,
     and produces an improved solution that addresses the gaps.
+    Uses Emma's actionable fix_instructions for precise, incremental revision.
     """
 
-    # Format current solution
+    # Format current solution — keep enough context for Marcus to revise in-place
     solution_json = json.dumps(current_solution, indent=2, ensure_ascii=False)
 
-    # Format gaps
+    # Format gaps — use Emma's fix_instruction format (not legacy element_type)
     gaps_text = ""
-    for i, gap in enumerate(coverage_gaps[:20], 1):
+    for i, gap in enumerate(coverage_gaps[:30], 1):
         if isinstance(gap, dict):
-            element_type = gap.get('element_type', 'unknown')
-            element_value = gap.get('element_value', str(gap))
+            gap_id = gap.get('id', f'GAP-{i:03d}')
             severity = gap.get('severity', 'medium')
-            gaps_text += f"{i}. [{severity.upper()}] {element_type}: {element_value}\n"
+            category = gap.get('category', 'unknown')
+            what_missing = gap.get('what_is_missing', gap.get('gap', gap.get('description', str(gap))))
+            fix = gap.get('fix_instruction', {})
+            fix_text = ""
+            if isinstance(fix, dict):
+                action = fix.get('action', '')
+                target = fix.get('target', '')
+                details = fix.get('details', '')
+                fix_text = f" → FIX: {action} {target}. {details}".strip()
+            elif isinstance(fix, str) and fix:
+                fix_text = f" → FIX: {fix}"
+            gaps_text += f"{i}. [{severity.upper()}] [{category}] {gap_id}: {what_missing}{fix_text}\n"
         else:
             gaps_text += f"{i}. {gap}\n"
 
-    if len(coverage_gaps) > 20:
-        gaps_text += f"\n... and {len(coverage_gaps) - 20} more gaps\n"
+    if len(coverage_gaps) > 30:
+        gaps_text += f"\n... and {len(coverage_gaps) - 30} more gaps\n"
 
     # Format uncovered UCs
     uncovered_text = ""
     if uncovered_use_cases:
-        for uc in uncovered_use_cases[:10]:
+        for uc in uncovered_use_cases[:15]:
             if isinstance(uc, dict):
                 uncovered_text += f"- {uc.get('id', 'UC')}: {uc.get('title', str(uc))}\n"
             else:
                 uncovered_text += f"- {uc}\n"
-        if len(uncovered_use_cases) > 10:
-            uncovered_text += f"... and {len(uncovered_use_cases) - 10} more\n"
+        if len(uncovered_use_cases) > 15:
+            uncovered_text += f"... and {len(uncovered_use_cases) - 15} more\n"
 
     return PROMPT_SERVICE.render("marcus_architect", "fix_gaps", {
         "iteration": str(iteration),
-        "solution_json": solution_json[:15000],
+        "solution_json": solution_json[:50000],
         "gap_count": str(len(coverage_gaps)),
         "gaps_text": gaps_text,
         "uncovered_text": uncovered_text if uncovered_text else "None specified",
         "next_iteration": str(iteration + 1),
+        "previous_score": str(round(previous_score, 1)),
     })
 
 
@@ -656,7 +668,8 @@ class SolutionArchitectAgent:
             coverage_gaps = input_data.get('coverage_gaps', [])
             uncovered_use_cases = input_data.get('uncovered_use_cases', [])
             iteration = input_data.get('iteration', 1)
-            prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration)
+            previous_score = input_data.get('previous_score', 0)
+            prompt = get_fix_gaps_prompt(current_solution, coverage_gaps, uncovered_use_cases, iteration, previous_score)
             return prompt, f"solution_design_v{iteration + 1}", "ARCH"
 
         elif mode == 'patch':
