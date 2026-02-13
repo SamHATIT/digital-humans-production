@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Humans — Documentation Technique</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root { --bg: #0B1120; --surface: #111827; --border: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --accent: #06b6d4; --accent2: #8b5cf6; --green: #10b981; --red: #ef4444; --orange: #f59e0b; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; }
+  nav { position: fixed; top: 0; left: 0; width: 260px; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); padding: 1.5rem 1rem; overflow-y: auto; z-index: 10; }
+  nav h1 { font-size: 1.1rem; color: var(--accent); margin-bottom: 1.5rem; }
+  nav a { display: block; padding: 0.4rem 0.8rem; color: var(--muted); text-decoration: none; font-size: 0.85rem; border-radius: 6px; margin-bottom: 2px; }
+  nav a:hover { background: rgba(6,182,212,0.1); color: var(--accent); }
+  nav .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; margin-top: 1rem; margin-bottom: 0.3rem; padding-left: 0.8rem; }
+  main { margin-left: 260px; padding: 2rem 3rem; max-width: 1000px; }
+  h2 { font-size: 1.5rem; color: var(--accent); margin-top: 3rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.15rem; color: var(--accent2); margin-top: 2rem; margin-bottom: 0.7rem; }
+  h4 { font-size: 1rem; color: var(--green); margin-top: 1.2rem; margin-bottom: 0.5rem; }
+  p { margin-bottom: 0.8rem; color: var(--muted); }
+  code { background: #1e293b; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85rem; color: var(--accent); }
+  pre { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; overflow-x: auto; margin: 1rem 0; font-size: 0.8rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.6rem 0.8rem; background: var(--surface); color: var(--accent); border-bottom: 1px solid var(--border); }
+  td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #1e293b; color: var(--muted); }
+  tr:hover td { background: rgba(6,182,212,0.03); }
+  .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; }
+  .badge-green { background: rgba(16,185,129,0.15); color: var(--green); }
+  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge-orange { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .badge-blue { background: rgba(6,182,212,0.15); color: var(--accent); }
+  .badge-purple { background: rgba(139,92,246,0.15); color: var(--accent2); }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; margin: 0.8rem 0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .mermaid { margin: 1rem 0; }
+  .timeline { border-left: 2px solid var(--accent); padding-left: 1.5rem; margin: 1rem 0; }
+  .timeline-item { margin-bottom: 1.5rem; position: relative; }
+  .timeline-item::before { content: ''; position: absolute; left: -1.75rem; top: 0.4rem; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+  .timeline-date { font-size: 0.75rem; color: var(--accent); font-weight: 600; }
+  .timeline-content { font-size: 0.85rem; color: var(--muted); margin-top: 0.3rem; }
+  @media (max-width: 768px) { nav { display: none; } main { margin-left: 0; padding: 1rem; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <h1>🤖 Digital Humans</h1>
+  <a href="#overview">Vue d'ensemble</a>
+  <a href="#stack">Stack technique</a>
+
+  <div class="section-title">Architecture</div>
+  <a href="#agents">11 Agents</a>
+  <a href="#sds-pipeline">Pipeline SDS</a>
+  <a href="#build-pipeline">Pipeline BUILD</a>
+  <a href="#state-machine">State Machine</a>
+
+  <div class="section-title">Infrastructure</div>
+  <a href="#services">Services & Ports</a>
+  <a href="#database">Base de données</a>
+  <a href="#rag">RAG ChromaDB</a>
+
+  <div class="section-title">API</div>
+  <a href="#api-orchestrator">Orchestrator API</a>
+  <a href="#api-hitl">HITL API</a>
+  <a href="#api-deliverables">Deliverables API</a>
+
+  <div class="section-title">Frontend</div>
+  <a href="#ui-monitoring">Monitoring Page</a>
+  <a href="#ui-components">Composants clés</a>
+
+  <div class="section-title">Refonte 2026</div>
+  <a href="#problems">Problèmes identifiés</a>
+  <a href="#journal">Journal de refonte</a>
+</nav>
+
+<main>
+
+<!-- OVERVIEW -->
+<h2 id="overview">Vue d'ensemble</h2>
+<p>Digital Humans est une plateforme SaaS B2B qui automatise le développement Salesforce grâce à 11 agents IA spécialisés. Le système génère des spécifications complètes (SDS — Solution Design Specification) puis du code Salesforce déployable (BUILD) via un pipeline multi-phases orchestré.</p>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>SDS Pipeline (5 phases)</h4>
+    <p>Sophie → Olivia → Emma → Marcus → Emma → Experts → Emma → SDS Final</p>
+    <p><span class="badge badge-blue">~198 fichiers Python</span> <span class="badge badge-purple">~41 fichiers React</span></p>
+  </div>
+  <div class="card">
+    <h4>BUILD Pipeline (6 phases)</h4>
+    <p>Jordan → Raj → Diego → Zara → Elena → Aisha</p>
+    <p><span class="badge badge-green">Haiku agents</span> <span class="badge badge-orange">Marcus specs → Haiku code</span></p>
+  </div>
+</div>
+
+<!-- STACK -->
+<h2 id="stack">Stack technique</h2>
+<table>
+  <tr><th>Couche</th><th>Technologie</th><th>Port</th></tr>
+  <tr><td>Backend</td><td>FastAPI + SQLAlchemy + ARQ workers</td><td>8002</td></tr>
+  <tr><td>Frontend</td><td>React + Vite + TailwindCSS</td><td>3000</td></tr>
+  <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td></tr>
+  <tr><td>RAG</td><td>ChromaDB (70K chunks, 5 collections)</td><td>8000</td></tr>
+  <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td></tr>
+  <tr><td>Queue</td><td>Redis + ARQ</td><td>6379</td></tr>
+  <tr><td>CMS</td><td>Ghost CMS (marketing)</td><td>2368</td></tr>
+  <tr><td>Automation</td><td>N8N</td><td>5678</td></tr>
+</table>
+
+<!-- AGENTS -->
+<h2 id="agents">Les 11 Agents</h2>
+<table>
+  <tr><th>Agent</th><th>Rôle</th><th>Phase SDS</th><th>Phase BUILD</th><th>Modèle</th></tr>
+  <tr><td><strong>Sophie</strong></td><td>Project Manager</td><td>1 (BR extraction)</td><td>—</td><td>Sonnet 4.5</td></tr>
+  <tr><td><strong>Olivia</strong></td><td>Business Analyst</td><td>2 (Use Cases)</td><td>—</td><td>Sonnet 4.5</td></tr>
+  <tr><td><strong>Emma</strong></td><td>Research Analyst</td><td>2.5, 3.3, 4.5, 5</td><td>—</td><td>Sonnet 4.5</td></tr>
+  <tr><td><strong>Marcus</strong></td><td>Solution Architect</td><td>3 (Architecture)</td><td>—</td><td>Opus 4.6</td></tr>
+  <tr><td><strong>Elena</strong></td><td>QA Engineer</td><td>4 (QA specs)</td><td>6 (Test execution)</td><td>Sonnet → Haiku</td></tr>
+  <tr><td><strong>Jordan</strong></td><td>Admin Config</td><td>4 (Admin specs)</td><td>1 (Configuration)</td><td>Sonnet → Haiku</td></tr>
+  <tr><td><strong>Raj</strong></td><td>Data Migration</td><td>4 (Data specs)</td><td>2 (Migration scripts)</td><td>Sonnet → Haiku</td></tr>
+  <tr><td><strong>Diego</strong></td><td>Apex Developer</td><td>—</td><td>3 (Apex code)</td><td>Haiku</td></tr>
+  <tr><td><strong>Zara</strong></td><td>LWC Developer</td><td>—</td><td>4 (LWC code)</td><td>Haiku</td></tr>
+  <tr><td><strong>Aisha</strong></td><td>DevOps</td><td>4 (DevOps specs)</td><td>5 (Deploy scripts)</td><td>Sonnet → Haiku</td></tr>
+  <tr><td><strong>Lucas</strong></td><td>Trainer</td><td>4 (Training specs)</td><td>—</td><td>Sonnet</td></tr>
+</table>
+
+<!-- SDS PIPELINE -->
+<h2 id="sds-pipeline">Pipeline SDS</h2>
+<div class="mermaid">
+flowchart LR
+    A["Phase 1\nSophie\nBR Extraction"] --> B["Phase 2\nOlivia\nUse Cases"]
+    B --> C["Phase 2.5\nEmma\nUC Digest"]
+    C --> D["Phase 3\nMarcus\nArchitecture"]
+    D --> E["Phase 3.3\nEmma\nCoverage Check"]
+    E -->|"< 85%"| D
+    E -->|"≥ 85%"| F["Phase 4\nExperts\nQA/Admin/Data/DevOps/Training"]
+    F --> G["Phase 5\nEmma\nSDS Write"]
+    style A fill:#8b5cf6,color:#fff
+    style D fill:#3b82f6,color:#fff
+    style E fill:#06b6d4,color:#fff
+    style G fill:#06b6d4,color:#fff
+</div>
+
+<h3>HITL Validation Gates</h3>
+<p>Le pipeline pause automatiquement à chaque frontière de phase pour validation humaine :</p>
+<table>
+  <tr><th>Gate</th><th>État</th><th>Action utilisateur</th></tr>
+  <tr><td>Après Phase 1</td><td><code>WAITING_BR_VALIDATION</code></td><td>Valider/modifier les BRs</td></tr>
+  <tr><td>Après Phase 3.3</td><td><code>WAITING_ARCHITECTURE_VALIDATION</code></td><td>Approve/Revise architecture</td></tr>
+  <tr><td>Après Phase 4</td><td><code>WAITING_EXPERT_VALIDATION</code></td><td>Valider les specs expert</td></tr>
+  <tr><td>Après Phase 5</td><td><code>WAITING_SDS_VALIDATION</code></td><td>Valider le SDS final</td></tr>
+</table>
+
+<!-- STATE MACHINE -->
+<h2 id="state-machine">State Machine</h2>
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> queued
+    queued --> sds_phase1_running
+    sds_phase1_running --> waiting_br_validation
+    waiting_br_validation --> sds_phase2_running
+    sds_phase2_running --> sds_phase2_complete
+    sds_phase2_complete --> sds_phase3_running
+    sds_phase3_running --> waiting_architecture_validation
+    waiting_architecture_validation --> sds_phase3_running : revise
+    waiting_architecture_validation --> sds_phase4_running : approve
+    sds_phase4_running --> sds_phase4_complete
+    sds_phase4_complete --> sds_phase5_running
+    sds_phase5_running --> sds_complete
+    sds_complete --> build_queued
+    build_queued --> build_running
+    build_running --> build_complete
+    build_complete --> completed
+</div>
+
+<!-- SERVICES -->
+<h2 id="services">Services & Ports</h2>
+<table>
+  <tr><th>Service</th><th>systemctl</th><th>Port</th><th>Statut</th></tr>
+  <tr><td>Backend API</td><td><code>digital-humans-backend</code></td><td>8002</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>ARQ Worker</td><td><code>digital-humans-worker</code></td><td>—</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>ChromaDB</td><td><code>chromadb</code></td><td>8000</td><td><span class="badge badge-orange">needs repair</span></td></tr>
+  <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>Ghost CMS</td><td><code>ghost_digital-humans</code></td><td>2368</td><td><span class="badge badge-green">active</span></td></tr>
+  <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="badge badge-green">active</span></td></tr>
+</table>
+
+<!-- DATABASE -->
+<h2 id="database">Base de données</h2>
+<p>PostgreSQL 16 — Tables principales :</p>
+<table>
+  <tr><th>Table</th><th>Description</th></tr>
+  <tr><td><code>projects</code></td><td>Projets Salesforce (nom, description, config)</td></tr>
+  <tr><td><code>executions</code></td><td>Exécutions SDS/BUILD (status, state machine, budget)</td></tr>
+  <tr><td><code>agent_deliverables</code></td><td>Livrables JSON par agent (content TEXT, metadata JSONB)</td></tr>
+  <tr><td><code>execution_agents</code></td><td>Suivi par agent (status, progress, tokens)</td></tr>
+  <tr><td><code>project_conversations</code></td><td>Chat HITL par agent (agent_id, role, message)</td></tr>
+  <tr><td><code>change_requests</code></td><td>CR lifecycle (draft→analyzed→approved→executed)</td></tr>
+  <tr><td><code>sds_versions</code></td><td>Versioning des SDS</td></tr>
+  <tr><td><code>execution_artifacts</code></td><td>Artifacts intermédiaires (JSON brut)</td></tr>
+</table>
+
+<!-- API ORCHESTRATOR -->
+<h2 id="api-orchestrator">Orchestrator API</h2>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/execute/{id}/start</code></td><td>Démarrer exécution SDS</td></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/execute/{id}/resume</code></td><td>Reprendre après validation gate</td></tr>
+  <tr><td>GET</td><td><code>/api/pm-orchestrator/execute/{id}/progress</code></td><td>Progression temps réel</td></tr>
+  <tr><td>GET</td><td><code>/api/pm-orchestrator/execute/{id}/validation-gate</code></td><td>État du gate en attente</td></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/execute/{id}/validation-gate</code></td><td>Soumettre décision gate</td></tr>
+</table>
+
+<!-- API HITL -->
+<h2 id="api-hitl">HITL API</h2>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/executions/{id}/chat</code></td><td>Chat contextuel multi-agent (body: message, agent_id)</td></tr>
+  <tr><td>GET</td><td><code>/api/pm-orchestrator/executions/{id}/agents</code></td><td>Liste agents disponibles (ceux avec deliverables)</td></tr>
+  <tr><td>GET</td><td><code>/api/pm-orchestrator/executions/{id}/chat/history</code></td><td>Historique chat par agent (?agent_id=)</td></tr>
+  <tr><td>GET</td><td><code>/api/pm-orchestrator/projects/{id}/change-requests</code></td><td>Liste CRs du projet</td></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/change-requests/{id}/analyze</code></td><td>Lancer analyse d'impact</td></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/change-requests/{id}/approve</code></td><td>Approuver CR</td></tr>
+  <tr><td>POST</td><td><code>/api/pm-orchestrator/change-requests/{id}/execute</code></td><td>Exécuter CR (rerun agents)</td></tr>
+</table>
+
+<!-- API DELIVERABLES -->
+<h2 id="api-deliverables">Deliverables API</h2>
+<table>
+  <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+  <tr><td>GET</td><td><code>/api/deliverables/executions/{id}/previews</code></td><td>Previews (500 chars) de tous les livrables</td></tr>
+  <tr><td>GET</td><td><code>/api/deliverables/{id}</code></td><td>Livrable complet (AgentDeliverableResponse)</td></tr>
+  <tr><td>GET</td><td><code>/api/deliverables/{id}/full</code></td><td>Contenu complet (AgentDeliverableFull)</td></tr>
+</table>
+
+<!-- UI -->
+<h2 id="ui-monitoring">Monitoring Page</h2>
+<p>Page principale d'exécution (<code>/execution/{id}</code>) — affiche :</p>
+<div class="card">
+  <ul style="list-style: none; padding: 0; color: var(--muted); font-size: 0.85rem;">
+    <li>📊 Timeline 5 phases avec statuts (pending/active/waiting_hitl/completed/failed)</li>
+    <li>📈 Progress bar granulaire (individuel par agent, pas juste binaire)</li>
+    <li>🔍 ArchitectureReviewPanel — ERD Mermaid, Flows, Security, WBS Gantt</li>
+    <li>📋 DeliverableViewer — Rendu typé (tables BR, grids coverage, specs expert)</li>
+    <li>⏸️ ValidationGatePanel — Approve/Reject avec feedback</li>
+    <li>💬 ChatSidebar — 9 agents, color-coded, historique par agent</li>
+    <li>📄 SDSPreview — TOC, sections collapsibles, Mermaid inline</li>
+  </ul>
+</div>
+
+<h2 id="ui-components">Composants clés</h2>
+<table>
+  <tr><th>Composant</th><th>Rôle</th><th>Source de données</th></tr>
+  <tr><td><code>ArchitectureReviewPanel</code></td><td>Affiche architecture Marcus (ERD, flows, WBS)</td><td>JSON architect_solution_design + architect_wbs</td></tr>
+  <tr><td><code>StructuredRenderer</code></td><td>Route JSON → UI typée (BR table, coverage grid, etc.)</td><td>Tous deliverables JSON</td></tr>
+  <tr><td><code>DeliverableViewer</code></td><td>Expandable par phase, détecte JSON/Markdown/Mermaid</td><td>/api/deliverables/</td></tr>
+  <tr><td><code>ChatSidebar</code></td><td>Chat multi-agent avec picker et historique</td><td>/api/pm-orchestrator/executions/{id}/chat</td></tr>
+  <tr><td><code>ValidationGatePanel</code></td><td>Approve/Reject avec annotations</td><td>/api/.../validation-gate</td></tr>
+  <tr><td><code>SDSPreview</code></td><td>Rendu Markdown avec TOC navigable</td><td>SDS content (Markdown)</td></tr>
+  <tr><td><code>GanttChart</code></td><td>Timeline des tâches WBS</td><td>WBS JSON phases/tasks</td></tr>
+  <tr><td><code>MermaidRenderer</code></td><td>Render mermaid blocks dans tout contenu</td><td>Mermaid code blocks</td></tr>
+</table>
+
+<!-- PROBLEMS -->
+<h2 id="problems">Problèmes identifiés (Refonte)</h2>
+<table>
+  <tr><th>ID</th><th>Sévérité</th><th>Problème</th><th>Statut</th></tr>
+  <tr><td>P0</td><td><span class="badge badge-red">CRITIQUE</span></td><td>Routes async + SQLAlchemy sync → bloque event loop</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P1</td><td><span class="badge badge-red">CRITIQUE</span></td><td>Split brain pm.py v1 / pm_orchestrator v2</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P2</td><td><span class="badge badge-red">CRITIQUE</span></td><td>52 chemins absolus hardcodés</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P3</td><td><span class="badge badge-red">CRITIQUE</span></td><td>subprocess.run() → overhead 3-5s/appel</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P4</td><td><span class="badge badge-red">CRITIQUE</span></td><td>Fat Controller pm_orchestrator (2637 lignes)</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P5</td><td><span class="badge badge-orange">MAJEUR</span></td><td>Logs fragmentés, pas de structured logging</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P6</td><td><span class="badge badge-orange">MAJEUR</span></td><td>LLM Router sous-utilisé (13 hardcoded)</td><td><span class="badge badge-green">FIXÉ 13-fév</span></td></tr>
+  <tr><td>P7</td><td><span class="badge badge-orange">MOYEN</span></td><td>Transactions non-atomiques</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+  <tr><td>P8</td><td><span class="badge badge-orange">MOYEN</span></td><td>Rotation secrets absente</td><td><span class="badge badge-orange">Planifié</span></td></tr>
+</table>
+
+<!-- JOURNAL -->
+<h2 id="journal">Journal de refonte</h2>
+
+<div class="timeline">
+  <div class="timeline-item">
+    <div class="timeline-date">13 février 2026 — Track A+B+C + Sprint 4+5</div>
+    <div class="timeline-content">
+      <strong>5 commits, 19 fichiers</strong><br>
+      Track A: 7 bugs backend fixés (key mismatches, truncation 93%→0%, pricing, 13 hardcoded models, WBS prompts)<br>
+      Track B: ArchitectureReviewPanel rewrite — JSON-aware, ERD Mermaid, Flows, Gantt, Security OWD<br>
+      Track C: StructuredRenderer + DeliverableViewer typed rendering (BR table, coverage grid, expert specs)<br>
+      Sprint 4: Multi-agent contextual chat (9 agents, color-coded, per-agent history)<br>
+      Sprint 5: fix_gaps revision mode (incremental not full regen), CR lifecycle existant validé
+    </div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-date">12 février 2026 — E2E #144 + Plan V2</div>
+    <div class="timeline-content">
+      E2E #144 : SDS docx vide, cost 262% sous-reporté, 30 bugs identifiés<br>
+      Consolidated Plan V2 : 3 tracks parallèles + 2 sprints séquentiels<br>
+      Fixes initiaux : SDS key fix, agent_complexity_map, Marcus max_tokens 64K
+    </div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-date">10 février 2026 — E2E #143 + Prompt Reviews</div>
+    <div class="timeline-content">
+      E2E #143 : coverage 45% → 90.3% après fix scoring (Emma UC format + weights)<br>
+      Prompt rewrite spec pour Marcus design/revision et Emma validate<br>
+      Worker arrêté pour analyse offline
+    </div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-date">7-8 février 2026 — Horizons 2+3 Merge</div>
+    <div class="timeline-content">
+      Merge 10 streams parallèles : State Machine (24 états), ARQ workers, Budget tracking + CircuitBreaker<br>
+      E2E #140 : Phase 0+1 PASS (premier test post-merge)<br>
+      Frontend : timeline, HITL panels, progress granulaire
+    </div>
+  </div>
+
+  <div class="timeline-item">
+    <div class="timeline-date">Fin février 2026 — Planifié</div>
+    <div class="timeline-content">
+      E2E #145 : validation complète post-fixes<br>
+      Refonte architecturale P0-P4 via Claude Code Agent Teams (Phase 1: Architecte, Phase 2: Spécialistes parallèles, Phase 3: Intégrateur)
+    </div>
+  </div>
+</div>
+
+<p style="text-align: center; color: #475569; margin-top: 3rem; font-size: 0.75rem;">
+  Digital Humans Documentation — Dernière mise à jour : 13 février 2026<br>
+  Sam Hatit Consulting
+</p>
+
+</main>
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: {
+    primaryColor: '#2563eb', primaryTextColor: '#e2e8f0', primaryBorderColor: '#475569',
+    lineColor: '#64748b', secondaryColor: '#1e293b', tertiaryColor: '#0f172a'
+  }});
+</script>
+</body>
+</html>

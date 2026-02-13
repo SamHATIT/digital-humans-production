@@ -126,3 +126,56 @@ Merged 10 parallel development streams into main:
 - CircuitBreaker activation
 - UC_BATCH_SIZE 35→100
 
+
+## [2026-02-12] E2E #144 Analysis + Plan V2
+
+### Analysis
+- E2E #144 revealed 30 bugs: SDS docx empty (wrong key), cost 262% under-reported, safe_content() truncated 93-96%, 13 hardcoded models, WBS parse errors
+- Root causes mapped to 9 backend + 6 frontend + 6 mixed issues
+
+### Changes
+- fix: SDS key `document` → `raw_markdown` (commit 6cf0798)
+- fix: agent_complexity_map + Marcus max_tokens 64K (commit 7b07ca0)
+- plan: Consolidated V2 — 3 parallel tracks + 2 sequential sprints + E2E #145
+
+---
+
+## [2026-02-13] Track A+B+C + Sprint 4+5
+
+### Track A — Backend Cleanup (commit baeaed3)
+- B2+B3: Fix 4 key mismatches orchestrator→Emma (qa_specs→qa_plan, devops_specs→devops_plan, training_specs→training_plan, data_specs→data_migration_plan) + add gap_analysis
+- B4: Increase safe_content() limits (archi 10K→60K, wbs 6K→30K, experts 3K→15K) + Emma max_tokens 16K→32K
+- B5: Fix MODEL_PRICING (Opus $15/$75→$5/$25, Haiku $0.25/$1.25→$1/$5) + add claude-opus-4-6
+- B6: Remove ALL 13 hardcoded claude-sonnet-4-20250514 from 8 agents → all use YAML agent_type routing
+- B8: Anti-markdown-in-JSON rules in Marcus prompts (design, gap, wbs, fix_gaps)
+
+### Track B — Architecture Viewer (commit 767efd1)
+- Rewrite ArchitectureReviewPanel: parse Marcus JSON directly (not Markdown headings)
+- Generate ERD Mermaid diagrams from data_model.custom_objects + relationships
+- Generate flowchart Mermaid from automation_design.flows with expandable accordions
+- Connect WBS JSON phases/tasks to GanttChart component
+- Security tab: OWD/sharing model summary, MasterDetail vs Lookup counts
+- Display gap descriptions (what_is_missing) instead of just [severity]
+
+### Track C — Deliverable Viewer (commit 28121aa)
+- New StructuredRenderer: routes JSON to type-specific UI (BRs→table, coverage→grid, gaps→collapsible, QA→table, DevOps→pipeline, Training→table, Data→mapping)
+- DeliverableViewer detects JSON vs Markdown vs Mermaid and routes accordingly
+
+### Sprint 4 — Multi-Agent Chat (commit cc74168)
+- Backend: extend /executions/{id}/chat with agent_id param, 9 AGENT_CHAT_PROFILES with role-specific system prompts
+- Auto-load agent's own deliverables as context
+- Per-agent conversation history (agent_id column added to project_conversations)
+- New endpoints: GET /agents (available list), GET /chat/history?agent_id=
+- Frontend: ChatSidebar with agent picker dropdown, color-coded per agent
+
+### Sprint 5 — Revision Fix (commit 4d89129)
+- B9: Revision now uses mode='fix_gaps' instead of mode='design' (incremental, not full regen)
+- get_fix_gaps_prompt: format gaps with what_is_missing + fix_instruction
+- solution_json limit 15K→50K chars
+- Both auto-revision loop AND manual resume paths fixed
+
+### Files Modified (19 total)
+- 8 agent files, pm_orchestrator_service_v2.py, budget_service.py, llm_routing.yaml, marcus_architect.yaml
+- hitl_routes.py, project_conversation.py (model)
+- ArchitectureReviewPanel.tsx (rewrite), StructuredRenderer.tsx (new), DeliverableViewer.tsx, ChatSidebar.tsx (rewrite)
+
