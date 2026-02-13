@@ -1557,9 +1557,9 @@ class PMOrchestratorServiceV2:
             # Try matching by substring (e.g. "opus", "sonnet", "haiku")
             model_lower = (model or "").lower()
             if "opus" in model_lower:
-                pricing = {"input": 15.0, "output": 75.0}
+                pricing = {"input": 5.0, "output": 25.0}
             elif "haiku" in model_lower:
-                pricing = {"input": 0.25, "output": 1.25}
+                pricing = {"input": 1.0, "output": 5.0}
             else:
                 pricing = MODEL_PRICING["default"]  # Sonnet-level
         input_tokens = int(tokens_used * 0.7)
@@ -2704,11 +2704,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             "uc_digest": results["artifacts"].get("UC_DIGEST", {}).get("content", {}),
             "solution_design": results["artifacts"].get("ARCHITECTURE", {}).get("content", {}),
             "coverage_report": results["artifacts"].get("COVERAGE", {}).get("content", {}),
+            "gap_analysis": results["artifacts"].get("GAP", {}).get("content", {}),
             "wbs": results["artifacts"].get("WBS", {}).get("content", {}),
-            "qa_specs": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
-            "devops_specs": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
-            "training_specs": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
-            "data_specs": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
+            "qa_plan": results["agent_outputs"].get("qa", {}).get("content", {}) if results["agent_outputs"].get("qa") else {},
+            "devops_plan": results["agent_outputs"].get("devops", {}).get("content", {}) if results["agent_outputs"].get("devops") else {},
+            "training_plan": results["agent_outputs"].get("trainer", {}).get("content", {}) if results["agent_outputs"].get("trainer") else {},
+            "data_migration_plan": results["agent_outputs"].get("data", {}).get("content", {}) if results["agent_outputs"].get("data") else {}
         }
 
         if uc_section_3_content:

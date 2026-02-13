@@ -370,19 +370,18 @@ FIX THESE ISSUES.
 
     tokens_used = 0
     input_tokens = 0
-    model_used = "claude-sonnet-4-20250514"
+    model_used = response.get("model", "unknown")
     content = ""
 
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
-            prompt=prompt, provider=LLMProvider.ANTHROPIC,
-            model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2,
+            prompt=prompt, agent_type="lwc_developer", max_tokens=16000, temperature=0.2,
             execution_id=execution_id,
         )
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
-        model_used = response.get('model', 'claude-sonnet-4-20250514')
+        model_used = response.get('model', 'unknown')
     else:
         try:
             from openai import OpenAI
@@ -644,8 +643,7 @@ class LWCDeveloperAgent:
         if LLM_SERVICE_AVAILABLE:
             response = generate_llm_response(
                 prompt=prompt,
-                provider=LLMProvider.ANTHROPIC,
-                model="claude-sonnet-4-20250514",
+                agent_type="lwc_developer",
                 max_tokens=max_tokens,
                 temperature=temperature,
                 execution_id=execution_id,
@@ -653,7 +651,7 @@ class LWCDeveloperAgent:
             content = response.get("content", "")
             tokens_used = response.get("tokens_used", 0)
             input_tokens = response.get("input_tokens", 0)
-            model_used = response.get("model", "claude-sonnet-4-20250514")
+            model_used = response.get("model", "unknown")
             return content, tokens_used, input_tokens, model_used, "anthropic"
 
         # Fallback to OpenAI

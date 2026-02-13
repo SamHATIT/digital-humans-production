@@ -410,7 +410,7 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
 
     logger.info(f"Elena TEST mode - reviewing {len(code_files)} file(s)")
     start_time = time.time()
-    model_used = "claude-sonnet-4-20250514"
+    model_used = response.get("model", "unknown")
 
     # Build code content for review - show FULL content for each file
     code_parts = []
@@ -694,16 +694,16 @@ class QATesterAgent:
         if LLM_SERVICE_AVAILABLE:
             response = generate_llm_response(
                 prompt=prompt,
-                provider=LLMProvider.ANTHROPIC,
-                model="claude-sonnet-4-20250514",
+                agent_type="qa_tester",
                 max_tokens=max_tokens,
                 temperature=temperature,
                 execution_id=execution_id,
             )
             content = response.get("content", "")
             tokens_used = response.get("tokens_used", 0)
+            model_used = response.get("model", "unknown")
             input_tokens = response.get("input_tokens", 0)
-            return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+            return content, tokens_used, input_tokens, model_used, "anthropic"
 
         # Fallback to OpenAI
         try:

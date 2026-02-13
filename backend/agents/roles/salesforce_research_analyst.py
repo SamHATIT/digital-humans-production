@@ -725,8 +725,9 @@ class ResearchAnalystAgent:
         project_name = input_data.get('project_name', 'Salesforce Project')
         timestamp = datetime.now().isoformat()
 
-        # Extract all deliverables (truncate each to avoid token overflow)
-        def safe_content(key: str, max_len: int = 8000) -> str:
+        # Extract deliverables — generous limits to preserve expert content
+        # Sonnet 4.5 context = 200K tokens (~800K chars), so total ~200K chars is safe
+        def safe_content(key: str, max_len: int = 30000) -> str:
             val = input_data.get(key, '')
             if isinstance(val, dict):
                 val = json.dumps(val, indent=2, ensure_ascii=False)
@@ -738,16 +739,16 @@ class ResearchAnalystAgent:
         prompt = PROMPT_SERVICE.render("emma_research", "write_sds", {
             "project_name": project_name,
             "timestamp": timestamp,
-            "br_content": safe_content('business_requirements', 6000),
-            "uc_content": safe_content('use_cases', 8000),
-            "uc_digest_content": safe_content('uc_digest', 5000),
-            "solution_design_content": safe_content('solution_design', 10000),
-            "gap_analysis_content": safe_content('gap_analysis', 6000),
-            "wbs_content": safe_content('wbs', 6000),
-            "qa_content": safe_content('qa_plan', 4000),
-            "devops_content": safe_content('devops_plan', 3000),
-            "training_content": safe_content('training_plan', 3000),
-            "data_migration_content": safe_content('data_migration_plan', 3000),
+            "br_content": safe_content('business_requirements', 20000),
+            "uc_content": safe_content('use_cases', 15000),
+            "uc_digest_content": safe_content('uc_digest', 15000),
+            "solution_design_content": safe_content('solution_design', 60000),
+            "gap_analysis_content": safe_content('gap_analysis', 20000),
+            "wbs_content": safe_content('wbs', 30000),
+            "qa_content": safe_content('qa_plan', 15000),
+            "devops_content": safe_content('devops_plan', 10000),
+            "training_content": safe_content('training_plan', 10000),
+            "data_migration_content": safe_content('data_migration_plan', 10000),
         })
 
         system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
@@ -755,7 +756,7 @@ class ResearchAnalystAgent:
         logger.info(f"WRITE_SDS mode: prompt size: {len(prompt)} chars")
 
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.4,
+            prompt, system_prompt, max_tokens=32000, temperature=0.4,
             execution_id=execution_id
         )
 
@@ -837,7 +838,7 @@ class ResearchAnalystAgent:
 
         client = Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=os.environ.get("ANTHROPIC_FALLBACK_MODEL", "claude-sonnet-4-5-20250929"),
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}]
@@ -845,7 +846,8 @@ class ResearchAnalystAgent:
         content = response.content[0].text
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         input_tokens = response.usage.input_tokens
-        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic"
+        fallback_model = os.environ.get("ANTHROPIC_FALLBACK_MODEL", "claude-sonnet-4-5-20250929")
+        return content, tokens_used, input_tokens, fallback_model, "anthropic"
 
     def _log_interaction(
         self,

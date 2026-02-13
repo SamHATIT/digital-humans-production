@@ -21,8 +21,8 @@ interface ArchitectureReviewPanelProps {
   onRevise: () => void;
   isActioning?: boolean;
   coverageScore?: number | null;
-  criticalGaps?: Array<{ gap: string; severity: string }>;
-  uncoveredUseCases?: string[];
+  criticalGaps?: Array<{ gap?: string; what_is_missing?: string; id?: string; severity: string; [key: string]: any }>;
+  uncoveredUseCases?: Array<string | { id?: string; title?: string; [key: string]: any }>;
   revisionCount?: number;
 }
 
@@ -319,7 +319,7 @@ export default function ArchitectureReviewPanel({
                         >
                           [{gap.severity}]
                         </span>{' '}
-                        {gap.gap}
+                        {gap.gap || gap.what_is_missing || gap.id || 'Unknown gap'}
                       </span>
                     </li>
                   ))}
@@ -336,7 +336,7 @@ export default function ArchitectureReviewPanel({
                 <ul className="space-y-0.5">
                   {uncoveredUseCases.map((uc, i) => (
                     <li key={i} className="text-sm text-slate-300">
-                      &bull; {uc}
+                      &bull; {typeof uc === 'string' ? uc : `${uc.id || ''}: ${uc.title || uc}`}
                     </li>
                   ))}
                 </ul>

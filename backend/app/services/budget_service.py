@@ -15,17 +15,18 @@ logger = logging.getLogger(__name__)
 
 # Pricing per 1M tokens (approximate, Anthropic Feb 2026)
 MODEL_PRICING = {
-    # Anthropic
-    "claude-opus-4-20250514":       {"input": 15.0,  "output": 75.0},
-    "claude-opus-4-5-20251101":     {"input": 15.0,  "output": 75.0},
+    # Anthropic — Feb 2026 official pricing (per 1M tokens)
+    "claude-opus-4-6":              {"input": 5.0,   "output": 25.0},
+    "claude-opus-4-20250514":       {"input": 5.0,   "output": 25.0},
+    "claude-opus-4-5-20251101":     {"input": 5.0,   "output": 25.0},
     "claude-sonnet-4-20250514":     {"input": 3.0,   "output": 15.0},
     "claude-sonnet-4-5-20250929":   {"input": 3.0,   "output": 15.0},
-    "claude-haiku-4-20250514":      {"input": 0.25,  "output": 1.25},
-    "claude-haiku-4-5-20251001":    {"input": 0.25,  "output": 1.25},
+    "claude-haiku-4-5-20251001":    {"input": 1.0,   "output": 5.0},
+    "claude-haiku-4-20250514":      {"input": 1.0,   "output": 5.0},
     # OpenAI
     "gpt-4o":                       {"input": 2.5,   "output": 10.0},
     "gpt-4o-mini":                  {"input": 0.15,  "output": 0.6},
-    # Default fallback
+    # Default fallback (Sonnet-level)
     "default":                      {"input": 3.0,   "output": 15.0},
 }
 

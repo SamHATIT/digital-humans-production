@@ -17,11 +17,15 @@ agent_complexity_map:
   # Expert agents — all Sonnet 4.5
   devops: complex           # Aisha
   admin: complex            # Jordan
-  qa: complex               # Elena
-  data: complex             # Raj
+  qa: complex               # Elena (alias)
+  qa_tester: complex        # Elena (code agent_type)
+  data: complex             # Raj (alias)
+  data_migration: complex   # Raj (code agent_type)
   trainer: complex          # Lucas
-  developer_apex: complex   # Diego
-  developer_lwc: complex    # Zara
+  developer_apex: complex   # Diego (alias)
+  apex_developer: complex   # Diego (code agent_type)
+  developer_lwc: complex    # Zara (alias)
+  lwc_developer: complex    # Zara (code agent_type)
 
 pricing:
   local/mistral:7b-instruct:

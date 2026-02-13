@@ -196,7 +196,7 @@ modes:
 
       ---
 
-      **Generate the Solution Design now. Output ONLY valid JSON.**
+      **Generate the Solution Design now. Output ONLY valid JSON. NEVER insert markdown code fences (```) inside JSON string values.**
 
   as_is:
     description: "Analyze existing Salesforce org metadata"
@@ -344,7 +344,7 @@ modes:
 
       ---
 
-      **Generate the Gap Analysis now. Output ONLY valid JSON.**
+      **Generate the Gap Analysis now. Output ONLY valid JSON. NEVER insert markdown code fences (```) inside JSON string values.**
 
   wbs:
     description: "Work Breakdown Structure from Gap Analysis"
@@ -536,6 +536,9 @@ modes:
 
       ---
 
+      11. **NEVER insert markdown inside JSON string values** — no \`\`\`json, no \`\`\`, no code fences inside any string field. All values must be plain text.
+      12. **Validate JSON mentally** — ensure every { has }, every [ has ], every string is properly quoted and escaped.
+
       **Generate the WBS now. Output ONLY valid JSON, no markdown fences.**
 
   fix_gaps:
@@ -641,7 +644,7 @@ modes:
 
       ---
 
-      **Apply ALL fixes from Emma's gap report. Output the COMPLETE revised architecture as valid JSON.**
+      **Apply ALL fixes from Emma's gap report. Output the COMPLETE revised architecture as valid JSON. NEVER insert markdown code fences (```) inside JSON string values.**
 
   patch:
     description: "Apply targeted fixes to a specific section of the architecture"

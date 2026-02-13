@@ -373,8 +373,7 @@ class DevOpsAgent:
             logger.debug("Calling LLM via llm_service (Anthropic)")
             response = generate_llm_response(
                 prompt=prompt,
-                provider=LLMProvider.ANTHROPIC,
-                model="claude-sonnet-4-20250514",
+                agent_type="devops",
                 max_tokens=max_tokens,
                 temperature=temperature,
                 execution_id=execution_id,
@@ -383,7 +382,7 @@ class DevOpsAgent:
                 response.get('content', ''),
                 response.get('tokens_used', 0),
                 response.get('input_tokens', 0),
-                response.get('model', 'claude-sonnet-4-20250514'),
+                response.get('model', 'unknown'),
                 response.get('provider', 'anthropic'),
             )
     def _parse_files(self, content: str) -> Dict[str, str]:

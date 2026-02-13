@@ -760,7 +760,7 @@ class SolutionArchitectAgent:
 
         client = Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=os.environ.get("ANTHROPIC_FALLBACK_MODEL", "claude-sonnet-4-5-20250929"),
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}]
@@ -768,7 +768,8 @@ class SolutionArchitectAgent:
         content = response.content[0].text
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         input_tokens = response.usage.input_tokens
-        return content, tokens_used, input_tokens, "claude-sonnet-4-20250514", "anthropic", 0.0
+        fallback_model = os.environ.get("ANTHROPIC_FALLBACK_MODEL", "claude-sonnet-4-5-20250929")
+        return content, tokens_used, input_tokens, fallback_model, "anthropic", 0.0
 
     def _get_rag_context(self, input_data: dict, project_id: int = 0) -> str:
         """Fetch RAG context for design mode with dynamic query based on project objects."""

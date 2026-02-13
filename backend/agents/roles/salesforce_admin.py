@@ -243,13 +243,12 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     start_time = time.time()
 
     if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.3,
+        response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.3,
                                          execution_id=execution_id)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
-        model_used = response.get('model', 'claude-sonnet-4-20250514')
+        model_used = response.get('model', 'unknown')
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -339,13 +338,12 @@ FIX THESE ISSUES.
     start_time = time.time()
 
     if LLM_SERVICE_AVAILABLE:
-        response = generate_llm_response(prompt=prompt, provider=LLMProvider.ANTHROPIC,
-                                         model="claude-sonnet-4-20250514", max_tokens=16000, temperature=0.2,
+        response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.2,
                                          execution_id=execution_id)
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
-        model_used = "claude-sonnet-4-20250514"
+        model_used = response.get("model", "unknown")
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -758,8 +756,7 @@ def generate_build_v2(
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
-            provider=LLMProvider.ANTHROPIC,
-            model="claude-sonnet-4-20250514",
+            agent_type="admin",
             max_tokens=8000,
             temperature=0.2,
             execution_id=execution_id
@@ -793,7 +790,7 @@ def generate_build_v2(
                 task_id=target,
                 agent_mode=f"build_v2_phase{phase}",
                 tokens_output=tokens_used,
-                model="claude-sonnet-4-20250514",
+                model=model_used,
                 provider="anthropic",
                 execution_time_seconds=execution_time,
                 success=result.get("success", False)
