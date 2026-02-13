@@ -3,6 +3,7 @@ import { X, ChevronDown, ChevronUp, FileText, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import MermaidRenderer, { extractMermaidBlocks } from './MermaidRenderer';
 import SDSPreview from './SDSPreview';
+import StructuredRenderer from './StructuredRenderer';
 
 interface DeliverablePreview {
   id: number;
@@ -211,15 +212,31 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                     ) : (() => {
                       const text = fullContents[d.id] || d.content_preview;
                       const hasMermaid = extractMermaidBlocks(text).some(b => b.type === 'mermaid');
-                      const isSDS = d.deliverable_type.includes('sds');
+                      const isSDS = d.deliverable_type.includes('sds') || d.deliverable_type.includes('write_sds');
+                      const isJSON = text.trimStart().startsWith('{') || text.trimStart().startsWith('[');
+
+                      // SDS markdown → SDSPreview with TOC
                       if (isSDS && text.length > 500) {
                         return <SDSPreview content={text} title={formatDeliverableType(d.deliverable_type)} />;
                       }
-                      return hasMermaid ? (
-                        <div className="max-h-[600px] overflow-y-auto bg-slate-950/50 rounded-lg p-4">
-                          <MermaidRenderer content={text} />
-                        </div>
-                      ) : (
+                      // JSON deliverables → StructuredRenderer (tables, badges, etc.)
+                      if (isJSON) {
+                        return (
+                          <div className="max-h-[600px] overflow-y-auto">
+                            <StructuredRenderer deliverableType={d.deliverable_type} content={text} />
+                          </div>
+                        );
+                      }
+                      // Mermaid content
+                      if (hasMermaid) {
+                        return (
+                          <div className="max-h-[600px] overflow-y-auto bg-slate-950/50 rounded-lg p-4">
+                            <MermaidRenderer content={text} />
+                          </div>
+                        );
+                      }
+                      // Plain text fallback
+                      return (
                         <pre className="text-sm text-slate-300 whitespace-pre-wrap break-words max-h-96 overflow-y-auto font-mono bg-slate-950/50 rounded-lg p-4">
                           {text}
                         </pre>
