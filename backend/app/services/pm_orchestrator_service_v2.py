@@ -1364,7 +1364,7 @@ class PMOrchestratorServiceV2:
             logger.warning(f"[CircuitBreaker] check failed: {e}")
 
         # Dynamic timeout based on agent/mode
-        timeout_seconds = 300  # Default 5 min
+        timeout_seconds = 600  # Default 10 min (experts need time with large context)
         if agent_id == "research_analyst":
             timeout_seconds = 3600  # 60 min for all Emma modes (large projects)
         elif agent_id == "architect":
