@@ -367,7 +367,7 @@
 <nav class="sidebar">
   <div class="sidebar-header">
     <h1>🤖 Digital Humans</h1>
-    <div class="subtitle">Documentation Technique</div>
+    <div class="subtitle">Documentation technique</div>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Général</div>
@@ -379,15 +379,19 @@
     <div class="nav-section-title">Flux métier</div>
     <a class="nav-link" onclick="showSection('sds-flow')">Phase SDS</a>
     <a class="nav-link" onclick="showSection('build-flow')">Phase BUILD</a>
+    <a class="nav-link" onclick="showSection('hitl')">HITL & Chat</a>
     <a class="nav-link" onclick="showSection('rag')">RAG & Knowledge</a>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Infrastructure</div>
     <a class="nav-link" onclick="showSection('infra')">Services & Ports</a>
+    <a class="nav-link" onclick="showSection('database')">Base de données</a>
     <a class="nav-link" onclick="showSection('api')">API Reference</a>
+    <a class="nav-link" onclick="showSection('frontend')">Frontend</a>
   </div>
   <div class="nav-section">
     <div class="nav-section-title">Refonte 2026</div>
+    <a class="nav-link" onclick="showSection('problems')">Problèmes (P0-P9)</a>
     <a class="nav-link" onclick="showSection('refonte')">Plan de refonte</a>
     <a class="nav-link" onclick="showSection('journal')">Journal</a>
   </div>
@@ -399,641 +403,520 @@
   <div id="overview" class="section active">
     <h2>Vue d'ensemble</h2>
     <p class="section-desc">
-      Digital Humans est une plateforme multi-agents IA qui automatise le développement Salesforce.
-      11 agents spécialisés collaborent en séquence pour générer des spécifications (SDS) puis du code déployable (BUILD).
+      Digital Humans est une plateforme SaaS B2B qui automatise le développement Salesforce grâce à 11 agents IA spécialisés. Le système génère des spécifications complètes (SDS) puis du code Salesforce déployable (BUILD) via un pipeline multi-phases orchestré avec validation humaine à chaque étape clé.
     </p>
-
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-value">11</div>
-        <div class="stat-label">Agents IA</div>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Pipeline SDS (5 phases)</h4>
+        <p>Sophie → Olivia → Emma → Marcus ↔ Emma → Experts → SDS</p>
+        <p style="margin-top:8px"><span class="tag tag-active">198 fichiers Python</span> <span class="tag" style="background:var(--purple-dim);color:var(--purple)">41 fichiers React</span></p>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">198</div>
-        <div class="stat-label">Fichiers Python</div>
+      <div class="card">
+        <h4>Pipeline BUILD (6 phases)</h4>
+        <p>Jordan → Raj → Diego → Zara → Elena → Aisha</p>
+        <p style="margin-top:8px"><span class="tag tag-done">Haiku pour exécution</span> <span class="tag tag-critical">Opus pour architecture</span></p>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">70K</div>
-        <div class="stat-label">Chunks RAG</div>
+      <div class="card">
+        <h4>Worker async (ARQ + Redis)</h4>
+        <p>Toutes les exécutions SDS/BUILD tournent en background via ARQ workers avec suivi temps réel via polling/SSE</p>
+        <p style="margin-top:8px"><span class="tag tag-done">3 tâches : SDS, Resume, Build</span></p>
       </div>
-      <div class="stat-card">
-        <div class="stat-value">2</div>
-        <div class="stat-label">Phases (SDS + BUILD)</div>
+      <div class="card">
+        <h4>HITL — Human in the Loop</h4>
+        <p>5 gates de validation (BR, Architecture, Experts, SDS, BUILD) + chat contextuel multi-agent (9 agents)</p>
+        <p style="margin-top:8px"><span class="tag tag-active">State Machine 24 états</span></p>
       </div>
     </div>
 
     <h3>Stack technique</h3>
     <table>
-      <tr><th>Composant</th><th>Technologie</th><th>Détail</th></tr>
-      <tr><td>Backend</td><td>FastAPI (Python 3.11)</td><td>Port 8002 · SQLAlchemy ORM · Uvicorn</td></tr>
-      <tr><td>Frontend</td><td>React + Vite</td><td>Port 3000 · 41 fichiers src</td></tr>
-      <tr><td>Base de données</td><td>PostgreSQL 16</td><td>Port 5432 · Auto-start</td></tr>
-      <tr><td>RAG</td><td>ChromaDB</td><td>70,251 chunks · 5 collections · 2.4 GB</td></tr>
-      <tr><td>LLM Cloud</td><td>Claude API (Anthropic)</td><td>Modèle principal pour les agents</td></tr>
-      <tr><td>LLM Local</td><td>Ollama + Mistral Nemo</td><td>Port 11434 · SDS v3 local</td></tr>
-      <tr><td>CMS</td><td>Ghost (Docker)</td><td>Port 2368 · Blog agents</td></tr>
-      <tr><td>Workflows</td><td>N8N</td><td>Port 5678 · Non utilisé en prod</td></tr>
-      <tr><td>Reverse Proxy</td><td>Nginx</td><td>Port 80/443 · HTTPS · Routing</td></tr>
+      <tr><th>Couche</th><th>Technologie</th><th>Port</th><th>Rôle</th></tr>
+      <tr><td>Backend API</td><td>FastAPI + SQLAlchemy + Uvicorn</td><td>8002</td><td>REST API, orchestration</td></tr>
+      <tr><td>Worker</td><td>ARQ + Redis</td><td>—</td><td>Exécutions async SDS/BUILD</td></tr>
+      <tr><td>Frontend</td><td>React 18 + Vite + TailwindCSS</td><td>3000</td><td>Interface utilisateur SPA</td></tr>
+      <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td><td>41 tables, état complet</td></tr>
+      <tr><td>Queue</td><td>Redis 7</td><td>6379</td><td>Job queue ARQ + cache</td></tr>
+      <tr><td>RAG</td><td>ChromaDB</td><td>8000</td><td>70K chunks, 5 collections Salesforce</td></tr>
+      <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Tâches simples (classification, extraction)</td></tr>
+      <tr><td>LLM cloud</td><td>Anthropic Claude API</td><td>—</td><td>Opus 4.6 (Marcus), Sonnet 4.5 (agents), Haiku (BUILD)</td></tr>
+      <tr><td>CMS</td><td>Ghost</td><td>2368</td><td>Site marketing digital-humans.fr</td></tr>
+      <tr><td>Automation</td><td>N8N</td><td>5678</td><td>Workflows marketing</td></tr>
+      <tr><td>Reverse proxy</td><td>Nginx</td><td>80/443</td><td>SSL, routing, static files</td></tr>
     </table>
 
-    <h3>Repo & serveur</h3>
+    <h3>Repo & Serveur</h3>
     <table>
-      <tr><th>Propriété</th><th>Valeur</th></tr>
-      <tr><td>GitHub</td><td><code>github.com/SamHATIT/digital-humans-production</code></td></tr>
-      <tr><td>VPS</td><td><code>72.61.161.222</code> · Ubuntu 24.04 LTS · Hostinger</td></tr>
-      <tr><td>Chemin code</td><td><code>/root/workspace/digital-humans-production/</code></td></tr>
-      <tr><td>Taille code Python</td><td>~2.4 MB (~600K tokens)</td></tr>
-      <tr><td>Taille code Frontend</td><td>~322 KB (~80K tokens)</td></tr>
+      <tr><th>Élément</th><th>Valeur</th></tr>
+      <tr><td>VPS</td><td><code>72.61.161.222</code> — Ubuntu 24.04 — Hostinger</td></tr>
+      <tr><td>Repo</td><td><code>github.com/SamHATIT/digital-humans-production</code></td></tr>
+      <tr><td>Services</td><td><code>digital-humans-backend</code>, <code>digital-humans-worker</code>, <code>digital-humans-frontend</code> (systemctl)</td></tr>
+      <tr><td>Workspace</td><td><code>/root/workspace/digital-humans-production</code></td></tr>
     </table>
   </div>
 
   <!-- ==================== ARCHITECTURE ==================== -->
   <div id="architecture" class="section">
     <h2>Architecture</h2>
-    <p class="section-desc">
-      Vue globale du système : du navigateur jusqu'aux LLM, en passant par l'orchestrateur et les agents.
-    </p>
+    <p class="section-desc">Architecture 3-tier avec orchestrateur central, workers async, et state machine pour gérer les transitions de phase.</p>
 
     <h3>Architecture globale</h3>
     <div class="mermaid-wrapper">
       <pre class="mermaid">
 flowchart TB
-    subgraph Client["🖥ï¸ Client"]
-        Browser["Navigateur Web"]
+    subgraph Client["Frontend React :3000"]
+        UI[Pages & Components]
     end
-
-    subgraph Proxy["Nginx :80/443"]
-        NG["Reverse Proxy + HTTPS"]
+    subgraph API["FastAPI Backend :8002"]
+        Routes[API Routes — 177 endpoints]
+        Orch[Orchestrator Service]
+        SM[State Machine — 24 états]
+        Budget[BudgetService + CircuitBreaker]
+        LLM[LLM Router — YAML config]
+        VGS[Validation Gate Service]
     end
-
-    subgraph Frontend["Frontend React :3000"]
-        UI["Interface Utilisateur<br/>React + Vite"]
+    subgraph Worker["ARQ Worker — systemctl"]
+        W1[execute_sds_task]
+        W2[resume_architecture_task]
+        W3[execute_build_task]
     end
-
-    subgraph Backend["Backend FastAPI :8002"]
-        Routes["Routes API<br/><i>pm_orchestrator.py</i>"]
-        WS["WebSocket<br/>Temps réel"]
-        Orch["PMOrchestratorServiceV2<br/><i>Orchestration</i>"]
-        Exec["PhasedBuildExecutor<br/><i>Exécution par phases</i>"]
-        AgentExec["AgentExecutor<br/><i>subprocess.run()</i>"]
+    subgraph Storage["Persistence"]
+        PG[(PostgreSQL — 41 tables)]
+        Redis[(Redis — Job Queue)]
+        Chroma[(ChromaDB — 70K chunks)]
     end
-
-    subgraph Agents["🤖 11 Agents IA"]
-        Sophie["Sophie<br/>PM"]
-        Emma["Emma<br/>Research Analyst"]
-        Olivia["Olivia<br/>Business Analyst"]
-        Marcus["Marcus<br/>Solution Architect"]
-        Specialists["Diego · Zara · Jordan<br/>Elena · Raj · Aisha"]
-        Lucas["Lucas<br/>Trainer"]
+    subgraph LLMs["LLM Providers"]
+        Opus[Claude Opus 4.6 — Marcus Sophie]
+        Sonnet[Claude Sonnet 4.5 — SDS agents]
+        Haiku[Claude Haiku — BUILD agents]
+        Mistral[Ollama Mistral 7B — Local]
     end
-
-    subgraph Data["💾 Données"]
-        PG["PostgreSQL :5432"]
-        RAG["ChromaDB RAG<br/>70K chunks"]
-    end
-
-    subgraph LLM["🧠 LLM"]
-        Claude["Claude API<br/>Anthropic"]
-        Ollama["Ollama/Mistral<br/>:11434"]
-    end
-
-    Browser --> NG --> Frontend
-    NG --> Routes
-    Frontend <--> WS
-    Routes --> Orch --> Exec --> AgentExec
-    AgentExec --> Sophie & Emma & Olivia & Marcus & Specialists & Lucas
-    Agents --> Claude & Ollama
-    Agents --> RAG
+    UI -->|REST API| Routes
+    Routes --> Orch
+    Orch --> SM
+    Orch --> Budget
+    Orch --> VGS
+    Orch -->|enqueue| Redis
+    Redis -->|dequeue| Worker
+    Worker --> LLM
+    LLM --> LLMs
+    Worker --> PG
     Routes --> PG
-    Orch --> PG
-
-    style Backend fill:#151922,stroke:#4f8cff,stroke-width:2px
-    style Agents fill:#151922,stroke:#34d399,stroke-width:2px
-    style Data fill:#151922,stroke:#a78bfa,stroke-width:2px
-    style LLM fill:#151922,stroke:#fb923c,stroke-width:2px
+    Worker --> Chroma
+    style Client fill:#151922,stroke:#4f8cff
+    style API fill:#151922,stroke:#34d399
+    style Worker fill:#151922,stroke:#fb923c
+    style Storage fill:#151922,stroke:#a78bfa
+    style LLMs fill:#151922,stroke:#f87171
       </pre>
     </div>
 
     <h3>Couches applicatives</h3>
-    <div class="mermaid-wrapper">
-      <pre class="mermaid">
-flowchart LR
-    HTTP["<b>HTTP Layer</b><br/>Routes API<br/>WebSocket<br/>Auth JWT"] --> Service["<b>Service Layer</b><br/>PMOrchestratorV2<br/>LLM Service<br/>RAG Service"] --> Executor["<b>Executor Layer</b><br/>PhasedBuildExecutor<br/>AgentExecutor<br/>Task Queue"] --> Agent["<b>Agent Layer</b><br/>11 Agents Python<br/>subprocess.run()<br/>Résultats JSON"] --> External["<b>External</b><br/>Claude API<br/>Ollama<br/>SFDX CLI<br/>ChromaDB"]
-
-    style HTTP fill:#1a2744,stroke:#4f8cff
-    style Service fill:#1a2744,stroke:#a78bfa
-    style Executor fill:#1a2744,stroke:#fb923c
-    style Agent fill:#1a2744,stroke:#34d399
-    style External fill:#1a2744,stroke:#f87171
-      </pre>
-    </div>
-
-    <h3>Problèmes architecturaux identifiés</h3>
     <table>
-      <tr><th>#</th><th>Problème</th><th>Sévérité</th><th>Impact</th><th>Statut</th></tr>
-      <tr>
-        <td>P0</td>
-        <td>Routes <code>async def</code> + SQLAlchemy sync = event loop bloqué</td>
-        <td><span class="tag tag-critical">Critique</span></td>
-        <td>L'API entière bloque pendant chaque requête DB</td>
-        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
-      </tr>
-      <tr>
-        <td>P1</td>
-        <td>Split brain : <code>pm.py</code> (v1) cohabite avec <code>pm_orchestrator.py</code> (v2)</td>
-        <td><span class="tag tag-critical">Critique</span></td>
-        <td>Confusion sur les endpoints actifs, dead code</td>
-        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
-      </tr>
-      <tr>
-        <td>P2</td>
-        <td>52 chemins absolus hardcodés</td>
-        <td><span class="tag tag-critical">Critique</span></td>
-        <td>Pas de portabilité, impossible hors Docker spécifique</td>
-        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
-      </tr>
-      <tr>
-        <td>P3</td>
-        <td>Agents lancés via <code>subprocess.run()</code></td>
-        <td><span class="tag tag-critical">Critique</span></td>
-        <td>Overhead 3-5s/appel, perte contexte, debug impossible</td>
-        <td><span class="tag tag-active">⚠️ Partiel (S1)</span></td>
-      </tr>
-      <tr>
-        <td>P4</td>
-        <td>Fat Controller : <code>pm_orchestrator.py</code> = 2637 lignes</td>
-        <td><span class="tag tag-major">Majeur</span></td>
-        <td>Impossible à maintenir, tester ou lire</td>
-        <td><span class="tag tag-active">⚠️ Partiel (S2)</span></td>
-      </tr>
-      <tr>
-        <td>P5</td>
-        <td>Logs fragmentés (print/stderr/DB)</td>
-        <td><span class="tag tag-major">Majeur</span></td>
-        <td>Observabilité impossible</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
-      </tr>
-      <tr>
-        <td>P6</td>
-        <td>LLM Router v3 prêt mais sous-utilisé</td>
-        <td><span class="tag tag-medium">Moyen</span></td>
-        <td>Surcoût API, pas d'optimisation de routage</td>
-        <td><span class="tag tag-done">✅ Fixé (13 fév)</span></td>
-      </tr>
-      <tr>
-        <td>P7</td>
-        <td>Transactions <code>db.commit()</code> éparpillés</td>
-        <td><span class="tag tag-major">Majeur</span></td>
-        <td>États DB incohérents en cas d'erreur</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
-      </tr>
-      <tr>
-        <td>P8</td>
-        <td>Rotation de <code>SECRET_KEY</code> absente</td>
-        <td><span class="tag tag-medium">Moyen</span></td>
-        <td>Compromission totale si fuite de clé</td>
-        <td><span class="tag tag-active">⚠️ Partiel (S3)</span></td>
-      </tr>
-      <tr>
-        <td>P9</td>
-        <td>SDS <code>write_sds</code> tronque 50-77% des livrables experts</td>
-        <td><span class="tag tag-major">Majeur</span></td>
-        <td>Coverage Report perd 77%, DevOps 46%, Trainer 50% â†' SDS incomplet â†' BUILD dégradé</td>
-              <td><span class="tag tag-done">✅ Fixé (13 fév)</span></td>
-      </tr>
+      <tr><th>Couche</th><th>Fichiers clés</th><th>Responsabilité</th></tr>
+      <tr><td>Routes API</td><td><code>orchestrator/*.py</code>, <code>hitl_routes.py</code>, <code>deliverables.py</code></td><td>32 fichiers, 177 endpoints REST</td></tr>
+      <tr><td>Services</td><td><code>pm_orchestrator_service_v2.py</code>, <code>budget_service.py</code>, <code>execution_state.py</code></td><td>Logique métier, orchestration phases</td></tr>
+      <tr><td>Workers</td><td><code>workers/tasks.py</code>, <code>workers/worker.py</code></td><td>ARQ tasks async : SDS, Resume, BUILD</td></tr>
+      <tr><td>Agents</td><td><code>agents/roles/*.py</code> (11 fichiers)</td><td>Prompts YAML, appels LLM, parsing réponses</td></tr>
+      <tr><td>State Machine</td><td><code>execution_state.py</code></td><td>24 états, transitions contrôlées, persistence DB</td></tr>
+      <tr><td>LLM Routing</td><td><code>llm_routing.yaml</code>, <code>llm_router_service.py</code></td><td>agent_complexity_map → modèle</td></tr>
+      <tr><td>Budget</td><td><code>budget_service.py</code></td><td>Estimation coûts, suivi tokens, CircuitBreaker</td></tr>
     </table>
   </div>
-
   <!-- ==================== LES 11 AGENTS ==================== -->
   <div id="agents" class="section">
     <h2>Les 11 Agents</h2>
-    <p class="section-desc">
-      Chaque agent est un script Python spécialisé dans un domaine Salesforce. Ils sont orchestrés
-      séquentiellement par le PM (Sophie) via l'AgentExecutor.
-    </p>
+    <p class="section-desc">Chaque agent est un fichier Python dans <code>agents/roles/</code>. Le routage LLM est centralisé dans <code>llm_routing.yaml</code> via l'<code>agent_complexity_map</code>.</p>
 
     <h3>Pipeline des agents</h3>
     <div class="mermaid-wrapper">
       <pre class="mermaid">
-flowchart TB
-    subgraph SDS["Phase SDS"]
+flowchart LR
+    subgraph SDS["Pipeline SDS"]
         direction LR
-        Sophie["Sophie<br/>PM"] -->|"extract BRs"| Olivia["Olivia<br/>Business Analyst"]
-        Olivia -->|"Use Cases"| Emma["Emma<br/>Research Analyst"]
-        Emma -->|"UC Digest"| Marcus["Marcus<br/>Solution Architect"]
-        Marcus -->|"Solution Design"| Experts
-        subgraph Experts["Experts SDS"]
-            Elena2["Elena QA"]
-            Jordan2["Jordan DevOps"]
-            Lucas2["Lucas Trainer"]
-            Aisha2["Aisha Data"]
+        S[Sophie — PM] -->|BRs| O[Olivia — BA]
+        O -->|UCs| E1[Emma — UC Digest]
+        E1 --> M[Marcus — Architect]
+        M --> E2[Emma — Coverage]
+        E2 -->|score < 85%| M
+        E2 -->|score ≥ 85%| EXP
+        subgraph EXP["Phase 4 — Experts parallèle"]
+            direction TB
+            EL[Elena QA]
+            JO[Jordan Admin]
+            RA[Raj Data]
+            AI[Aisha DevOps]
+            LU[Lucas Training]
         end
-        Experts -->|"write_sds"| Emma2["Emma<br/>SDS Writer"]
+        EXP --> E3[Emma — SDS Write]
     end
-
-    subgraph BUILD["Phase BUILD"]
-        direction LR
-        Raj3["Raj<br/>Admin"] --> Diego["Diego<br/>Apex"]
-        Raj3 --> Zara["Zara<br/>LWC"]
-        Diego & Zara --> Elena3["Elena<br/>QA"]
-        Elena3 --> Jordan3["Jordan<br/>DevOps"]
-        Jordan3 --> Lucas3["Lucas<br/>Trainer"]
-    end
-
-    SDS --> BUILD
-
-    style SDS fill:#151922,stroke:#4f8cff,stroke-width:2px
-    style BUILD fill:#151922,stroke:#34d399,stroke-width:2px
-    style Sophie fill:#2a4a8a,stroke:#4f8cff
-    style Emma fill:#2a3a5a,stroke:#22d3ee
-    style Olivia fill:#2a3a5a,stroke:#fb923c
-    style Marcus fill:#2a3a5a,stroke:#a78bfa
+    style S fill:#8b5cf6,color:#fff
+    style M fill:#3b82f6,color:#fff
+    style E1 fill:#06b6d4,color:#fff
+    style E2 fill:#06b6d4,color:#fff
+    style E3 fill:#06b6d4,color:#fff
       </pre>
     </div>
 
     <h3>Fiches agents</h3>
-    <div class="agent-grid">
-      <div class="agent-card">
-        <div class="agent-name">🎯 Sophie</div>
-        <div class="agent-role">PM Orchestrator</div>
-        <div class="agent-file">salesforce_pm.py · 16 Ko</div>
-        <div class="agent-desc">Cheffe de projet. Décompose les exigences en tâches, pilote le workflow, coordonne les agents. Point d'entrée de toute exécution.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">🔬 Emma</div>
-        <div class="agent-role">Research Analyst</div>
-        <div class="agent-file">salesforce_research_analyst.py · 46 Ko</div>
-        <div class="agent-desc">Analyse et digère les Use Cases. 3 modes : <code>analyze</code> (clustering UCs), <code>validate</code> (couverture 100%), <code>write_sds</code> (rédaction SDS). Le plus gros agent du projet.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">📋 Marcus</div>
-        <div class="agent-role">Solution Architect</div>
-        <div class="agent-file">salesforce_solution_architect.py · 16 Ko</div>
-        <div class="agent-desc">Architecte technique. 4 appels séquentiels : as_is, gap_analysis, solution_design, wbs. Produit l'architecture, les ERD, la matrice de permissions. Accède à 3 collections RAG.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">🏗️ Olivia</div>
-        <div class="agent-role">Business Analyst</div>
-        <div class="agent-file">salesforce_business_analyst.py · 40 Ko</div>
-        <div class="agent-desc">Traduit les besoins métier en exigences Salesforce structurées. Appelée N fois (1 par BR) pour générer les Use Cases. Utilise les collections RAG business + operations.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">⚡ Diego</div>
-        <div class="agent-role">Apex Developer</div>
-        <div class="agent-file">salesforce_developer_apex.py · 23 Ko</div>
-        <div class="agent-desc">Développe le code Apex (classes, triggers, tests). Utilise les collections RAG apex + technical.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">🎨 Zara</div>
-        <div class="agent-role">LWC Developer</div>
-        <div class="agent-file">salesforce_developer_lwc.py · 20 Ko</div>
-        <div class="agent-desc">Développe les composants Lightning Web Components. Utilise les collections RAG lwc + technical.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">⚙️ Jordan</div>
-        <div class="agent-role">DevOps</div>
-        <div class="agent-file">salesforce_devops.py · 10 Ko</div>
-        <div class="agent-desc">Déploiement et opérations. Gère les pipelines CI/CD Salesforce, la configuration SFDX. Collections technical + operations.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">🧪 Elena</div>
-        <div class="agent-role">QA Tester</div>
-        <div class="agent-file">salesforce_qa_tester.py · 22 Ko</div>
-        <div class="agent-desc">Tests et validation qualité. Vérifie le code produit par les développeurs. Collections technical + operations + apex.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">🔐 Raj</div>
-        <div class="agent-role">Salesforce Admin</div>
-        <div class="agent-file">salesforce_admin.py · 29 Ko</div>
-        <div class="agent-desc">Configuration admin Salesforce : profils, permissions, workflows, validation rules. Complexité élevée (SFDX, sys.path). Collections operations + technical.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">📦 Aisha</div>
-        <div class="agent-role">Data Migration</div>
-        <div class="agent-file">salesforce_data_migration.py · 16 Ko</div>
-        <div class="agent-desc">Migration de données entre systèmes. Mapping, transformation, validation d'intégrité. Collections technical + operations.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">📚 Lucas</div>
-        <div class="agent-role">Trainer</div>
-        <div class="agent-file">salesforce_trainer.py · 13 Ko</div>
-        <div class="agent-desc">Formateur. Génère les supports de formation, guides d'adoption, stratégies de change management. Collections business + operations. 33K chunks RAG.</div>
-      </div>
-      <div class="agent-card">
-        <div class="agent-name">📦 Data Migration</div>
-        <div class="agent-role">Spécialiste migration</div>
-        <div class="agent-file">salesforce_data_migration.py · 16 Ko</div>
-        <div class="agent-desc">Migration de données entre systèmes. Mapping, transformation, validation d'intégrité. Collections technical + operations.</div>
-      </div>
-    </div>
-
-    <h3>Matrice Agent → Collections RAG</h3>
     <table>
-      <tr><th>Agent</th><th>Collections</th><th>Chunks accessibles</th></tr>
-      <tr><td>Sophie (PM)</td><td>technical + operations + business</td><td>62,625</td></tr>
-      <tr><td>Emma (Research)</td><td>technical + operations + business</td><td>62,625</td></tr>
-      <tr><td>Olivia (BA)</td><td>business + operations</td><td>33,525</td></tr>
-      <tr><td>Marcus (Architect)</td><td>technical + operations + business</td><td>62,625</td></tr>
-      <tr><td>Diego (Apex)</td><td>apex + technical</td><td>30,694</td></tr>
-      <tr><td>Zara (LWC)</td><td>lwc + technical</td><td>35,132</td></tr>
-      <tr><td>Jordan (DevOps)</td><td>operations + technical</td><td>46,356</td></tr>
-      <tr><td>Elena (QA Tester)</td><td>technical + operations + apex</td><td>47,950</td></tr>
-      <tr><td>Raj (Admin)</td><td>operations + technical</td><td>46,356</td></tr>
-      <tr><td>Aisha (Data Migration)</td><td>technical + operations</td><td>46,356</td></tr>
-      <tr><td>Lucas (Trainer)</td><td>business + operations</td><td>33,525</td></tr>
+      <tr><th>Agent</th><th>Rôle</th><th>Phase SDS</th><th>Phase BUILD</th><th>Modèle LLM</th><th>agent_type</th></tr>
+      <tr><td><strong>Sophie</strong></td><td>Project Manager</td><td>1 — BR extraction</td><td>—</td><td>Opus 4.6</td><td><code>pm</code> → critical</td></tr>
+      <tr><td><strong>Olivia</strong></td><td>Business Analyst</td><td>2 — Use Cases</td><td>—</td><td>Sonnet 4.5</td><td><code>business_analyst</code> → complex</td></tr>
+      <tr><td><strong>Emma</strong></td><td>Research Analyst</td><td>2.5 / 3.3 / 4.5 / 5</td><td>—</td><td>Sonnet 4.5</td><td><code>research_analyst</code> → complex</td></tr>
+      <tr><td><strong>Marcus</strong></td><td>Solution Architect</td><td>3 — Architecture</td><td>—</td><td>Opus 4.6</td><td><code>architect</code> → critical</td></tr>
+      <tr><td><strong>Elena</strong></td><td>QA Engineer</td><td>4 — Test specs</td><td>6 — Tests</td><td>Sonnet → Haiku</td><td><code>qa_tester</code></td></tr>
+      <tr><td><strong>Jordan</strong></td><td>Admin Config</td><td>4 — Admin specs</td><td>1 — Config</td><td>Sonnet → Haiku</td><td><code>admin</code></td></tr>
+      <tr><td><strong>Raj</strong></td><td>Data Migration</td><td>4 — Data specs</td><td>2 — Migration</td><td>Sonnet → Haiku</td><td><code>data_migration</code></td></tr>
+      <tr><td><strong>Diego</strong></td><td>Apex Developer</td><td>—</td><td>3 — Apex code</td><td>Haiku</td><td><code>apex_developer</code></td></tr>
+      <tr><td><strong>Zara</strong></td><td>LWC Developer</td><td>—</td><td>4 — LWC code</td><td>Haiku</td><td><code>lwc_developer</code></td></tr>
+      <tr><td><strong>Aisha</strong></td><td>DevOps</td><td>4 — DevOps specs</td><td>5 — Deploy</td><td>Sonnet → Haiku</td><td><code>devops</code></td></tr>
+      <tr><td><strong>Lucas</strong></td><td>Trainer</td><td>4 — Training specs</td><td>—</td><td>Sonnet</td><td><code>trainer</code></td></tr>
+    </table>
+
+    <h3>Routage LLM (<code>llm_routing.yaml</code>)</h3>
+    <table>
+      <tr><th>Complexité</th><th>Modèle</th><th>Pricing (in/out per M)</th><th>Agents</th></tr>
+      <tr><td><code>critical</code></td><td>Claude Opus 4.6</td><td>$5 / $25</td><td>Sophie, Marcus</td></tr>
+      <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena, Jordan, Raj, Aisha, Lucas, Diego, Zara</td></tr>
+      <tr><td><code>medium</code></td><td>Claude Haiku</td><td>$1 / $5</td><td>BUILD agents</td></tr>
+      <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Classification, extraction</td></tr>
     </table>
   </div>
 
-  <!-- ==================== PHASE SDS ==================== -->
+  <!-- ==================== PIPELINE SDS ==================== -->
   <div id="sds-flow" class="section">
-    <h2>Phase SDS</h2>
-    <p class="section-desc">
-      La phase SDS (Solution Design Specification) transforme des Use Cases métier en un document technique complet
-      décrivant l'architecture Salesforce à implémenter.
-    </p>
+    <h2>Phase SDS — Spécification</h2>
+    <p class="section-desc">Le pipeline SDS transforme un document métier en spécification Salesforce complète via 5 phases avec validation humaine (HITL).</p>
 
-    <h3>Flux SDS complet</h3>
+    <h3>State Machine SDS (24 états)</h3>
     <div class="mermaid-wrapper">
       <pre class="mermaid">
-sequenceDiagram
-    participant U as Utilisateur
-    participant PM as Sophie (PM)
-    participant BA as Olivia (BA)
-    participant E as Emma (Research)
-    participant SA as Marcus (Architect)
-    participant EX as Experts SDS
-    participant W as Emma (SDS Writer)
-
-    U->>PM: Créer projet + Use Cases
-    PM->>PM: extract_br (Business Requirements)
-    PM-->>U: BRs à valider
-    U-->>PM: BRs validés
-
-    loop Pour chaque BR
-        PM->>BA: generate_use_cases(BR)
-        BA-->>PM: Use Cases structurés
-    end
-
-    PM->>E: analyze(use_cases)
-    E->>E: Clustering & Digest UCs
-    E-->>PM: UC Digest structuré
-
-    PM->>SA: as_is + gap_analysis
-    PM->>SA: solution_design(uc_digest)
-    PM->>SA: wbs(solution_design)
-    SA-->>PM: Solution Design complet
-
-    PM->>E: validate(solution, use_cases)
-    E->>E: Vérification couverture 100%
-    alt Couverture < 95%
-        E-->>PM: Coverage gaps
-        PM->>SA: revision(gaps)
-        SA-->>PM: Design révisé
-    end
-
-    par Experts en parallèle
-        PM->>EX: Elena(QA) + Jordan(DevOps) + Lucas(Trainer) + Aisha(Data)
-    end
-    EX-->>PM: Spécifications experts
-
-    PM->>W: write_sds(all deliverables)
-    W->>W: Assemblage SDS final
-    Note over W: ⚠️ Troncature 50-77% (P9 corrige)
-    W-->>U: SDS v3 (DOCX)
-</pre>
-    </div>
-
-    <h3>Versions SDS</h3>
-    <table>
-      <tr><th>Version</th><th>Méthode</th><th>État</th></tr>
-      <tr><td>SDS v1</td><td>Génération directe par un seul agent</td><td><span class="tag tag-pending">Legacy</span></td></tr>
-      <tr><td>SDS v2</td><td>Pipeline multi-agents (Sophie → Olivia → Marcus)</td><td><span class="tag tag-done">Actif</span></td></tr>
-      <tr><td>SDS v3</td><td>V2 + Emma (Research) + micro-analyse + DOCX pro</td><td><span class="tag tag-done">Actif</span></td></tr>
-    </table>
-  </div>
-
-  <!-- ==================== PHASE BUILD ==================== -->
-  <div id="build-flow" class="section">
-    <h2>Phase BUILD</h2>
-    <p class="section-desc">
-      La phase BUILD prend le SDS et génère le code Salesforce déployable : Apex, LWC, configurations admin, tests.
-      Le BUILD v2 utilise un exécuteur par phases (PhasedBuildExecutor) avec 50+ lots d'agents.
-    </p>
-
-    <h3>Flux BUILD v2</h3>
-    <div class="mermaid-wrapper">
-      <pre class="mermaid">
-flowchart TB
-    SDS["📄 SDS Document"] --> Decompose["Sophie décompose<br/>en tâches BUILD"]
-    Decompose --> Phases["PhasedBuildExecutor"]
-
-    subgraph Phase1["Phase 1 : Fondations"]
-        P1A["Raj : Objets custom<br/>Profils, Permissions"]
-        P1B["Raj : Workflows<br/>Validation Rules"]
-    end
-
-    subgraph Phase2["Phase 2 : Backend"]
-        P2A["Diego : Classes Apex<br/>Triggers"]
-        P2B["Diego : Services<br/>Batch Jobs"]
-    end
-
-    subgraph Phase3["Phase 3 : Frontend"]
-        P3A["Zara : Composants LWC"]
-        P3B["Zara : Pages Lightning"]
-    end
-
-    subgraph Phase4["Phase 4 : Qualité"]
-        P4A["Elena : Tests unitaires"]
-        P4B["Elena : Tests intégration"]
-    end
-
-    subgraph Phase5["Phase 5 : Déploiement"]
-        P5A["Jordan : Package<br/>& Deploy"]
-        P5B["Lucas : Documentation<br/>Formation"]
-    end
-
-    Phases --> Phase1 --> Phase2 --> Phase3 --> Phase4 --> Phase5
-    Phase5 --> Done["✅ Code Salesforce<br/>déployé"]
-
-    style Phase1 fill:#151922,stroke:#fb923c
-    style Phase2 fill:#151922,stroke:#4f8cff
-    style Phase3 fill:#151922,stroke:#a78bfa
-    style Phase4 fill:#151922,stroke:#34d399
-    style Phase5 fill:#151922,stroke:#22d3ee
+stateDiagram-v2
+    [*] --> queued
+    queued --> sds_phase1_running : start
+    state "Phase 1 — Sophie (BRs)" as sds_phase1_running
+    sds_phase1_running --> waiting_br_validation
+    state "⏸ HITL: Valider BRs" as waiting_br_validation
+    waiting_br_validation --> sds_phase2_running : approve
+    state "Phase 2 — Olivia (UCs)" as sds_phase2_running
+    sds_phase2_running --> sds_phase2_5_running
+    state "Phase 2.5 — Emma (UC Digest)" as sds_phase2_5_running
+    sds_phase2_5_running --> sds_phase3_running
+    state "Phase 3 — Marcus (Architecture)" as sds_phase3_running
+    sds_phase3_running --> coverage_check
+    state "Phase 3.3 — Emma (Coverage)" as coverage_check
+    coverage_check --> waiting_architecture_validation : score ≥ 85%
+    coverage_check --> sds_phase3_running : score < 85% fix_gaps
+    state "⏸ HITL: Review Architecture" as waiting_architecture_validation
+    waiting_architecture_validation --> sds_phase3_running : revise
+    waiting_architecture_validation --> sds_phase4_running : approve
+    state "Phase 4 — 5 Experts parallèle" as sds_phase4_running
+    sds_phase4_running --> waiting_expert_validation
+    state "⏸ HITL: Review Experts" as waiting_expert_validation
+    waiting_expert_validation --> sds_phase5_running : approve
+    state "Phase 5 — Emma (SDS Write)" as sds_phase5_running
+    sds_phase5_running --> sds_complete
+    sds_complete --> waiting_sds_validation
+    state "⏸ HITL: Valider SDS" as waiting_sds_validation
       </pre>
     </div>
+
+    <h3>HITL Validation Gates</h3>
+    <table>
+      <tr><th>Gate</th><th>État State Machine</th><th>Action utilisateur</th><th>Endpoint</th></tr>
+      <tr><td>Après Phase 1</td><td><code>WAITING_BR_VALIDATION</code></td><td>Éditer/valider BRs, modifier priorités</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après Phase 3.3</td><td><code>WAITING_ARCHITECTURE_VALIDATION</code></td><td>Review ERD, Flows, WBS → Approve ou Revise</td><td><code>POST .../resume</code></td></tr>
+      <tr><td>Après Phase 4</td><td><code>WAITING_EXPERT_VALIDATION</code></td><td>Valider specs QA, Admin, Data, DevOps, Training</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après Phase 5</td><td><code>WAITING_SDS_VALIDATION</code></td><td>Valider SDS final, télécharger DOCX</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après BUILD</td><td><code>WAITING_BUILD_VALIDATION</code></td><td>Valider code avant déploiement</td><td><code>POST .../validation-gate/submit</code></td></tr>
+    </table>
+
+    <h3>Révision Architecture (fix_gaps)</h3>
+    <p>Quand Emma détecte un coverage &lt; 85%, elle génère des gaps (<code>what_is_missing</code> + <code>fix_instruction</code>). Marcus reçoit ces gaps en mode <code>fix_gaps</code> (incrémental). Boucle auto-revision max 3 itérations.</p>
+  </div>
+  <!-- ==================== PIPELINE BUILD ==================== -->
+  <div id="build-flow" class="section">
+    <h2>Phase BUILD — Génération de code</h2>
+    <p class="section-desc">Le BUILD transforme les specs SDS en code Salesforce déployable. Chaque agent BUILD utilise Haiku et reçoit les specs détaillées de Marcus comme contexte.</p>
+
+    <h3>Flux BUILD</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    SDS[SDS Validé] --> J[Jordan — Admin Config]
+    J --> R[Raj — Data Migration]
+    R --> D[Diego — Apex Dev]
+    D --> Z[Zara — LWC Dev]
+    Z --> E[Elena — QA Tests]
+    E --> A[Aisha — Deploy]
+    A --> DONE[BUILD Complete]
+    style J fill:#fbbf24,color:#000
+    style R fill:#818cf8,color:#fff
+    style D fill:#f87171,color:#fff
+    style Z fill:#34d399,color:#000
+    style E fill:#f472b6,color:#fff
+    style A fill:#fb923c,color:#fff
+      </pre>
+    </div>
+    <table>
+      <tr><th>Phase</th><th>Agent</th><th>Output</th></tr>
+      <tr><td>1</td><td>Jordan (Admin)</td><td>Custom objects, fields, page layouts, permission sets</td></tr>
+      <tr><td>2</td><td>Raj (Data)</td><td>Migration scripts, data mapping, validation rules</td></tr>
+      <tr><td>3</td><td>Diego (Apex)</td><td>Triggers, classes, batch jobs, REST services</td></tr>
+      <tr><td>4</td><td>Zara (LWC)</td><td>Lightning Web Components</td></tr>
+      <tr><td>5</td><td>Elena (QA)</td><td>Test classes, data factories</td></tr>
+      <tr><td>6</td><td>Aisha (DevOps)</td><td>Package.xml, deploy scripts, CI/CD</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== HITL & CHAT ==================== -->
+  <div id="hitl" class="section">
+    <h2>HITL & Chat Multi-Agent</h2>
+    <p class="section-desc">Chat contextuel avec 9 agents (pas Diego/Zara, BUILD-only). Chaque agent charge ses deliverables comme contexte et maintient un historique séparé.</p>
+
+    <h3>Chat contextuel (9 agents)</h3>
+    <table>
+      <tr><th>Agent</th><th>Couleur</th><th>Contexte auto-chargé</th><th>Spécialité chat</th></tr>
+      <tr><td>Sophie</td><td style="color:#8b5cf6">◼ Purple</td><td>BRs, project overview</td><td>PM, création de Change Requests</td></tr>
+      <tr><td>Marcus</td><td style="color:#3b82f6">◼ Blue</td><td>solution_design, wbs, gap_analysis</td><td>Architecture, data model, flows, security</td></tr>
+      <tr><td>Olivia</td><td style="color:#34d399">◼ Green</td><td>use_cases, uc_digest</td><td>Use cases, business logic</td></tr>
+      <tr><td>Emma</td><td style="color:#06b6d4">◼ Cyan</td><td>coverage_report, sds</td><td>Coverage, SDS validation</td></tr>
+      <tr><td>Elena</td><td style="color:#f472b6">◼ Pink</td><td>qa_plan</td><td>Test scenarios, risques</td></tr>
+      <tr><td>Jordan</td><td style="color:#fbbf24">◼ Yellow</td><td>admin_config</td><td>Configuration, permissions</td></tr>
+      <tr><td>Aisha</td><td style="color:#fb923c">◼ Orange</td><td>devops_plan</td><td>CI/CD, environments</td></tr>
+      <tr><td>Lucas</td><td style="color:#14b8a6">◼ Teal</td><td>training_plan</td><td>Modules de formation</td></tr>
+      <tr><td>Raj</td><td style="color:#6366f1">◼ Indigo</td><td>data_migration_plan</td><td>Mappings, stratégies data</td></tr>
+    </table>
+
+    <h3>Change Requests (CR)</h3>
+    <p>Lifecycle complet : <code>draft → submitted → analyzed → approved → processing → completed</code>. Sophie détecte les demandes de CR dans le chat, crée le CR, analyse l'impact (agents à rerun + coût estimé), et l'utilisateur approuve/rejette.</p>
+
+    <h3>Versioning</h3>
+    <p>Chaque exécution de CR crée une nouvelle version du SDS. Historique des versions avec diff side-by-side.</p>
   </div>
 
   <!-- ==================== RAG ==================== -->
   <div id="rag" class="section">
     <h2>RAG & Knowledge Base</h2>
-    <p class="section-desc">
-      Le système RAG (Retrieval Augmented Generation) fournit aux agents un accès contextuel
-      à 70,251 chunks de documentation Salesforce via ChromaDB.
-    </p>
-
-    <h3>Collections</h3>
-    <div class="mermaid-wrapper">
-      <pre class="mermaid">
-pie title Distribution des chunks RAG (70,251 total)
-    "technical (29,100)" : 29100
-    "operations (17,256)" : 17256
-    "business (16,269)" : 16269
-    "lwc (6,032)" : 6032
-    "apex (1,594)" : 1594
-      </pre>
-    </div>
-
+    <p class="section-desc">ChromaDB héberge 70,251 chunks de documentation Salesforce répartis en 5 collections thématiques.</p>
     <table>
-      <tr><th>Collection</th><th>Chunks</th><th>Embedding</th><th>Contenu</th></tr>
-      <tr><td><code>technical_collection</code></td><td>29,100</td><td>OpenAI text-embedding-3-large</td><td>Architecture, API docs, specs techniques</td></tr>
-      <tr><td><code>operations_collection</code></td><td>17,256</td><td>OpenAI text-embedding-3-large</td><td>Guides opérationnels, best practices</td></tr>
-      <tr><td><code>business_collection</code></td><td>16,269</td><td>OpenAI text-embedding-3-large</td><td>Business requirements, use cases, solutions</td></tr>
-      <tr><td><code>lwc_collection</code></td><td>6,032</td><td>Nomic nomic-embed-text-v1.5 (local)</td><td>Composants LWC, patterns JavaScript</td></tr>
-      <tr><td><code>apex_collection</code></td><td>1,594</td><td>Nomic nomic-embed-text-v1.5 (local)</td><td>Code Apex, triggers, SOQL patterns</td></tr>
+      <tr><th>Collection</th><th>Chunks</th><th>Agents utilisateurs</th></tr>
+      <tr><td><code>salesforce_admin</code></td><td>~14K</td><td>Jordan, Marcus</td></tr>
+      <tr><td><code>salesforce_developer</code></td><td>~18K</td><td>Diego, Zara, Marcus</td></tr>
+      <tr><td><code>salesforce_architect</code></td><td>~12K</td><td>Marcus, Olivia</td></tr>
+      <tr><td><code>salesforce_data</code></td><td>~11K</td><td>Raj, Aisha</td></tr>
+      <tr><td><code>salesforce_consultant</code></td><td>~15K</td><td>Sophie, Olivia, Lucas</td></tr>
     </table>
-
-    <h3>Processus de recherche</h3>
-    <div class="mermaid-wrapper">
-      <pre class="mermaid">
-flowchart LR
-    Q["Query agent"] --> Detect["Détection collections<br/><i>AGENT_COLLECTIONS map</i>"]
-    Detect --> Embed["Génération embedding<br/><i>OpenAI ou Nomic</i>"]
-    Embed --> Search["Recherche vectorielle<br/><i>Top 30 candidats</i>"]
-    Search --> Rerank["Reranking BGE<br/><i>bge-reranker-v2-m3</i>"]
-    Rerank --> Result["Top 10 résultats<br/><i>+ métadonnées</i>"]
-
-    style Rerank fill:#2a3a5a,stroke:#a78bfa
-      </pre>
-    </div>
-
-    <h4>Localisation</h4>
-    <table>
-      <tr><th>Base</th><th>Chemin</th><th>Taille</th><th>Statut</th></tr>
-      <tr><td>Production</td><td><code>/opt/digital-humans/rag/chromadb_data/</code></td><td>2.4 GB</td><td><span class="tag tag-done">Active</span></td></tr>
-      <tr><td>Backup</td><td><code>/opt/digital-humans/rag/chromadb_data_backup_20251206_openai/</code></td><td>2.2 GB</td><td><span class="tag tag-done">OK</span></td></tr>
-      <tr><td>Obsolète</td><td><code>backend/chroma_db/</code></td><td>164 KB</td><td><span class="tag tag-pending">À supprimer</span></td></tr>
-    </table>
+    <p><strong>Statut :</strong> <span class="tag tag-major">Needs repair</span> — ingestion incomplète. Les agents fonctionnent sans RAG (qualité inférieure mais opérationnel).</p>
   </div>
-
-  <!-- ==================== INFRASTRUCTURE ==================== -->
+  <!-- ==================== SERVICES ==================== -->
   <div id="infra" class="section">
     <h2>Services & Infrastructure</h2>
-    <p class="section-desc">
-      VPS Hostinger · 72.61.161.222 · Ubuntu 24.04 LTS
-    </p>
-
-    <h3>État des services</h3>
-    <div class="card">
-      <div class="service-row">
-        <div><span class="status-dot active"></span><span class="service-name">PostgreSQL</span></div>
-        <div class="service-port">:5432 · Auto-start</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot active"></span><span class="service-name">Nginx</span></div>
-        <div class="service-port">:80/443 · Auto-start</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot active"></span><span class="service-name">Ghost CMS (Docker)</span></div>
-        <div class="service-port">:2368 · Auto-restart</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot inactive"></span><span class="service-name">Backend FastAPI</span></div>
-        <div class="service-port">:8002 · Démarrage manuel</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot inactive"></span><span class="service-name">Frontend React</span></div>
-        <div class="service-port">:3000 · Démarrage manuel</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot partial"></span><span class="service-name">Ollama/Mistral</span></div>
-        <div class="service-port">:11434 · Optionnel (SDS v3)</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot active"></span><span class="service-name">ChromaDB RAG</span></div>
-        <div class="service-port">Embedded · 70K chunks</div>
-      </div>
-      <div class="service-row">
-        <div><span class="status-dot inactive"></span><span class="service-name">N8N Workflows</span></div>
-        <div class="service-port">:5678 · Non utilisé</div>
-      </div>
-    </div>
+    <p class="section-desc">Tous les services sont gérés via <code>systemctl</code> sur Ubuntu 24.04.</p>
+    <table>
+      <tr><th>Service</th><th>systemctl unit</th><th>Port</th><th>Statut</th></tr>
+      <tr><td>Backend API</td><td><code>digital-humans-backend</code></td><td>8002</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>ARQ Worker</td><td><code>digital-humans-worker</code></td><td>—</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>ChromaDB</td><td><code>chromadb</code></td><td>8000</td><td><span class="tag tag-major">needs repair</span></td></tr>
+      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Ghost CMS</td><td><code>ghost_digital-humans</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
+    </table>
 
     <h3>Commandes essentielles</h3>
-    <h4>Démarrage complet</h4>
-    <pre>cd /root/workspace/digital-humans-production/backend
-source venv/bin/activate
-nohup uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload > /tmp/backend.log 2>&1 &
-
-cd /root/workspace/digital-humans-production/frontend
-nohup npm run dev -- --host 0.0.0.0 > /tmp/frontend.log 2>&1 &</pre>
-
-    <h4>Vérification rapide</h4>
-    <pre>ss -tlnp | grep -E '3000|8002|11434|5678'
-curl -s localhost:8002/docs && echo 'Backend OK' || echo 'Backend KO'
-curl -s localhost:3000 && echo 'Frontend OK' || echo 'Frontend KO'</pre>
-
-    <h4>Arrêt</h4>
-    <pre>fuser -k 8002/tcp   # Backend
-pkill -f 'vite'     # Frontend</pre>
+    <table>
+      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><td>Restart backend</td><td><code>sudo systemctl restart digital-humans-backend</code></td></tr>
+      <tr><td>Restart worker</td><td><code>sudo systemctl restart digital-humans-worker</code></td></tr>
+      <tr><td>Build frontend</td><td><code>cd frontend && npm run build && sudo systemctl restart digital-humans-frontend</code></td></tr>
+      <tr><td>Logs backend</td><td><code>journalctl -u digital-humans-backend -f --no-pager | grep -v sqlalchemy</code></td></tr>
+      <tr><td>Logs worker</td><td><code>journalctl -u digital-humans-worker -f --no-pager</code></td></tr>
+      <tr><td>DB shell</td><td><code>sudo -u postgres psql digital_humans</code></td></tr>
+      <tr><td>Health check</td><td><code>curl -s localhost:8002/api/health | jq</code></td></tr>
+    </table>
   </div>
 
+  <!-- ==================== DATABASE ==================== -->
+  <div id="database" class="section">
+    <h2>Base de données</h2>
+    <p class="section-desc">PostgreSQL 16 — 41 tables.</p>
+    <h3>Tables principales (métier)</h3>
+    <table>
+      <tr><th>Table</th><th>Cols</th><th>Rôle</th></tr>
+      <tr><td><code>projects</code></td><td>51</td><td>Projets Salesforce (nom, description, config, settings)</td></tr>
+      <tr><td><code>executions</code></td><td>22</td><td>Exécutions SDS/BUILD (status, state, budget_used, cost_usd)</td></tr>
+      <tr><td><code>agent_deliverables</code></td><td>10</td><td>Livrables JSON par agent et par exécution</td></tr>
+      <tr><td><code>execution_agents</code></td><td>7</td><td>Status/progress/tokens par agent</td></tr>
+      <tr><td><code>agent_iterations</code></td><td>10</td><td>Historique itérations (Marcus revisions, Emma re-checks)</td></tr>
+      <tr><td><code>validation_gates</code></td><td>13</td><td>Décisions HITL (gate_type, decision, feedback)</td></tr>
+      <tr><td><code>project_conversations</code></td><td>10</td><td>Chat HITL multi-agent (agent_id, role, message)</td></tr>
+      <tr><td><code>change_requests</code></td><td>21</td><td>CR lifecycle (status, impact_analysis, estimated_cost)</td></tr>
+      <tr><td><code>sds_versions</code></td><td>11</td><td>Versioning des SDS (diff entre versions)</td></tr>
+      <tr><td><code>business_requirements</code></td><td>17</td><td>BRs extraites par Sophie</td></tr>
+      <tr><td><code>uc_requirement_sheets</code></td><td>17</td><td>Use Cases structurées par Olivia</td></tr>
+      <tr><td><code>llm_interactions</code></td><td>18</td><td>Log appels LLM (model, tokens, cost_usd)</td></tr>
+      <tr><td><code>build_phase_executions</code></td><td>21</td><td>Suivi phases BUILD</td></tr>
+      <tr><td><code>task_executions</code></td><td>29</td><td>Tâches BUILD individuelles</td></tr>
+    </table>
+    <h3>Tables secondaires</h3>
+    <p><code>audit_logs</code> (22), <code>quality_gates</code> (11), <code>execution_artifacts</code> (16), <code>project_environments</code> (21), <code>project_credentials</code> (8), <code>project_git_config</code> (17), <code>project_documents</code> (12), <code>project_data_sources</code> (11), <code>sds_templates</code> (20), <code>users</code> (11), <code>agents</code> (6), <code>deliverable_items</code> (14)</p>
+    <p>Marketing : <code>leads</code>, <code>prospects</code>, <code>blog_articles</code>, <code>blog_topics</code>, <code>linkedin_posts</code>, <code>outreach_emails</code>, <code>newsletter_sends</code>, <code>meeting_requests</code>, <code>veille_reports</code></p>
+  </div>
   <!-- ==================== API REFERENCE ==================== -->
   <div id="api" class="section">
     <h2>API Reference</h2>
-    <p class="section-desc">
-      Principaux endpoints de l'API FastAPI. Documentation Swagger complète sur <code>http://72.61.161.222:8002/docs</code>
-    </p>
+    <p class="section-desc">177 endpoints REST répartis sur 32 fichiers. Préfixe <code>/api/pm-orchestrator/</code> (orchestrateur) ou <code>/api/</code>.</p>
 
-    <h3>Endpoints principaux</h3>
+    <h3>Projets</h3>
     <table>
-      <tr><th>Méthode</th><th>Route</th><th>Description</th></tr>
-      <tr><td><code>GET</code></td><td>/api/health</td><td>Health check</td></tr>
-      <tr><td><code>POST</code></td><td>/api/auth/login</td><td>Authentification → JWT</td></tr>
-      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/projects</td><td>Créer un projet</td></tr>
-      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/projects</td><td>Lister les projets</td></tr>
-      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/projects/{id}</td><td>Détail d'un projet</td></tr>
-      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/projects/{id}/execute</td><td>Lancer l'exécution SDS</td></tr>
-      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/executions/{id}/progress</td><td>Progression d'exécution</td></tr>
-      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/dashboard/stats</td><td>Stats tableau de bord</td></tr>
-      <tr><td><code>POST</code></td><td>/api/pm-orchestrator/execute/{id}/generate-docx</td><td>Générer SDS DOCX</td></tr>
-      <tr><td><code>GET</code></td><td>/api/pm-orchestrator/execute/{id}/download-sds-v3</td><td>Télécharger SDS</td></tr>
-      <tr><td><code>WS</code></td><td>/ws</td><td>WebSocket temps réel</td></tr>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>POST</td><td><code>/api/pm-orchestrator/projects</code></td><td>Créer un projet</td></tr>
+      <tr><td>GET</td><td><code>/api/pm-orchestrator/projects</code></td><td>Lister les projets</td></tr>
+      <tr><td>GET</td><td><code>.../projects/{id}</code></td><td>Détail</td></tr>
+      <tr><td>PUT</td><td><code>.../projects/{id}</code></td><td>Modifier</td></tr>
+      <tr><td>GET</td><td><code>.../dashboard/stats</code></td><td>Stats tableau de bord</td></tr>
     </table>
+
+    <h3>Exécutions SDS</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>POST</td><td><code>.../execute</code></td><td>Démarrer exécution SDS (→ ARQ queue)</td></tr>
+      <tr><td>POST</td><td><code>.../execute/{id}/resume</code></td><td>Reprendre après gate (approve/revise)</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/progress</code></td><td>Progression temps réel</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/progress/stream</code></td><td>SSE streaming</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/result</code></td><td>Résultat final</td></tr>
+      <tr><td>POST</td><td><code>.../execute/{id}/retry</code></td><td>Retry exécution</td></tr>
+    </table>
+
+    <h3>Validation Gates</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/validation-gate</code></td><td>État du gate actuel</td></tr>
+      <tr><td>POST</td><td><code>.../execute/{id}/validation-gate/submit</code></td><td>Approve/reject + feedback</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/validation-history</code></td><td>Historique validations</td></tr>
+      <tr><td>GET/PUT</td><td><code>.../projects/{id}/validation-gates</code></td><td>Config des gates (on/off)</td></tr>
+    </table>
+
+    <h3>HITL — Chat & Change Requests</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>POST</td><td><code>/api/hitl/executions/{id}/chat</code></td><td>Chat multi-agent (body: message, agent_id)</td></tr>
+      <tr><td>GET</td><td><code>.../executions/{id}/agents</code></td><td>Agents disponibles</td></tr>
+      <tr><td>GET</td><td><code>.../executions/{id}/chat/history</code></td><td>Historique par agent</td></tr>
+      <tr><td>GET</td><td><code>.../executions/{id}/metrics</code></td><td>Métriques (coûts, tokens)</td></tr>
+      <tr><td>GET</td><td><code>.../projects/{id}/change-requests</code></td><td>Liste CRs</td></tr>
+      <tr><td>POST</td><td><code>.../change-requests/{id}/analyze</code></td><td>Analyse d'impact</td></tr>
+      <tr><td>POST</td><td><code>.../change-requests/{id}/approve</code></td><td>Approuver CR</td></tr>
+      <tr><td>POST</td><td><code>.../change-requests/{id}/execute</code></td><td>Exécuter CR</td></tr>
+    </table>
+
+    <h3>Deliverables</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>GET</td><td><code>/api/deliverables/executions/{id}/previews</code></td><td>Previews de tous les livrables</td></tr>
+      <tr><td>GET</td><td><code>/api/deliverables/{id}/full</code></td><td>Contenu complet (JSON/Markdown)</td></tr>
+      <tr><td>GET</td><td><code>.../executions/{id}/agents/{agent}</code></td><td>Livrables par agent</td></tr>
+      <tr><td>GET</td><td><code>/api/hitl/deliverables/{id}/versions</code></td><td>Historique versions</td></tr>
+      <tr><td>GET</td><td><code>/api/hitl/deliverables/{id}/diff</code></td><td>Diff side-by-side</td></tr>
+    </table>
+
+    <h3>BUILD</h3>
+    <table>
+      <tr><th>Method</th><th>Endpoint</th><th>Description</th></tr>
+      <tr><td>POST</td><td><code>.../projects/{id}/start-build</code></td><td>Démarrer BUILD (→ ARQ)</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/build-phases</code></td><td>Progression phases BUILD</td></tr>
+      <tr><td>GET</td><td><code>.../execute/{id}/build-tasks</code></td><td>Détail tâches BUILD</td></tr>
+    </table>
+  </div>
+
+  <!-- ==================== FRONTEND ==================== -->
+  <div id="frontend" class="section">
+    <h2>Frontend</h2>
+    <p class="section-desc">React 18 + Vite + TailwindCSS. 13 pages, 19 composants spécialisés.</p>
+    <h3>Pages</h3>
+    <table>
+      <tr><th>Page</th><th>Route</th><th>Description</th></tr>
+      <tr><td><code>Dashboard</code></td><td>/</td><td>Vue d'ensemble, stats, dernières exécutions</td></tr>
+      <tr><td><code>Projects</code></td><td>/projects</td><td>Liste des projets</td></tr>
+      <tr><td><code>ProjectDetailPage</code></td><td>/projects/{id}</td><td>Détail projet, CRs, SDS versions</td></tr>
+      <tr><td><code>ExecutionMonitoringPage</code></td><td>/execution/{id}</td><td>Timeline, deliverables, chat, HITL gates</td></tr>
+      <tr><td><code>BRValidationPage</code></td><td>/br-validation/{id}</td><td>Validation des Business Requirements</td></tr>
+      <tr><td><code>BuildMonitoringPage</code></td><td>/build/{id}</td><td>Suivi BUILD, code preview</td></tr>
+      <tr><td><code>ProjectWizard</code></td><td>/wizard</td><td>Assistant création projet</td></tr>
+      <tr><td><code>AgentTesterPage</code></td><td>/agent-tester</td><td>Test individuel d'agents</td></tr>
+      <tr><td><code>LoginPage</code></td><td>/login</td><td>Authentification JWT</td></tr>
+    </table>
+    <h3>Composants clés</h3>
+    <table>
+      <tr><th>Composant</th><th>Rôle</th></tr>
+      <tr><td><code>TimelineStepper</code></td><td>Timeline 5 phases (pending/active/waiting_hitl/completed/failed)</td></tr>
+      <tr><td><code>ArchitectureReviewPanel</code></td><td>ERD Mermaid, Flows accordéons, WBS Gantt, Security OWD</td></tr>
+      <tr><td><code>StructuredRenderer</code></td><td>Route JSON deliverables → UI typée (BR table, coverage grid, expert specs)</td></tr>
+      <tr><td><code>DeliverableViewer</code></td><td>Détecte type (JSON/Markdown/Mermaid) → bon renderer</td></tr>
+      <tr><td><code>ChatSidebar</code></td><td>Chat multi-agent 9 agents, color-coded, historique par agent</td></tr>
+      <tr><td><code>ValidationGatePanel</code></td><td>Approve/Reject + feedback texte</td></tr>
+      <tr><td><code>SDSPreview</code></td><td>Rendu Markdown avec TOC et Mermaid inline</td></tr>
+      <tr><td><code>GanttChart</code></td><td>Timeline WBS (durée, dépendances)</td></tr>
+      <tr><td><code>MermaidRenderer</code></td><td>Mermaid code → SVG</td></tr>
+      <tr><td><code>ExecutionMetrics</code></td><td>Dashboard coûts, tokens, durée par agent</td></tr>
+      <tr><td><code>DiffViewer</code></td><td>Diff side-by-side versions SDS</td></tr>
+      <tr><td><code>BuildPhasesPanel</code></td><td>Suivi 6 phases BUILD avec code preview</td></tr>
+    </table>
+  </div>
+  <!-- ==================== PROBLÈMES ==================== -->
+  <div id="problems" class="section">
+    <h2>Problèmes architecturaux (P0-P9)</h2>
+    <p class="section-desc">10 problèmes identifiés lors de l'audit. 5 fixés, 3 partiels, 2 restants.</p>
+    <div class="card-grid">
+      <div class="card">
+        <h4 style="color:var(--green)">✅ Fixés (5)</h4>
+        <p><strong>P0</strong> async def → sync def (S0)<br>
+        <strong>P1</strong> pm.py supprimé (S0)<br>
+        <strong>P2</strong> paths centralisés config.py (S0)<br>
+        <strong>P6</strong> 13 hardcoded models → YAML (13 fév)<br>
+        <strong>P9</strong> safe_content() limits ×6 (13 fév)</p>
+      </div>
+      <div class="card">
+        <h4 style="color:var(--orange)">⚠️ Partiels (3)</h4>
+        <p><strong>P3</strong> subprocess → asyncio.create_subprocess (S1) — toujours subprocess pas import<br>
+        <strong>P4</strong> Routes splitées 6 fichiers (S2) — service 3396 lignes<br>
+        <strong>P8</strong> SECRET_KEY validé en prod (S3) — pas de rotation</p>
+      </div>
+      <div class="card">
+        <h4 style="color:var(--red)">❌ Planifiés (2)</h4>
+        <p><strong>P5</strong> Logs fragmentés — <code>import logging</code> basique<br>
+        <strong>P7</strong> Transactions — 24 <code>db.commit()</code> éparpillés</p>
+      </div>
+    </div>
   </div>
 
   <!-- ==================== PLAN DE REFONTE ==================== -->
   <div id="refonte" class="section">
     <h2>Plan de refonte 2026</h2>
-    <p class="section-desc">
-      Refonte architecturale complète utilisant Claude Code Agent Teams (Opus 4.6).
-      Méthodologie anti-régression avec tags git, baseline tests, et rollback &lt;30s.
-    </p>
+    <p class="section-desc">Refonte architecturale utilisant Claude Code Agent Teams (Opus 4.6). Méthodologie anti-régression avec tags git et baseline tests.</p>
 
     <h3>Stratégie Agent Teams</h3>
     <div class="mermaid-wrapper">
       <pre class="mermaid">
 flowchart TB
     subgraph P1["Phase 1 — L'Architecte"]
-        A1["1 agent Opus<br/>Fenêtre 1M tokens<br/>Analyse repo entier (680K tokens)"]
+        A1["1 agent Opus — Fenêtre 1M tokens — Analyse repo 680K tokens"]
     end
-
-    subgraph P2["Phase 2 — Les Spécialistes (parallèle)"]
+    subgraph P2["Phase 2 — Les Spécialistes — parallèle"]
         direction LR
-        S["🔧 Stabilizer<br/>P0 + P1 + P2<br/><i>1 semaine</i>"]
-        R["🔄 Refactorer<br/>P3 : 11 agents<br/><i>2-3 semaines</i>"]
-        M["🏗️ Modernizer<br/>P4 + P7<br/><i>1-2 semaines</i>"]
+        S["Stabilizer P0+P1+P2 — Terminé"]
+        R["Refactorer P3 11 agents — Partiel"]
+        M["Modernizer P4+P7 — Partiel"]
     end
-
     subgraph P3["Phase 3 — L'Intégrateur"]
-        I1["Smoke tests complets"]
-        I2["Vérif contrats d'interface"]
-        I3["Tag git + Rapport final"]
+        I1["Smoke tests + Contrats + Tag git"]
     end
-
-    P1 -->|"Docs de référence"| P2
+    P1 -->|Docs référence| P2
     P2 --> P3
-
     style P1 fill:#151922,stroke:#4f8cff,stroke-width:2px
     style P2 fill:#151922,stroke:#34d399,stroke-width:2px
     style P3 fill:#151922,stroke:#a78bfa,stroke-width:2px
@@ -1043,151 +926,94 @@ flowchart TB
     <h3>Planning</h3>
     <table>
       <tr><th>Semaine</th><th>Phase</th><th>Actions</th><th>Statut</th></tr>
-      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse et documentation complète (5 docs référence)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
-      <tr><td>S2</td><td>Sprint 0</td><td>Stabilizer : P0 (async fix) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
-      <tr><td>S3</td><td>Sprint 1+2</td><td>Refactorer P3 (11/11 agents importables) + Modernizer P4/P7</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
-      <tr><td>S4</td><td>Sprint 3</td><td>P5 logging + P6 LLM router bridge + P8 secrets</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
-      <tr><td>S5</td><td>Horizons 2+3</td><td>10 streams parallèles : State Machine, ARQ, Budget, RAG, UX, HITL, Prompts</td><td><span class="tag tag-done">✅ Mergé (10 fév)</span></td></tr>
-      <tr><td>S6</td><td>Sprint I</td><td>E2E #140→#141→#142 + 16 bug fixes + HITL coverage gate</td><td><span class="tag tag-done">✅ Terminé (11 fév)</span></td></tr>
-      <tr><td>S7</td><td>E2E #143+</td><td>Deploy BUG-015/016/007, fix truncation, stabiliser coverage ≥70%</td><td><span class="tag tag-done">✅ Terminé (12-13 fév)</span></td></tr>
-      <tr><td>S7.5</td><td>Tracks A+B+C + Sprint 4+5</td><td>Backend: 7 bugs fixés (keys, truncation, pricing, models, prompts). Frontend: ArchitectureReviewPanel rewrite, StructuredRenderer, ChatSidebar multi-agent. Revision: fix_gaps mode (incremental).</td><td><span class="tag tag-done">✅ Terminé (13 fév)</span></td></tr>
-      <tr><td>S8</td><td>E2E #145</td><td>Validation complète post-fixes : Marcus Opus 4.6, SDS 12 sections, cost tracking, UI fonctionnelle</td><td><span class="tag tag-active">🔄 Prochain</span></td></tr>
-      <tr><td>S9</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class, contracts communs</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse + 5 docs référence</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S2</td><td>Sprint 0</td><td>Stabilizer : P0 (async) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S3</td><td>Sprint 1+2</td><td>Refactorer P3 (subprocess→async) + Modernizer P4/P7</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S4</td><td>Sprint 3</td><td>P5 logging + P6 LLM router + P8 secrets</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S5</td><td>Horizons 2+3</td><td>10 streams : State Machine, ARQ, Budget, RAG, UX, HITL, Prompts</td><td><span class="tag tag-done">✅ Mergé (10 fév)</span></td></tr>
+      <tr><td>S6</td><td>Sprint I</td><td>E2E #140→#142 + 16 fixes + HITL coverage gate</td><td><span class="tag tag-done">✅ Terminé (11 fév)</span></td></tr>
+      <tr><td>S7</td><td>E2E #143+#144</td><td>Coverage fix (45%→90.3%), 30 bugs, Plan V2</td><td><span class="tag tag-done">✅ Terminé (12 fév)</span></td></tr>
+      <tr><td>S7.5</td><td>Tracks A+B+C</td><td>7 bugs backend, ArchitectureReviewPanel, StructuredRenderer, ChatSidebar multi-agent, fix_gaps</td><td><span class="tag tag-done">✅ Terminé (13 fév)</span></td></tr>
+      <tr><td>S8</td><td>E2E #145</td><td>Validation complète post-fixes</td><td><span class="tag tag-active">🔄 Prochain</span></td></tr>
+      <tr><td>S9</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S10</td><td>Agent Teams</td><td>Refonte finale Claude Code Agent Teams</td><td><span class="tag tag-pending">Planifié (fin fév)</span></td></tr>
     </table>
-
-    <h3>Dépendances</h3>
-    <div class="mermaid-wrapper">
-      <pre class="mermaid">
-flowchart LR
-    P0["P0<br/>Async Fix"] --> P3["P3<br/>Subprocess→Import"]
-    P1["P1<br/>Dead Code"] --> P2["P2<br/>Paths"]
-    P2 --> P3
-    P0 --> P4["P4<br/>Fat Controller"]
-    P0 --> P7["P7<br/>Transactions"]
-    P3 --> P5["P5<br/>Logs"]
-    P3 --> P6["P6<br/>LLM Router"]
-    P3 --> P8["P8<br/>Secrets"]
-    P0 --> P9["P9<br/>SDS Sections"]
-    P3 -.->|"recommandé"| P9
-
-    style P0 fill:#4a1c1c,stroke:#f87171
-    style P3 fill:#4a1c1c,stroke:#f87171
-    style P1 fill:#4a1c1c,stroke:#f87171
-    style P2 fill:#4a1c1c,stroke:#f87171
-    style P4 fill:#3a2a0a,stroke:#fb923c
-    style P5 fill:#3a2a0a,stroke:#fb923c
-    style P6 fill:#2a2a4a,stroke:#a78bfa
-    style P7 fill:#3a2a0a,stroke:#fb923c
-    style P8 fill:#2a2a4a,stroke:#a78bfa
-    style P9 fill:#0a3a2a,stroke:#34d399
-      </pre>
-    </div>
   </div>
 
   <!-- ==================== JOURNAL ==================== -->
   <div id="journal" class="section">
     <h2>Journal de la refonte</h2>
-    <p class="section-desc">
-      Timeline des événements, décisions et résultats au fil de la refonte.
-    </p>
-
+    <p class="section-desc">Timeline des événements, décisions et résultats.</p>
     <div class="timeline">
       <div class="timeline-item done">
-        <div class="timeline-date">5 février 2026</div>
+        <div class="timeline-date">5 fév 2026</div>
         <div class="timeline-title">Audit technique exhaustif</div>
-        <div class="timeline-desc">Analyse statique (Claude) + audit contextuel (Gemini). 15 problèmes identifiés dont 5 critiques. Plan de migration consolidé P0→P8.</div>
+        <div class="timeline-desc">Analyse statique (Claude) + contextuelle (Gemini). 15 problèmes, 5 critiques. Plan P0→P8.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">5 février 2026</div>
-        <div class="timeline-title">Analyse RAG complète</div>
-        <div class="timeline-desc">70,251 chunks inventoriés. 5 collections. Mapping agent→collections documenté. Base fonctionnelle confirmée.</div>
+        <div class="timeline-date">6 fév 2026</div>
+        <div class="timeline-title">Playbook de migration + Blueprint Agent Teams</div>
+        <div class="timeline-desc">Plan d'exécution anti-régression. 6 agents définis.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">5 février 2026</div>
-        <div class="timeline-title">Guide admin serveur v2</div>
-        <div class="timeline-desc">Documentation complète de l'administration VPS avec section RAG.</div>
+        <div class="timeline-date">7 fév 2026</div>
+        <div class="timeline-title">Fix rôles agents + P9 SDS Sections</div>
+        <div class="timeline-desc">Olivia=BA, Marcus=Architect. Découverte troncature critique safe_content().</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">6 février 2026</div>
-        <div class="timeline-title">Playbook de migration</div>
-        <div class="timeline-desc">Plan d'exécution exhaustif avec méthodologie anti-régression. 5 principes, stratégie Git, protocole smoke test, 4 sprints détaillés.</div>
+        <div class="timeline-date">7-8 fév 2026</div>
+        <div class="timeline-title">Sprints 0→3 — Refonte backend</div>
+        <div class="timeline-desc">S0: P0+P1+P2. S1: P3 subprocess→async. S2: P4 fat controller split. S3: P5+P6+P8.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">7 février 2026</div>
-        <div class="timeline-title">Blueprint Agent Teams</div>
-        <div class="timeline-desc">Architecture de refonte via Claude Code Agent Teams. 6 agents définis (Architect, Stabilizer, Refactorer, Modernizer, Integrator, Reviewer). Contrats d'interface et séquencement détaillés.</div>
+        <div class="timeline-date">8-9 fév 2026</div>
+        <div class="timeline-title">Sprint H — Horizons 2+3 (10 streams)</div>
+        <div class="timeline-desc">State Machine 24 états, ARQ workers, BudgetService + CircuitBreaker, HITL routes, Mermaid/Gantt/Metrics/DiffViewer.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">7 février 2026</div>
-        <div class="timeline-title">Correction rôles agents + P9 SDS Sections</div>
-        <div class="timeline-desc">Analyse du code révèle : Olivia=BA, Marcus=Architect (inversés dans la doc initiale). Pipeline SDS corrigé (6 étapes). Découverte troncature critique : Emma perd 50-77% des livrables experts dans write_sds. Spec P9 formalisée : génération séquencée en 11 sections, 0% troncature.</div>
+        <div class="timeline-date">10-11 fév 2026</div>
+        <div class="timeline-title">Sprint I — E2E #140 → #142</div>
+        <div class="timeline-desc">#140: P0+P1 pass. #141: Phase 4 pass, P5 crash. #142: 🎉 Premier run complet Phases 1→5 (33 BRs → 165 UCs → SDS, ~$13.59).</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">7 février 2026</div>
-        <div class="timeline-title">Documentation mise à jour</div>
-        <div class="timeline-desc">CLAUDE.md + mini-site HTML corrigés : rôles agents, pipeline SDS, P9 ajouté au graphe de dépendances et tableau des problèmes.</div>
+        <div class="timeline-date">12 fév 2026</div>
+        <div class="timeline-title">E2E #143 — Coverage scoring fix</div>
+        <div class="timeline-desc">Bug Emma: UC format mismatch + weight imbalance. Même design Marcus scorait 45% au lieu de 90.3%.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">7-8 février 2026</div>
-        <div class="timeline-title">Sprints 0→3 — Refonte backend complète</div>
-        <div class="timeline-desc">Sprint 0 : P0 async fix (19 routes), P1 dead code removal, P2 path centralization (20+ occurrences). Sprint 1 : P3 subprocess→import (11/11 agents migrés). Sprint 2 : P4 fat controller split + P7 atomic transactions. Sprint 3 : P5 logging JSON, P6 LLM router bridge, P8 secrets.</div>
-      </div>
-      <div class="timeline-item done">
-        <div class="timeline-date">8-9 février 2026</div>
-        <div class="timeline-title">Sprint H — Horizons 2+3 (10 streams parallèles)</div>
-        <div class="timeline-desc">State Machine (24 états, 45 tests), ARQ workers async, BudgetService + CircuitBreaker, RAG isolation par projet, UX Timeline Stepper, HITL routes (chat, CR, versions), PromptService YAML (11 agents), composants frontend (Mermaid, Gantt, Metrics, SDS Preview, DiffViewer).</div>
-      </div>
-      <div class="timeline-item done">
-        <div class="timeline-date">10 février 2026</div>
-        <div class="timeline-title">Sprint I — E2E #140 + #141</div>
-        <div class="timeline-desc">E2E #140 : premier test post-merge, P0+P1 passent. E2E #141 : Phase 4 (experts) passe, Phase 5 crash (BUG-011 transition + BUG-012 async LLM). Analyse coverage Emma : score plafonné à 62% — architecture Marcus manque de profondeur.</div>
-      </div>
-      <div class="timeline-item done">
-        <div class="timeline-date">11 février 2026</div>
-        <div class="timeline-title">🎉 E2E #142 — Premier run complet (Phases 1→5)</div>
-        <div class="timeline-desc">Première exécution complète de bout en bout. 33 BRs → 165 UCs → Architecture (61.2%) → 4 experts parallèles → SDS final (2,884 paragraphes). HITL coverage gate fonctionnel (BUG-013 fixé). Bugs découverts : BUG-015 (uc_digest vide), BUG-016 (truncation 16K). Coût API : ~$13.59. Score bloqué à 61.2% — uc_digest jamais transmis à Marcus.</div>
-      </div>
-      <div class="timeline-item done">
-        <div class="timeline-date">12 février 2026</div>
-        <div class="timeline-title">E2E #143 — Coverage scoring fix (45% → 90.3%)</div>
-        <div class="timeline-desc">E2E #143 révèle bug critique : Emma scoring (UC format mismatch, weight imbalance, automation type conflicts) causait 45% au lieu de 90.3%. Prompt rewrite spec pour Marcus design/revision et Emma validate. Worker arrêté pour analyse offline.</div>
-      </div>
-      <div class="timeline-item done">
-        <div class="timeline-date">12 février 2026</div>
+        <div class="timeline-date">12 fév 2026</div>
         <div class="timeline-title">E2E #144 — 30 bugs identifiés, Plan V2</div>
-        <div class="timeline-desc">SDS docx vide (mauvaise clé), coût 262% sous-reporté, safe_content() tronque 93-96%, 13 modèles hardcodés, WBS parse errors. Consolidated Plan V2 : 3 tracks parallèles + 2 sprints séquentiels + E2E #145.</div>
+        <div class="timeline-desc">SDS docx vide, coût 262% sous-reporté, safe_content() tronque 93-96%, 13 modèles hardcodés.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">13 février 2026</div>
-        <div class="timeline-title">🔧 Track A — Backend Cleanup (7 bugs fixés)</div>
-        <div class="timeline-desc">B2+B3: 4 key mismatches orchestrator→Emma. B4: safe_content() limits ×6 (archi 10K→60K). B5: MODEL_PRICING corrigé (Opus, Haiku). B6: 13 hardcoded models→YAML routing. B8: Anti-markdown rules Marcus prompts.</div>
+        <div class="timeline-date">13 fév 2026</div>
+        <div class="timeline-title">🔧 Track A — Backend Cleanup (7 bugs)</div>
+        <div class="timeline-desc">4 key mismatches fixés, safe_content ×6, MODEL_PRICING, 13 models→YAML, anti-markdown Marcus.</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">13 février 2026</div>
-        <div class="timeline-title">🎨 Track B+C — Frontend Architecture + Typed Rendering</div>
-        <div class="timeline-desc">ArchitectureReviewPanel rewrite : ERD Mermaid, Flows accordéons, WBS Gantt, Security OWD. Nouveau StructuredRenderer : BRs table, coverage grid, gap analysis, expert specs typés. DeliverableViewer JSON-aware routing.</div>
+        <div class="timeline-date">13 fév 2026</div>
+        <div class="timeline-title">🎨 Track B+C — Frontend rewrite</div>
+        <div class="timeline-desc">ArchitectureReviewPanel (ERD, Flows, WBS Gantt, Security OWD). StructuredRenderer (BRs, coverage, experts).</div>
       </div>
       <div class="timeline-item done">
-        <div class="timeline-date">13 février 2026</div>
+        <div class="timeline-date">13 fév 2026</div>
         <div class="timeline-title">💬 Sprint 4+5 — Multi-agent Chat + Revision Fix</div>
-        <div class="timeline-desc">Chat contextuel avec 9 agents (Sophie, Marcus, Olivia, Emma, Elena, Jordan, Aisha, Lucas, Raj). Color-coded, historique par agent, auto-load deliverables. B9 fixé : revision via fix_gaps (incrémental) au lieu de design (regénération complète).</div>
+        <div class="timeline-desc">9 agents color-coded, historique par agent, fix_gaps mode incrémental.</div>
       </div>
       <div class="timeline-item active">
-        <div class="timeline-date">14 février 2026</div>
-        <div class="timeline-title">E2E #145 — Validation finale</div>
-        <div class="timeline-desc">Test complet post-fixes : Marcus Opus 4.6, SDS 12 sections, cost tracking, fix_gaps revision, toute l'UI fonctionnelle.</div>
+        <div class="timeline-date">14 fév 2026</div>
+        <div class="timeline-title">📝 Documentation site — réécriture complète</div>
+        <div class="timeline-desc">Toutes sections vérifiées sur VPS : architecture, workers ARQ, state machine, DB 41 tables, API 177 endpoints, frontend 13 pages / 19 composants.</div>
       </div>
-
       <div class="timeline-item">
-        <div class="timeline-date">Fin février 2026</div>
-        <div class="timeline-title">Phase finale — Refonte architecturale via Agent Teams</div>
-        <div class="timeline-desc">Chargement du repo dans Opus 4.6 (1M context). Agent Teams en 3 phases : Architecte → Spécialistes parallèles → Intégrateur.</div>
+        <div class="timeline-date">Février 2026</div>
+        <div class="timeline-title">E2E #145 + Agent Teams</div>
+        <div class="timeline-desc">Validation finale post-fixes puis refonte Claude Code Agent Teams.</div>
       </div>
     </div>
   </div>
 
 </main>
-
 <script>
   // Navigation
   function showSection(id) {
