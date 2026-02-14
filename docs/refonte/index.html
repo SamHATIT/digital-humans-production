@@ -530,66 +530,76 @@ flowchart LR
 
     <h3>Problèmes architecturaux identifiés</h3>
     <table>
-      <tr><th>#</th><th>Problème</th><th>Sévérité</th><th>Impact</th></tr>
+      <tr><th>#</th><th>Problème</th><th>Sévérité</th><th>Impact</th><th>Statut</th></tr>
       <tr>
         <td>P0</td>
         <td>Routes <code>async def</code> + SQLAlchemy sync = event loop bloqué</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>L'API entière bloque pendant chaque requête DB</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P1</td>
         <td>Split brain : <code>pm.py</code> (v1) cohabite avec <code>pm_orchestrator.py</code> (v2)</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Confusion sur les endpoints actifs, dead code</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P2</td>
         <td>52 chemins absolus hardcodés</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Pas de portabilité, impossible hors Docker spécifique</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P3</td>
         <td>Agents lancés via <code>subprocess.run()</code></td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Overhead 3-5s/appel, perte contexte, debug impossible</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P4</td>
         <td>Fat Controller : <code>pm_orchestrator.py</code> = 2637 lignes</td>
         <td><span class="tag tag-major">Majeur</span></td>
         <td>Impossible à maintenir, tester ou lire</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P5</td>
         <td>Logs fragmentés (print/stderr/DB)</td>
         <td><span class="tag tag-major">Majeur</span></td>
         <td>Observabilité impossible</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P6</td>
         <td>LLM Router v3 prêt mais sous-utilisé</td>
         <td><span class="tag tag-medium">Moyen</span></td>
         <td>Surcoût API, pas d'optimisation de routage</td>
+        <td><span class="tag tag-done">✅ Fixé (13 fév)</span></td>
       </tr>
       <tr>
         <td>P7</td>
         <td>Transactions <code>db.commit()</code> éparpillés</td>
         <td><span class="tag tag-major">Majeur</span></td>
         <td>États DB incohérents en cas d'erreur</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P8</td>
         <td>Rotation de <code>SECRET_KEY</code> absente</td>
         <td><span class="tag tag-medium">Moyen</span></td>
         <td>Compromission totale si fuite de clé</td>
+        <td><span class="tag tag-pending">Planifié</span></td>
       </tr>
       <tr>
         <td>P9</td>
         <td>SDS <code>write_sds</code> tronque 50-77% des livrables experts</td>
         <td><span class="tag tag-major">Majeur</span></td>
         <td>Coverage Report perd 77%, DevOps 46%, Trainer 50% â†' SDS incomplet â†' BUILD dégradé</td>
+              <td><span class="tag tag-done">✅ Fixé (13 fév)</span></td>
       </tr>
     </table>
   </div>
@@ -1039,8 +1049,10 @@ flowchart TB
       <tr><td>S4</td><td>Sprint 3</td><td>P5 logging + P6 LLM router bridge + P8 secrets</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
       <tr><td>S5</td><td>Horizons 2+3</td><td>10 streams parallèles : State Machine, ARQ, Budget, RAG, UX, HITL, Prompts</td><td><span class="tag tag-done">✅ Mergé (10 fév)</span></td></tr>
       <tr><td>S6</td><td>Sprint I</td><td>E2E #140→#141→#142 + 16 bug fixes + HITL coverage gate</td><td><span class="tag tag-done">✅ Terminé (11 fév)</span></td></tr>
-      <tr><td>S7</td><td>E2E #143+</td><td>Deploy BUG-015/016/007, fix truncation, stabiliser coverage ≥70%</td><td><span class="tag tag-active">🔄 En cours</span></td></tr>
-      <tr><td>S8</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class, contracts communs</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S7</td><td>E2E #143+</td><td>Deploy BUG-015/016/007, fix truncation, stabiliser coverage ≥70%</td><td><span class="tag tag-done">✅ Terminé (12-13 fév)</span></td></tr>
+      <tr><td>S7.5</td><td>Tracks A+B+C + Sprint 4+5</td><td>Backend: 7 bugs fixés (keys, truncation, pricing, models, prompts). Frontend: ArchitectureReviewPanel rewrite, StructuredRenderer, ChatSidebar multi-agent. Revision: fix_gaps mode (incremental).</td><td><span class="tag tag-done">✅ Terminé (13 fév)</span></td></tr>
+      <tr><td>S8</td><td>E2E #145</td><td>Validation complète post-fixes : Marcus Opus 4.6, SDS 12 sections, cost tracking, UI fonctionnelle</td><td><span class="tag tag-active">🔄 Prochain</span></td></tr>
+      <tr><td>S9</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class, contracts communs</td><td><span class="tag tag-pending">Planifié</span></td></tr>
     </table>
 
     <h3>Dépendances</h3>
@@ -1135,16 +1147,37 @@ flowchart LR
         <div class="timeline-title">🎉 E2E #142 — Premier run complet (Phases 1→5)</div>
         <div class="timeline-desc">Première exécution complète de bout en bout. 33 BRs → 165 UCs → Architecture (61.2%) → 4 experts parallèles → SDS final (2,884 paragraphes). HITL coverage gate fonctionnel (BUG-013 fixé). Bugs découverts : BUG-015 (uc_digest vide), BUG-016 (truncation 16K). Coût API : ~$13.59. Score bloqué à 61.2% — uc_digest jamais transmis à Marcus.</div>
       </div>
-      <div class="timeline-item active">
+      <div class="timeline-item done">
         <div class="timeline-date">12 février 2026</div>
-        <div class="timeline-title">Stabilisation — vers E2E #143</div>
-        <div class="timeline-desc">Déploiement BUG-015 (uc_digest) + BUG-016 (max_tokens) + BUG-007 (coûts). Objectif : coverage ≥70% et élimination des truncations. Documentation rattrapage (CHANGELOG, BACKLOG, mini-site).</div>
+        <div class="timeline-title">E2E #143 — Coverage scoring fix (45% → 90.3%)</div>
+        <div class="timeline-desc">E2E #143 révèle bug critique : Emma scoring (UC format mismatch, weight imbalance, automation type conflicts) causait 45% au lieu de 90.3%. Prompt rewrite spec pour Marcus design/revision et Emma validate. Worker arrêté pour analyse offline.</div>
       </div>
-      <div class="timeline-item">
-        <div class="timeline-date">Février 2026</div>
-        <div class="timeline-title">P10 — Agent Architecture Debt</div>
-        <div class="timeline-desc">Création d'une BaseAgent class pour établir des contrats communs (_call_llm, execution_id, logging) sur les 11 agents. Premier sprint post-E2E testing.</div>
+      <div class="timeline-item done">
+        <div class="timeline-date">12 février 2026</div>
+        <div class="timeline-title">E2E #144 — 30 bugs identifiés, Plan V2</div>
+        <div class="timeline-desc">SDS docx vide (mauvaise clé), coût 262% sous-reporté, safe_content() tronque 93-96%, 13 modèles hardcodés, WBS parse errors. Consolidated Plan V2 : 3 tracks parallèles + 2 sprints séquentiels + E2E #145.</div>
       </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">13 février 2026</div>
+        <div class="timeline-title">🔧 Track A — Backend Cleanup (7 bugs fixés)</div>
+        <div class="timeline-desc">B2+B3: 4 key mismatches orchestrator→Emma. B4: safe_content() limits ×6 (archi 10K→60K). B5: MODEL_PRICING corrigé (Opus, Haiku). B6: 13 hardcoded models→YAML routing. B8: Anti-markdown rules Marcus prompts.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">13 février 2026</div>
+        <div class="timeline-title">🎨 Track B+C — Frontend Architecture + Typed Rendering</div>
+        <div class="timeline-desc">ArchitectureReviewPanel rewrite : ERD Mermaid, Flows accordéons, WBS Gantt, Security OWD. Nouveau StructuredRenderer : BRs table, coverage grid, gap analysis, expert specs typés. DeliverableViewer JSON-aware routing.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">13 février 2026</div>
+        <div class="timeline-title">💬 Sprint 4+5 — Multi-agent Chat + Revision Fix</div>
+        <div class="timeline-desc">Chat contextuel avec 9 agents (Sophie, Marcus, Olivia, Emma, Elena, Jordan, Aisha, Lucas, Raj). Color-coded, historique par agent, auto-load deliverables. B9 fixé : revision via fix_gaps (incrémental) au lieu de design (regénération complète).</div>
+      </div>
+      <div class="timeline-item active">
+        <div class="timeline-date">14 février 2026</div>
+        <div class="timeline-title">E2E #145 — Validation finale</div>
+        <div class="timeline-desc">Test complet post-fixes : Marcus Opus 4.6, SDS 12 sections, cost tracking, fix_gaps revision, toute l'UI fonctionnelle.</div>
+      </div>
+
       <div class="timeline-item">
         <div class="timeline-date">Fin février 2026</div>
         <div class="timeline-title">Phase finale — Refonte architecturale via Agent Teams</div>
