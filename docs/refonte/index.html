@@ -413,7 +413,7 @@
       </div>
       <div class="card">
         <h4>Pipeline BUILD (6 phases, 4 agents)</h4>
-        <p>Raj → Diego → Zara → Raj → Raj → Aisha (6 phases)</p>
+        <p>Raj → Diego → Zara → Raj → Raj → Aisha + Jordan (deploy) + Elena (review)</p>
         <p style="margin-top:8px"><span class="tag tag-done">Sonnet 4.5 pour tous</span> <span class="tag tag-critical">Opus pour architecture</span></p>
       </div>
       <div class="card">
@@ -541,10 +541,10 @@ flowchart LR
         E2 -->|score ≥ 85%| EXP
         subgraph EXP["Phase 4 — 4 Experts parallèle"]
             direction TB
-            RA[Raj Data]
-            LU[Lucas Training]
             EL[Elena QA]
-            AI[Aisha DevOps]
+            JO[Jordan DevOps]
+            AI[Aisha Data]
+            LU[Lucas Training]
         end
         EXP --> E3[Emma — SDS Write]
     end
@@ -564,11 +564,11 @@ flowchart LR
       <tr><td><strong>Emma</strong></td><td>Research Analyst</td><td>2.5 / 3.3 / 4.5 / 5</td><td>—</td><td>Sonnet 4.5</td><td><code>research_analyst</code> → complex</td></tr>
       <tr><td><strong>Marcus</strong></td><td>Solution Architect</td><td>3 — Architecture</td><td>—</td><td>Opus 4.6</td><td><code>architect</code> → critical</td></tr>
       <tr><td><strong>Elena</strong></td><td>QA Engineer</td><td>4 — Test specs</td><td>—</td><td>Sonnet 4.5</td><td><code>qa_tester</code></td></tr>
-      <tr><td><strong>Jordan</strong></td><td>Admin Config</td><td>—</td><td>—</td><td>Sonnet 4.5</td><td><code>admin</code></td></tr>
-      <tr><td><strong>Raj</strong></td><td>Data Migration</td><td>4 — Data specs</td><td>1,4,5 — Model/Auto/Security</td><td>Sonnet 4.5</td><td><code>data_migration</code></td></tr>
+      <tr><td><strong>Jordan</strong></td><td>DevOps / CI-CD</td><td>4 — DevOps specs</td><td>Deploy (toutes phases)</td><td>Sonnet 4.5</td><td><code>devops</code></td></tr>
+      <tr><td><strong>Raj</strong></td><td>Admin Config</td><td>—</td><td>1,4,5 — Model/Auto/Security</td><td>Sonnet 4.5</td><td><code>admin</code></td></tr>
       <tr><td><strong>Diego</strong></td><td>Apex Developer</td><td>—</td><td>2 — Business logic</td><td>Sonnet 4.5</td><td><code>apex_developer</code></td></tr>
       <tr><td><strong>Zara</strong></td><td>LWC Developer</td><td>—</td><td>3 — UI components</td><td>Sonnet 4.5</td><td><code>lwc_developer</code></td></tr>
-      <tr><td><strong>Aisha</strong></td><td>DevOps</td><td>4 — DevOps specs</td><td>6 — Data migration</td><td>Sonnet 4.5</td><td><code>devops</code></td></tr>
+      <tr><td><strong>Aisha</strong></td><td>Data Migration</td><td>4 — Data specs</td><td>6 — Migration scripts</td><td>Sonnet 4.5</td><td><code>data</code></td></tr>
       <tr><td><strong>Lucas</strong></td><td>Trainer</td><td>4 — Training specs</td><td>—</td><td>Sonnet</td><td><code>trainer</code></td></tr>
     </table>
 
@@ -576,7 +576,7 @@ flowchart LR
     <table>
       <tr><th>Complexité</th><th>Modèle</th><th>Pricing (in/out per M)</th><th>Agents</th></tr>
       <tr><td><code>critical</code></td><td>Claude Opus 4.6</td><td>$5 / $25</td><td>Sophie, Marcus</td></tr>
-      <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena, Jordan, Raj, Aisha, Lucas, Diego, Zara</td></tr>
+      <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena (qa), Jordan (devops), Raj (admin), Aisha (data), Lucas, Diego, Zara</td></tr>
       <tr><td><code>medium</code></td><td>Claude Haiku</td><td>$1 / $5</td><td>(non utilisé actuellement)</td></tr>
       <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Classification, extraction</td></tr>
     </table>
@@ -636,7 +636,7 @@ stateDiagram-v2
   <!-- ==================== PIPELINE BUILD ==================== -->
   <div id="build-flow" class="section">
     <h2>Phase BUILD — Génération de code</h2>
-    <p class="section-desc">Le BUILD transforme les specs SDS en code Salesforce déployable. Chaque agent BUILD utilise Sonnet 4.5 et reçoit les specs détaillées de Marcus comme contexte. Raj intervient sur 3 phases (data model, automation, security).</p>
+    <p class="section-desc">Le BUILD transforme les specs SDS en code Salesforce déployable. Chaque agent BUILD utilise Sonnet 4.5 et reçoit les specs détaillées de Marcus comme contexte. Raj (Admin) intervient sur 3 phases, Jordan orchestre le déploiement de chaque phase via JordanDeployService, et Elena review chaque output avant deploy.</p>
 
     <h3>Flux BUILD</h3>
     <div class="mermaid-wrapper">
@@ -681,10 +681,10 @@ flowchart LR
       <tr><td>Olivia</td><td style="color:#34d399">◼ Green</td><td>use_cases, uc_digest</td><td>Use cases, business logic</td></tr>
       <tr><td>Emma</td><td style="color:#06b6d4">◼ Cyan</td><td>coverage_report, sds</td><td>Coverage, SDS validation</td></tr>
       <tr><td>Elena</td><td style="color:#f472b6">◼ Pink</td><td>qa_plan</td><td>Test scenarios, risques</td></tr>
-      <tr><td>Jordan</td><td style="color:#fbbf24">◼ Yellow</td><td>admin_config</td><td>Configuration, permissions</td></tr>
-      <tr><td>Aisha</td><td style="color:#fb923c">◼ Orange</td><td>devops_plan</td><td>CI/CD, environments</td></tr>
+      <tr><td>Jordan</td><td style="color:#fbbf24">◼ Yellow</td><td>devops_plan</td><td>CI/CD, environments, déploiement</td></tr>
+      <tr><td>Aisha</td><td style="color:#fb923c">◼ Orange</td><td>data_migration_plan</td><td>Mappings, stratégies migration</td></tr>
       <tr><td>Lucas</td><td style="color:#14b8a6">◼ Teal</td><td>training_plan</td><td>Modules de formation</td></tr>
-      <tr><td>Raj</td><td style="color:#6366f1">◼ Indigo</td><td>data_migration_plan</td><td>Mappings, stratégies data</td></tr>
+      <tr><td>Raj</td><td style="color:#6366f1">◼ Indigo</td><td>admin_config</td><td>Configuration, permissions, page layouts</td></tr>
     </table>
 
     <h3>Change Requests (CR)</h3>
@@ -700,7 +700,7 @@ flowchart LR
     <p class="section-desc">ChromaDB héberge 70,251 chunks de documentation Salesforce répartis en 5 collections thématiques.</p>
     <table>
       <tr><th>Collection</th><th>Chunks</th><th>Agents utilisateurs</th></tr>
-      <tr><td><code>salesforce_admin</code></td><td>~14K</td><td>Jordan, Marcus</td></tr>
+      <tr><td><code>salesforce_admin</code></td><td>~14K</td><td>Raj, Marcus</td></tr>
       <tr><td><code>salesforce_developer</code></td><td>~18K</td><td>Diego, Zara, Marcus</td></tr>
       <tr><td><code>salesforce_architect</code></td><td>~12K</td><td>Marcus, Olivia</td></tr>
       <tr><td><code>salesforce_data</code></td><td>~11K</td><td>Raj, Aisha</td></tr>
