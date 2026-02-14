@@ -424,7 +424,7 @@
       <div class="card">
         <h4>HITL — Human in the Loop</h4>
         <p>5 gates de validation (BR, Architecture, Experts, SDS, BUILD) + chat contextuel multi-agent (9 agents)</p>
-        <p style="margin-top:8px"><span class="tag tag-active">State Machine 24 états</span></p>
+        <p style="margin-top:8px"><span class="tag tag-active">State Machine 27 états</span></p>
       </div>
     </div>
 
@@ -437,7 +437,7 @@
       <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td><td>41 tables, état complet</td></tr>
       <tr><td>Queue</td><td>Redis 7</td><td>6379</td><td>Job queue ARQ + cache</td></tr>
       <tr><td>RAG</td><td>ChromaDB (PersistentClient)</td><td>—</td><td>70,251 chunks, 1.4 GB, 5 collections</td></tr>
-      <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Tâches simples (classification, extraction)</td></tr>
+      <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Désactivé — non nécessaire actuellement (économie RAM)</td></tr>
       <tr><td>LLM cloud</td><td>Anthropic Claude API</td><td>—</td><td>Opus 4.6 (Sophie, Marcus), Sonnet 4.5 (9 autres agents)</td></tr>
       <tr><td>CMS</td><td>Ghost</td><td>2368</td><td>Site marketing digital-humans.fr</td></tr>
       <tr><td>Automation</td><td>N8N</td><td>5678</td><td>Workflows marketing</td></tr>
@@ -469,7 +469,7 @@ flowchart TB
     subgraph API["FastAPI Backend :8002"]
         Routes[API Routes — 178 endpoints]
         Orch[Orchestrator Service]
-        SM[State Machine — 24 états]
+        SM[State Machine — 27 états]
         Budget[BudgetService + CircuitBreaker]
         LLM[LLM Router — YAML config]
         VGS[Validation Gate Service]
@@ -488,7 +488,7 @@ flowchart TB
         Opus[Claude Opus 4.6 — Marcus Sophie]
         Sonnet[Claude Sonnet 4.5 — SDS agents]
         Haiku[Claude Haiku — non utilisé]
-        Mistral[Ollama Mistral 7B — Local]
+        Mistral[Ollama Mistral 7B — Désactivé]
     end
     UI -->|REST API| Routes
     Routes --> Orch
@@ -517,7 +517,7 @@ flowchart TB
       <tr><td>Services</td><td><code>pm_orchestrator_service_v2.py</code>, <code>budget_service.py</code>, <code>execution_state.py</code></td><td>Logique métier, orchestration phases</td></tr>
       <tr><td>Workers</td><td><code>workers/tasks.py</code>, <code>workers/worker.py</code></td><td>ARQ tasks async : SDS, Resume, BUILD</td></tr>
       <tr><td>Agents</td><td><code>agents/roles/*.py</code> (11 fichiers)</td><td>Prompts YAML, appels LLM, parsing réponses</td></tr>
-      <tr><td>State Machine</td><td><code>execution_state.py</code></td><td>24 états, transitions contrôlées, persistence DB</td></tr>
+      <tr><td>State Machine</td><td><code>execution_state.py</code></td><td>27 états, transitions contrôlées, persistence DB</td></tr>
       <tr><td>LLM Routing</td><td><code>llm_routing.yaml</code>, <code>llm_router_service.py</code></td><td>agent_complexity_map → modèle</td></tr>
       <tr><td>Budget</td><td><code>budget_service.py</code></td><td>Estimation coûts, suivi tokens, CircuitBreaker</td></tr>
     </table>
@@ -578,7 +578,7 @@ flowchart LR
       <tr><td><code>critical</code></td><td>Claude Opus 4.6</td><td>$5 / $25</td><td>Sophie, Marcus</td></tr>
       <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena (qa), Jordan (devops), Raj (admin), Aisha (data), Lucas, Diego, Zara</td></tr>
       <tr><td><code>medium</code></td><td>Claude Haiku</td><td>$1 / $5</td><td>(non utilisé actuellement)</td></tr>
-      <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Classification, extraction</td></tr>
+      <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Désactivé — aucun agent mappé à ce tier</td></tr>
     </table>
   </div>
 
@@ -587,7 +587,7 @@ flowchart LR
     <h2>Phase SDS — Spécification</h2>
     <p class="section-desc">Le pipeline SDS transforme un document métier en spécification Salesforce complète via 5 phases avec validation humaine (HITL).</p>
 
-    <h3>State Machine SDS (24 états)</h3>
+    <h3>State Machine SDS (27 états)</h3>
     <div class="mermaid-wrapper">
       <pre class="mermaid">
 stateDiagram-v2
@@ -688,7 +688,7 @@ flowchart LR
     </table>
 
     <h3>Change Requests (CR)</h3>
-    <p>Lifecycle complet : <code>draft → submitted → analyzed → approved → processing → completed</code>. Sophie détecte les demandes de CR dans le chat, crée le CR, analyse l'impact (agents à rerun + coût estimé), et l'utilisateur approuve/rejette.</p>
+    <p>Lifecycle complet : <code>draft → submitted → analyzed → approved/rejected → processing → completed</code>. Sophie détecte les demandes de CR dans le chat, crée le CR, analyse l'impact (agents à rerun + coût estimé), et l'utilisateur approuve/rejette.</p>
 
     <h3>Versioning</h3>
     <p>Chaque exécution de CR crée une nouvelle version du SDS. Historique des versions avec diff side-by-side.</p>
@@ -720,7 +720,7 @@ flowchart LR
       <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 70,251 chunks</span></td></tr>
-      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-critical">DOWN — 0 modèle</span></td></tr>
+      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-warning">OFF — désactivé volontairement (économie RAM)</span></td></tr>
       <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
@@ -982,7 +982,7 @@ flowchart TB
       <div class="timeline-item done">
         <div class="timeline-date">8-9 fév 2026</div>
         <div class="timeline-title">Sprint H — Horizons 2+3 (10 streams)</div>
-        <div class="timeline-desc">State Machine 24 états, ARQ workers, BudgetService + CircuitBreaker, HITL routes, Mermaid/Gantt/Metrics/DiffViewer.</div>
+        <div class="timeline-desc">State Machine 27 états, ARQ workers, BudgetService + CircuitBreaker, HITL routes, Mermaid/Gantt/Metrics/DiffViewer.</div>
       </div>
       <div class="timeline-item done">
         <div class="timeline-date">10-11 fév 2026</div>

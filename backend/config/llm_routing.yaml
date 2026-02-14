@@ -15,12 +15,12 @@ agent_complexity_map:
   business_analyst: complex # Olivia — UC generation
   research_analyst: complex # Emma — analyze, validate, SDS
   # Expert agents — all Sonnet 4.5
-  devops: complex           # Aisha
-  admin: complex            # Jordan
+  devops: complex           # Jordan
+  admin: complex            # Raj
   qa: complex               # Elena (alias)
   qa_tester: complex        # Elena (code agent_type)
-  data: complex             # Raj (alias)
-  data_migration: complex   # Raj (code agent_type)
+  data: complex             # Aisha (alias)
+  data_migration: complex   # Aisha (code agent_type)
   trainer: complex          # Lucas
   developer_apex: complex   # Diego (alias)
   apex_developer: complex   # Diego (code agent_type)
