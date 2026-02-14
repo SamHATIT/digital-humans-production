@@ -179,3 +179,24 @@ Merged 10 parallel development streams into main:
 - hitl_routes.py, project_conversation.py (model)
 - ArchitectureReviewPanel.tsx (rewrite), StructuredRenderer.tsx (new), DeliverableViewer.tsx, ChatSidebar.tsx (rewrite)
 
+
+## [2026-02-14] Pre-E2E #145 Bug Fixes
+
+### P3 — Subprocess → Direct Import (commit 7aa5db9)
+- Replace `_run_agent` subprocess (`asyncio.create_subprocess_exec`) with direct class import
+- Uses `MIGRATED_AGENTS` registry from `agent_executor.py` (all 11 agents)
+- `asyncio.to_thread(agent_instance.run, task_data)` for blocking LLM calls
+- Eliminates 3-5s overhead per agent call, no more temp file I/O
+- Added "pm" alias to MIGRATED_AGENTS for orchestrator compatibility
+
+### COST-001 — Full Cost Tracking (commit 7aa5db9)
+- All 10 agents now propagate `cost_usd` from LLM router (Marcus already had it)
+- `self._total_cost` accumulated across multiple LLM calls per agent
+- Orchestrator `_track_agent_cost` now gets real cost instead of heuristic for all agents
+
+### H4 — Standard Object Names in DOCX (commit 7aa5db9)
+- `document_generator.py` now checks `label → api_name → object → name` (was only `object`)
+- Marcus outputs `api_name` + `label` per YAML template; generator now matches
+
+### P1-b — Dead Scripts Removed (commit 7aa5db9)
+- Deleted 4 unreferenced debug scripts: direct_wbs.py, fix_wbs.py, gen_wbs.py, gen_wbs_direct.py
