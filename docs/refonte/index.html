@@ -536,35 +536,35 @@ flowchart LR
         <td>Routes <code>async def</code> + SQLAlchemy sync = event loop bloqué</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>L'API entière bloque pendant chaque requête DB</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
       </tr>
       <tr>
         <td>P1</td>
         <td>Split brain : <code>pm.py</code> (v1) cohabite avec <code>pm_orchestrator.py</code> (v2)</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Confusion sur les endpoints actifs, dead code</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
       </tr>
       <tr>
         <td>P2</td>
         <td>52 chemins absolus hardcodés</td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Pas de portabilité, impossible hors Docker spécifique</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-done">✅ Fixé (S0)</span></td>
       </tr>
       <tr>
         <td>P3</td>
         <td>Agents lancés via <code>subprocess.run()</code></td>
         <td><span class="tag tag-critical">Critique</span></td>
         <td>Overhead 3-5s/appel, perte contexte, debug impossible</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-active">⚠️ Partiel (S1)</span></td>
       </tr>
       <tr>
         <td>P4</td>
         <td>Fat Controller : <code>pm_orchestrator.py</code> = 2637 lignes</td>
         <td><span class="tag tag-major">Majeur</span></td>
         <td>Impossible à maintenir, tester ou lire</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-active">⚠️ Partiel (S2)</span></td>
       </tr>
       <tr>
         <td>P5</td>
@@ -592,7 +592,7 @@ flowchart LR
         <td>Rotation de <code>SECRET_KEY</code> absente</td>
         <td><span class="tag tag-medium">Moyen</span></td>
         <td>Compromission totale si fuite de clé</td>
-        <td><span class="tag tag-pending">Planifié</span></td>
+        <td><span class="tag tag-active">⚠️ Partiel (S3)</span></td>
       </tr>
       <tr>
         <td>P9</td>
