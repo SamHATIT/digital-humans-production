@@ -485,7 +485,7 @@ class TrainerAgent:
         """
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service")
-            response = generate_llm_response(prompt, max_tokens=16000, temperature=0.3, execution_id=execution_id)
+            response = generate_llm_response(prompt, agent_type="trainer", max_tokens=16000, temperature=0.3, execution_id=execution_id)
             self._total_cost += response.get('cost_usd', 0.0)
             return (
                 response.get('content', ''),
