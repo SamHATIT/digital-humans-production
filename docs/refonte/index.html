@@ -436,7 +436,7 @@
       <tr><td>Frontend</td><td>React 18 + Vite + TailwindCSS</td><td>3000</td><td>Interface utilisateur SPA</td></tr>
       <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td><td>41 tables, état complet</td></tr>
       <tr><td>Queue</td><td>Redis 7</td><td>6379</td><td>Job queue ARQ + cache</td></tr>
-      <tr><td>RAG</td><td>ChromaDB</td><td>8000</td><td>70K chunks, 5 collections Salesforce</td></tr>
+      <tr><td>RAG</td><td>ChromaDB (PersistentClient)</td><td>—</td><td>70,251 chunks, 1.4 GB, 5 collections</td></tr>
       <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Tâches simples (classification, extraction)</td></tr>
       <tr><td>LLM cloud</td><td>Anthropic Claude API</td><td>—</td><td>Opus 4.6 (Sophie, Marcus), Sonnet 4.5 (9 autres agents)</td></tr>
       <tr><td>CMS</td><td>Ghost</td><td>2368</td><td>Site marketing digital-humans.fr</td></tr>
@@ -482,7 +482,7 @@ flowchart TB
     subgraph Storage["Persistence"]
         PG[(PostgreSQL — 41 tables)]
         Redis[(Redis — Job Queue)]
-        Chroma[(ChromaDB — 70K chunks)]
+        Chroma[(ChromaDB PersistentClient — 70K chunks)]
     end
     subgraph LLMs["LLM Providers"]
         Opus[Claude Opus 4.6 — Marcus Sophie]
@@ -699,14 +699,14 @@ flowchart LR
     <h2>RAG & Knowledge Base</h2>
     <p class="section-desc">ChromaDB héberge 70,251 chunks de documentation Salesforce répartis en 5 collections thématiques.</p>
     <table>
-      <tr><th>Collection</th><th>Chunks</th><th>Agents utilisateurs</th></tr>
-      <tr><td><code>salesforce_admin</code></td><td>~14K</td><td>Raj, Marcus</td></tr>
-      <tr><td><code>salesforce_developer</code></td><td>~18K</td><td>Diego, Zara, Marcus</td></tr>
-      <tr><td><code>salesforce_architect</code></td><td>~12K</td><td>Marcus, Olivia</td></tr>
-      <tr><td><code>salesforce_data</code></td><td>~11K</td><td>Raj, Aisha</td></tr>
-      <tr><td><code>salesforce_consultant</code></td><td>~15K</td><td>Sophie, Olivia, Lucas</td></tr>
+      <tr><th>Collection</th><th>Embedding</th><th>Agents (via AGENT_COLLECTIONS)</th></tr>
+      <tr><td><code>technical_collection</code></td><td>OpenAI</td><td>Marcus, Jordan, Raj, Elena, Aisha, Diego, Zara</td></tr>
+      <tr><td><code>operations_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Jordan, Raj, Elena, Aisha, Lucas</td></tr>
+      <tr><td><code>business_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Sophie, Lucas</td></tr>
+      <tr><td><code>apex_collection</code></td><td>Nomic</td><td>Diego, Elena</td></tr>
+      <tr><td><code>lwc_collection</code></td><td>Nomic</td><td>Zara</td></tr>
     </table>
-    <p><strong>Statut :</strong> <span class="tag tag-major">Needs repair</span> — ingestion incomplète. Les agents fonctionnent sans RAG (qualité inférieure mais opérationnel).</p>
+    <p><strong>Statut :</strong> <span class="tag tag-done">OK</span> — 70,251 chunks, 1.4 GB data + 2.3 GB total. PersistentClient local (pas de serveur séparé).</p>
   </div>
   <!-- ==================== SERVICES ==================== -->
   <div id="infra" class="section">
@@ -719,11 +719,12 @@ flowchart LR
       <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ChromaDB</td><td><code>chromadb</code></td><td>8000</td><td><span class="tag tag-major">needs repair</span></td></tr>
+      <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 70,251 chunks</span></td></tr>
       <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Ghost CMS</td><td><code>ghost_digital-humans</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Open WebUI</td><td>Docker: <code>open-webui</code></td><td>3200→8080</td><td><span class="tag tag-done">active</span></td></tr>
     </table>
 
     <h3>Commandes essentielles</h3>
