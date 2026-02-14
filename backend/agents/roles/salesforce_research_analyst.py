@@ -486,7 +486,7 @@ class ResearchAnalystAgent:
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=16000, temperature=0.3,
+            prompt, system_prompt, max_tokens=32000, temperature=0.3,
             execution_id=execution_id
         )
 
@@ -575,7 +575,7 @@ class ResearchAnalystAgent:
             logger.info(f"[Coverage] Score {score}% < 95% — calling LLM for fix_instructions")
 
             content, llm_tokens, input_tokens, llm_model, llm_provider = self._call_llm(
-                prompt, system_prompt, max_tokens=16000, temperature=0.3,
+                prompt, system_prompt, max_tokens=32000, temperature=0.3,
                 execution_id=execution_id
             )
 
