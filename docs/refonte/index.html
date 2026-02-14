@@ -720,7 +720,7 @@ flowchart LR
       <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 70,251 chunks</span></td></tr>
-      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-done">active</span></td></tr>
+      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-critical">DOWN — 0 modèle</span></td></tr>
       <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
@@ -737,6 +737,20 @@ flowchart LR
       <tr><td>Logs worker</td><td><code>journalctl -u digital-humans-worker -f --no-pager</code></td></tr>
       <tr><td>DB shell</td><td><code>sudo -u postgres psql digital_humans</code></td></tr>
       <tr><td>Health check</td><td><code>curl -s localhost:8002/api/health | jq</code></td></tr>
+    </table>
+
+    <h3>Admin Hub</h3>
+    <p>Interface de monitoring centralisée accessible à <code>digital-humans.fr/admin</code>. Permet de visualiser l'état de tous les services, démarrer/arrêter/redémarrer, consulter les logs, et monitorer Docker, Nginx, ChromaDB.</p>
+    <table>
+      <tr><th>Composant affiché</th><th>Infos</th></tr>
+      <tr><td>Backend / Frontend / Worker</td><td>Status UP/DOWN, port, latence, boutons start/stop/restart/logs</td></tr>
+      <tr><td>N8N Workflows</td><td>15 workflows actifs, port 5678</td></tr>
+      <tr><td>Ollama LLM</td><td>Status, modèles chargés, port 11434</td></tr>
+      <tr><td>Ghost CMS</td><td>9 articles, 2 brouillons, port 2368</td></tr>
+      <tr><td>PostgreSQL</td><td>Status, port 5432</td></tr>
+      <tr><td>Docker</td><td>Containers open-webui + ghost-blog (CPU/RAM)</td></tr>
+      <tr><td>Nginx</td><td>Status, test config, port 80</td></tr>
+      <tr><td>RAG ChromaDB</td><td>70,251 chunks, 1.4 GB data, 2.3 GB total</td></tr>
     </table>
   </div>
 
