@@ -12,7 +12,7 @@ agent_complexity_map:
   # SDS Core pipeline — Opus for architect, Sonnet for others
   pm: critical              # Sophie — BR extraction (uses Opus)
   architect: critical       # Marcus — design, WBS, gap analysis → Opus 4.6
-  business_analyst: complex # Olivia — UC generation
+  business_analyst: critical # Olivia — UC generation → Opus 4.6
   research_analyst: complex # Emma — analyze, validate, SDS
   # Expert agents — all Sonnet 4.5
   devops: complex           # Jordan
