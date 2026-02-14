@@ -262,6 +262,7 @@ class BusinessAnalystAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -365,6 +366,7 @@ class BusinessAnalystAgent:
             "content": parsed_content,
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
@@ -437,6 +439,7 @@ class BusinessAnalystAgent:
                 temperature=0.4,
                 execution_id=execution_id,
             )
+            self._total_cost += response.get("cost_usd", 0.0)
             return (
                 response["content"],
                 response["tokens_used"],

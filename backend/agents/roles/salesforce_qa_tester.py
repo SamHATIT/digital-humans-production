@@ -488,7 +488,8 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         "deliverable_type": "code_validation",
         "content": {"code_review": review_data, "files_reviewed": len(code_files), "total_code_chars": total_code_chars},
         "feedback": review_data.get("feedback_for_developer", "") if verdict == "FAIL" else "",
-        "metadata": {"execution_time_seconds": execution_time, "tokens_used": tokens_used, "model": model_used}
+        "metadata": {"execution_time_seconds": execution_time, "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0), "model": model_used}
     }
 
 
@@ -546,6 +547,7 @@ class QATesterAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -703,6 +705,7 @@ class QATesterAgent:
             tokens_used = response.get("tokens_used", 0)
             model_used = response.get("model", "unknown")
             input_tokens = response.get("input_tokens", 0)
+            self._total_cost += response.get("cost_usd", 0.0)
             return content, tokens_used, input_tokens, model_used, "anthropic"
 
         # Fallback to OpenAI

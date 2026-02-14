@@ -326,6 +326,7 @@ class TrainerAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -451,6 +452,7 @@ class TrainerAgent:
             "content": parsed_content,
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
@@ -484,6 +486,7 @@ class TrainerAgent:
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service")
             response = generate_llm_response(prompt, max_tokens=16000, temperature=0.3, execution_id=execution_id)
+            self._total_cost += response.get('cost_usd', 0.0)
             return (
                 response.get('content', ''),
                 response.get('tokens_used', 0),
