@@ -128,6 +128,7 @@ except ImportError:
 MIGRATED_AGENTS: Dict[str, type] = {}
 if _PM_AGENT_AVAILABLE:
     MIGRATED_AGENTS["sophie"] = PMAgent
+    MIGRATED_AGENTS["pm"] = PMAgent
 if _TRAINER_AGENT_AVAILABLE:
     MIGRATED_AGENTS["lucas"] = TrainerAgent
     MIGRATED_AGENTS["trainer"] = TrainerAgent

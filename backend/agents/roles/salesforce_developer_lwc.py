@@ -446,7 +446,8 @@ FIX THESE ISSUES.
         "task_id": task_id, "execution_id": str(execution_id),
         "deliverable_type": "lwc_code", "success": len(files) > 0,
         "content": {"raw_response": content, "files": files, "file_count": len(files)},
-        "metadata": {"tokens_used": tokens_used, "model": model_used,
+        "metadata": {"tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0), "model": model_used,
                      "execution_time_seconds": execution_time}
     }
 
@@ -481,6 +482,7 @@ class LWCDeveloperAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -652,6 +654,7 @@ class LWCDeveloperAgent:
             tokens_used = response.get("tokens_used", 0)
             input_tokens = response.get("input_tokens", 0)
             model_used = response.get("model", "unknown")
+            self._total_cost += response.get("cost_usd", 0.0)
             return content, tokens_used, input_tokens, model_used, "anthropic"
 
         # Fallback to OpenAI

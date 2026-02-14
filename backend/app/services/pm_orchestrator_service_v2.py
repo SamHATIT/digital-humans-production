@@ -1345,7 +1345,7 @@ class PMOrchestratorServiceV2:
         project_id: int,
         mode: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Run an agent script and return the result"""
+        """Run an agent via direct import (P3: no subprocess)"""
         # P1.2: Circuit breaker check before running agent
         try:
             from app.services.budget_service import CircuitBreaker
@@ -1363,73 +1363,52 @@ class PMOrchestratorServiceV2:
         except Exception as e:
             logger.warning(f"[CircuitBreaker] check failed: {e}")
 
+        # Dynamic timeout based on agent/mode
+        timeout_seconds = 300  # Default 5 min
+        if agent_id == "research_analyst":
+            timeout_seconds = 3600  # 60 min for all Emma modes (large projects)
+        elif agent_id == "architect":
+            timeout_seconds = 900  # 15 min for architecture
+
         try:
-            config = AGENT_CONFIG.get(agent_id)
-            if not config:
+            from app.services.agent_executor import MIGRATED_AGENTS
+
+            agent_class = MIGRATED_AGENTS.get(agent_id)
+            if not agent_class:
                 return {"success": False, "error": f"Unknown agent: {agent_id}"}
-            
-            # Write input to temp file
-            input_file = self.temp_dir / f"input_{agent_id}_{mode or 'default'}_{execution_id}.json"
-            output_file = self.temp_dir / f"output_{agent_id}_{mode or 'default'}_{execution_id}.json"
-            
-            with open(input_file, "w") as f:
-                json.dump(input_data, f, indent=2, ensure_ascii=False)
-            
-            # Build command
-            cmd = [
-                sys.executable,
-                str(AGENTS_PATH / config["script"]),
-                "--input", str(input_file),
-                "--output", str(output_file),
-                "--execution-id", str(execution_id),
-                "--project-id", str(project_id)
-            ]
-            
+
+            agent_instance = agent_class()
+
+            # Build task_data matching agent .run() interface
+            # input_content = JSON string of input_data (same as CLI reads from file)
+            task_data = {
+                "input_content": json.dumps(input_data, ensure_ascii=False),
+                "execution_id": execution_id,
+                "project_id": project_id,
+            }
             if mode:
-                cmd.extend(["--mode", mode])
-            
-            # Enable RAG for all agents except PM (PM only extracts BRs from raw text)
-            if agent_id != "pm":
-                cmd.append("--use-rag")
-            
-            logger.debug(f"Running: {' '.join(cmd)}")
-            
-            # Run agent with timeout
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env={**os.environ}
-            )
-            
-            # Dynamic timeout based on agent/mode
-            timeout_seconds = 300  # Default 5 min
-            if agent_id == "research_analyst":
-                timeout_seconds = 3600  # 60 min for all Emma modes (large projects)
-            elif agent_id == "architect":
-                timeout_seconds = 900  # 15 min for architecture
-            
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
+                task_data["mode"] = mode
+
+            logger.debug(f"[P3] Running {agent_id} via direct import (mode={mode})")
+
+            # Run in thread pool (agents do blocking LLM calls)
+            output_data = await asyncio.wait_for(
+                asyncio.to_thread(agent_instance.run, task_data),
                 timeout=timeout_seconds
             )
-            
-            if process.returncode != 0:
-                error_msg = stderr.decode()[:500] if stderr else "Unknown error"
+
+            if output_data.get("success"):
+                return {"success": True, "output": output_data}
+            else:
+                error_msg = output_data.get("error", "Agent returned failure")
                 logger.error(f"Agent {agent_id} failed: {error_msg}")
                 return {"success": False, "error": error_msg}
-            
-            # Read output
-            if output_file.exists():
-                with open(output_file) as f:
-                    output = json.load(f)
-                return {"success": True, "output": output}
-            else:
-                return {"success": False, "error": "No output file"}
-                
+
         except asyncio.TimeoutError:
+            logger.error(f"Agent {agent_id} timed out after {timeout_seconds}s")
             return {"success": False, "error": f"Timeout ({timeout_seconds // 60} min)"}
         except Exception as e:
+            logger.error(f"Agent {agent_id} exception: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
     def _init_agent_status(self, selected_agents: List[str]) -> Dict:

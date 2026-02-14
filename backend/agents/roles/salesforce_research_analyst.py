@@ -365,6 +365,7 @@ class ResearchAnalystAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -514,6 +515,7 @@ class ResearchAnalystAgent:
             "content": parsed_content,
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
@@ -637,6 +639,7 @@ class ResearchAnalystAgent:
             },
             "metadata": {
                 "tokens_used": llm_tokens,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
                 "model": llm_model,
                 "provider": llm_provider,
                 "execution_time_seconds": round(execution_time, 2),
@@ -787,6 +790,7 @@ class ResearchAnalystAgent:
             },
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
@@ -826,6 +830,7 @@ class ResearchAnalystAgent:
             input_tokens = response.get("input_tokens", 0)
             model_used = response.get("model", "")
             provider_used = response.get("provider", "")
+            self._total_cost += response.get("cost_usd", 0.0)
             logger.info(f"Using {provider_used} / {model_used}")
             return content, tokens_used, input_tokens, model_used, provider_used
 

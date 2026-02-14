@@ -577,7 +577,7 @@ This document includes:
         if std_objects:
             generator.doc.add_heading("Standard Objects", 2)
             for obj in std_objects:
-                generator.doc.add_heading(obj.get("object", "Unknown"), 3)
+                generator.doc.add_heading(obj.get("label", obj.get("api_name", obj.get("object", obj.get("name", "Unknown")))), 3)
                 generator.doc.add_paragraph(f"Purpose: {obj.get('purpose', 'N/A')}")
                 
                 custom_fields = obj.get("custom_fields", obj.get("customizations", []))

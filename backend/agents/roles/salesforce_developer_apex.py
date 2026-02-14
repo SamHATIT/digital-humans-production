@@ -222,6 +222,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
+        self._total_cost += response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -273,6 +274,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         },
         "metadata": {
             "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),
             "model": model_used,
             "execution_time_seconds": round(execution_time, 2),
             "generated_at": datetime.now().isoformat()
@@ -433,6 +435,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
+        self._total_cost += response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -576,6 +579,7 @@ class ApexDeveloperAgent:
 
     def __init__(self, config: Optional[Dict] = None):
         self.config = config or {}
+        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
