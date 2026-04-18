@@ -111,8 +111,14 @@ async def list_workspace_files():
 @router.get("/llm/status")
 async def get_llm_status():
     try:
-        from app.services.llm_service import get_llm_service
-        return get_llm_service().get_status()
+        from app.services.llm_router_service import get_llm_router
+        router = get_llm_router()
+        return {
+            "active_profile": router.get_active_profile(),
+            "build_enabled": router.is_build_enabled(),
+            "providers": router.get_available_providers(),
+            "session_stats": router.get_session_stats(),
+        }
     except Exception as e:
         return {"error": str(e), "available": False}
 

@@ -5,6 +5,47 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## [2026-04-18] Session 3 — Agent C : LLM Modernization multi-profile
+
+### Context
+Consolidation de l'architecture LLM autour de 2 tiers logiques (orchestrator /
+worker) et 3 deployment profiles (cloud / on-premise / freemium). Source de
+vérité unique : `config/llm_routing.yaml`.
+
+### TASKs deployed
+| TASK | Description | Findings resolved |
+|------|-------------|-------------------|
+| C-1  | `llm_routing.yaml` refondu en format multi-profile (3 × 2 tiers)  | N21, N22, N42, N43 |
+| C-1b | `LLMRouterService` profile-aware + `is_build_enabled` / `get_active_profile` | N23, N28, N31 |
+| C-2  | Fallback chain scoped au profile actif — pas de fallback cloud depuis on-premise/freemium | N33 |
+| C-3  | Continuation CRIT-02 (auto-continue sur `stop_reason=max_tokens`) portée dans le Router V3 | — |
+| C-5  | `MODEL_PRICING` chargé depuis YAML (double-index par alias + model_id). Prix Opus réels : $15 in / $75 out | — |
+| C-0  | Classe `LLMService` V1 (752 LOC) supprimée → `llm_service.py` réécrit en thin wrapper (212 LOC). Callers directs (`sophie_chat_service`, `change_request_service`, `hitl_routes`, `agent_tester`) migrés vers `generate_llm_response` | N45, N86, N41 |
+| C-4  | `BuildEnabledMiddleware` bloque les endpoints BUILD en freemium (HTTP 403 `build_disabled`) + `GET /api/config/capabilities` expose profile actif | N35, N41 |
+
+### Files touched
+- `backend/config/llm_routing.yaml` (rewritten)
+- `backend/app/services/llm_router_service.py` (rewritten — profile-aware + continuation)
+- `backend/app/services/llm_service.py` (752 → 212 LOC thin wrapper)
+- `backend/app/services/budget_service.py` (pricing from YAML)
+- `backend/app/services/sophie_chat_service.py` (migrated away from LLMService())
+- `backend/app/services/change_request_service.py` (migrated)
+- `backend/app/api/routes/hitl_routes.py` (migrated)
+- `backend/app/api/routes/agent_tester.py` (/llm/status uses router)
+- `backend/app/api/routes/config.py` (new — /api/config/capabilities)
+- `backend/app/middleware/build_enabled.py` (new — BuildEnabledMiddleware)
+- `backend/app/middleware/__init__.py`
+- `backend/app/main.py` (wire middleware + config route)
+- `backend/tests/test_full_flow.py` (test_05 uses router)
+
+### Behavior changes
+- `DH_DEPLOYMENT_PROFILE=cloud|on-premise|freemium` switches routing entirely.
+- In `freemium`, `POST /api/projects/{id}/start-build` returns HTTP 403 with code `build_disabled`.
+- In `on-premise`, LLM errors are not masked by a cloud fallback (confidentiality).
+- Continuations are logged via `continuations` field on `LLMResponse`.
+
+---
+
 ## [2026-02-11] Session E2E #142 — First Complete Run
 
 ### Context

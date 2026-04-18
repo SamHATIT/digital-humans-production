@@ -257,12 +257,11 @@ Ton rôle:
 
 Réponds en français, de manière concise et professionnelle."""
 
-    # Call LLM
-    from app.services.llm_service import LLMService
-    llm = LLMService()
+    # Call LLM via router (C-0: no more LLMService bypass)
+    from app.services.llm_service import generate_llm_response
 
     try:
-        response = llm.generate(
+        response = generate_llm_response(
             prompt=full_prompt,
             agent_type="sophie",
             system_prompt=system_prompt,

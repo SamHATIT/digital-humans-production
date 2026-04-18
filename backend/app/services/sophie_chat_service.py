@@ -11,17 +11,16 @@ from app.models.execution import Execution
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.project_conversation import ProjectConversation
-from app.services.llm_service import LLMService
+from app.services.llm_service import generate_llm_response
 
 logger = logging.getLogger(__name__)
 
 
 class SophieChatService:
     """Service for handling chat with Sophie (PM agent) using Claude."""
-    
+
     def __init__(self, db: Session):
         self.db = db
-        self.llm_service = LLMService()  # Uses Claude by default
         self.max_context_chars = 30000  # Limit context to avoid token overflow
     
     def get_project_context(self, project_id: int, execution_id: Optional[int] = None) -> Dict[str, Any]:
@@ -169,15 +168,15 @@ class SophieChatService:
         logger.info(f"[Sophie Chat] Full prompt length: {len(full_prompt)} chars")
         
         try:
-            # Call Claude via LLMService
+            # Call Claude via LLM router (profile-aware)
             logger.info(f"[Sophie Chat] Calling Claude (agent_type=sophie)...")
             
-            response = self.llm_service.generate(
+            response = generate_llm_response(
                 prompt=full_prompt,
                 agent_type="sophie",  # Uses ORCHESTRATOR tier = Claude Opus
                 system_prompt=system_prompt,
                 max_tokens=1500,
-                temperature=0.7
+                temperature=0.7,
             )
             
             assistant_message = response["content"]

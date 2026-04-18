@@ -13,9 +13,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, config as config_routes
 from app.api import audit  # CORE-001: Audit logging API
-from app.middleware import AuditMiddleware  # CORE-001: Audit middleware
+from app.middleware import AuditMiddleware, BuildEnabledMiddleware  # CORE-001 + C-4 middleware
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -62,6 +62,10 @@ app.add_middleware(
 # CORE-001: Audit logging middleware (logs all HTTP requests)
 app.add_middleware(AuditMiddleware)
 
+# C-4: BuildEnabledMiddleware — blocks BUILD endpoints when profile=freemium.
+# Registered last so it runs first (Starlette middleware stack is LIFO).
+app.add_middleware(BuildEnabledMiddleware)
+
 # Include routers - V1
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(pm_orchestrator.router, prefix=f"{settings.API_V1_PREFIX}/pm-orchestrator")
@@ -107,6 +111,9 @@ app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
 
 # P3: Document upload routes (RAG project isolation)
 app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
+
+# C-4: Config capabilities endpoint (frontend reads active profile + build_enabled)
+app.include_router(config_routes.router, prefix=settings.API_V1_PREFIX)
 
 # Environment routes (Section 6.2, 6.3, 6.4)
 
