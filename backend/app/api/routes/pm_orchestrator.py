@@ -9,7 +9,6 @@ All route logic has been extracted to app.api.routes.orchestrator/ package:
 - orchestrator/build_routes.py      — BUILD monitoring & start (4 routes)
 - orchestrator/chat_ws_routes.py    — Chat & WebSocket (2 routes)
 - orchestrator/retry_routes.py      — Retry, pause, resume (4 routes)
-- orchestrator/sds_v3_routes.py     — SDS V3 pipeline (8 routes)
 - orchestrator/build_executor.py    — execute_build_v2() background function
 - orchestrator/_helpers.py          — Shared constants & utilities
 

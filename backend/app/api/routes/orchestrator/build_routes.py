@@ -9,9 +9,8 @@ import logging
 
 from app.database import get_db
 from app.models.user import User
-from app.models.project import Project
-from app.models.execution import Execution, ExecutionStatus
-from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from app.models.execution import ExecutionStatus
+from app.utils.dependencies import get_current_user_from_token_or_header
 from app.workers.arq_config import get_redis_pool
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import verify_execution_access

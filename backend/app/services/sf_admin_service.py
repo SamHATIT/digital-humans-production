@@ -3,11 +3,9 @@ SF Admin Service - BUILD v2
 Transforme les plans JSON Raj en fichiers XML et déploie via SFDX CLI.
 """
 import logging
-import os
 import json
 import tempfile
 import subprocess
-import shutil
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path

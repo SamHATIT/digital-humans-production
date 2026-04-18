@@ -83,3 +83,6 @@ agents/backups/
 # RAG resources (too large for git)
 data/rag/
 backend/.env.pre-refonte-backup
+
+# Daily session context logs (Méta-5)
+archives/CONTEXT_*.md

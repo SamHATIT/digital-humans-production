@@ -15,12 +15,6 @@ from app.config import settings
 from app.database import Base
 
 # Import all models so they're registered with Base.metadata
-from app.models.user import User
-from app.models.project import Project
-from app.models.execution import Execution
-from app.models.agent import Agent
-from app.models.execution_agent import ExecutionAgent
-from app.models.output import Output
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

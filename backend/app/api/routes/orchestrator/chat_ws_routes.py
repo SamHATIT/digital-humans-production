@@ -6,7 +6,6 @@ P4: Extracted from pm_orchestrator.py — Real-time communication endpoints.
 from fastapi import APIRouter, Depends, HTTPException, status, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 import asyncio
-import json
 import logging
 
 from app.database import get_db

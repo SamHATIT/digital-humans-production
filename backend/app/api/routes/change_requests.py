@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 
 from app.database import get_db
@@ -17,7 +17,6 @@ from app.schemas.change_request import (
     ChangeRequestUpdate,
     ChangeRequestResponse,
     ChangeRequestList,
-    ChangeRequestSubmit,
     ChangeRequestApprove
 )
 

@@ -4,13 +4,13 @@ Wizard API Routes - Project Configuration Wizard
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr, HttpUrl
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
 from app.database import get_db
 from app.models.project import Project, ProjectStatus, ProjectType, TargetObjective
-from app.models.project_credential import ProjectCredential, CredentialType
+from app.models.project_credential import CredentialType
 from app.models.user import User
 from app.api.routes.auth import get_current_user
 # EnvironmentService handles encryption internally

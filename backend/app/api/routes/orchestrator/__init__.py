@@ -10,10 +10,15 @@ Module map:
 - build_routes:     4 routes — BUILD monitoring & start
 - chat_ws_routes:   2 routes — Chat & WebSocket
 - retry_routes:     4 routes — Retry, pause, resume
-- sds_v3_routes:    8 routes — SDS V3 pipeline (microanalyze → DOCX)
 - build_executor:   execute_build_v2() background function
 - validation_gate_routes: 4 routes — Configurable validation gates (P2-Full)
 - _helpers:         Shared constants & utilities
+
+D-4 (session 3): the SDS V3 Mistral PASS 1 pipeline (8 routes,
+sds_synthesis_service, sds_docx_generator_v3, uc_analyzer_service)
+was removed. The UCRequirementSheet model + table is intentionally
+left in place — drop in a follow-up migration when the orphan data is
+no longer needed. Snapshot tag: legacy/sds_v3_synthesis_before_removal.
 """
 from fastapi import APIRouter
 
@@ -22,7 +27,6 @@ from app.api.routes.orchestrator.execution_routes import router as execution_rou
 from app.api.routes.orchestrator.build_routes import router as build_router
 from app.api.routes.orchestrator.chat_ws_routes import router as chat_ws_router
 from app.api.routes.orchestrator.retry_routes import router as retry_router
-from app.api.routes.orchestrator.sds_v3_routes import router as sds_v3_router
 from app.api.routes.orchestrator.validation_gate_routes import router as validation_gate_router
 
 # Combined router — preserves the same API surface as the original pm_orchestrator.py
@@ -33,5 +37,4 @@ router.include_router(execution_router)
 router.include_router(build_router)
 router.include_router(chat_ws_router)
 router.include_router(retry_router)
-router.include_router(sds_v3_router)
 router.include_router(validation_gate_router)

@@ -8,17 +8,13 @@ following the standard 8-section structure.
 """
 import os
 import json
-import re
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import List
 from collections import defaultdict
 
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor, Cm, Twips
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.enum.style import WD_STYLE_TYPE
-from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml
 
 from sqlalchemy import create_engine, text

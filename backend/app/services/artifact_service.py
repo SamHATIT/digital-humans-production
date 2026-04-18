@@ -5,15 +5,13 @@ Handles CRUD operations and business logic for artifacts, gates, and questions
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
 
 from app.models.artifact import (
     ExecutionArtifact, ValidationGate, AgentQuestion,
-    ArtifactType, ArtifactStatus, GateStatus, QuestionStatus
+    ArtifactStatus, GateStatus, QuestionStatus
 )
 from app.schemas.artifact import (
     ArtifactCreate, ArtifactUpdate, ArtifactStatusUpdate,
-    GateCreate, GateStatusUpdate,
     QuestionCreate, QuestionAnswer,
     GraphNode, GraphEdge, DependencyGraph
 )

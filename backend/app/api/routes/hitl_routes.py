@@ -15,11 +15,9 @@ from app.models.project import Project
 from app.models.execution import Execution
 from app.models.change_request import ChangeRequest
 from app.models.agent_deliverable import AgentDeliverable
-from app.models.sds_version import SDSVersion
 from app.models.artifact import ExecutionArtifact
 from app.models.project_conversation import ProjectConversation
 from app.services.change_request_service import ChangeRequestService
-from app.services.sophie_chat_service import SophieChatService
 from app.services.agents_registry import (
     AgentNotFoundError,
     get_chat_profile,

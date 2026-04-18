@@ -3,8 +3,7 @@ Phase Aggregator - BUILD v2
 Fusionne les outputs des sous-lots en un output de phase unifié.
 """
 import logging
-from typing import Dict, List, Any, Optional
-import json
+from typing import Dict, List, Any
 
 logger = logging.getLogger(__name__)
 

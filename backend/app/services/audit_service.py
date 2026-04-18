@@ -25,7 +25,7 @@ from datetime import datetime
 from typing import Optional, Any, Dict
 from contextlib import contextmanager
 from sqlalchemy.orm import Session
-from sqlalchemy import select, desc, and_
+from sqlalchemy import desc
 
 from app.database import SessionLocal
 from app.models.audit import AuditLog, ActorType, ActionCategory

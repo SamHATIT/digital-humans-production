@@ -5,12 +5,11 @@ Allows users to upload PDF/DOCX/TXT files to a project's RAG context.
 Documents are chunked and ingested into ChromaDB with project_id metadata
 so that agents only see context from their own project.
 """
-import os
 import logging
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.database import get_db

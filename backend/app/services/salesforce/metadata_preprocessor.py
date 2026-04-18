@@ -5,13 +5,12 @@ Analyse les raw metadata et génère un summary intelligent pour Marcus
 ZERO LLM - Pure Python analysis with RED FLAG detection
 """
 
-import os
 import re
 import json
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any, Optional
-from dataclasses import dataclass, asdict, field
+from typing import Dict, List, Any
+from dataclasses import dataclass, field
 from collections import defaultdict
 from enum import Enum
 import logging

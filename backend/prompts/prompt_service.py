@@ -14,7 +14,7 @@ Usage:
 import yaml
 from pathlib import Path
 from string import Template
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 
 logger = logging.getLogger(__name__)

@@ -4,10 +4,8 @@ Blog API Routes - Generate articles from approved topics
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
-import subprocess
 import os
 import asyncio
-from datetime import datetime
 from app.config import settings
 
 router = APIRouter(prefix="/blog", tags=["blog"])

@@ -7,7 +7,7 @@ Endpoints for:
 - Querying pending validation and history
 - Resuming execution after gate validation
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -16,7 +16,7 @@ import logging
 from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
-from app.models.execution import Execution, ExecutionStatus
+from app.models.execution import ExecutionStatus
 from app.utils.dependencies import get_current_user
 from app.services.validation_gate_service import (
     ValidationGateService,

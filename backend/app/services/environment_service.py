@@ -722,7 +722,7 @@ def get_environment_service(db: Session) -> EnvironmentService:
     
     def test_git_connection(self, project_id: int) -> dict:
         """Test Git connection for a project."""
-        from app.models.project_git_config import ProjectGitConfig, GitConnectionStatus
+        from app.models.project_git_config import GitConnectionStatus
         
         config = self.get_git_config(project_id)
         

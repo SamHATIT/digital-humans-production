@@ -4,14 +4,12 @@ Endpoints for subscription management and feature access.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
 
 from app.database import get_db
 from app.utils.dependencies import get_current_user
 from app.models.user import User
 from app.models.subscription import (
     SubscriptionTier,
-    TIER_FEATURES,
     get_tier_config,
     compare_tiers
 )

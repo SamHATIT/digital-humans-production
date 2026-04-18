@@ -1,10 +1,8 @@
 """Schemas for Change Requests."""
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List
 from pydantic import BaseModel
-from decimal import Decimal
 
-from app.models.change_request import CRStatus, CRCategory, CRPriority
 
 
 class ImpactAnalysis(BaseModel):

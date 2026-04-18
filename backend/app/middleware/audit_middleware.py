@@ -4,7 +4,6 @@ CORE-001: Captures API activity for security and debugging.
 """
 import time
 import uuid
-import asyncio
 from typing import Callable
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware

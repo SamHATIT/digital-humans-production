@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, config as config_routes
 from app.api import audit  # CORE-001: Audit logging API
-from app.middleware import AuditMiddleware, BuildEnabledMiddleware  # CORE-001 + C-4 middleware
+from app.middleware import AuditMiddleware, BuildEnabledMiddleware, ExecutionContextMiddleware  # CORE-001 + C-4 + D-2
 from app.database import Base, engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -61,6 +61,12 @@ app.add_middleware(
 
 # CORE-001: Audit logging middleware (logs all HTTP requests)
 app.add_middleware(AuditMiddleware)
+
+# D-2: ExecutionContextMiddleware — populate execution_id/request_id/agent_id
+# contextvars so logging_config and downstream services attach consistent context
+# to every log line and DB write. Registered after Audit so Audit records can
+# include the request_id produced here.
+app.add_middleware(ExecutionContextMiddleware)
 
 # C-4: BuildEnabledMiddleware — blocks BUILD endpoints when profile=freemium.
 # Registered last so it runs first (Starlette middleware stack is LIFO).

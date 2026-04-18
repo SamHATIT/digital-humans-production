@@ -3,7 +3,7 @@ Pydantic schemas for PM Orchestration.
 """
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.models.pm_orchestration import PMStatus
 
