@@ -17,6 +17,7 @@ from app.schemas.artifact import (
     QuestionCreate, QuestionAnswer,
     GraphNode, GraphEdge, DependencyGraph
 )
+from app.services.agents_registry import get_artifact_needs as _registry_artifact_needs
 
 
 class ArtifactService:
@@ -159,21 +160,9 @@ class ArtifactService:
             "answered_questions": []
         }
         
-        # Define what each agent needs
-        agent_artifact_needs = {
-            "ba": ["requirement"],
-            "architect": ["requirement", "business_req", "use_case"],
-            "apex": ["spec", "adr", "use_case", "business_req"],
-            "lwc": ["spec", "adr", "use_case", "business_req"],
-            "admin": ["spec", "adr", "use_case", "business_req"],
-            "qa": ["spec", "code", "config"],
-            "devops": ["code", "config", "test"],
-            "data": ["spec", "business_req"],
-            "trainer": ["use_case", "business_req", "doc"],
-            "pm": ["requirement", "business_req", "use_case", "adr", "spec"]
-        }
-        
-        needed_types = agent_artifact_needs.get(agent_id, [])
+        # N80 fix: artifact needs now sourced from agents_registry.yaml
+        # (previously a local dict missing entries for `research_analyst`/`emma`).
+        needed_types = _registry_artifact_needs(agent_id)
         
         # Get relevant artifacts
         for artifact_type in needed_types:

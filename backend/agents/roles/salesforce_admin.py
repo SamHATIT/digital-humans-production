@@ -43,6 +43,10 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts (B-3d)
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
+
 
 SPEC_PROMPT = """# ⚙️ SALESFORCE ADMIN - SPECIFICATION MODE
 
@@ -234,10 +238,13 @@ Before generating, ensure:
 
 def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
     """Generate admin specifications for SDS document."""
-    prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
-
+    rag_section = ""
     if rag_context:
-        prompt += f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
+        rag_section = f"\n\n## BEST PRACTICES\n{rag_context[:2000]}\n"
+    prompt = PROMPT_SERVICE.render("raj_admin", "spec", {
+        "requirements": requirements[:25000],
+        "rag_section": rag_section,
+    })
 
     logger.info("Raj SPEC mode...")
     start_time = time.time()
@@ -310,18 +317,20 @@ Elena (QA) found issues:
 FIX THESE ISSUES.
 """
 
-    prompt = BUILD_PROMPT.format(task_id=task_id, task_name=task_name,
-                                  task_description=task_description,
-                                  architecture_context=architecture_context[:10000])
-
-    # CRITICAL: Add Elena's feedback if this is a retry
-    if correction_context:
-        prompt += correction_context
-
+    rag_section = ""
     if rag_context:
-        prompt += f"\n\n## ADMIN BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+        rag_section = f"\n\n## ADMIN BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
 
-    # BUG-044/046: Include Solution Design from Marcus
+    prompt = PROMPT_SERVICE.render("raj_admin", "build", {
+        "task_id": task_id,
+        "task_name": task_name,
+        "task_description": task_description,
+        "architecture_context": architecture_context[:10000],
+        "correction_context": correction_context,
+        "rag_section": rag_section,
+    })
+
+    # BUG-044/046: Include Solution Design from Marcus (appended, not part of template)
     if solution_design:
         sd_text = ""
         if solution_design.get("data_model"):

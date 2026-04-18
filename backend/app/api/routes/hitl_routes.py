@@ -20,6 +20,12 @@ from app.models.artifact import ExecutionArtifact
 from app.models.project_conversation import ProjectConversation
 from app.services.change_request_service import ChangeRequestService
 from app.services.sophie_chat_service import SophieChatService
+from app.services.agents_registry import (
+    AgentNotFoundError,
+    get_chat_profile,
+    iter_chat_profiles,
+    resolve_agent_id,
+)
 from app.schemas.change_request import ChangeRequestResponse, ChangeRequestList
 
 logger = logging.getLogger(__name__)
@@ -78,110 +84,22 @@ class DiffResponse(BaseModel):
     content_v2: dict
 
 # ---------------------------------------------------------------------------
-# Agent Chat Profiles — system prompts for contextual chat
+# Agent Chat Profiles — sourced from agents_registry.yaml (see B-2d / N93).
+# The old inline dict used to duplicate Sophie's system prompt; now every
+# profile comes from one canonical place.
 # ---------------------------------------------------------------------------
 
+# Backward compat: a dict view of the registry in the legacy shape.
 AGENT_CHAT_PROFILES = {
-    "sophie": {
-        "name": "Sophie",
-        "role": "Project Manager",
-        "agent_type": "pm",
-        "color": "purple",
-        "system_prompt": """Tu es Sophie, Project Manager senior chez Digital Humans, spécialisée en implémentation Salesforce.
-Tu es en charge du projet "{project_name}".
-Réponds aux questions du client sur le projet et ses livrables. Explique les choix faits.
-Si le client demande une modification, propose de créer un Change Request.
-Réponds en français, de manière concise et professionnelle.""",
-    },
-    "marcus": {
-        "name": "Marcus",
-        "role": "Solution Architect",
-        "agent_type": "architect",
-        "color": "blue",
-        "deliverable_types": ["architect_solution_design", "architect_gap_analysis", "architect_wbs"],
-        "system_prompt": """Tu es Marcus, Salesforce Certified Technical Architect (CTA).
-Tu as conçu l'architecture du projet "{project_name}".
-Tu peux expliquer tes choix de data model, flows, security, et répondre aux questions techniques.
-Si le client propose une modification architecturale, explique l'impact et les dépendances.
-Réponds en français, en étant précis et technique.""",
-    },
-    "olivia": {
-        "name": "Olivia",
-        "role": "Business Analyst",
-        "agent_type": "business_analyst",
-        "color": "green",
-        "deliverable_types": ["ba_use_cases"],
-        "system_prompt": """Tu es Olivia, Business Analyst senior spécialisée Salesforce.
-Tu as rédigé les Use Cases du projet "{project_name}".
-Tu peux expliquer la logique métier, les scénarios, et les critères d'acceptation.
-Réponds en français, de manière claire et orientée métier.""",
-    },
-    "emma": {
-        "name": "Emma",
-        "role": "Research Analyst",
-        "agent_type": "research_analyst",
-        "color": "cyan",
-        "deliverable_types": ["research_analyst_coverage_report", "research_analyst_sds_document"],
-        "system_prompt": """Tu es Emma, Research Analyst senior.
-Tu as validé la couverture de l'architecture et rédigé le SDS du projet "{project_name}".
-Tu peux expliquer les gaps identifiés, le score de couverture, et la structure du SDS.
-Réponds en français, de manière analytique et précise.""",
-    },
-    "elena": {
-        "name": "Elena",
-        "role": "QA Engineer",
-        "agent_type": "qa_tester",
-        "color": "pink",
-        "deliverable_types": ["qa_"],
-        "system_prompt": """Tu es Elena, QA Engineer senior spécialisée Salesforce.
-Tu as conçu la stratégie de test du projet "{project_name}".
-Tu peux expliquer les scénarios de test, la couverture, et les risques identifiés.
-Réponds en français, de manière rigoureuse et méthodique.""",
-    },
-    "jordan": {
-        "name": "Jordan",
-        "role": "DevOps / CI-CD",
-        "agent_type": "devops",
-        "color": "yellow",
-        "deliverable_types": ["devops_"],
-        "system_prompt": """Tu es Jordan, DevOps Engineer senior spécialisé Salesforce.
-Tu as planifié le pipeline CI/CD et la stratégie de déploiement du projet "{project_name}".
-Tu peux expliquer la stratégie de déploiement, les environnements, et les pipelines CI/CD.
-Réponds en français, de manière technique et concrète.""",
-    },
-    "aisha": {
-        "name": "Aisha",
-        "role": "Data Migration",
-        "agent_type": "data",
-        "color": "orange",
-        "deliverable_types": ["data_"],
-        "system_prompt": """Tu es Aisha, Data Migration Specialist senior spécialisée Salesforce.
-Tu as conçu le plan de migration de données du projet "{project_name}".
-Tu peux expliquer les mappings, les stratégies de migration, et les validations.
-Réponds en français, de manière structurée et rigoureuse.""",
-    },
-    "lucas": {
-        "name": "Lucas",
-        "role": "Trainer",
-        "agent_type": "trainer",
-        "color": "teal",
-        "deliverable_types": ["trainer_"],
-        "system_prompt": """Tu es Lucas, Trainer senior spécialisé Salesforce.
-Tu as conçu le plan de formation du projet "{project_name}".
-Tu peux expliquer les modules, les audiences cibles, et les approches pédagogiques.
-Réponds en français, de manière pédagogique et engageante.""",
-    },
-    "raj": {
-        "name": "Raj",
-        "role": "Admin Config",
-        "agent_type": "admin",
-        "color": "indigo",
-        "deliverable_types": ["admin_"],
-        "system_prompt": """Tu es Raj, Salesforce Admin senior.
-Tu as planifié la configuration du projet "{project_name}".
-Tu peux expliquer les choix de configuration, permissions, page layouts et record types.
-Réponds en français, de manière pratique et orientée solution.""",
-    },
+    p["agent_id"]: {
+        "name": p["name"],
+        "role": p["role"],
+        "agent_type": p["agent_type"],
+        "color": p["color"],
+        "deliverable_types": p["deliverable_types"],
+        "system_prompt": p["system_prompt"],
+    }
+    for p in iter_chat_profiles()
 }
 
 
@@ -199,12 +117,19 @@ def chat_with_sophie_contextual(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Send a contextual message to Sophie within an execution.
+    Send a contextual message to an agent within an execution.
 
     If a deliverable_id is provided, the deliverable content is loaded as context.
-    If Sophie detects the message implies a modification, a ChangeRequest is
+    If the agent detects the message implies a modification, a ChangeRequest is
     created automatically.
     """
+    # Resolve agent via registry (N93 — single source of truth for chat profiles).
+    try:
+        canonical_agent_id = resolve_agent_id(body.agent_id or "sophie")
+    except AgentNotFoundError:
+        raise HTTPException(status_code=400, detail=f"Unknown agent_id: {body.agent_id}")
+    profile = get_chat_profile(canonical_agent_id)
+
     # Verify execution exists and belongs to user
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if not execution:
@@ -227,15 +152,17 @@ def chat_with_sophie_contextual(
         if deliverable:
             deliverable_context = (deliverable.content or "")[:8000]
 
-    # Load conversation history
+    # Load conversation history for this agent only (N92 — chat is per-agent).
     history = db.query(ProjectConversation).filter(
         ProjectConversation.project_id == project.id,
         ProjectConversation.execution_id == execution_id,
+        ProjectConversation.agent_id == canonical_agent_id,
     ).order_by(ProjectConversation.created_at.desc()).limit(10).all()
 
+    agent_label = profile["name"]
     history_text = ""
     for msg in reversed(history):
-        role_label = "Client" if msg.role == "user" else "Sophie"
+        role_label = "Client" if msg.role == "user" else agent_label
         history_text += f"\n{role_label}: {msg.message}\n"
 
     # Build prompt with context
@@ -244,18 +171,10 @@ def chat_with_sophie_contextual(
     if deliverable_context:
         deliverable_section = f"\n## Livrable en contexte{phase_label}\n{deliverable_context}\n"
 
-    full_prompt = f"{history_text}\n{deliverable_section}\nClient: {body.message}\n\nSophie:"
+    full_prompt = f"{history_text}\n{deliverable_section}\nClient: {body.message}\n\n{agent_label}:"
 
-    system_prompt = f"""Tu es Sophie, Project Manager senior chez Digital Humans, spécialisée en implémentation Salesforce.
-Tu es en charge du projet "{project.name}".
-
-Ton rôle:
-- Répondre aux questions du client sur le projet et ses livrables
-- Expliquer les choix techniques et fonctionnels
-- Aider le client à comprendre les impacts de modifications potentielles
-- Si le client demande une modification, explique-la clairement et propose de créer un Change Request
-
-Réponds en français, de manière concise et professionnelle."""
+    # N93 fix: system prompt now sourced from agents_registry.yaml (no inline dup).
+    system_prompt = profile["system_prompt"].format(project_name=project.name)
 
     # Call LLM via router (C-0: no more LLMService bypass)
     from app.services.llm_service import generate_llm_response
@@ -263,7 +182,7 @@ Réponds en français, de manière concise et professionnelle."""
     try:
         response = generate_llm_response(
             prompt=full_prompt,
-            agent_type="sophie",
+            agent_type=profile["agent_type"],
             system_prompt=system_prompt,
             max_tokens=1500,
             temperature=0.7,
@@ -276,7 +195,7 @@ Réponds en français, de manière concise et professionnelle."""
     tokens_used = response.get("tokens_used", 0)
     model_used = response.get("model", "unknown")
 
-    # Save user message + assistant response
+    # Save user message + assistant response with agent_id (N92 fix).
     for role, text, tokens in [
         ("user", body.message, 0),
         ("assistant", assistant_message, tokens_used),
@@ -284,6 +203,7 @@ Réponds en français, de manière concise et professionnelle."""
         db.add(ProjectConversation(
             project_id=project.id,
             execution_id=execution_id,
+            agent_id=canonical_agent_id,
             role=role,
             message=text,
             tokens_used=tokens,
@@ -303,7 +223,12 @@ Réponds en français, de manière concise et professionnelle."""
     if cr:
         cr_response = ChangeRequestResponse.model_validate(cr)
 
-    return ChatResponse(response=assistant_message, change_request=cr_response)
+    return ChatResponse(
+        response=assistant_message,
+        agent_id=canonical_agent_id,
+        agent_name=profile["name"],
+        change_request=cr_response,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -472,25 +397,18 @@ def execute_change_request(
 # 3. Deliverable Versions & Diff
 # ---------------------------------------------------------------------------
 
-@router.get("/deliverables/{deliverable_id}/versions", response_model=List[VersionEntry])
-def list_deliverable_versions(
-    deliverable_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    List all versions of an artifact (execution_artifacts table).
-
-    The deliverable_id here refers to an ExecutionArtifact id. We find its
-    artifact_code and list all versions sharing that code within the same execution.
-    """
+def _load_artifact_for_user(
+    artifact_id: int,
+    db: Session,
+    current_user: User,
+) -> ExecutionArtifact:
+    """Fetch an ExecutionArtifact after verifying project ownership."""
     artifact = db.query(ExecutionArtifact).filter(
-        ExecutionArtifact.id == deliverable_id,
+        ExecutionArtifact.id == artifact_id,
     ).first()
     if not artifact:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+        raise HTTPException(status_code=404, detail="Artifact not found")
 
-    # Verify user access via execution -> project
     execution = db.query(Execution).filter(Execution.id == artifact.execution_id).first()
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
@@ -501,12 +419,14 @@ def list_deliverable_versions(
     ).first()
     if not project:
         raise HTTPException(status_code=403, detail="Access denied")
+    return artifact
 
+
+def _list_artifact_versions(artifact: ExecutionArtifact, db: Session) -> List[VersionEntry]:
     versions = db.query(ExecutionArtifact).filter(
         ExecutionArtifact.execution_id == artifact.execution_id,
         ExecutionArtifact.artifact_code == artifact.artifact_code,
     ).order_by(ExecutionArtifact.version.asc()).all()
-
     return [
         VersionEntry(
             id=v.id,
@@ -519,7 +439,87 @@ def list_deliverable_versions(
     ]
 
 
-@router.get("/deliverables/{deliverable_id}/diff", response_model=DiffResponse)
+def _diff_artifact_versions(
+    artifact: ExecutionArtifact,
+    v1: int,
+    v2: int,
+    db: Session,
+) -> DiffResponse:
+    ver1 = db.query(ExecutionArtifact).filter(
+        ExecutionArtifact.execution_id == artifact.execution_id,
+        ExecutionArtifact.artifact_code == artifact.artifact_code,
+        ExecutionArtifact.version == v1,
+    ).first()
+    ver2 = db.query(ExecutionArtifact).filter(
+        ExecutionArtifact.execution_id == artifact.execution_id,
+        ExecutionArtifact.artifact_code == artifact.artifact_code,
+        ExecutionArtifact.version == v2,
+    ).first()
+    if not ver1:
+        raise HTTPException(status_code=404, detail=f"Version {v1} not found")
+    if not ver2:
+        raise HTTPException(status_code=404, detail=f"Version {v2} not found")
+    return DiffResponse(
+        v1=v1,
+        v2=v2,
+        content_v1=ver1.content or {},
+        content_v2=ver2.content or {},
+    )
+
+
+@router.get("/artifacts/{artifact_id}/versions", response_model=List[VersionEntry])
+def list_artifact_versions(
+    artifact_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all versions of an artifact (execution_artifacts table)."""
+    artifact = _load_artifact_for_user(artifact_id, db, current_user)
+    return _list_artifact_versions(artifact, db)
+
+
+@router.get("/artifacts/{artifact_id}/diff", response_model=DiffResponse)
+def diff_artifact_versions(
+    artifact_id: int,
+    v1: int = Query(..., description="Version number 1"),
+    v2: int = Query(..., description="Version number 2"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the content of two artifact versions for client-side diff."""
+    artifact = _load_artifact_for_user(artifact_id, db, current_user)
+    return _diff_artifact_versions(artifact, v1, v2, db)
+
+
+# --- Deprecated aliases kept for one release (N91 — `deliverable_id` was ambiguous) ---
+
+@router.get(
+    "/deliverables/{deliverable_id}/versions",
+    response_model=List[VersionEntry],
+    deprecated=True,
+)
+def list_deliverable_versions(
+    deliverable_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Deprecated: use ``/artifacts/{artifact_id}/versions`` instead."""
+    import warnings
+
+    warnings.warn(
+        "GET /deliverables/{id}/versions is deprecated; call /artifacts/{id}/versions instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    artifact = _load_artifact_for_user(deliverable_id, db, current_user)
+    return _list_artifact_versions(artifact, db)
+
+
+@router.get(
+    "/deliverables/{deliverable_id}/diff",
+    response_model=DiffResponse,
+    deprecated=True,
+)
 def diff_deliverable_versions(
     deliverable_id: int,
     v1: int = Query(..., description="Version number 1"),
@@ -527,49 +527,16 @@ def diff_deliverable_versions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Return the content of two artifact versions for client-side diff."""
-    artifact = db.query(ExecutionArtifact).filter(
-        ExecutionArtifact.id == deliverable_id,
-    ).first()
-    if not artifact:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
+    """Deprecated: use ``/artifacts/{artifact_id}/diff`` instead."""
+    import warnings
 
-    # Verify access
-    execution = db.query(Execution).filter(Execution.id == artifact.execution_id).first()
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
-
-    project = db.query(Project).filter(
-        Project.id == execution.project_id,
-        Project.user_id == current_user.id,
-    ).first()
-    if not project:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    # Load both versions
-    ver1 = db.query(ExecutionArtifact).filter(
-        ExecutionArtifact.execution_id == artifact.execution_id,
-        ExecutionArtifact.artifact_code == artifact.artifact_code,
-        ExecutionArtifact.version == v1,
-    ).first()
-
-    ver2 = db.query(ExecutionArtifact).filter(
-        ExecutionArtifact.execution_id == artifact.execution_id,
-        ExecutionArtifact.artifact_code == artifact.artifact_code,
-        ExecutionArtifact.version == v2,
-    ).first()
-
-    if not ver1:
-        raise HTTPException(status_code=404, detail=f"Version {v1} not found")
-    if not ver2:
-        raise HTTPException(status_code=404, detail=f"Version {v2} not found")
-
-    return DiffResponse(
-        v1=v1,
-        v2=v2,
-        content_v1=ver1.content or {},
-        content_v2=ver2.content or {},
+    warnings.warn(
+        "GET /deliverables/{id}/diff is deprecated; call /artifacts/{id}/diff instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
+    artifact = _load_artifact_for_user(deliverable_id, db, current_user)
+    return _diff_artifact_versions(artifact, v1, v2, db)
 
 
 # ---------------------------------------------------------------------------
@@ -678,24 +645,23 @@ def list_available_agents(
     ]
 
     agents = []
-    for agent_id, profile in AGENT_CHAT_PROFILES.items():
-        has_deliverables = agent_id == "sophie"  # Sophie always available
-        if not has_deliverables and "deliverable_types" in profile:
+    for profile in iter_chat_profiles():
+        has_deliverables = bool(profile.get("always_available")) or profile["agent_id"] == "sophie"
+        if not has_deliverables:
             for dtype in profile["deliverable_types"]:
                 if any(dt.startswith(dtype) or dt == dtype for dt in deliverable_types):
                     has_deliverables = True
                     break
-        # Also check by agent_type prefix
         if not has_deliverables:
-            prefix = profile.get("agent_type", "")
+            prefix = profile["agent_type"]
             if any(dt.startswith(prefix + "_") for dt in deliverable_types):
                 has_deliverables = True
 
         agents.append({
-            "agent_id": agent_id,
+            "agent_id": profile["agent_id"],
             "name": profile["name"],
             "role": profile["role"],
-            "color": profile.get("color", "slate"),
+            "color": profile["color"],
             "available": has_deliverables,
         })
 
@@ -710,6 +676,11 @@ def get_agent_chat_history(
     current_user: User = Depends(get_current_user),
 ):
     """Get chat history for a specific agent in an execution."""
+    try:
+        canonical_agent_id = resolve_agent_id(agent_id)
+    except AgentNotFoundError:
+        raise HTTPException(status_code=400, detail=f"Unknown agent_id: {agent_id}")
+
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
@@ -724,11 +695,11 @@ def get_agent_chat_history(
     messages = db.query(ProjectConversation).filter(
         ProjectConversation.project_id == project.id,
         ProjectConversation.execution_id == execution_id,
-        ProjectConversation.agent_id == agent_id,
+        ProjectConversation.agent_id == canonical_agent_id,
     ).order_by(ProjectConversation.created_at.asc()).all()
 
     return {
-        "agent_id": agent_id,
+        "agent_id": canonical_agent_id,
         "messages": [
             {
                 "role": msg.role,

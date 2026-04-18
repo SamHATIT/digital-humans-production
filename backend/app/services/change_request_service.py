@@ -16,33 +16,40 @@ from app.models.sds_version import SDSVersion
 from app.models.artifact import ExecutionArtifact
 from app.models.project_conversation import ProjectConversation
 from app.services.llm_service import generate_llm_response
+from app.services.agents_registry import (
+    get_agents_for_cr_category as _registry_cr_agents,
+    get_cost_estimate as _registry_cost_estimate,
+    list_agents as _registry_list_agents,
+)
 
 logger = logging.getLogger(__name__)
 
-# Cost estimates per agent (in USD) - based on typical token usage
-AGENT_COSTS = {
-    "pm": 0.10,
-    "ba": 0.80,
-    "architect": 1.20,
-    "apex": 0.60,
-    "lwc": 0.50,
-    "admin": 0.40,
-    "qa": 0.50,
-    "devops": 0.30,
-    "data": 0.40,
-    "trainer": 0.30,
-}
 
-# Category to likely impacted agents mapping
-CATEGORY_AGENT_MAP = {
-    "business_rule": ["ba", "architect", "apex", "admin", "qa"],
-    "data_model": ["architect", "apex", "data", "qa"],
-    "process": ["ba", "architect", "admin", "qa"],
-    "ui_ux": ["lwc", "qa"],
-    "integration": ["architect", "apex", "devops"],
-    "security": ["architect", "admin", "qa"],
-    "other": ["ba", "architect"],
-}
+# Cost estimates per agent (USD) and CR category → impacted agents are now
+# centralised in agents_registry.yaml. The legacy dicts are rebuilt here for
+# any caller that still imports them by name.
+def _build_legacy_agent_costs():
+    costs = {}
+    for agent in _registry_list_agents():
+        agent_type = agent.get("agent_type")
+        cost = float(agent.get("cost_estimate_usd") or 0.0)
+        if agent_type:
+            costs[agent_type] = cost
+        for alias in agent.get("aliases", []) or []:
+            costs.setdefault(alias, cost)
+    return costs
+
+
+def _build_legacy_category_map():
+    return {
+        cat: _registry_cr_agents(cat)
+        for cat in ("business_rule", "data_model", "process", "ui_ux",
+                    "integration", "security", "other")
+    }
+
+
+AGENT_COSTS = _build_legacy_agent_costs()
+CATEGORY_AGENT_MAP = _build_legacy_category_map()
 
 
 class ChangeRequestService:
@@ -159,8 +166,7 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
             
             # Calculate cost estimate
             agents_to_rerun = impact_data.get("agents_to_rerun", [])
-            estimated_cost = sum(AGENT_COSTS.get(a, 0.5) for a in agents_to_rerun)
-            estimated_cost += 0.50  # SDS regeneration cost
+            estimated_cost = sum(_registry_cost_estimate(a) or 0.5 for a in agents_to_rerun) + 0.50  # +SDS regeneration
             
             logger.info(f"[CR Service] Estimated cost: ${estimated_cost:.2f}")
             
@@ -192,7 +198,7 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
             # Use fallback
             impact_data = self._fallback_impact_analysis(cr)
             agents_to_rerun = impact_data.get("agents_to_rerun", [])
-            estimated_cost = sum(AGENT_COSTS.get(a, 0.5) for a in agents_to_rerun) + 0.50
+            estimated_cost = sum(_registry_cost_estimate(a) or 0.5 for a in agents_to_rerun) + 0.50
             
             cr.status = "analyzed"
             cr.analyzed_at = datetime.now(timezone.utc)
@@ -279,7 +285,7 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
     
     def _fallback_impact_analysis(self, cr: ChangeRequest) -> Dict:
         """Fallback impact analysis based on category."""
-        agents = CATEGORY_AGENT_MAP.get(cr.category, ["ba", "architect"])
+        agents = _registry_cr_agents(cr.category) or ["ba", "architect"]
         
         risk_level = "medium"
         if cr.priority in ["high", "critical"]:

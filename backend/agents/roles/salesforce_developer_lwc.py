@@ -42,6 +42,10 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts (B-3d)
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
+
 
 # ============================================================================
 # SPEC MODE PROMPT
@@ -335,21 +339,12 @@ Elena (QA) found issues:
 FIX THESE ISSUES.
 """
 
-    prompt = BUILD_PROMPT.format(
-        task_id=task_id, task_name=task_name,
-        task_description=task_description,
-        architecture_context=architecture_context[:10000],
-        validation_criteria=validation_criteria,
-    )
-
-    # CRITICAL: Add Elena's feedback if this is a retry
-    if correction_context:
-        prompt += correction_context
-
+    rag_section = ""
     if rag_context:
-        prompt += f"\n\n## LWC BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+        rag_section = f"\n\n## LWC BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
 
     # BUG-044/046: Include Solution Design from Marcus
+    solution_design_section = ""
     if solution_design:
         sd_text = ""
         if solution_design.get("data_model"):
@@ -359,11 +354,24 @@ FIX THESE ISSUES.
         if solution_design.get("ui_mockups"):
             sd_text += f"### UI Mockups\n{solution_design['ui_mockups']}\n\n"
         if sd_text:
-            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+            solution_design_section = f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
 
     # BUG-045: Include GAP context
+    gap_context_section = ""
     if gap_context:
-        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
+        gap_context_section = f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
+
+    prompt = PROMPT_SERVICE.render("zara_lwc", "build", {
+        "task_id": task_id,
+        "task_name": task_name,
+        "task_description": task_description,
+        "architecture_context": architecture_context[:10000],
+        "validation_criteria": validation_criteria,
+        "correction_context": correction_context,
+        "rag_section": rag_section,
+        "solution_design_section": solution_design_section,
+        "gap_context_section": gap_context_section,
+    })
 
     logger.info(f"Zara BUILD mode - generating LWC for {task_id}, prompt_size={len(prompt)} chars")
     start_time = time.time()
@@ -541,10 +549,14 @@ class LWCDeveloperAgent:
         # Get RAG context
         rag_context = self._get_rag_context(project_id=project_id)
 
-        # Build prompt
-        prompt = SPEC_PROMPT.format(requirements=input_content[:25000])
+        # Build prompt via PROMPT_SERVICE (B-3d)
+        rag_section = ""
         if rag_context:
-            prompt += f"\n\n## SALESFORCE LWC BEST PRACTICES (RAG)\n{rag_context[:2000]}\n"
+            rag_section = f"\n\n## SALESFORCE LWC BEST PRACTICES (RAG)\n{rag_context[:2000]}\n"
+        prompt = PROMPT_SERVICE.render("zara_lwc", "spec", {
+            "requirements": input_content[:25000],
+            "rag_section": rag_section,
+        })
 
         logger.info(f"LWCDeveloperAgent mode=spec, prompt_size={len(prompt)} chars")
 
