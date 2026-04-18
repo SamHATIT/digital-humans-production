@@ -112,7 +112,7 @@ onboarding docs + ADRs for sessions A/B/C choices.
 | D-2  | `logging_config.py` refactored with JSON/plain formatter toggle; new `ExecutionContextMiddleware` injects `execution_id` / `agent_id` / `request_id` into every log line via `contextvars`. Preserves A-10 `rag_health_check` at startup. | P5, N72 |
 | D-3a | `docs/operations/secrets-rotation.md` — inventory + procedure for 6 critical secrets (Anthropic, OpenAI, Postgres, JWT, GitHub PAT, Salesforce JWT). | P8 |
 | D-3b | `scripts/rotate_anthropic_key.sh` — interactive rotation with live smoke call, auto-rollback on failure, systemd restart + health check. | P8 |
-| D-4  | **Blocked / awaiting decision.** SDS V3 pipeline removal requires trade-off between deleting `sds_synthesis_service.py` (breaks `/generate-sds-v3`) or keeping it (contradicts briefing). Tag `legacy/sds_v3_synthesis_before_removal` not yet applied. | — |
+| D-4  | **SDS V3 Mistral PASS 1 pipeline removed in full** — option 1 / max cleanup per Sam decision. Tag `legacy/sds_v3_synthesis_before_removal` applied first; then deleted: `sds_synthesis_service.py` (528 LOC), `sds_docx_generator_v3.py`, `uc_analyzer_service.py`, `sds_v3_routes.py` (8 endpoints). Frontend: `SDSv3Generator.tsx`, `generateSDSv3` / `downloadSDSv3` / `getSDSv3Preview` API helpers, conditional render in `ExecutionMonitoringPage.tsx`. The `UCRequirementSheet` ORM model + table are intentionally left in place — drop in a follow-up migration when orphan data is no longer needed. | Décision Sam |
 | D-5a | 78 backup files removed (`frontend-backup-working-20251125_120110/`, `.backup-pre-avatars`). Tag `legacy/backup-files-20260418` applied. | Méta-3 |
 | D-5b | `.gitignore` now excludes `archives/CONTEXT_*.md`; 14 tracked CONTEXT files untracked. | Méta-5 |
 | D-5c | N19a dead `# FALLBACK: original f-string prompt` blocks removed from Lucas trainer (232 LOC). | N19a |
@@ -142,6 +142,7 @@ onboarding docs + ADRs for sessions A/B/C choices.
 
 ### Tags applied
 - `legacy/backup-files-20260418` — snapshot before `git rm` of the 78 backup files.
+- `legacy/sds_v3_synthesis_before_removal` — snapshot before D-4 SDS V3 deletion (8 endpoints + 3 services + frontend component).
 
 ---
 

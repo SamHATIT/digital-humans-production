@@ -188,26 +188,6 @@ export const executions = {
     });
   },
 
-  // SDS v3 - Generate full SDS with micro-analysis + synthesis + DOCX
-  generateSDSv3: async (executionId: number) => {
-    return apiCall(`/api/pm-orchestrator/execute/${executionId}/generate-sds-v3`, {
-      method: 'POST',
-    });
-  },
-
-  // SDS v3 - Download generated DOCX
-  downloadSDSv3: (executionId: number) => {
-    const token = localStorage.getItem('token');
-    return `${API_URL}/api/pm-orchestrator/execute/${executionId}/download-sds-v3?token=${token}`;
-  },
-
-  // SDS v3 - Get synthesis preview (domains summary)
-  getSDSv3Preview: async (executionId: number) => {
-    return apiCall(`/api/pm-orchestrator/execute/${executionId}/sds-preview`, {
-      method: 'GET',
-    });
-  },
-
 // I1.4: Get budget/cost status for an execution
   getBudget: async (executionId: number) => {
     return apiCall(`/api/pm-orchestrator/execute/${executionId}/budget`, {

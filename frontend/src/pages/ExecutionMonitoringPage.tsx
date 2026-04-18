@@ -5,7 +5,6 @@ import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
-import SDSv3Generator from '../components/SDSv3Generator';
 import TimelineStepper from '../components/TimelineStepper';
 import DeliverableViewer from '../components/DeliverableViewer';
 import ValidationGatePanel from '../components/ValidationGatePanel';
@@ -686,20 +685,6 @@ export default function ExecutionMonitoringPage() {
             phaseNumber={selectedPhase}
             onClose={() => setSelectedPhase(null)}
           />
-        )}
-
-        {/* H6: SDS v3 Generator - Show only when SDS standard execution is done */}
-        {(isCompleted || normalizedMainStatus === 'sds_generated') && progress?.execution_id && (
-          <div className="mb-8">
-            <SDSv3Generator
-              executionId={progress.execution_id}
-              projectName={`Project_${progress.project_id}`}
-              onComplete={() => {
-                // Refresh progress after generation
-                window.location.reload();
-              }}
-            />
-          </div>
         )}
 
         {/* Overall Progress */}
