@@ -66,6 +66,83 @@ vérité unique : `config/llm_routing.yaml`.
 - In `on-premise`, LLM errors are not masked by a cloud fallback (confidentiality).
 - Continuations are logged via `continuations` field on `LLMResponse`.
 
+## [Unreleased] — Session 3 refonte · Agent B (Contracts)
+
+### Context
+Six overlapping Python dicts (`AGENT_CONFIG`, `AGENT_COLLECTIONS`,
+`CATEGORY_AGENT_MAP`, `agent_artifact_needs`, `AGENT_CHAT_PROFILES`,
+`AGENT_COSTS`) consolidated into a single YAML registry. Each agent declaration
+now carries every piece of metadata the rest of the backend needs, accessed via
+one Python accessor (`app.services.agents_registry`).
+
+### TASKs deployed
+| TASK | Description | Finding |
+|------|-------------|---------|
+| B-1 | `backend/config/agents_registry.yaml` — new, 11 agents with canonical ids + aliases | — |
+| B-2 | `app.services.agents_registry` accessor (YAML loader, Pydantic validation, cache) | — |
+| B-3 | 6 legacy dicts removed; callers migrated to `agents_registry.get_agent()` / `resolve_agent_id()` | — |
+| B-4 | HITL contracts in `app/schemas/hitl_*.py` aligned with the registry | — |
+| B-5 | Regression test suite `tests/session3_regression/agent_b/` — guards against drift back into code | — |
+
+### Files touched
+- `backend/config/agents_registry.yaml` (new)
+- `backend/app/services/agents_registry.py` (new)
+- `backend/app/services/pm_orchestrator_service_v2.py` (AGENT_CONFIG removed)
+- `backend/app/services/rag_service.py` (AGENT_COLLECTIONS removed)
+- `backend/app/services/change_request_service.py` (CATEGORY_AGENT_MAP + AGENT_COSTS removed)
+- `backend/app/services/artifact_service.py` (agent_artifact_needs removed)
+- `backend/app/api/routes/hitl_routes.py` (AGENT_CHAT_PROFILES removed)
+
+### Behavior changes
+- Agent aliases (`pm`, `architect`, `apex_developer`, …) continue to resolve to canonical ids.
+- Adding a 12th agent now requires one YAML block + one script + one prompt pack — no service edits.
+
+## [Unreleased] — Session 3 refonte · Agent D (Hygiene & Cleanup)
+
+### Context
+Maintenance debt consolidation around the refonte: hardcoded paths made
+env-driven, logs unified, secrets rotation playbook shipped, dead fallback
+prompts removed, F401 lint baseline at zero, backup files purged from git,
+onboarding docs + ADRs for sessions A/B/C choices.
+
+### TASKs deployed
+| TASK | Description | Finding |
+|------|-------------|---------|
+| D-1a | `app/config.py` rewritten with env-driven paths (`DH_PROJECT_ROOT`, `DH_OUTPUT_DIR`, `DH_CHROMA_PATH`, `DH_LLM_CONFIG_PATH`, `DH_LOG_FORMAT`, …). Defaults derive from `__file__`. | P2 |
+| D-2  | `logging_config.py` refactored with JSON/plain formatter toggle; new `ExecutionContextMiddleware` injects `execution_id` / `agent_id` / `request_id` into every log line via `contextvars`. Preserves A-10 `rag_health_check` at startup. | P5, N72 |
+| D-3a | `docs/operations/secrets-rotation.md` — inventory + procedure for 6 critical secrets (Anthropic, OpenAI, Postgres, JWT, GitHub PAT, Salesforce JWT). | P8 |
+| D-3b | `scripts/rotate_anthropic_key.sh` — interactive rotation with live smoke call, auto-rollback on failure, systemd restart + health check. | P8 |
+| D-4  | **Blocked / awaiting decision.** SDS V3 pipeline removal requires trade-off between deleting `sds_synthesis_service.py` (breaks `/generate-sds-v3`) or keeping it (contradicts briefing). Tag `legacy/sds_v3_synthesis_before_removal` not yet applied. | — |
+| D-5a | 78 backup files removed (`frontend-backup-working-20251125_120110/`, `.backup-pre-avatars`). Tag `legacy/backup-files-20260418` applied. | Méta-3 |
+| D-5b | `.gitignore` now excludes `archives/CONTEXT_*.md`; 14 tracked CONTEXT files untracked. | Méta-5 |
+| D-5c | N19a dead `# FALLBACK: original f-string prompt` blocks removed from Lucas trainer (232 LOC). | N19a |
+| D-5d | `docs/architecture.md`, `docs/agents.md`, `docs/deployment.md`, ADR-001, ADR-002 — new onboarding docs. | Méta-2 |
+| D-5f | `ruff.toml` at repo root + 162 auto-fixed F401 across 69 files. `ruff check --select F401 …` = all passed. | Méta-4 |
+
+### Files touched
+- `backend/app/config.py` (paths refactor)
+- `backend/app/logging_config.py` (refactor)
+- `backend/app/middleware/execution_context.py` (new)
+- `backend/app/middleware/__init__.py` (export)
+- `backend/app/main.py` (wire middleware)
+- `backend/agents/roles/salesforce_trainer.py` (dead code removed)
+- `backend/app/services/agent_executor.py` (F401 noqa for RAG probe)
+- `ruff.toml` (new)
+- `.gitignore` (archives)
+- `docs/architecture.md`, `docs/agents.md`, `docs/deployment.md` (new)
+- `docs/ADR-001-llm-strategy.md`, `docs/ADR-002-agents-registry.md` (new)
+- `docs/operations/secrets-rotation.md` (new)
+- `scripts/rotate_anthropic_key.sh` (new)
+- 69 files across `backend/` (F401 trim)
+
+### Behavior changes
+- `DH_LOG_FORMAT=plain` switches away from JSON logs for local dev.
+- Execution context (`execution_id`, `request_id`, `agent_id`) now appears in every log line when present.
+- No more `/root/workspace/...` literals in `backend/app` — the backend boots on any host without patching.
+
+### Tags applied
+- `legacy/backup-files-20260418` — snapshot before `git rm` of the 78 backup files.
+
 ---
 
 ## [2026-02-11] Session E2E #142 — First Complete Run
