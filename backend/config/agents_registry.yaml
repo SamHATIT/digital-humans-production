@@ -1,0 +1,348 @@
+# agents_registry.yaml — Single source of truth for the 11 Digital Humans agents.
+#
+# Owner: Agent B (Contracts).
+# Consolidates the 6 legacy Python dicts:
+#   - AGENT_CONFIG (pm_orchestrator_service_v2.py)
+#   - AGENT_COLLECTIONS (rag_service.py)
+#   - CATEGORY_AGENT_MAP (change_request_service.py)
+#   - agent_artifact_needs (artifact_service.py)
+#   - AGENT_CHAT_PROFILES (hitl_routes.py)
+#   - AGENT_COSTS (change_request_service.py)
+#
+# Canonical agent IDs are the character first names (sophie, olivia, marcus, ...).
+# Legacy codes (pm, ba, architect, apex_developer, qa_tester, ...) are declared as aliases
+# and resolve to the canonical id via resolve_agent_id().
+#
+# Access this file exclusively through app.services.agents_registry.
+
+version: 1
+
+agents:
+  # -------------------------------------------------------------------------
+  # Sophie — Project Manager (orchestrator, BR extraction, SDS consolidation)
+  # -------------------------------------------------------------------------
+  sophie:
+    name: Sophie
+    role: Project Manager
+    role_fr: Project Manager
+    agent_type: pm
+    aliases: [pm, pm_orchestrator]
+    script: salesforce_pm.py
+    prompt_file: sophie_pm
+    tier: pm
+    complexity: critical
+    color: purple
+    cost_estimate_usd: 0.10
+    rag_collections: [business, operations, technical]
+    artifact_needs: [requirement, business_req, use_case, adr, spec]
+    cr_categories: []
+    deliverable_types: []
+    chat:
+      enabled: true
+      always_available: true
+      system_prompt: |
+        Tu es Sophie, Project Manager senior chez Digital Humans, spécialisée en implémentation Salesforce.
+        Tu es en charge du projet "{project_name}".
+
+        Ton rôle:
+        - Répondre aux questions du client sur le projet et ses livrables
+        - Expliquer les choix techniques et fonctionnels
+        - Aider le client à comprendre les impacts de modifications potentielles
+        - Si le client demande une modification, explique-la clairement et propose de créer un Change Request
+
+        Réponds en français, de manière concise et professionnelle.
+
+  # -------------------------------------------------------------------------
+  # Olivia — Business Analyst (Use Cases)
+  # -------------------------------------------------------------------------
+  olivia:
+    name: Olivia
+    role: Business Analyst
+    role_fr: Business Analyst
+    agent_type: ba
+    aliases: [ba, business_analyst]
+    script: salesforce_business_analyst.py
+    prompt_file: olivia_ba
+    tier: ba
+    complexity: critical
+    color: green
+    cost_estimate_usd: 0.80
+    rag_collections: [business, operations]
+    artifact_needs: [requirement]
+    cr_categories: [business_rule, process, other]
+    deliverable_types: [ba_use_cases]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Olivia, Business Analyst senior spécialisée Salesforce.
+        Tu as rédigé les Use Cases du projet "{project_name}".
+        Tu peux expliquer la logique métier, les scénarios, et les critères d'acceptation.
+        Réponds en français, de manière claire et orientée métier.
+
+  # -------------------------------------------------------------------------
+  # Marcus — Solution Architect (data model, design, WBS, gap analysis)
+  # -------------------------------------------------------------------------
+  marcus:
+    name: Marcus
+    role: Solution Architect
+    role_fr: Solution Architect
+    agent_type: architect
+    aliases: [architect, solution_architect]
+    script: salesforce_solution_architect.py
+    prompt_file: marcus_architect
+    tier: architect
+    complexity: critical
+    color: blue
+    cost_estimate_usd: 1.20
+    rag_collections: [technical, operations, business]
+    artifact_needs: [requirement, business_req, use_case]
+    cr_categories: [business_rule, data_model, process, integration, security, other]
+    deliverable_types:
+      - architect_solution_design
+      - architect_gap_analysis
+      - architect_wbs
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Marcus, Salesforce Certified Technical Architect (CTA).
+        Tu as conçu l'architecture du projet "{project_name}".
+        Tu peux expliquer tes choix de data model, flows, security, et répondre aux questions techniques.
+        Si le client propose une modification architecturale, explique l'impact et les dépendances.
+        Réponds en français, en étant précis et technique.
+
+  # -------------------------------------------------------------------------
+  # Emma — Research Analyst (coverage validation, SDS write-up)
+  # -------------------------------------------------------------------------
+  emma:
+    name: Emma
+    role: Research Analyst
+    role_fr: Research Analyst
+    agent_type: research_analyst
+    aliases: [research_analyst]
+    script: salesforce_research_analyst.py
+    prompt_file: emma_research
+    tier: research
+    complexity: complex
+    color: cyan
+    cost_estimate_usd: 0.50
+    rag_collections: [technical, operations, business]
+    artifact_needs: [requirement, use_case, spec]
+    cr_categories: []
+    deliverable_types:
+      - research_analyst_coverage_report
+      - research_analyst_sds_document
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Emma, Research Analyst senior.
+        Tu as validé la couverture de l'architecture et rédigé le SDS du projet "{project_name}".
+        Tu peux expliquer les gaps identifiés, le score de couverture, et la structure du SDS.
+        Réponds en français, de manière analytique et précise.
+
+  # -------------------------------------------------------------------------
+  # Diego — Apex Developer (BUILD phase)
+  # -------------------------------------------------------------------------
+  diego:
+    name: Diego
+    role: Apex Developer
+    role_fr: Apex Developer
+    agent_type: apex
+    aliases: [apex, apex_developer, developer_apex]
+    script: salesforce_developer_apex.py
+    prompt_file: diego_apex
+    tier: worker
+    complexity: complex
+    color: red
+    cost_estimate_usd: 0.60
+    rag_collections: [apex, technical]
+    artifact_needs: [spec, adr, use_case, business_req]
+    cr_categories: [business_rule, data_model, integration]
+    deliverable_types: [apex_specification, apex_code]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Diego, Salesforce Platform Developer II Certified.
+        Tu as conçu et implémenté l'Apex du projet "{project_name}".
+        Tu peux expliquer les classes, triggers, tests, et les choix d'implémentation.
+        Réponds en français, de manière technique et concrète.
+
+  # -------------------------------------------------------------------------
+  # Zara — LWC Developer (BUILD phase)
+  # -------------------------------------------------------------------------
+  zara:
+    name: Zara
+    role: LWC Developer
+    role_fr: LWC Developer
+    agent_type: lwc
+    aliases: [lwc, lwc_developer, developer_lwc]
+    script: salesforce_developer_lwc.py
+    prompt_file: zara_lwc
+    tier: worker
+    complexity: complex
+    color: magenta
+    cost_estimate_usd: 0.50
+    rag_collections: [lwc, technical]
+    artifact_needs: [spec, adr, use_case, business_req]
+    cr_categories: [ui_ux]
+    deliverable_types: [lwc_specification, lwc_code]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Zara, Lightning Web Components Developer spécialisée UX Salesforce.
+        Tu as conçu et implémenté les composants LWC du projet "{project_name}".
+        Tu peux expliquer la structure des composants, les bindings, et les choix UI.
+        Réponds en français, de manière claire et orientée design.
+
+  # -------------------------------------------------------------------------
+  # Raj — Salesforce Admin (BUILD phase, config)
+  # -------------------------------------------------------------------------
+  raj:
+    name: Raj
+    role: Salesforce Admin
+    role_fr: Admin Config
+    agent_type: admin
+    aliases: [admin]
+    script: salesforce_admin.py
+    prompt_file: raj_admin
+    tier: worker
+    complexity: complex
+    color: indigo
+    cost_estimate_usd: 0.40
+    rag_collections: [operations, technical]
+    artifact_needs: [spec, adr, use_case, business_req]
+    cr_categories: [business_rule, process, security]
+    deliverable_types: [admin_specification, admin_config]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Raj, Salesforce Admin senior.
+        Tu as planifié la configuration du projet "{project_name}".
+        Tu peux expliquer les choix de configuration, permissions, page layouts et record types.
+        Réponds en français, de manière pratique et orientée solution.
+
+  # -------------------------------------------------------------------------
+  # Elena — QA Engineer / Tester
+  # -------------------------------------------------------------------------
+  elena:
+    name: Elena
+    role: QA Engineer
+    role_fr: QA Engineer
+    agent_type: qa
+    aliases: [qa, qa_tester, qa_engineer]
+    script: salesforce_qa_tester.py
+    prompt_file: elena_qa
+    tier: worker
+    complexity: complex
+    color: pink
+    cost_estimate_usd: 0.50
+    rag_collections: [technical, operations, apex]
+    artifact_needs: [spec, code, config]
+    cr_categories: [business_rule, data_model, process, ui_ux, security]
+    deliverable_types: [qa_test_strategy, qa_test_cases]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Elena, QA Engineer senior spécialisée Salesforce.
+        Tu as conçu la stratégie de test du projet "{project_name}".
+        Tu peux expliquer les scénarios de test, la couverture, et les risques identifiés.
+        Réponds en français, de manière rigoureuse et méthodique.
+
+  # -------------------------------------------------------------------------
+  # Jordan — DevOps / CI-CD
+  # -------------------------------------------------------------------------
+  jordan:
+    name: Jordan
+    role: DevOps Engineer
+    role_fr: DevOps / CI-CD
+    agent_type: devops
+    aliases: [devops]
+    script: salesforce_devops.py
+    prompt_file: jordan_devops
+    tier: worker
+    complexity: complex
+    color: yellow
+    cost_estimate_usd: 0.30
+    rag_collections: [technical, operations]
+    artifact_needs: [code, config, test]
+    cr_categories: [integration]
+    deliverable_types: [devops_deployment_strategy, devops_ci_cd]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Jordan, DevOps Engineer senior spécialisé Salesforce.
+        Tu as planifié le pipeline CI/CD et la stratégie de déploiement du projet "{project_name}".
+        Tu peux expliquer la stratégie de déploiement, les environnements, et les pipelines CI/CD.
+        Réponds en français, de manière technique et concrète.
+
+  # -------------------------------------------------------------------------
+  # Aisha — Data Migration
+  # -------------------------------------------------------------------------
+  aisha:
+    name: Aisha
+    role: Data Migration Specialist
+    role_fr: Data Migration
+    agent_type: data
+    aliases: [data, data_migration]
+    script: salesforce_data_migration.py
+    prompt_file: aisha_data
+    tier: worker
+    complexity: complex
+    color: orange
+    cost_estimate_usd: 0.40
+    rag_collections: [technical, operations]
+    artifact_needs: [spec, business_req]
+    cr_categories: [data_model]
+    deliverable_types: [data_migration_plan, data_mapping]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Aisha, Data Migration Specialist senior spécialisée Salesforce.
+        Tu as conçu le plan de migration de données du projet "{project_name}".
+        Tu peux expliquer les mappings, les stratégies de migration, et les validations.
+        Réponds en français, de manière structurée et rigoureuse.
+
+  # -------------------------------------------------------------------------
+  # Lucas — Trainer
+  # -------------------------------------------------------------------------
+  lucas:
+    name: Lucas
+    role: Trainer
+    role_fr: Trainer
+    agent_type: trainer
+    aliases: [trainer]
+    script: salesforce_trainer.py
+    prompt_file: lucas_trainer
+    tier: worker
+    complexity: complex
+    color: teal
+    cost_estimate_usd: 0.30
+    rag_collections: [business, operations]
+    artifact_needs: [use_case, business_req, doc]
+    cr_categories: []
+    deliverable_types: [trainer_plan, trainer_materials]
+    chat:
+      enabled: true
+      system_prompt: |
+        Tu es Lucas, Trainer senior spécialisé Salesforce.
+        Tu as conçu le plan de formation du projet "{project_name}".
+        Tu peux expliquer les modules, les audiences cibles, et les approches pédagogiques.
+        Réponds en français, de manière pédagogique et engageante.
+
+# ---------------------------------------------------------------------------
+# CR category → impacted agents fallback.
+# Built automatically from each agent's `cr_categories` list, but overridden here
+# for categories where the heuristic does not cover all impacted agents.
+# ---------------------------------------------------------------------------
+cr_category_overrides:
+  business_rule: [olivia, marcus, diego, raj, elena]
+  data_model: [marcus, diego, aisha, elena]
+  process: [olivia, marcus, raj, elena]
+  ui_ux: [zara, elena]
+  integration: [marcus, diego, jordan]
+  security: [marcus, raj, elena]
+  other: [olivia, marcus]
+
+# ---------------------------------------------------------------------------
+# Default RAG collections used when no agent-specific mapping applies.
+# ---------------------------------------------------------------------------
+default_rag_collections: [technical, operations, business]

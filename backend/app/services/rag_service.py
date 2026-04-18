@@ -53,21 +53,32 @@ COLLECTIONS = {
     "lwc": {"name": "lwc_collection", "embedding": "nomic"},
 }
 
-# Mapping agent -> collections
-AGENT_COLLECTIONS = {
-    "business_analyst": ["business", "operations"],
-    "solution_architect": ["technical", "operations", "business"],
-    "apex_developer": ["apex", "technical"],
-    "lwc_developer": ["lwc", "technical"],
-    "admin": ["operations", "technical"],
-    "qa_engineer": ["apex", "technical", "operations"],
-    "devops": ["technical", "operations"],
-    "data_migration": ["technical", "operations"],
-    "trainer": ["business", "operations"],
-    "qa_tester": ["technical", "operations", "apex"],
-    "pm_orchestrator": ["business", "operations", "technical"],
-    "default": ["technical", "operations", "business"],
-}
+# Mapping agent -> collections (see app.services.agents_registry).
+# AGENT_COLLECTIONS has been consolidated into agents_registry.yaml — the
+# dict below is built dynamically and kept only for backward compatibility
+# with callers that still import the name directly.
+from app.services.agents_registry import (
+    get_rag_collections as _registry_rag_collections,
+    list_agents as _registry_list_agents,
+)
+
+
+def _build_legacy_agent_collections() -> Dict[str, List[str]]:
+    """Rebuild the legacy AGENT_COLLECTIONS dict from the registry."""
+    collections: Dict[str, List[str]] = {}
+    for agent in _registry_list_agents():
+        agent_type = agent.get("agent_type")
+        rag = list(agent.get("rag_collections") or [])
+        if agent_type and rag:
+            collections[agent_type] = rag
+        for alias in agent.get("aliases", []) or []:
+            if rag:
+                collections.setdefault(alias, rag)
+    collections["default"] = _registry_rag_collections(None)
+    return collections
+
+
+AGENT_COLLECTIONS = _build_legacy_agent_collections()
 
 # Caches globaux
 _client = None
@@ -217,7 +228,8 @@ def query_rag(
                      None returns global (untagged) documents for backward compat.
     """
     _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking, "project_id": project_id})
-    collection_keys = AGENT_COLLECTIONS.get(agent_type, AGENT_COLLECTIONS["default"])
+    # Alias resolution + per-agent RAG collections now live in agents_registry.
+    collection_keys = _registry_rag_collections(agent_type)
 
     all_documents = []
     all_metadatas = []

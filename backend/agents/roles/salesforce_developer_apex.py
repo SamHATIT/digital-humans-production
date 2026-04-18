@@ -42,6 +42,10 @@ except ImportError:
     LLM_LOGGER_AVAILABLE = False
     def log_llm_interaction(*args, **kwargs): pass
 
+# Prompt Service for externalized prompts (B-3d)
+from prompts.prompt_service import PromptService
+PROMPT_SERVICE = PromptService()
+
 
 # ============================================================================
 # SPEC MODE PROMPT (existing - for SDS)
@@ -201,10 +205,14 @@ Before generating, ensure:
 def generate_spec(requirements: str, project_name: str, execution_id: str, rag_context: str = "") -> dict:
     """Generate specifications for SDS document (existing behavior)"""
 
-    prompt = SPEC_PROMPT.format(requirements=requirements[:25000])
-
+    rag_section = ""
     if rag_context:
-        prompt += f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:2000]}\n"
+        rag_section = f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:2000]}\n"
+
+    prompt = PROMPT_SERVICE.render("diego_apex", "spec", {
+        "requirements": requirements[:25000],
+        "rag_section": rag_section,
+    })
 
     logger.info("Diego SPEC mode - generating specifications...")
 
@@ -389,21 +397,12 @@ Elena (QA) reviewed your code and found issues:
 YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
 """
 
-    prompt = BUILD_PROMPT.format(
-        task_id=task_id,
-        task_name=task_name,
-        task_description=task_description,
-        architecture_context=architecture_context[:10000],
-        validation_criteria=validation_criteria
-    )
-
-    if correction_context:
-        prompt += correction_context
-
+    rag_section = ""
     if rag_context:
-        prompt += f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
+        rag_section = f"\n\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context[:1500]}\n"
 
     # BUG-044/046: Include Solution Design from Marcus
+    solution_design_section = ""
     if solution_design:
         sd_text = ""
         if solution_design.get("data_model"):
@@ -413,11 +412,24 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         if solution_design.get("triggers"):
             sd_text += f"### Triggers\n{solution_design['triggers']}\n\n"
         if sd_text:
-            prompt += f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
+            solution_design_section = f"\n\n## SOLUTION DESIGN (Marcus)\n{sd_text[:5000]}\n"
 
     # BUG-045: Include GAP context
+    gap_context_section = ""
     if gap_context:
-        prompt += f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
+        gap_context_section = f"\n\n## GAP ANALYSIS CONTEXT\n{gap_context[:3000]}\n"
+
+    prompt = PROMPT_SERVICE.render("diego_apex", "build", {
+        "task_id": task_id,
+        "task_name": task_name,
+        "task_description": task_description,
+        "architecture_context": architecture_context[:10000],
+        "validation_criteria": validation_criteria,
+        "correction_context": correction_context,
+        "rag_section": rag_section,
+        "solution_design_section": solution_design_section,
+        "gap_context_section": gap_context_section,
+    })
 
     logger.info(f"Diego BUILD mode - generating code for {task_id}...")
 
