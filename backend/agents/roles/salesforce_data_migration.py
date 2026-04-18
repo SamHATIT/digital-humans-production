@@ -292,6 +292,10 @@ class DataMigrationAgent:
         try:
             if mode == "spec":
                 return self._execute_spec(input_content, execution_id, project_id)
+            elif mode == "build":
+                return self._execute_build(input_content, execution_id, project_id)
+            else:
+                return {"success": False, "error": f"Unhandled mode: {mode}"}
         except Exception as e:
             logger.error(f"DataMigrationAgent error in mode '{mode}': {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -610,6 +614,51 @@ FIX THESE ISSUES.
                 if filepath.strip() and code.strip():
                     files[filepath.strip()] = code.strip()
         return files
+
+
+# ============================================================================
+# MODULE-LEVEL API - imported by phased_build_executor.py
+# ============================================================================
+
+def generate_build(
+    task: dict,
+    architecture_context: str,
+    execution_id: str,
+    rag_context: str = "",
+    previous_feedback: str = "",
+    solution_design: dict = None,
+    gap_context: str = "",
+    data_sources: list = None,
+) -> dict:
+    """Generate real data-migration artifacts for a WBS task.
+
+    Mirrors the Diego/Zara/Raj module-level generate_build signature so that
+    phased_build_executor.py can dispatch BUILD work to Aisha uniformly.
+    Delegates to DataMigrationAgent._execute_build for business logic.
+    """
+    input_data = {
+        "task": task,
+        "architecture_context": architecture_context,
+        "previous_feedback": previous_feedback,
+        "solution_design": solution_design,
+        "gap_context": gap_context,
+        "data_sources": data_sources,
+    }
+    agent = DataMigrationAgent()
+    try:
+        return agent._execute_build(
+            input_content=json.dumps(input_data, ensure_ascii=False),
+            execution_id=int(execution_id) if str(execution_id).isdigit() else 0,
+            project_id=0,
+        )
+    except Exception as e:
+        logger.error(f"Aisha generate_build failed: {e}", exc_info=True)
+        return {
+            "agent_id": "aisha",
+            "success": False,
+            "error": str(e),
+            "content": {"files": {}, "file_count": 0},
+        }
 
 
 # ============================================================================

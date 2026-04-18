@@ -242,6 +242,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
     logger.info("Raj SPEC mode...")
     start_time = time.time()
 
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.3,
                                          execution_id=execution_id)
@@ -249,7 +250,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
-        self._total_cost += response.get('cost_usd', 0.0)
+        cost_usd = response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -288,7 +289,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         "execution_id": str(execution_id), "deliverable_type": "admin_specification",
         "content": {"raw_markdown": content},
         "metadata": {"tokens_used": tokens_used,
-                "cost_usd": getattr(self, '_total_cost', 0.0), "model": model_used,
+                "cost_usd": cost_usd, "model": model_used,
                      "execution_time_seconds": execution_time}
     }
 
@@ -339,6 +340,7 @@ FIX THESE ISSUES.
     logger.info(f"Raj BUILD mode - generating metadata for {task_id}...")
     start_time = time.time()
 
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.2,
                                          execution_id=execution_id)
@@ -346,7 +348,7 @@ FIX THESE ISSUES.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get("model", "unknown")
-        self._total_cost += response.get("cost_usd", 0.0)
+        cost_usd = response.get("cost_usd", 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -756,6 +758,8 @@ def generate_build_v2(
     logger.info(f"Raj BUILD v2 Phase {phase} - {target}...")
     start_time = time.time()
 
+    model_used = "unknown"
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
@@ -766,7 +770,8 @@ def generate_build_v2(
         )
         content = response.get('content', '')
         tokens_used = response.get('tokens_used', 0)
-        self._total_cost += response.get('cost_usd', 0.0)
+        model_used = response.get('model', 'unknown')
+        cost_usd = response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -777,6 +782,7 @@ def generate_build_v2(
         )
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
+        model_used = "gpt-4o-mini"
 
     execution_time = round(time.time() - start_time, 2)
 
@@ -809,6 +815,8 @@ def generate_build_v2(
     result["target"] = target
     result["metadata"] = {
         "tokens_used": tokens_used,
+        "cost_usd": cost_usd,
+        "model": model_used,
         "execution_time_seconds": execution_time
     }
 

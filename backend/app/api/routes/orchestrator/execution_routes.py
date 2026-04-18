@@ -50,41 +50,48 @@ async def start_execution(
     current_user: User = Depends(get_current_user),
 ):
     """Start execution of selected agents for a project."""
-    project = db.query(Project).filter(
-        Project.id == execution_data.project_id,
-        Project.user_id == current_user.id,
-    ).first()
-    if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-
     if "pm" not in execution_data.selected_agents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product Manager (PM) agent is required and must be selected",
         )
 
-    agent_execution_status = {
-        agent_id: {"state": "waiting", "progress": 0, "message": "Waiting to start..."}
-        for agent_id in execution_data.selected_agents
-        if agent_id != "pm"
-    }
+    def _prepare_execution():
+        # P0: sync SQLAlchemy ORM work extracted to run in a worker thread,
+        # keeping the event loop free for other requests / SSE subscribers.
+        project = db.query(Project).filter(
+            Project.id == execution_data.project_id,
+            Project.user_id == current_user.id,
+        ).first()
+        if not project:
+            return None, None
 
-    execution = Execution(
-        project_id=project.id,
-        user_id=current_user.id,
-        selected_agents=execution_data.selected_agents,
-        agent_execution_status=agent_execution_status,
-        status=ExecutionStatus.RUNNING,
-        started_at=datetime.utcnow(),
-    )
+        agent_execution_status = {
+            agent_id: {"state": "waiting", "progress": 0, "message": "Waiting to start..."}
+            for agent_id in execution_data.selected_agents
+            if agent_id != "pm"
+        }
 
-    try:
-        db.add(execution)
-        db.commit()
-        db.refresh(execution)
-    except Exception:
-        db.rollback()
-        raise
+        execution = Execution(
+            project_id=project.id,
+            user_id=current_user.id,
+            selected_agents=execution_data.selected_agents,
+            agent_execution_status=agent_execution_status,
+            status=ExecutionStatus.RUNNING,
+            started_at=datetime.utcnow(),
+        )
+        try:
+            db.add(execution)
+            db.commit()
+            db.refresh(execution)
+        except Exception:
+            db.rollback()
+            raise
+        return project, execution
+
+    project, execution = await asyncio.to_thread(_prepare_execution)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
     pool = await get_redis_pool()
     job = await pool.enqueue_job(
@@ -111,7 +118,8 @@ async def resume_execution(
     current_user: User = Depends(get_current_user),
 ):
     """Resume execution after BR validation or architecture validation (H12)."""
-    execution = verify_execution_access(execution_id, current_user.id, db)
+    # P0: sync DB access offloaded to a worker thread.
+    execution = await asyncio.to_thread(verify_execution_access, execution_id, current_user.id, db)
 
     # Parse optional action from request body
     action = None
@@ -160,24 +168,28 @@ async def resume_execution(
         )
 
     # ── BR validation resume (existing logic) ──
-    resume_point = None
-    if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
-        resume_point = "phase2_ba"
-    elif execution.status == ExecutionStatus.FAILED:
-        from app.models.business_requirement import BusinessRequirement, BRStatus
+    def _determine_resume_point():
+        if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+            return "phase2_ba", 0
+        if execution.status == ExecutionStatus.FAILED:
+            from app.models.business_requirement import BusinessRequirement, BRStatus
+            validated_brs = db.query(BusinessRequirement).filter(
+                BusinessRequirement.project_id == execution.project_id,
+                BusinessRequirement.status == BRStatus.VALIDATED,
+            ).count()
+            if validated_brs > 0:
+                return "phase2_ba", validated_brs
+        return None, 0
 
-        validated_brs = db.query(BusinessRequirement).filter(
-            BusinessRequirement.project_id == execution.project_id,
-            BusinessRequirement.status == BRStatus.VALIDATED,
-        ).count()
-        if validated_brs > 0:
-            resume_point = "phase2_ba"
-            logger.info(f"Resuming FAILED execution {execution_id} with {validated_brs} validated BRs")
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot resume: no validated Business Requirements found.",
-            )
+    resume_point, validated_brs = await asyncio.to_thread(_determine_resume_point)
+
+    if not resume_point and execution.status == ExecutionStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot resume: no validated Business Requirements found.",
+        )
+    if resume_point == "phase2_ba" and validated_brs > 0:
+        logger.info(f"Resuming FAILED execution {execution_id} with {validated_brs} validated BRs")
 
     if not resume_point:
         raise HTTPException(
@@ -185,12 +197,15 @@ async def resume_execution(
             detail="Cannot determine resume point.",
         )
 
-    try:
-        execution.status = ExecutionStatus.RUNNING
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+    def _mark_running():
+        try:
+            execution.status = ExecutionStatus.RUNNING
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    await asyncio.to_thread(_mark_running)
 
     pool = await get_redis_pool()
     job = await pool.enqueue_job(

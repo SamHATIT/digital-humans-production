@@ -225,7 +225,7 @@ async def test_git_config(
 # ========================================
 
 @router.get("/sds-templates")
-async def get_sds_templates(
+def get_sds_templates(
     db: Session = Depends(get_db),
     language: str = None
 ):
@@ -255,7 +255,7 @@ async def get_sds_templates(
 
 
 @router.get("/sds-templates/{template_id}")
-async def get_sds_template(
+def get_sds_template(
     template_id: str,
     db: Session = Depends(get_db)
 ):

@@ -199,7 +199,10 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         return docs, metas
 
     except Exception as e:
-        logger.warning(f"Erreur query collection {coll_key}: {e}")
+        # P11: RAG outages used to be silent-warning. We now log at ERROR
+        # so that operational monitoring surfaces RAG degradation instead of
+        # agents silently operating without context.
+        logger.error(f"[RAG] Query failed on collection {coll_key!r}: {e}", exc_info=True)
         return [], []
 
 def query_rag(
@@ -437,3 +440,50 @@ def delete_project_document_chunks(collection_name: str, document_id: int) -> in
     except Exception as e:
         logger.error(f"Error deleting chunks for document_id={document_id} from {collection_name}: {e}")
         return 0
+
+
+# ============================================================================
+# P11: Startup health probe
+# ============================================================================
+
+def rag_health_check() -> Dict:
+    """
+    Probe ChromaDB collections at startup. Emits a single structured log line
+    so operators can tell at a glance whether RAG is usable on boot.
+
+    Returns a dict: {"ok": bool, "total_chunks": int, "collections": {...},
+                     "error": Optional[str], "chroma_path": str}.
+    """
+    result = {
+        "ok": False,
+        "total_chunks": 0,
+        "collections": {},
+        "error": None,
+        "chroma_path": CHROMA_PATH,
+    }
+    try:
+        client = get_client()
+        total = 0
+        for key, info in COLLECTIONS.items():
+            try:
+                coll = client.get_collection(info["name"])
+                count = coll.count()
+                result["collections"][key] = count
+                total += count
+            except Exception as inner:
+                result["collections"][key] = f"error: {inner}"
+        result["total_chunks"] = total
+        result["ok"] = total > 0
+
+        if result["ok"]:
+            logger.info(f"[RAG HEALTH] OK — {total} chunks across {len(result['collections'])} collections at {CHROMA_PATH}")
+        else:
+            logger.error(
+                f"[RAG HEALTH] EMPTY — 0 chunks across {len(result['collections'])} collections at {CHROMA_PATH}. "
+                f"Agents will run without RAG context."
+            )
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error(f"[RAG HEALTH] FAILED at {CHROMA_PATH}: {e}", exc_info=True)
+
+    return result

@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/projects", tags=["sds-versions"])
 
 
 @router.get("/{project_id}/sds-versions", response_model=SDSVersionList)
-async def get_sds_versions(
+def get_sds_versions(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -59,7 +59,7 @@ async def get_sds_versions(
 # otherwise FastAPI will try to parse "current" as an integer
 
 @router.get("/{project_id}/sds-versions/current/download")
-async def download_current_sds(
+def download_current_sds(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -98,7 +98,7 @@ async def download_current_sds(
 
 
 @router.get("/{project_id}/sds-versions/{version_number}")
-async def get_sds_version(
+def get_sds_version(
     project_id: int,
     version_number: int,
     db: Session = Depends(get_db),
@@ -131,7 +131,7 @@ async def get_sds_version(
 
 
 @router.get("/{project_id}/sds-versions/{version_number}/download")
-async def download_sds_version(
+def download_sds_version(
     project_id: int,
     version_number: int,
     db: Session = Depends(get_db),
@@ -169,7 +169,7 @@ async def download_sds_version(
 
 
 @router.post("/{project_id}/approve-sds")
-async def approve_sds(
+def approve_sds(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

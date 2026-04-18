@@ -91,7 +91,7 @@ class ConnectionTestResult(BaseModel):
 # ========================================
 
 @router.post("/create", response_model=WizardProgressResponse)
-async def create_wizard_project(
+def create_wizard_project(
     data: WizardStep1,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -137,7 +137,7 @@ async def create_wizard_project(
 
 
 @router.put("/{project_id}/step/1", response_model=WizardProgressResponse)
-async def update_step1(
+def update_step1(
     project_id: int,
     data: WizardStep1,
     db: Session = Depends(get_db),
@@ -166,7 +166,7 @@ async def update_step1(
 
 
 @router.put("/{project_id}/step/2", response_model=WizardProgressResponse)
-async def update_step2(
+def update_step2(
     project_id: int,
     data: WizardStep2,
     db: Session = Depends(get_db),
@@ -188,7 +188,7 @@ async def update_step2(
 
 
 @router.put("/{project_id}/step/3", response_model=WizardProgressResponse)
-async def update_step3(
+def update_step3(
     project_id: int,
     data: WizardStep3,
     db: Session = Depends(get_db),
@@ -209,7 +209,7 @@ async def update_step3(
 
 
 @router.put("/{project_id}/step/4", response_model=WizardProgressResponse)
-async def update_step4(
+def update_step4(
     project_id: int,
     data: WizardStep4,
     db: Session = Depends(get_db),
@@ -242,7 +242,7 @@ async def update_step4(
 
 
 @router.put("/{project_id}/step/5", response_model=WizardProgressResponse)
-async def update_step5(
+def update_step5(
     project_id: int,
     data: WizardStep5,
     db: Session = Depends(get_db),
@@ -275,7 +275,7 @@ async def update_step5(
 
 
 @router.put("/{project_id}/step/6", response_model=WizardProgressResponse)
-async def update_step6(
+def update_step6(
     project_id: int,
     data: WizardStep6,
     db: Session = Depends(get_db),
@@ -313,7 +313,7 @@ async def get_wizard_progress(
 
 
 @router.post("/{project_id}/test/salesforce", response_model=ConnectionTestResult)
-async def test_salesforce_connection(
+def test_salesforce_connection(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -361,7 +361,7 @@ async def test_salesforce_connection(
 
 
 @router.post("/{project_id}/test/git", response_model=ConnectionTestResult)
-async def test_git_connection(
+def test_git_connection(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

@@ -153,6 +153,13 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"NotificationService failed to initialize (non-critical): {e}")
 
+    # P11: probe RAG collections so operators notice empty/misconfigured ChromaDB at boot.
+    try:
+        from app.services.rag_service import rag_health_check
+        rag_health_check()
+    except Exception as e:
+        logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup services on shutdown."""

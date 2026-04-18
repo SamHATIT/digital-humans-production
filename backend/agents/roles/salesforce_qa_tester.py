@@ -410,7 +410,8 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
 
     logger.info(f"Elena TEST mode - reviewing {len(code_files)} file(s)")
     start_time = time.time()
-    model_used = response.get("model", "unknown")
+    model_used = "unknown"
+    cost_usd = 0.0
 
     # Build code content for review - show FULL content for each file
     code_parts = []
@@ -422,9 +423,14 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     total_code_chars = len(code_content)
     logger.info(f"  Total code content: {total_code_chars} chars")
 
-    # Format validation criteria
+    # Format validation criteria (defensive: accept list, str, or other)
     if isinstance(validation_criteria, list):
         criteria_text = "\n".join(f"- {c}" for c in validation_criteria)
+    elif isinstance(validation_criteria, str):
+        criteria_text = validation_criteria
+    else:
+        criteria_text = str(validation_criteria) if validation_criteria else "Code should be functional and follow best practices"
+
     # Try external prompt via PromptService, fallback to constant
     prompt = PROMPT_SERVICE.render("elena_qa", "code_review", {
         "code_content": code_content[:80000],
@@ -439,19 +445,23 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
 
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
-            prompt=prompt, provider=LLMProvider.ANTHROPIC,
-            model=model_used, max_tokens=4000, temperature=0.1,
-            execution_id=execution_id
+            prompt=prompt,
+            agent_type="qa_tester",
+            max_tokens=4000,
+            temperature=0.1,
+            execution_id=execution_id,
         )
         review_text = response.get('content', '{}')
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
+        model_used = response.get('model', 'unknown')
+        cost_usd = response.get('cost_usd', 0.0)
     execution_time = round(time.time() - start_time, 2)
 
     # Parse response
     review_data = _parse_review_json(review_text)
 
-    verdict = review_data.get("verdict", "PASS").upper()
+    verdict = review_data.get("verdict", "FAIL").upper()
     logger.info(f"  Verdict: {verdict}")
     if verdict == "FAIL":
         logger.info(f"  Feedback: {review_data.get('feedback_for_developer', 'N/A')[:200]}")
@@ -489,7 +499,7 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         "content": {"code_review": review_data, "files_reviewed": len(code_files), "total_code_chars": total_code_chars},
         "feedback": review_data.get("feedback_for_developer", "") if verdict == "FAIL" else "",
         "metadata": {"execution_time_seconds": execution_time, "tokens_used": tokens_used,
-                "cost_usd": getattr(self, '_total_cost', 0.0), "model": model_used}
+                "cost_usd": cost_usd, "model": model_used}
     }
 
 
@@ -583,6 +593,10 @@ class QATesterAgent:
         try:
             if mode == "spec":
                 return self._execute_spec(input_content, execution_id, project_id)
+            elif mode == "test":
+                return self._execute_test(input_content, execution_id, project_id)
+            else:
+                return {"success": False, "error": f"Unhandled mode: {mode}"}
         except Exception as e:
             logger.error(f"QATesterAgent error in mode '{mode}': {e}", exc_info=True)
             return {"success": False, "error": str(e)}
