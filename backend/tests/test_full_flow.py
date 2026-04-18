@@ -70,7 +70,8 @@ def test_01_imports():
         from app.services.phased_build_executor import PhasedBuildExecutor
         from app.services.sfdx_service import SFDXService
         from app.services.git_service import GitService
-        from app.services.llm_service import LLMService
+        from app.services.llm_service import generate_llm_response  # C-0: class LLMService removed
+        from app.services.llm_router_service import get_llm_router
     except Exception as e:
         errors.append(f"services: {e}")
     
@@ -174,25 +175,19 @@ def test_04_sfdx_connection():
 # TEST 5: LLM Service
 # ============================================================
 def test_05_llm_service():
-    """Vérifie que le service LLM fonctionne"""
+    """Vérifie que le router LLM fonctionne (C-0: plus de LLMService V1)."""
     try:
-        from app.services.llm_service import LLMService
-        
-        llm = LLMService()
-        
-        # Vérifier qu'au moins un provider est configuré
-        has_anthropic = llm._anthropic_client is not None
-        has_openai = llm._openai_client is not None
-        
-        if has_anthropic or has_openai:
-            providers = []
-            if has_anthropic: providers.append("Anthropic")
-            if has_openai: providers.append("OpenAI")
-            log_result("test_05_llm_service", True, f"Providers: {', '.join(providers)}")
+        from app.services.llm_router_service import get_llm_router
+
+        router = get_llm_router()
+        available = router.get_available_providers()
+
+        active = [name for name, ok in available.items() if ok]
+        if active:
+            log_result("test_05_llm_service", True, f"Providers: {', '.join(active)} | profile={router.get_active_profile()}")
             return True
-        else:
-            log_result("test_05_llm_service", False, "Aucun provider LLM configuré")
-            return False
+        log_result("test_05_llm_service", False, "Aucun provider LLM configuré")
+        return False
     except Exception as e:
         log_result("test_05_llm_service", False, str(e))
         return False

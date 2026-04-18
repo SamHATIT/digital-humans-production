@@ -1,49 +1,104 @@
-# LLM Router Configuration - Digital Humans Platform
-# Updated: 2026-02-13 — Marcus → Opus 4.6, agent routing map
+# LLM Router Configuration — Digital Humans Platform
+# Multi-profile routing with 2 logical tiers (orchestrator / worker).
+#
+# Updated: 2026-04-18 — Agent C (session3) :
+#   - Consolidation vers 2 tiers logiques : orchestrator (Opus-class) / worker (Sonnet-class).
+#   - Support 3 deployment profiles : cloud / on-premise / freemium.
+#   - Source de vérité unique : ce fichier YAML remplace ANTHROPIC_MODELS/OPENAI_MODELS/AGENT_TIER_MAP hardcodés.
+#   - Pricing réel consommé par budget_service.py (plus de MODEL_PRICING hardcodé).
+#
+# Résout findings : N21, N22, N23, N28, N31, N33, N35, N41, N42, N43, N45, N86.
+#
+# Profile actif : sélectionné via env var DH_DEPLOYMENT_PROFILE (default: cloud).
 
-default_routing:
-  simple: local/mistral:7b-instruct
-  medium: anthropic/claude-haiku
-  complex: anthropic/claude-sonnet
-  critical: anthropic/claude-opus
+active_profile: "${DH_DEPLOYMENT_PROFILE}"   # cloud | on-premise | freemium — defaults to "cloud" if unset
+default_profile: "cloud"
 
-# Agent → complexity mapping (used by _select_provider)
-agent_complexity_map:
-  # SDS Core pipeline — Opus for architect, Sonnet for others
-  pm: critical              # Sophie — BR extraction (uses Opus)
-  architect: critical       # Marcus — design, WBS, gap analysis → Opus 4.6
-  business_analyst: critical # Olivia — UC generation → Opus 4.6
-  research_analyst: complex # Emma — analyze, validate, SDS
-  # Expert agents — all Sonnet 4.5
-  devops: complex           # Jordan
-  admin: complex            # Raj
-  qa: complex               # Elena (alias)
-  qa_tester: complex        # Elena (code agent_type)
-  data: complex             # Aisha (alias)
-  data_migration: complex   # Aisha (code agent_type)
-  trainer: complex          # Lucas
-  developer_apex: complex   # Diego (alias)
-  apex_developer: complex   # Diego (code agent_type)
-  developer_lwc: complex    # Zara (alias)
-  lwc_developer: complex    # Zara (code agent_type)
+# =============================================================================
+# Agent tier mapping — agent_type → logical tier (orchestrator | worker)
+# Source de vérité unique. Aliases (code agent_type + display name) listés pour
+# tolérer les deux conventions utilisées historiquement dans le codebase.
+# =============================================================================
+agent_tier_map:
+  # Orchestrator tier — reasoning lourd, synthèse, design
+  pm:                 orchestrator   # Sophie
+  pm_orchestrator:    orchestrator   # Sophie (alias)
+  sophie:             orchestrator   # Sophie (display)
+  architect:          orchestrator   # Marcus
+  solution_architect: orchestrator   # Marcus (alias)
+  marcus:             orchestrator   # Marcus (display)
+  ba:                 orchestrator   # Olivia — UCs demandent Opus (décision CRIT-02)
+  business_analyst:   orchestrator   # Olivia (alias)
+  olivia:             orchestrator   # Olivia (display)
+  research:           orchestrator   # Emma — synthèse SDS
+  research_analyst:   orchestrator   # Emma (alias)
+  emma:               orchestrator   # Emma (display)
 
-pricing:
-  local/mistral:7b-instruct:
-    input: 0.0
-    output: 0.0
-  local/mistral-nemo:
-    input: 0.0
-    output: 0.0
-  anthropic/claude-haiku:
-    input: 1.0
-    output: 5.0
-  anthropic/claude-sonnet:
-    input: 3.0
-    output: 15.0
-  anthropic/claude-opus:
-    input: 5.0
-    output: 25.0
+  # Worker tier — exécution spécialisée, outputs longs mais moins de raisonnement abstrait
+  apex:               worker
+  apex_developer:     worker
+  developer_apex:     worker
+  diego:              worker
+  lwc:                worker
+  lwc_developer:      worker
+  developer_lwc:      worker
+  zara:               worker
+  admin:              worker
+  sf_admin:           worker
+  raj:                worker
+  qa:                 worker
+  qa_tester:          worker
+  elena:              worker
+  devops:             worker
+  jordan:             worker
+  data:               worker
+  data_migration:     worker
+  aisha:              worker
+  trainer:            worker
+  lucas:              worker
 
+# =============================================================================
+# Deployment profiles — chaque profile mappe chaque tier vers un provider/model.
+# Format : profiles.<profile>.<tier> = "<provider>/<model_alias>"
+# Le model_alias doit exister dans providers.<provider>.models.
+# =============================================================================
+profiles:
+
+  # --- Profile 1 : cloud (production VPS) ---
+  # Anthropic pour tout, pas de Ollama. BUILD activé.
+  cloud:
+    build_enabled: true
+    orchestrator: "anthropic/claude-opus"
+    worker:       "anthropic/claude-sonnet"
+    fallback_chain:
+      "anthropic/claude-opus":   "anthropic/claude-sonnet"
+      "anthropic/claude-sonnet": "anthropic/claude-haiku"
+
+  # --- Profile 2 : on-premise (client airgapped) ---
+  # Ollama local pour tout. AUCUN fallback cloud (confidentialité).
+  # Si local/mixtral down, l'erreur remonte telle quelle à l'utilisateur.
+  on-premise:
+    build_enabled: true
+    orchestrator: "local/mixtral"
+    worker:       "local/mistral:7b-instruct"
+    fallback_chain:
+      "local/mixtral":            "local/mistral-nemo"
+      "local/mistral:7b-instruct": "local/mistral-nemo"
+      # Pas de fallback vers anthropic/openai : exfiltration de données interdite.
+
+  # --- Profile 3 : freemium (démo publique SaaS) ---
+  # Sonnet pour tout (pas d'Opus, coûts maîtrisés). BUILD DÉSACTIVÉ (feature gate).
+  freemium:
+    build_enabled: false
+    orchestrator: "anthropic/claude-sonnet"
+    worker:       "anthropic/claude-haiku"
+    fallback_chain:
+      "anthropic/claude-sonnet": "anthropic/claude-haiku"
+      "anthropic/claude-haiku":  "anthropic/claude-haiku"   # no-op fallback (pas de local dispo)
+
+# =============================================================================
+# Providers — connexion aux APIs / endpoints
+# =============================================================================
 providers:
   ollama:
     enabled: true
@@ -54,6 +109,9 @@ providers:
         context_length: 32768
       mistral-nemo:
         context_length: 32768
+      mixtral:
+        context_length: 32768        # Mixtral-8x7B Instruct — orchestrator on-premise
+
   anthropic:
     enabled: true
     api_key_env: "ANTHROPIC_API_KEY"
@@ -65,6 +123,53 @@ providers:
         model_id: "claude-sonnet-4-5-20250929"
       claude-opus:
         model_id: "claude-opus-4-6"
+
   openai:
-    enabled: true
+    enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.
     api_key_env: "OPENAI_API_KEY"
+    timeout_seconds: 300
+    models:
+      gpt-4o:
+        model_id: "gpt-4o"
+      gpt-4o-mini:
+        model_id: "gpt-4o-mini"
+
+# =============================================================================
+# Pricing — par provider/model_alias, prix per 1M tokens.
+# Source de vérité pour budget_service.py.
+#
+# Prix Anthropic officiels (console.anthropic.com/settings/billing, 2026-04-18) :
+#   Claude Opus 4.6     : $15 input / $75 output per 1M tokens
+#   Claude Sonnet 4.5   : $3  input / $15 output per 1M tokens
+#   Claude Haiku 4.5    : $1  input / $5  output per 1M tokens
+# =============================================================================
+pricing:
+  # Anthropic — prix réels vérifiés 2026-04-18
+  "anthropic/claude-opus":
+    input:  15.0
+    output: 75.0
+  "anthropic/claude-sonnet":
+    input:  3.0
+    output: 15.0
+  "anthropic/claude-haiku":
+    input:  1.0
+    output: 5.0
+
+  # Local (Ollama) — gratuit (compute on-prem)
+  "local/mistral:7b-instruct":
+    input:  0.0
+    output: 0.0
+  "local/mistral-nemo":
+    input:  0.0
+    output: 0.0
+  "local/mixtral":
+    input:  0.0
+    output: 0.0
+
+  # OpenAI — conservé pour cohérence historique (provider désactivé par défaut)
+  "openai/gpt-4o":
+    input:  2.5
+    output: 10.0
+  "openai/gpt-4o-mini":
+    input:  0.15
+    output: 0.6

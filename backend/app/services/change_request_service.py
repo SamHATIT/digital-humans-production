@@ -15,7 +15,7 @@ from app.models.agent_deliverable import AgentDeliverable
 from app.models.sds_version import SDSVersion
 from app.models.artifact import ExecutionArtifact
 from app.models.project_conversation import ProjectConversation
-from app.services.llm_service import LLMService
+from app.services.llm_service import generate_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,6 @@ class ChangeRequestService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.llm_service = LLMService()
     
     def analyze_impact(self, cr_id: int) -> Dict[str, Any]:
         """
@@ -133,7 +132,7 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
         try:
             logger.info(f"[CR Service] Calling Claude for impact analysis...")
             
-            response = self.llm_service.generate(
+            response = generate_llm_response(
                 prompt=prompt,
                 agent_type="sophie",  # ORCHESTRATOR tier
                 system_prompt=system_prompt,
@@ -439,7 +438,7 @@ Retourne UNIQUEMENT un JSON valide:
         )
 
         try:
-            response = self.llm_service.generate(
+            response = generate_llm_response(
                 prompt=classify_prompt,
                 agent_type="sophie",
                 system_prompt=system_prompt,
