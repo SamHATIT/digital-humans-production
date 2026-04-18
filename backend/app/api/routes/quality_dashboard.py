@@ -4,7 +4,7 @@ Quality Dashboard API Routes
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from datetime import datetime
 import logging
 import re

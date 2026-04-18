@@ -1,7 +1,7 @@
 """
 Agent Iteration model for tracking retry attempts when quality gates fail.
 """
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, Text, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum

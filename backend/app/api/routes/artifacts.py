@@ -1,9 +1,9 @@
 """
 API routes for V2 artifacts system
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 
 from app.database import get_db
 from app.services.artifact_service import ArtifactService
@@ -12,8 +12,7 @@ from app.schemas.artifact import (
     GateResponse, GateListResponse, GateStatusUpdate,
     QuestionCreate, QuestionAnswer, QuestionResponse, QuestionListResponse,
     DependencyGraph, AgentContext,
-    InitializeGatesRequest, InitializeGatesResponse,
-    ArtifactStatusEnum, GateStatusEnum
+    InitializeGatesRequest, InitializeGatesResponse
 )
 
 router = APIRouter(prefix="/api/v2", tags=["V2 Artifacts"])

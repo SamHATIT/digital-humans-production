@@ -23,10 +23,9 @@ from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.style import WD_STYLE_TYPE
-from docx.oxml.ns import qn, nsdecls
+from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
 from app.config import settings
 
 logger = logging.getLogger(__name__)

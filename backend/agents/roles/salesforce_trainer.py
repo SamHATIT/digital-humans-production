@@ -8,7 +8,6 @@ P3 Refactoring: Transformed from subprocess-only script to importable class.
 Can be used via direct import (TrainerAgent.run()) or CLI (python salesforce_trainer.py --mode ...).
 """
 
-import os
 import time
 import json
 import logging

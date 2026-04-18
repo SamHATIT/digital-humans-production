@@ -6,13 +6,11 @@ Uses the same agent scripts as pm_orchestrator_service_v2.py
 import json
 import subprocess
 import os
-from datetime import datetime
-from typing import Optional
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.salesforce_config import salesforce_config, AGENT_PATHS
+from app.salesforce_config import salesforce_config
 from app.services.agent_executor import get_agent_executor, AGENT_CONFIG
 
 router = APIRouter(prefix="/agent-tester", tags=["Agent Tester"])

@@ -25,7 +25,6 @@ IMPORTANT:
   old key is discarded.
 """
 from cryptography.fernet import Fernet, InvalidToken
-from functools import lru_cache
 import os
 import base64
 import hashlib

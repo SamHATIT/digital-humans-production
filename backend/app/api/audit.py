@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from app.database import get_db
 from app.services.audit_service import audit_service
-from app.models.audit import AuditLog, ActorType, ActionCategory
+from app.models.audit import ActorType, ActionCategory
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 

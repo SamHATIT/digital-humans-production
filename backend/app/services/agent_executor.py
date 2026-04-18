@@ -9,7 +9,6 @@ ARCHITECTURE: Database-First + Real Agents
 - Persistence DB (Execution + Artifacts)
 """
 import os
-import sys
 import json
 import asyncio
 import tempfile
@@ -24,7 +23,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.execution import Execution, ExecutionStatus
-from app.models.artifact import ExecutionArtifact, ArtifactType, ArtifactStatus
+from app.models.artifact import ExecutionArtifact, ArtifactStatus
 from app.salesforce_config import salesforce_config
 from app.config import settings
 
@@ -37,7 +36,7 @@ except ImportError:
 
 # RAG check
 try:
-    from app.services.rag_service import get_salesforce_context
+    from app.services.rag_service import get_salesforce_context  # noqa: F401 - availability probe
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
@@ -692,7 +691,6 @@ class AgentExecutor:
     
     def _extract_code_from_output(self, output: Dict, agent_id: str) -> Dict[str, str]:
         """Extract code files from agent output"""
-        import re
         files = {}
         
         if isinstance(output, dict):
@@ -868,7 +866,6 @@ async def run_agent_task(
         dict with success, files, and agent output
     """
     import tempfile
-    import subprocess
     import asyncio
     
     config = AGENT_CONFIG.get(agent_id)

@@ -7,7 +7,6 @@ P3 Refactoring: Transformed from subprocess-only script to importable class.
 Can be used via direct import (DevOpsAgent.run()) or CLI (python salesforce_devops.py --mode ...).
 """
 
-import os
 import re
 import time
 import json

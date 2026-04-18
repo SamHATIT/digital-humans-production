@@ -13,24 +13,18 @@ Caractéristiques:
 - En-têtes/pieds de page avec pagination
 """
 
-import os
 import re
 import io
-import base64
 import logging
-import tempfile
-import subprocess
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 from datetime import datetime
-from dataclasses import dataclass
 
 from docx import Document
-from docx.shared import Inches, Pt, RGBColor, Cm, Twips
+from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.section import WD_ORIENT
-from docx.oxml.ns import qn, nsdecls
+from docx.oxml.ns import nsdecls
 from docx.oxml import parse_xml
 
 logger = logging.getLogger(__name__)

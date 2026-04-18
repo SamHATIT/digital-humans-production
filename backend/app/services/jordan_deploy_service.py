@@ -3,7 +3,6 @@ Jordan Deploy Service - BUILD v2
 Service centralisé de déploiement, utilisé par Jordan (Tech Lead).
 """
 import logging
-import asyncio
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -57,7 +56,6 @@ class JordanDeployService:
         from app.services.git_service import GitService
         from app.services.sfdx_service import SFDXService
         from app.services.sf_admin_service import create_sf_admin_service
-        from app.utils.encryption import decrypt_credential
         
         # Récupérer les infos du projet
         project_result = self.db.execute(

@@ -5,14 +5,13 @@ Chaque UC → Fiche Besoin JSON (Mistral local) → Synthèse (Claude)
 
 import json
 import logging
-import asyncio
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.services.llm_router_service import (
-    LLMRouterService, LLMRequest, LLMResponse, TaskComplexity, get_llm_router
+    LLMRequest, LLMResponse, TaskComplexity, get_llm_router
 )
 from app.models.uc_requirement_sheet import UCRequirementSheet
 

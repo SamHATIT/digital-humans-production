@@ -1,7 +1,7 @@
 """
 Training Content model for storing Trainer-generated content (Phase 3).
 """
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, ForeignKey, DateTime, Enum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

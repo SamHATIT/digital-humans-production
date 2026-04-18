@@ -2,7 +2,7 @@
 Artifact models for V2 architecture
 Digital Humans - Traceable Artifacts System
 """
-from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, DateTime, CheckConstraint, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Text, Boolean, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

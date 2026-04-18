@@ -4,7 +4,7 @@ Endpoints for managing SFDX environments and Git config.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel
 
 from app.database import get_db

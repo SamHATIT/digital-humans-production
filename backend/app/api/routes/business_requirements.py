@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List, Optional
+from typing import Optional
 from datetime import datetime
 import csv
 import io
@@ -13,11 +13,9 @@ import io
 from app.database import get_db
 from app.models.user import User
 from app.models.project import Project
-from app.models.execution import Execution
 from app.models.business_requirement import (
     BusinessRequirement,
     BRStatus,
-    BRPriority,
     BRSource,
 )
 from app.schemas.business_requirement import (
@@ -29,7 +27,7 @@ from app.schemas.business_requirement import (
     BRReorderRequest,
     BRReorderResponse,
 )
-from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from app.utils.dependencies import get_current_user_from_token_or_header
 
 router = APIRouter(prefix="/api/br", tags=["Business Requirements"])
 

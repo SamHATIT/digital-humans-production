@@ -7,14 +7,11 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models.project import Project, ProjectStatus
-from app.models.execution import Execution, ExecutionStatus
+from app.models.project import Project
+from app.models.execution import Execution
 from app.models.change_request import ChangeRequest
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
-from app.models.sds_version import SDSVersion
-from app.models.artifact import ExecutionArtifact
-from app.models.project_conversation import ProjectConversation
 from app.services.llm_service import generate_llm_response
 from app.services.agents_registry import (
     get_agents_for_cr_category as _registry_cr_agents,

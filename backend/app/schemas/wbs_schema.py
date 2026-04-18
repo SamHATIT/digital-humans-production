@@ -6,7 +6,6 @@ This schema validates and documents the structure of WBS deliverables.
 """
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
-from datetime import date
 from enum import Enum
 
 

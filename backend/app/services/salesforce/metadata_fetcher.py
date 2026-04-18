@@ -5,14 +5,13 @@ Récupère les métadonnées d'une org via Tooling API / REST API
 ZERO LLM - Pure Python data fetching
 """
 
-import os
 import json
 import subprocess
 import requests
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import logging
 from app.config import settings
 

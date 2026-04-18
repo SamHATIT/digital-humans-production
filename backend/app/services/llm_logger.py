@@ -1,10 +1,8 @@
 """
 LLM Logger Service - Logs all LLM interactions to database
 """
-import json
 import time
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Optional, Dict
 
 # Database imports
 try:

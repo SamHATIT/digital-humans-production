@@ -14,7 +14,7 @@ import logging
 
 from app.database import get_db
 from app.models.user import User
-from app.models.project import Project, ProjectStatus
+from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
 from app.schemas.execution import (
     ExecutionCreate,
@@ -27,11 +27,7 @@ from app.workers.arq_config import get_redis_pool
 from app.services.budget_service import BudgetService, BudgetExceededError
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
-    AGENT_NAMES,
-    STATUS_MAP,
     verify_execution_access,
-    parse_agent_status,
-    parse_selected_agents,
     build_agent_progress,
 )
 

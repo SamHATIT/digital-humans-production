@@ -5,7 +5,7 @@ Replaces polling with event-driven architecture.
 import asyncio
 import json
 import logging
-from typing import Dict, Optional, Callable, Any, Set
+from typing import Dict, Optional, Any, Set
 from contextlib import asynccontextmanager
 import asyncpg
 from app.config import settings

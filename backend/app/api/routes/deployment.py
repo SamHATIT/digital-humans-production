@@ -5,10 +5,9 @@ Deployment API Routes
 - DPL-05: Release Notes Generation
 - DPL-06: Multi-Environment Support
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)

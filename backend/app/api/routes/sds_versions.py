@@ -2,7 +2,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
 import os
 
 from app.database import get_db
@@ -11,7 +10,6 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.sds_version import SDSVersion
 from app.schemas.sds_version import (
-    SDSVersionCreate,
     SDSVersionResponse,
     SDSVersionList
 )

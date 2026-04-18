@@ -3,8 +3,8 @@ Feature Access Control - Section 9.2
 Decorators and utilities to control access based on subscription tier.
 """
 from functools import wraps
-from typing import Optional, Dict, Any
-from fastapi import HTTPException, Depends
+from typing import Dict, Any
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.models.subscription import (

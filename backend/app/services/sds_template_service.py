@@ -3,11 +3,9 @@ SDS Template Service
 Gestion des templates pour la génération de documents SDS.
 """
 
-import os
 import json
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 
 # Path to templates directory
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "sds"

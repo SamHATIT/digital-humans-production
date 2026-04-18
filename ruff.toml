@@ -1,0 +1,29 @@
+# Ruff configuration for Digital Humans backend.
+#
+# Conservative rule set: we enable F (pyflakes) for now and expand per chantier.
+# D-5 adds this file so future agents have a single source of truth for linting.
+
+line-length = 120
+target-version = "py311"
+exclude = [
+    "venv",
+    ".venv",
+    "__pycache__",
+    "backend/venv",
+    "backend/tests",           # test files follow their own conventions
+    "backend/migrations",
+    "node_modules",
+    "frontend-backup-working-*",
+]
+
+[lint]
+# Start with pyflakes (F) — catches unused imports, undefined names, shadowing.
+# Extend with I (isort) / UP (pyupgrade) in follow-up chantiers.
+select = ["F"]
+
+[lint.per-file-ignores]
+# __init__.py files legitimately re-export names without referencing them.
+"__init__.py" = ["F401"]
+# Agent scripts reload LLMProvider inside a sys.path-fix block to re-enable
+# the availability probe after the CLI inserts backend/ into sys.path.
+"backend/agents/roles/*.py" = ["F401"]

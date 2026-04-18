@@ -1,7 +1,7 @@
 """
 PM Orchestration model for storing PM-generated deliverables (PRD, User Stories, Roadmap).
 """
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, Text, ForeignKey, DateTime, Enum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func

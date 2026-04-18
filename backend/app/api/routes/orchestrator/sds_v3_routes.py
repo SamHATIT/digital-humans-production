@@ -13,8 +13,6 @@ import logging
 
 from app.database import get_db
 from app.models.user import User
-from app.models.project import Project
-from app.models.execution import Execution
 from app.config import settings
 from app.utils.dependencies import get_current_user
 from app.api.routes.orchestrator._helpers import verify_execution_project_access
@@ -502,7 +500,6 @@ async def download_sds_v3(
     current_user: User = Depends(get_current_user),
 ):
     """Download the generated SDS v3 document."""
-    import os
     import glob
 
     if format == "pdf":
@@ -540,7 +537,6 @@ async def generate_sds_v3_full_pipeline(
     from app.services.sds_synthesis_service import get_sds_synthesis_service
     from app.services.sds_docx_generator_v3 import generate_sds_docx_v3
     from app.services.uc_analyzer_service import get_uc_analyzer
-    import tempfile
     import os
     import time
 

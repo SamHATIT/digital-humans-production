@@ -1,7 +1,7 @@
 """
 Quality Gate Service - Handles quality gate checks and iterations.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
@@ -13,8 +13,7 @@ from app.schemas.quality_gate import (
     QualityGateCreate,
     QualityGateResponse,
     QualityGateSummary,
-    IterationCreate,
-    IterationResponse
+    IterationCreate
 )
 
 
