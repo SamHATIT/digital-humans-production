@@ -370,7 +370,8 @@ FIX THESE ISSUES.
 
     tokens_used = 0
     input_tokens = 0
-    model_used = response.get("model", "unknown")
+    model_used = "unknown"
+    cost_usd = 0.0
     content = ""
 
     if LLM_SERVICE_AVAILABLE:
@@ -382,6 +383,7 @@ FIX THESE ISSUES.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
+        cost_usd = response.get('cost_usd', 0.0)
     else:
         try:
             from openai import OpenAI
@@ -447,7 +449,7 @@ FIX THESE ISSUES.
         "deliverable_type": "lwc_code", "success": len(files) > 0,
         "content": {"raw_response": content, "files": files, "file_count": len(files)},
         "metadata": {"tokens_used": tokens_used,
-                "cost_usd": getattr(self, '_total_cost', 0.0), "model": model_used,
+                "cost_usd": cost_usd, "model": model_used,
                      "execution_time_seconds": execution_time}
     }
 

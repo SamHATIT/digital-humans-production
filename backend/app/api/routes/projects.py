@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
@@ -58,7 +59,7 @@ VALID_TRANSITIONS = {
 
 
 @router.get("/{project_id}", response_model=ProjectDetailResponse)
-async def get_project(
+def get_project(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -113,7 +114,7 @@ async def get_project(
 
 
 @router.patch("/{project_id}/status")
-async def update_project_status(
+def update_project_status(
     project_id: int,
     status_data: Dict[str, str],
     db: Session = Depends(get_db),
@@ -174,7 +175,7 @@ async def update_project_status(
 # ==================== PROJECT SETTINGS ====================
 
 @router.get("/{project_id}/settings")
-async def get_project_settings(
+def get_project_settings(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -219,7 +220,7 @@ async def get_project_settings(
 
 
 @router.put("/{project_id}/settings")
-async def update_project_settings(
+def update_project_settings(
     project_id: int,
     settings: Dict,
     db: Session = Depends(get_db),
@@ -305,47 +306,52 @@ async def test_salesforce_connection(
     from app.models.project_credential import ProjectCredential, CredentialType
     
     body = body or {}
-    
-    project = db.query(Project).filter(Project.id == project_id).first()
+
+    # P0: offload sync DB lookup to a worker thread.
+    project = await asyncio.to_thread(
+        lambda: db.query(Project).filter(Project.id == project_id).first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     if project.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     auth_method = body.get("auth_method", "sfdx")
-    
+
     if auth_method == "sfdx":
         # Use SFDX CLI authentication
         username = project.sf_username
         if not username:
             return {"success": False, "message": "Please enter a Salesforce username"}
-        
-        result = sfdx_auth.test_connection(username)
-        
+
+        result = await asyncio.to_thread(sfdx_auth.test_connection, username)
+
         if result.get("success"):
-            project.sf_connected = True
-            project.sf_connection_date = datetime.utcnow()
-            if result.get("org_id"):
-                project.sf_org_id = result["org_id"]
-            if result.get("instance_url"):
-                project.sf_instance_url = result["instance_url"]
-            db.commit()
+            def _persist_sfdx_result():
+                project.sf_connected = True
+                project.sf_connection_date = datetime.utcnow()
+                if result.get("org_id"):
+                    project.sf_org_id = result["org_id"]
+                if result.get("instance_url"):
+                    project.sf_instance_url = result["instance_url"]
+                db.commit()
+            await asyncio.to_thread(_persist_sfdx_result)
             return {"success": True, "message": f"Connected via SFDX to {username}"}
         else:
             return {
-                "success": False, 
+                "success": False,
                 "message": result.get("message", "SFDX authentication failed. Run 'sfdx auth:web:login' on the server first.")
             }
-    
+
     else:  # OAuth method
         instance_url = project.sf_instance_url
-        
+
         # Get OAuth credentials
-        cred = db.query(ProjectCredential).filter(
+        cred = await asyncio.to_thread(lambda: db.query(ProjectCredential).filter(
             ProjectCredential.project_id == project_id,
             ProjectCredential.credential_type == CredentialType.SALESFORCE_TOKEN
-        ).first()
+        ).first())
         
         if not cred or not cred.label or not cred.encrypted_value:
             return {"success": False, "message": "Please enter Consumer Key and Consumer Secret"}
@@ -391,9 +397,11 @@ async def test_salesforce_connection(
                     )
                     
                     if test_response.status_code == 200:
-                        project.sf_connected = True
-                        project.sf_connection_date = datetime.utcnow()
-                        db.commit()
+                        def _persist_oauth_ok():
+                            project.sf_connected = True
+                            project.sf_connection_date = datetime.utcnow()
+                            db.commit()
+                        await asyncio.to_thread(_persist_oauth_ok)
                         return {"success": True, "message": "Connected via OAuth!"}
                     else:
                         return {"success": False, "message": f"API test failed: {test_response.status_code}"}
@@ -419,19 +427,22 @@ async def test_git_connection(
     import re
     from app.models.project_credential import ProjectCredential, CredentialType
     
-    project = db.query(Project).filter(Project.id == project_id).first()
+    # P0: sync DB lookups offloaded to worker thread.
+    project = await asyncio.to_thread(
+        lambda: db.query(Project).filter(Project.id == project_id).first()
+    )
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    
+
     if project.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     repo_url = project.git_repo_url
-    
-    cred = db.query(ProjectCredential).filter(
+
+    cred = await asyncio.to_thread(lambda: db.query(ProjectCredential).filter(
         ProjectCredential.project_id == project_id,
         ProjectCredential.credential_type == CredentialType.GIT_TOKEN
-    ).first()
+    ).first())
     git_token = cred.encrypted_value if cred else None
     
     if not repo_url:
@@ -459,11 +470,13 @@ async def test_git_connection(
             
             if response.status_code == 200:
                 repo_data = response.json()
-                project.git_connected = True
-                project.git_connection_date = datetime.utcnow()
-                db.commit()
+                def _persist_git_ok():
+                    project.git_connected = True
+                    project.git_connection_date = datetime.utcnow()
+                    db.commit()
+                await asyncio.to_thread(_persist_git_ok)
                 return {
-                    "success": True, 
+                    "success": True,
                     "message": f"Connected to {repo_data['full_name']}",
                 }
             elif response.status_code == 401:

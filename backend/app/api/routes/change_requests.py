@@ -33,7 +33,7 @@ def get_next_cr_number(db: Session, project_id: int) -> str:
 
 
 @router.get("/{project_id}/change-requests", response_model=ChangeRequestList)
-async def list_change_requests(
+def list_change_requests(
     project_id: int,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -82,7 +82,7 @@ async def list_change_requests(
 
 
 @router.post("/{project_id}/change-requests", response_model=ChangeRequestResponse)
-async def create_change_request(
+def create_change_request(
     project_id: int,
     cr_data: ChangeRequestCreate,
     db: Session = Depends(get_db),
@@ -127,7 +127,7 @@ async def create_change_request(
 
 
 @router.get("/{project_id}/change-requests/{cr_id}", response_model=ChangeRequestResponse)
-async def get_change_request(
+def get_change_request(
     project_id: int,
     cr_id: int,
     db: Session = Depends(get_db),
@@ -163,7 +163,7 @@ async def get_change_request(
 
 
 @router.put("/{project_id}/change-requests/{cr_id}", response_model=ChangeRequestResponse)
-async def update_change_request(
+def update_change_request(
     project_id: int,
     cr_id: int,
     cr_data: ChangeRequestUpdate,
@@ -201,7 +201,7 @@ async def update_change_request(
 
 
 @router.post("/{project_id}/change-requests/{cr_id}/submit")
-async def submit_change_request(
+def submit_change_request(
     project_id: int,
     cr_id: int,
     background_tasks: BackgroundTasks,
@@ -254,7 +254,7 @@ async def submit_change_request(
 
 
 @router.post("/{project_id}/change-requests/{cr_id}/approve")
-async def approve_change_request(
+def approve_change_request(
     project_id: int,
     cr_id: int,
     approval: ChangeRequestApprove,
@@ -315,7 +315,7 @@ async def approve_change_request(
 
 
 @router.post("/{project_id}/change-requests/{cr_id}/reject")
-async def reject_change_request(
+def reject_change_request(
     project_id: int,
     cr_id: int,
     db: Session = Depends(get_db),
@@ -340,7 +340,7 @@ async def reject_change_request(
 
 
 @router.delete("/{project_id}/change-requests/{cr_id}")
-async def delete_change_request(
+def delete_change_request(
     project_id: int,
     cr_id: int,
     db: Session = Depends(get_db),

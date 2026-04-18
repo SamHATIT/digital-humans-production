@@ -210,6 +210,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
 
     start_time = time.time()
 
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
@@ -222,7 +223,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
-        self._total_cost += response.get('cost_usd', 0.0)
+        cost_usd = response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -274,7 +275,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         },
         "metadata": {
             "tokens_used": tokens_used,
-                "cost_usd": getattr(self, '_total_cost', 0.0),
+            "cost_usd": cost_usd,
             "model": model_used,
             "execution_time_seconds": round(execution_time, 2),
             "generated_at": datetime.now().isoformat()
@@ -423,6 +424,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
 
     start_time = time.time()
 
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
@@ -435,7 +437,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
-        self._total_cost += response.get('cost_usd', 0.0)
+        cost_usd = response.get('cost_usd', 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -502,6 +504,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         },
         "metadata": {
             "tokens_used": tokens_used,
+            "cost_usd": cost_usd,
             "model": model_used,
             "execution_time_seconds": round(execution_time, 2),
             "generated_at": datetime.now().isoformat()

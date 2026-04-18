@@ -581,16 +581,26 @@ class PhasedBuildExecutor:
             )
             
             return {
-                "verdict": result.get("verdict", "PASS"),
+                "verdict": result.get("verdict", "FAIL"),
                 "issues": result.get("issues", []),
                 "feedback_for_developer": result.get("feedback_for_developer", ""),
                 "validation_type": "llm"
             }
-            
+
         except Exception as e:
-            logger.exception(f"[PhasedBuild] Elena review failed")
-            # Default to PASS on error to not block BUILD
-            return {"verdict": "PASS", "error": str(e)}
+            logger.exception(f"[PhasedBuild] Elena review failed — failing phase visibly")
+            # No fail-open: if Elena crashes we cannot assert the build is correct.
+            # Return FAIL so the orchestrator can retry or surface the problem to HITL.
+            return {
+                "verdict": "FAIL",
+                "validation_type": "error",
+                "issues": [{"severity": "critical", "description": f"Elena review crashed: {e}"}],
+                "feedback_for_developer": (
+                    "Elena QA review raised an exception and could not validate the phase. "
+                    "Investigate the executor logs (agent crash / LLM outage) before retrying."
+                ),
+                "error": str(e),
+            }
     
     # ═══════════════════════════════════════════════════════════════
     # HELPERS

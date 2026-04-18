@@ -37,7 +37,7 @@ router = APIRouter(prefix="/api/br", tags=["Business Requirements"])
 # ==================== LIST BRs ====================
 
 @router.get("/{project_id}", response_model=BusinessRequirementListResponse)
-async def list_business_requirements(
+def list_business_requirements(
     project_id: int,
     include_deleted: bool = False,
     db: Session = Depends(get_db),
@@ -92,7 +92,7 @@ async def list_business_requirements(
 # ==================== GET SINGLE BR ====================
 
 @router.get("/item/{br_id}", response_model=BusinessRequirementResponse)
-async def get_business_requirement(
+def get_business_requirement(
     br_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -115,7 +115,7 @@ async def get_business_requirement(
 # ==================== CREATE BR (MANUAL) ====================
 
 @router.post("/{project_id}", response_model=BusinessRequirementResponse, status_code=status.HTTP_201_CREATED)
-async def create_business_requirement(
+def create_business_requirement(
     project_id: int,
     br_data: BusinessRequirementCreate,
     db: Session = Depends(get_db),
@@ -171,7 +171,7 @@ async def create_business_requirement(
 # ==================== UPDATE BR ====================
 
 @router.put("/item/{br_id}", response_model=BusinessRequirementResponse)
-async def update_business_requirement(
+def update_business_requirement(
     br_id: int,
     br_data: BusinessRequirementUpdate,
     db: Session = Depends(get_db),
@@ -217,7 +217,7 @@ async def update_business_requirement(
 # ==================== DELETE BR ====================
 
 @router.delete("/item/{br_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_business_requirement(
+def delete_business_requirement(
     br_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -248,7 +248,7 @@ async def delete_business_requirement(
 # ==================== VALIDATE ALL BRs ====================
 
 @router.post("/{project_id}/validate-all", response_model=BRValidateAllResponse)
-async def validate_all_requirements(
+def validate_all_requirements(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token_or_header)
@@ -297,7 +297,7 @@ async def validate_all_requirements(
 # ==================== EXPORT CSV ====================
 
 @router.get("/{project_id}/export")
-async def export_requirements_csv(
+def export_requirements_csv(
     project_id: int,
     token: Optional[str] = Query(None, description="JWT token for download"),
     db: Session = Depends(get_db),
@@ -374,7 +374,7 @@ async def export_requirements_csv(
 # ==================== REORDER BRs ====================
 
 @router.post("/{project_id}/reorder", response_model=BRReorderResponse)
-async def reorder_requirements(
+def reorder_requirements(
     project_id: int,
     reorder_data: BRReorderRequest,
     db: Session = Depends(get_db),

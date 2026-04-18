@@ -107,11 +107,14 @@ class BudgetService:
         }
 
     def record_cost(self, execution_id: int, model: str,
-                    input_tokens: int, output_tokens: int) -> float:
+                    input_tokens: int, output_tokens: int,
+                    commit: bool = True) -> float:
         """
         Record cost after an LLM call. Returns the cost in USD.
 
-        Does NOT commit — caller manages transaction.
+        P7: commits by default so the cost is persisted even when the caller
+        auto-created a short-lived DB session (as generate_llm_response does).
+        Pass commit=False when the caller owns the transaction lifecycle.
         """
         cost = self.estimate_cost(model, input_tokens, output_tokens)
         execution = self.db.query(Execution).get(execution_id)
@@ -120,6 +123,12 @@ class BudgetService:
             execution.total_tokens_used = (
                 (execution.total_tokens_used or 0) + input_tokens + output_tokens
             )
+            if commit:
+                try:
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+                    raise
         return cost
 
 

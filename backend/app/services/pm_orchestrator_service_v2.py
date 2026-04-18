@@ -28,7 +28,6 @@ Features:
 """
 
 import os
-import sys
 import json
 import asyncio
 import subprocess
@@ -47,9 +46,6 @@ try:
 except ImportError:
     NOTIFICATIONS_ENABLED = False
 
-from docx import Document
-from docx.shared import Inches, Pt, RGBColor
-from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from app.services.audit_service import audit_service, ActorType, ActionCategory
 from app.models.project import Project
@@ -58,11 +54,13 @@ from app.models.agent_deliverable import AgentDeliverable
 from app.models.deliverable_item import DeliverableItem
 from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
 from app.models.artifact import ValidationGate
+from app.models.change_request import ChangeRequest
+from app.models.sds_version import SDSVersion
 from app.services.execution_state import ExecutionStateMachine
 import logging
 from app.config import settings
 from app.salesforce_config import salesforce_config
-from app.services.document_generator import generate_professional_sds, ProfessionalDocumentGenerator
+from app.services.document_generator import generate_professional_sds
 from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
 
 logger = logging.getLogger(__name__)
@@ -471,7 +469,7 @@ class PMOrchestratorServiceV2:
                     self._accumulate_cost(execution, tokens_used, model_used)
                     logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
                 else:
-                    logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get("error")}")
+                    logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get('error')}")
             
             # Get final stats from database
             uc_stats = self._get_use_case_count(execution_id)
@@ -492,8 +490,8 @@ class PMOrchestratorServiceV2:
             # Save summary to deliverables (for backward compatibility)
             self._save_deliverable(execution_id, "ba", "use_cases", results["artifacts"]["USE_CASES"])
             
-            logger.info(f"[Phase 2] Saved {uc_stats["parsed"]} UCs + {uc_stats["raw_saved"]} raw to database")
-            self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats["parsed"]} UCs")
+            logger.info(f"[Phase 2] Saved {uc_stats['parsed']} UCs + {uc_stats['raw_saved']} raw to database")
+            self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats['parsed']} UCs")
             self._save_checkpoint(execution, "phase2_ba")
             try:
                 sm.transition_to("sds_phase2_complete")
@@ -1298,7 +1296,7 @@ class PMOrchestratorServiceV2:
         summary = {
             "org_edition": org_info.get("edition", "Unknown"),
             "org_type": org_info.get("instanceName", "Unknown"),
-            "api_version": org_info.get("apiVersion", sf_cfg.api_version),
+            "api_version": org_info.get("apiVersion", salesforce_config.api_version),
             "username": org_info.get("username", ""),
             "instance_url": org_info.get("instanceUrl", ""),
             
@@ -1982,7 +1980,7 @@ See WBS-001 artifact for details.
         Save extracted BRs to business_requirements table for client validation.
         Returns number of BRs saved.
         """
-        from app.models.business_requirement import BusinessRequirement, BRStatus, BRPriority, BRSource
+        from app.models.business_requirement import BusinessRequirement
         
         saved_count = 0
         for i, br in enumerate(business_requirements):
@@ -2066,7 +2064,7 @@ See WBS-001 artifact for details.
             project_id: Project ID
             execution_id: If provided, filter BRs by execution_id (H1)
         """
-        from app.models.business_requirement import BusinessRequirement, BRStatus
+        from app.models.business_requirement import BusinessRequirement
 
         query = self.db.query(BusinessRequirement).filter(
             BusinessRequirement.project_id == project_id,
@@ -3317,7 +3315,7 @@ class BuildPhaseService:
         """
         Met en pause la phase BUILD.
         """
-        from app.models.execution import Execution, ExecutionStatus
+        from app.models.execution import Execution
         from sqlalchemy.orm.attributes import flag_modified
 
         

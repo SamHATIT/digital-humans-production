@@ -5,6 +5,30 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## [Unreleased] — Session 3 refonte · Agent A (Backend Bloquants)
+
+Runtime bugs that prevented BUILD from running, plus P0/P7/P11 stabilization.
+
+| ID | Description | Files |
+|----|-------------|-------|
+| A-1 | Elena `generate_test`: fix `response` used before assignment, replace broken `getattr(self, ...)` cost lookup, add defensive `criteria_text` fallback (non-list input), switch to `agent_type="qa_tester"` routing, default verdict → FAIL on parse anomaly | `agents/roles/salesforce_qa_tester.py` |
+| A-2 | `QATesterAgent.run()` now dispatches `"test"` mode (was silently returning None) | `agents/roles/salesforce_qa_tester.py` |
+| A-3 | Aisha: new module-level `generate_build()` so `phased_build_executor` can dispatch data-migration BUILD work, plus `run()` handles `"build"` | `agents/roles/salesforce_data_migration.py` |
+| A-4 | `phased_build_executor._elena_review` no longer fail-opens on crash: Elena exception → verdict=FAIL with structured issue (was silently PASS) | `app/services/phased_build_executor.py` |
+| A-5 | F821 fixes Diego / Zara / Raj: `self._total_cost`/`getattr(self, ...)` in module functions replaced with local `cost_usd`; Zara `model_used = response.get(...)` before call reordered | `salesforce_developer_apex.py`, `salesforce_developer_lwc.py`, `salesforce_admin.py` |
+| A-6 | F821 services: `import time` added in `sfdx_service.py`; `ChangeRequest` / `SDSVersion` imported; stale `sf_cfg` reference replaced with global `salesforce_config`. Pre-existing f-string nested-quote SyntaxError fixed (file no longer compiled on 3.11) | `sfdx_service.py`, `pm_orchestrator_service_v2.py` |
+| A-7 | P0 execution_routes: `start_execution` + `resume_execution` keep `async` for Redis enqueue but offload sync ORM work via `asyncio.to_thread(...)`; SSE and worker health remain async (allowlisted) | `app/api/routes/orchestrator/execution_routes.py` |
+| A-8 | P0 batch: converted 36 event-loop-blocking `async def` routes to `def` across 7 files; `projects.test-sf` and `projects.test-git` keep `async` for `httpx` but DB ops are now `asyncio.to_thread`'d | `change_requests.py`, `projects.py`, `business_requirements.py`, `sds_versions.py`, `wizard.py`, `environments.py`, `analytics.py` |
+| A-9 | P7 `BudgetService.record_cost()` now commits by default (opt-out via `commit=False`). Previously the auto-created session in `generate_llm_response` never committed, so `executions.total_cost` stayed at 0 | `app/services/budget_service.py` |
+| A-10 | P11 RAG health: new `rag_health_check()` probes ChromaDB at startup and logs `[RAG HEALTH] OK — N chunks` or ERROR on empty/failure; silent RAG query failures promoted from `warning` to `error` | `app/services/rag_service.py`, `app/main.py` |
+| A-11 | Hygiene: removed 12 redundant imports / shadowed names in `pm_orchestrator_service_v2.py` (F401/F811) | `app/services/pm_orchestrator_service_v2.py` |
+
+**Breaking for regressions**: Elena QA review now defaults to FAIL (not PASS) when Elena crashes or returns an unparseable verdict. Expected and desired — callers that relied on the silent fail-open must surface FAIL to HITL.
+
+**F821 baseline**: 22 → 0 across `agents/` and `app/services/`.
+
+---
+
 ## [2026-02-11] Session E2E #142 — First Complete Run
 
 ### Context
