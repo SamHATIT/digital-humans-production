@@ -1,0 +1,66 @@
+  <div id="tests-e2e" class="section">
+    <h2>Tests E2E</h2>
+    <p class="section-desc">La campagne E2E est l'outil principal de validation produit. Chaque test numéroté (<code>E2E #N</code>) exécute un pipeline SDS complet sur un projet test réel (<em>LogiFleet</em>, flotte de véhicules B2B) et trace l'état dans <code>docs/e2e-tests/E2E_N_STATE.json</code>. Campagne en cours depuis février 2026, cadence mensuelle.</p>
+
+    <h3>Méthodologie</h3>
+    <table>
+      <tr><th>Étape</th><th>Action</th></tr>
+      <tr><td>1. Freeze</td><td>Snapshot git (tag <code>pre-e2e-N</code>), worker et backend en état connu, DB reset sur le projet test</td></tr>
+      <tr><td>2. Run</td><td>Lancement SDS Phase 1→5 via API. Monitoring live via <code>journalctl -u digital-humans-backend -f</code>.</td></tr>
+      <tr><td>3. State capture</td><td>En fin de run, sérialisation de l'execution row + deliverables + llm_interactions dans <code>E2E_N_STATE.json</code></td></tr>
+      <tr><td>4. Post-mortem</td><td>Analyse des écarts attendus vs observés. Bugs catalogués dans <code>E2E_N_REPORT.md</code> s'il y en a.</td></tr>
+      <tr><td>5. Hotfixes</td><td>Fix des bugs bloquants avant le E2E suivant. Fix non bloquants backlogués.</td></tr>
+    </table>
+
+    <h3>Historique des campagnes</h3>
+    <table>
+      <tr><th>E2E</th><th>Date</th><th>Contexte</th><th>Résultat</th></tr>
+      <tr><td>#137</td><td>8 fév 2026</td><td>Baseline pré-refonte</td><td>10 bugs révélés (BRs duplication, Unknown objects, P9 missing)</td></tr>
+      <tr><td>#138</td><td>9 fév</td><td>Post Sprint H Batch 1</td><td>Validation H1-H4</td></tr>
+      <tr><td>#139</td><td>9 fév</td><td>Post Sprint I Batch 1</td><td>Validation H12/H13/H16/H18</td></tr>
+      <tr><td>#140</td><td>10 fév</td><td>Post Horizons 2-3 mega-merge</td><td>Phase 0+1 PASS (ARQ + State Machine + Budget)</td></tr>
+      <tr><td>#141</td><td>10 fév</td><td>Post fix Phase 2</td><td>Phase 4 pass, P5 logging crash</td></tr>
+      <tr><td>#142</td><td>11 fév</td><td>Post fix P5</td><td>🎉 Premier run complet Phases 1→5 (33 BRs → 165 UCs → SDS, $13.59)</td></tr>
+      <tr><td>#143</td><td>12 fév</td><td>Coverage scoring Emma</td><td>Bug découvert : même design Marcus scorait 45% au lieu de 90.3% (UC format mismatch + weight imbalance). <span class="tag tag-done">Fixé</span></td></tr>
+      <tr><td>#144</td><td>12 fév</td><td>Campagne 30 bugs</td><td>SDS docx vide, coût -262%, safe_content tronque 93-96%, 13 modèles hardcodés. Plan V2 déclenché.</td></tr>
+      <tr><td>#145</td><td>mi-fév</td><td>Post Plan V2</td><td>Validation Tracks A+B+C</td></tr>
+      <tr><td>#146</td><td>début avr</td><td>Post Session 3 refonte</td><td>Projet LogiFleet Studio (SDS publié)</td></tr>
+    </table>
+
+    <h3>Structure d'un state file</h3>
+    <pre><code>{
+  "e2e_id": 146,
+  "execution_id": 1234,
+  "project_id": 17,
+  "status": "sds_complete",
+  "timing": {
+    "started_at": "2026-04-05T09:12:...",
+    "ended_at":   "2026-04-05T09:47:...",
+    "duration_sec": 2131
+  },
+  "deliverables": [
+    {"agent": "sophie",  "type": "business_requirements", "count": 33},
+    {"agent": "olivia",  "type": "use_cases",             "count": 165},
+    {"agent": "marcus",  "type": "architecture",          "coverage": 92.4},
+    {"agent": "emma",    "type": "sds_markdown",          "words": 24817}
+  ],
+  "llm_stats": {
+    "total_calls": 47,
+    "total_tokens_input":  812_403,
+    "total_tokens_output": 184_221,
+    "cost_usd": 14.82
+  },
+  "bugs_found": []
+}</code></pre>
+
+    <h3>Enseignements</h3>
+    <p class="note">Les campagnes E2E ont révélé plus de bugs que les tests unitaires et d'intégration réunis. Cause probable : le pipeline SDS est intrinsèquement un système qui n'expose sa correction qu'à l'échelle du run complet. Les composants pris individuellement semblent tous OK ; ce sont les <em>couplages</em> (Emma scoring ↔ Marcus output format, <code>safe_content</code> ↔ taille des sections, <code>record_cost</code> ↔ propagation) qui cassent.</p>
+
+    <p>Backlog :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li>Automatiser la capture du state file (actuellement semi-manuel)</li>
+      <li>Benchmarks de référence (tokens, coût, durée) pour détecter les régressions de perf</li>
+      <li>Run quotidien automatique (cron + notification Slack si régression)</li>
+      <li>Diversifier les projets tests (pas seulement LogiFleet — ajouter un cas finance, un cas santé)</li>
+    </ul>
+  </div>

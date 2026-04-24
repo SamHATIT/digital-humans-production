@@ -1,0 +1,46 @@
+  <div id="adrs" class="section">
+    <h2>Architecture Decision Records</h2>
+    <p class="section-desc">Les ADR consignent les décisions structurantes : contexte, options évaluées, décision retenue, conséquences. Les fichiers complets vivent dans <code>docs/ADR-NNN-slug.md</code> dans le repo. Ci-dessous le sommaire.</p>
+
+    <h3>ADR-001 — LLM Strategy</h3>
+    <table>
+      <tr><th>Méta</th><th>Valeur</th></tr>
+      <tr><td>Statut</td><td><span class="tag tag-done">Accepted</span></td></tr>
+      <tr><td>Date</td><td>18 avril 2026 (session 3)</td></tr>
+      <tr><td>Auteur</td><td>Agent C — consolidé par Agent D</td></tr>
+      <tr><td>Source de vérité</td><td><code>backend/config/llm_routing.yaml</code></td></tr>
+      <tr><td>Fichier</td><td><code>docs/ADR-001-llm-strategy.md</code></td></tr>
+    </table>
+    <p><strong>Problème.</strong> Avant session 3, la couche LLM souffrait de : (1) <em>tier sprawl</em> — 5 tiers nominaux qui mappaient tous vers 2 classes de modèles dans les faits, (2) model IDs hardcodés dans 3 services différents, (3) pricing drift de 4× entre <code>budget_service.MODEL_PRICING</code> et la console Anthropic (mesuré en mars 2026), (4) pas de chemin on-premise pour les clients airgap.</p>
+    <p><strong>Décision.</strong> Adopter <strong>2 tiers logiques × 3 profiles de déploiement</strong>, tous exprimés dans un seul YAML :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>Tiers</strong> : <code>orchestrator</code> (Sophie, Olivia, Marcus, Emma — raisonnement) · <code>worker</code> (Diego, Zara, Raj, Elena, Jordan, Aisha, Lucas — exécution)</li>
+      <li><strong>Profiles</strong> : <code>cloud</code> (Opus/Sonnet), <code>on-premise</code> (Mixtral/Mistral via Ollama, zero cloud fallback), <code>freemium</code> (Sonnet/GPT-4o-mini avec cap mensuel)</li>
+      <li><strong>Fallback chain</strong> par profile — jamais de cross-profile</li>
+      <li><strong>Continuation</strong> auto sur <code>stop_reason=max_tokens</code> (porté de V1 CRIT-02)</li>
+    </ul>
+    <p>Voir la section <a href="#llm-multi-profile">LLM — Multi-profile &amp; routing</a> pour les détails d'implémentation.</p>
+
+    <h3>ADR-002 — Agents Registry</h3>
+    <table>
+      <tr><th>Méta</th><th>Valeur</th></tr>
+      <tr><td>Statut</td><td><span class="tag tag-done">Accepted</span></td></tr>
+      <tr><td>Date</td><td>18 avril 2026 (session 3)</td></tr>
+      <tr><td>Auteur</td><td>Agent B — consolidé par Agent D</td></tr>
+      <tr><td>Source de vérité</td><td><code>backend/config/agents_registry.yaml</code></td></tr>
+      <tr><td>Accessor</td><td><code>backend/app/services/agents_registry.py</code></td></tr>
+      <tr><td>Fichier</td><td><code>docs/ADR-002-agents-registry.md</code></td></tr>
+    </table>
+    <p><strong>Problème.</strong> Les métadonnées des agents vivaient dans 6 endroits découplés : <code>AGENT_CONFIG</code>, <code>AGENT_COLLECTIONS</code>, <code>CATEGORY_AGENT_MAP</code>, <code>agent_artifact_needs</code>, <code>AGENT_CHAT_PROFILES</code>, <code>AGENT_COSTS</code>. Symptômes : renommer <em>Admin → Salesforce Admin</em> nécessitait 6 PRs ; ajouter Lucas (11ème agent) a introduit des incohérences survenues à 3 code reviews (Lucas était dans <code>AGENT_CONFIG</code> mais absent de <code>AGENT_COLLECTIONS</code> — ses appels RAG tombaient silencieusement sur la collection par défaut).</p>
+    <p><strong>Décision.</strong> Un seul YAML (<code>agents_registry.yaml</code>) avec une entrée par agent portant <em>toutes</em> les propriétés : <code>name</code>, <code>role</code> / <code>role_fr</code>, <code>agent_type</code>, <code>tier</code>, <code>rag_collections</code>, <code>aliases</code>, <code>cost_estimate_usd</code>, <code>color</code>, etc. Un accessor unique (<code>app.services.agents_registry</code>) — aucun autre service ne lit le YAML directement. Alias résolus : <code>pm</code> → <code>sophie</code>, <code>architect</code> → <code>marcus</code>, etc.</p>
+    <p>Voir la section <a href="#agents">Les 11 agents</a> pour la table live.</p>
+
+    <h3>Convention — proposer un ADR</h3>
+    <p>Template : <code>docs/ADR-NNN-slug.md</code>, structure en 5 sections fixes (<em>Status · Context · Decision · Consequences · Supersedes</em>). Numérotation incrémentale, jamais de renumérotation. Un ADR en statut <em>Superseded</em> reste dans le repo — il fait partie de l'historique des décisions.</p>
+    <p>Candidats à l'état d'esquisse :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>ADR-003 — BaseAgent class &amp; contrats</strong> (P10 backlog). Standardise <code>_call_llm</code> / <code>execution_id</code> / <code>logging</code> à travers les 11 agents.</li>
+      <li><strong>ADR-004 — SSoT docs &amp; Jinja2 partials</strong>. Cette refonte documentaire elle-même mérite un ADR court : pourquoi Jinja2 + Python stdlib plutôt que MkDocs/Hugo.</li>
+      <li><strong>ADR-005 — Observability stack</strong>. Quand l'Admin Hub sera cadré : choisir entre Grafana/Prometheus vs maison.</li>
+    </ul>
+  </div>
