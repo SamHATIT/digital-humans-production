@@ -1,0 +1,33 @@
+  <div id="build-flow" class="section">
+    <h2>Phase BUILD — Génération de code</h2>
+    <p class="section-desc">Le BUILD transforme les specs SDS en code Salesforce déployable. Chaque agent BUILD utilise Sonnet 4.5 et reçoit les specs détaillées de Marcus comme contexte. Raj (Admin) intervient sur 3 phases, Jordan orchestre le déploiement de chaque phase via JordanDeployService, et Elena review chaque output avant deploy.</p>
+
+    <h3>Flux BUILD</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    SDS[SDS Validé] --> P1[Phase 1 — Raj<br/>Data Model]
+    P1 --> P2[Phase 2 — Diego<br/>Business Logic]
+    P2 --> P3[Phase 3 — Zara<br/>UI Components]
+    P3 --> P4[Phase 4 — Raj<br/>Automation]
+    P4 --> P5[Phase 5 — Raj<br/>Security]
+    P5 --> P6[Phase 6 — Aisha<br/>Data Migration]
+    P6 --> DONE[BUILD Complete]
+    style P1 fill:#6B7A8F,color:#F5F2EC
+    style P2 fill:#B8745C,color:#F5F2EC
+    style P3 fill:#7A9B76,color:#0A0A0B
+    style P4 fill:#6B7A8F,color:#F5F2EC
+    style P5 fill:#6B7A8F,color:#F5F2EC
+    style P6 fill:#B8954A,color:#F5F2EC
+      </pre>
+    </div>
+    <table>
+      <tr><th>Phase</th><th>Agent</th><th>Output</th></tr>
+      <tr><td>1</td><td>Raj</td><td><code>data_model</code> — Custom objects, fields, record types, page layouts</td></tr>
+      <tr><td>2</td><td>Diego</td><td><code>business_logic</code> — Apex triggers, classes, batch jobs, REST services</td></tr>
+      <tr><td>3</td><td>Zara</td><td><code>ui_components</code> — Lightning Web Components</td></tr>
+      <tr><td>4</td><td>Raj</td><td><code>automation</code> — Flows, validation rules, approval processes</td></tr>
+      <tr><td>5</td><td>Raj</td><td><code>security</code> — Permission sets, sharing rules, OWD</td></tr>
+      <tr><td>6</td><td>Aisha</td><td><code>data_migration</code> — Migration scripts, package.xml, deploy</td></tr>
+    </table>
+  </div>

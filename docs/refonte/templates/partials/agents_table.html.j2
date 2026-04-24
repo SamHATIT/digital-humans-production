@@ -1,0 +1,67 @@
+{#
+  agents_table.html.j2 — pattern tbl-expand (Studio charte)
+  Consomme : { agents: collect_agents().agents, llm_profiles: collect_llm_profiles() }
+  Summary : Agent / Rôle / Phase SDS / Phase BUILD / Modèle LLM
+  Detail  : agent_type, tier, complexity, cost/exec, RAG collections, aliases
+#}
+{%- set tier_by_agent_type = {} %}
+{%- for t in llm_profiles.tiers %}
+  {%- for at in t.agent_types %}
+    {%- set _ = tier_by_agent_type.update({at: t}) %}
+  {%- endfor %}
+{%- endfor %}
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Agent</th>
+      <th>Rôle</th>
+      <th>Phase SDS</th>
+      <th>Phase BUILD</th>
+      <th>Modèle LLM</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for a in agents %}
+  {%- set tier = tier_by_agent_type.get(a.agent_type) %}
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><strong>{{ a.name }}</strong></td>
+      <td>{{ a.role_fr or a.role }}</td>
+      <td>{{ a.phase_sds }}</td>
+      <td>{{ a.phase_build }}</td>
+      <td>{% if tier %}{{ tier.model_display }}{% else %}<em>non routé</em>{% endif %}</td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="6">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>agent_type</dt>
+            <dd><code>{{ a.agent_type }}</code>{% if tier %} → tier <code>{{ tier.name }}</code>{% endif %}</dd>
+            {% if a.complexity %}
+            <dt>complexity</dt>
+            <dd><code>{{ a.complexity }}</code></dd>
+            {% endif %}
+            {% if a.cost_estimate_usd %}
+            <dt>coût estimé / exécution</dt>
+            <dd>${{ '%.2f' % a.cost_estimate_usd }}</dd>
+            {% endif %}
+            {% if a.rag_collections %}
+            <dt>collections RAG</dt>
+            <dd><div class="chiprow">{% for c in a.rag_collections %}<span class="chip">{{ c }}</span>{% endfor %}</div></dd>
+            {% endif %}
+            {% if a.aliases %}
+            <dt>alias</dt>
+            <dd><div class="chiprow">{% for al in a.aliases %}<span class="chip">{{ al }}</span>{% endfor %}</div></dd>
+            {% endif %}
+            {% if a.color %}
+            <dt>couleur UI</dt>
+            <dd>{{ a.color }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

@@ -1,0 +1,77 @@
+  <div id="refonte" class="section">
+    <h2>Refonte 2026</h2>
+    <p class="section-desc">De février à avril 2026 : refonte architecturale du backend (12 problèmes P0-P12 traités via 4 vagues de sprints), stabilisation par campagnes E2E successives, et refonte de la documentation technique elle-même. L'objectif initial « Claude Code Agent Teams en 3 phases » a été dépassé au profit d'une trajectoire plus organique — le plan ci-dessous en est la lecture rétrospective.</p>
+
+    <h3>Trajectoire réelle</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph V1["Vague 1 — Sprints 0→3 (7-10 fév)"]
+        direction LR
+        S1["S0 · P0/P1/P2<br/>async + dead code + paths"]
+        S2["S1 · P3<br/>subprocess→async"]
+        S3["S2 · P4<br/>fat controller split"]
+        S4["S3 · P5/P6/P8<br/>logging + LLM router + secrets"]
+    end
+    subgraph V2["Vague 2 — Horizons + Sprint I (10-12 fév)"]
+        direction LR
+        H["Horizons 2+3<br/>10 streams mergés"]
+        I1["Sprint I<br/>E2E #140→#142"]
+        I2["E2E #143<br/>Coverage fix"]
+    end
+    subgraph V3["Vague 3 — Tracks + Sprint 4+5 (13 fév)"]
+        direction LR
+        T1["Track A<br/>7 bugs backend"]
+        T2["Track B+C<br/>Architecture UI"]
+        T3["Sprint 4+5<br/>Chat + revisions"]
+    end
+    subgraph V4["Vague 4 — Session 3 Refonte (18 avril)"]
+        direction LR
+        AG["4 agents parallèles A/B/C/D<br/>Runtime, Registry, LLM, Secrets"]
+    end
+    subgraph V5["Vague 5 — Refonte doc (24 avril)"]
+        direction LR
+        D1["Phases 0→4<br/>SSoT + collectors + charte"]
+    end
+    V1 --> V2 --> V3 --> V4 --> V5
+    style V1 fill:#141416,stroke:#7A9B76,stroke-width:2px
+    style V2 fill:#141416,stroke:#6B7A8F,stroke-width:2px
+    style V3 fill:#141416,stroke:#8E6B8E,stroke-width:2px
+    style V4 fill:#141416,stroke:#B8954A,stroke-width:2px
+    style V5 fill:#141416,stroke:#C8A97E,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Sprints livrés</h3>
+    <table>
+      <tr><th>Date</th><th>Sprint / Vague</th><th>Actions</th><th>Statut</th></tr>
+      <tr><td>5 fév</td><td>Audit initial</td><td>Analyse statique + contextuelle, 15 problèmes identifiés, 5 critiques P0-P4</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>6 fév</td><td>Playbook</td><td>Plan d'exécution anti-régression, stratégie Agent Teams en 3 phases</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>7-10 fév</td><td>Sprints 0-3</td><td>S0 : P0 (async) + P1 (dead code) + P2 (paths). S1 : P3 (subprocess→async). S2 : P4 (fat controller split). S3 : P5 + P6 + P8.</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>10 fév</td><td>Horizons 2+3</td><td>10 streams mergés : State Machine 27 états, ARQ workers, BudgetService + CircuitBreaker, HITL routes, composants UI (Mermaid/Gantt/Metrics/DiffViewer)</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>10-11 fév</td><td>Sprint I · E2E #140-#142</td><td>#140 : P0+P1 pass. #141 : Phase 4 pass. #142 : 🎉 premier run complet Phases 1→5 (33 BRs → 165 UCs → SDS, ~$13.59)</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>12 fév</td><td>E2E #143-#144</td><td>Coverage fix Emma (45%→90.3%) + 30 bugs identifiés (docx vide, coût sous-reporté 262%, safe_content tronque 93-96%, 13 modèles hardcodés)</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>13 fév</td><td>Tracks A+B+C + Sprint 4+5</td><td>7 bugs backend (keys, safe_content ×6, MODEL_PRICING, anti-markdown Marcus). ArchitectureReviewPanel + StructuredRenderer. Chat multi-agent 9 agents color-coded + revisions fix_gaps.</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>14 fév</td><td>Documentation v1</td><td>Réécriture complète sections : architecture, workers ARQ, state machine, DB 41 tables, API 178 endpoints, frontend 13 pages / 19 composants</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>18 avr</td><td>Session 3 Refonte — 4 agents parallèles</td><td><strong>Agent A</strong> (runtime, P0 event loop, P7 budget, P11 RAG health) · <strong>Agent B</strong> (registry YAML unique, HITL contracts) · <strong>Agent C</strong> (LLM multi-profile, thin wrapper 752→212 LOC) · <strong>Agent D</strong> (P2 env paths, P5 logging, P8 secrets rotation, SDS V3 Mistral supprimé). 4 merges + ADR-001 + ADR-002.</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>23-24 avr</td><td>Ingestion RAG 2026</td><td>+21 615 écritures (10 795 chunks) : Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript TDX 2026, Headless 360, Hyperforce/SFOA Chine. Passage 70 251 → 91 866 chunks.</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>24 avr</td><td>Refonte doc (Phases 0→4)</td><td>SSoT YAML (problems, timeline, stack, meta) + 6 collectors Python + partials Jinja2 + charte Studio (palette, fonts, scroll continu, TOC scroll-spy, tbl-expand, print inversé) + build auto atomique avec backup & smoke test HTTP</td><td><span class="tag tag-done">Terminé</span></td></tr>
+    </table>
+
+    <h3>Bilan par problème</h3>
+    <p>10 problèmes sur 13 ont été fixés, 3 sont partiels. Voir la section <a href="#problems">Problèmes (P0-P12)</a> pour le détail livre. En résumé :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>Fixés (10)</strong> : P0 async, P1 split brain, P2 paths, P3 subprocess, P5 logs, P6 models, P7 budget, P8 secrets, P9 safe_content, P11 RAG health</li>
+      <li><strong>Partiels (3)</strong> : P4 fat controller (split fait mais <code>pm_orchestrator_service_v2.py</code> reste à ~3400 lignes) · P10 Agent Architecture Debt (registry unifié mais <code>BaseAgent</code> commun pas encore consolidé) · P12 deux fichiers <code>.env</code> OpenAI</li>
+    </ul>
+
+    <h3>Prochaines étapes</h3>
+    <table>
+      <tr><th>Priorité</th><th>Chantier</th><th>Note</th></tr>
+      <tr><td><span class="tag tag-active">Next</span></td><td>P10 — <code>BaseAgent</code> class + contrats <code>_call_llm</code> / <code>execution_id</code> / logging communs</td><td>Premier sprint post-Session 3. Ordre migration : Sophie → Lucas → Jordan → Olivia → Aisha → Elena → Zara → Diego → Raj → Marcus → Emma.</td></tr>
+      <tr><td><span class="tag tag-pending">Planifié</span></td><td>Admin Hub centralisé</td><td>Monitoring tous services (backend/frontend, N8N, Ollama, Ghost, PostgreSQL, Nginx, RAG) sans SSH. Éviter le feel « script qui tourne en arrière-plan ».</td></tr>
+      <tr><td><span class="tag tag-pending">Planifié</span></td><td>P4 — décomposer <code>pm_orchestrator_service_v2</code></td><td>Split par phase (SDS / BUILD) pour descendre sous les 2000 lignes par fichier.</td></tr>
+      <tr><td><span class="tag tag-pending">Planifié</span></td><td>P12 — consolider les <code>.env</code> OpenAI</td><td>Fusionner <code>backend/.env</code> et <code>/opt/digital-humans/rag/.env</code> via dotenv centralisé.</td></tr>
+      <tr><td><span class="tag tag-pending">Backlog</span></td><td>Campagnes E2E continues</td><td>#146+ sur des projets variés pour débusquer les régressions latentes. Cadence mensuelle visée.</td></tr>
+    </table>
+  </div>

@@ -1,0 +1,171 @@
+# Sources de vérité pour la section "Problèmes architecturaux" de la doc.
+# Consommée par tools/build_docs.py (Phase 3+).
+#
+# Statuts valides : fixed | partial | planned
+# Dates format ISO : YYYY-MM-DD
+
+version: 1
+last_reviewed: 2026-04-24
+
+problems:
+
+  - id: P0
+    title: "Routes async avec SQLAlchemy sync bloquaient l'event loop"
+    status: fixed
+    severity: critical
+    audit_source: "2026-02-05 (audit technique exhaustif)"
+    fixed_in:
+      - sprint: "S0"
+        date: 2026-02-07
+        summary: "Conversion async def → sync def sur routes concernées"
+      - sprint: "A-7 / A-8 (Session 3)"
+        commit: e4388f4
+        date: 2026-04-18
+        summary: "execution_routes: async conservé + asyncio.to_thread pour ORM ; 36 autres routes converties def"
+
+  - id: P1
+    title: "Split brain — pm.py v1 et pm_orchestrator.py v2 cohabitaient"
+    status: fixed
+    severity: critical
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "S0"
+        date: 2026-02-07
+        summary: "pm.py v1 supprimé, toutes références migrées vers v2"
+
+  - id: P2
+    title: "52 chemins absolus hardcodés"
+    status: fixed
+    severity: critical
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "S0"
+        date: 2026-02-07
+        summary: "Chemins centralisés dans backend/app/config.py"
+      - sprint: "D-1a (Session 3)"
+        commit: 42c49c7
+        date: 2026-04-18
+        summary: "env-driven paths avec sensible defaults (DH_CHROMA_PATH, DH_RAG_ENV_PATH, DH_LLM_CONFIG_PATH, ...)"
+
+  - id: P3
+    title: "Agents lancés via subprocess.run() — overhead 3-5s/appel"
+    status: fixed
+    severity: critical
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "pre-E2E #145"
+        commit: 7aa5db9
+        date: 2026-02-14
+        summary: "subprocess → import direct des modules agents ; cost tracking all agents ; standard object names"
+
+  - id: P4
+    title: "Fat controller pm_orchestrator (2637 lignes)"
+    status: partial
+    severity: critical
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "S2"
+        date: 2026-02-08
+        summary: "Routes splitées en 6 fichiers (orchestrator/*.py)"
+    remaining:
+      summary: "Service pm_orchestrator_service_v2.py reste à ~3396 lignes — à décomposer par phase (SDS/BUILD)"
+
+  - id: P5
+    title: "Logs fragmentés — import logging basique partout"
+    status: fixed
+    severity: major
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "D-2 (Session 3)"
+        commit: f8c401e
+        date: 2026-04-18
+        summary: "ExecutionContextMiddleware + unified logging (JSON structured avec execution_id, agent, phase)"
+
+  - id: P6
+    title: "13 modèles LLM hardcodés dans le code"
+    status: fixed
+    severity: major
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "Track A"
+        date: 2026-02-13
+        summary: "13 modèles hardcodés → config/llm_routing.yaml"
+      - sprint: "C-5 (Session 3)"
+        date: 2026-04-18
+        summary: "MODEL_PRICING chargé depuis YAML (double-index alias + model_id)"
+
+  - id: P7
+    title: "Transactions non-atomiques — 24 db.commit() éparpillés"
+    status: fixed
+    severity: major
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "A-9 (Session 3)"
+        commit: e4388f4
+        date: 2026-04-18
+        summary: "BudgetService.record_cost() commit par défaut (opt-out via commit=False). Corrige executions.total_cost qui restait à 0."
+
+  - id: P8
+    title: "Rotation de secrets absente (SECRET_KEY, ANTHROPIC_API_KEY)"
+    status: fixed
+    severity: major
+    audit_source: "2026-02-05"
+    fixed_in:
+      - sprint: "S3"
+        date: 2026-02-08
+        summary: "SECRET_KEY validé en prod (bloque démarrage si faible)"
+      - sprint: "D-3 (Session 3)"
+        commit: a5f482a
+        date: 2026-04-18
+        summary: "Playbook rotation + script rotate_anthropic_key.sh"
+
+  - id: P9
+    title: "safe_content() tronquait 93-96% du contenu"
+    status: fixed
+    severity: major
+    audit_source: "E2E #144"
+    fixed_in:
+      - sprint: "Track A"
+        date: 2026-02-13
+        summary: "safe_content() limits augmentées ×6"
+
+  - id: P10
+    title: "Agent Architecture Debt — pas de BaseAgent commun"
+    status: partial
+    severity: moderate
+    audit_source: "E2E #140 (post-refactoring)"
+    description: "Les 11 agents n'ont pas de BaseAgent class et contrats communs (_call_llm, execution_id, logging patterns). Code dupliqué à travers les agents."
+    fixed_in:
+      - sprint: "Agent B (Session 3)"
+        commit: 64cc56a
+        date: 2026-04-18
+        summary: "agents_registry.yaml unifié (6 dicts consolidés)"
+    remaining:
+      summary: "BaseAgent class + contrats _call_llm/execution_id/logging pas encore consolidés. Prévu : prochain sprint."
+
+  - id: P11
+    title: "RAG health silencieux — outages non détectés"
+    status: fixed
+    severity: moderate
+    audit_source: "E2E post-refactoring"
+    fixed_in:
+      - sprint: "A-10 (Session 3)"
+        commit: e4388f4
+        date: 2026-04-18
+        summary: "rag_health_check() au startup + RAG query failures promus de warning → error"
+
+  - id: P12
+    title: "Deux fichiers .env pour clé OpenAI"
+    status: partial
+    severity: minor
+    audit_source: "2026-04-24 (ingestion RAG)"
+    description: "backend/.env (FastAPI) et /opt/digital-humans/rag/.env (fallback rag_service) doivent rester synchronisés manuellement. Source de dérive potentielle."
+    remaining:
+      summary: "Consolider en un seul fichier via dotenv centralisé, ou générer le second depuis le premier."
+
+# Statistiques (calculées par build_docs.py, valeurs ici pour référence rapide)
+stats:
+  total: 13
+  fixed: 10
+  partial: 3
+  planned: 0

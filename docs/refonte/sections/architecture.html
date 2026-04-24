@@ -1,0 +1,67 @@
+  <div id="architecture" class="section">
+    <h2>Architecture</h2>
+    <p class="section-desc">Architecture 3-tier avec orchestrateur central, workers async, et state machine pour gérer les transitions de phase.</p>
+
+    <h3>Architecture globale</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph Client["Frontend React :3000"]
+        UI[Pages & Components]
+    end
+    subgraph API["FastAPI Backend :8002"]
+        Routes[API Routes — 178 endpoints]
+        Orch[Orchestrator Service]
+        SM[State Machine — 27 états]
+        Budget[BudgetService + CircuitBreaker]
+        LLM[LLM Router — YAML config]
+        VGS[Validation Gate Service]
+    end
+    subgraph Worker["ARQ Worker — systemctl"]
+        W1[execute_sds_task]
+        W2[resume_architecture_task]
+        W3[execute_build_task]
+    end
+    subgraph Storage["Persistence"]
+        PG[(PostgreSQL — 41 tables)]
+        Redis[(Redis — Job Queue)]
+        Chroma[(ChromaDB PersistentClient — 92K chunks)]
+    end
+    subgraph LLMs["LLM Providers"]
+        Opus[Claude Opus 4.6 — Marcus Sophie]
+        Sonnet[Claude Sonnet 4.5 — SDS agents]
+        Haiku[Claude Haiku — non utilisé]
+        Mistral[Ollama Mistral 7B — Désactivé]
+    end
+    UI -->|REST API| Routes
+    Routes --> Orch
+    Orch --> SM
+    Orch --> Budget
+    Orch --> VGS
+    Orch -->|enqueue| Redis
+    Redis -->|dequeue| Worker
+    Worker --> LLM
+    LLM --> LLMs
+    Worker --> PG
+    Routes --> PG
+    Worker --> Chroma
+    style Client fill:#141416,stroke:#C8A97E
+    style API fill:#141416,stroke:#7A9B76
+    style Worker fill:#141416,stroke:#B8954A
+    style Storage fill:#141416,stroke:#8E6B8E
+    style LLMs fill:#141416,stroke:#B8745C
+      </pre>
+    </div>
+
+    <h3>Couches applicatives</h3>
+    <table>
+      <tr><th>Couche</th><th>Fichiers clés</th><th>Responsabilité</th></tr>
+      <tr><td>Routes API</td><td><code>orchestrator/*.py</code>, <code>hitl_routes.py</code>, <code>deliverables.py</code></td><td>29 fichiers, 178 endpoints REST</td></tr>
+      <tr><td>Services</td><td><code>pm_orchestrator_service_v2.py</code>, <code>budget_service.py</code>, <code>execution_state.py</code></td><td>Logique métier, orchestration phases</td></tr>
+      <tr><td>Workers</td><td><code>workers/tasks.py</code>, <code>workers/worker.py</code></td><td>ARQ tasks async : SDS, Resume, BUILD</td></tr>
+      <tr><td>Agents</td><td><code>agents/roles/*.py</code> (11 fichiers)</td><td>Prompts YAML, appels LLM, parsing réponses</td></tr>
+      <tr><td>State Machine</td><td><code>execution_state.py</code></td><td>27 états, transitions contrôlées, persistence DB</td></tr>
+      <tr><td>LLM Routing</td><td><code>llm_routing.yaml</code>, <code>llm_router_service.py</code></td><td>agent_complexity_map → modèle</td></tr>
+      <tr><td>Budget</td><td><code>budget_service.py</code></td><td>Estimation coûts, suivi tokens, CircuitBreaker</td></tr>
+    </table>
+  </div>

@@ -1,0 +1,81 @@
+  <div id="llm-multi-profile" class="section">
+    <h2>LLM — Multi-profile &amp; routing</h2>
+    <p class="section-desc">Couche d'abstraction LLM centralisée dans <code>llm_router_service.py</code>. La décision de session 3 (<a href="#adrs">ADR-001</a>) simplifie la matrice à <strong>2 tiers logiques × 3 profiles de déploiement</strong>, avec une source unique de vérité YAML (<code>backend/config/llm_routing.yaml</code>).</p>
+
+    <h3>La matrice — 2 tiers × 3 profiles</h3>
+    <table>
+      <tr><th>Tier</th><th>Agents</th><th>Cloud</th><th>On-premise</th><th>Freemium</th></tr>
+      <tr>
+        <td><code>orchestrator</code></td>
+        <td>Sophie, Olivia, Marcus, Emma</td>
+        <td>Claude Opus 4.6</td>
+        <td>Mixtral 8x7B (local)</td>
+        <td>Claude Sonnet 4.5</td>
+      </tr>
+      <tr>
+        <td><code>worker</code></td>
+        <td>Diego, Zara, Raj, Elena, Jordan, Aisha, Lucas</td>
+        <td>Claude Sonnet 4.5</td>
+        <td>Mistral 7B (local)</td>
+        <td>GPT-4o mini</td>
+      </tr>
+    </table>
+    <p><strong>Profile actif</strong> : sélectionné via la variable d'environnement <code>DH_DEPLOYMENT_PROFILE</code> (défaut : <code>cloud</code>). Actuellement en production : <code>cloud</code>.</p>
+
+    <h3>Architecture</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    A[Agent appelle<br/>generate_llm_response] --> R[LLMRouterService]
+    R -->|1. resolve tier| T{tier ?}
+    T -->|orchestrator| M1[model_alias]
+    T -->|worker| M2[model_alias]
+    M1 --> P[Profile actif<br/>cloud / on-premise / freemium]
+    M2 --> P
+    P --> C[check_budget]
+    C -->|ok| LLM[API LLM]
+    C -->|BudgetExceeded| X[Raise]
+    LLM -->|stop=max_tokens| CONT[continuation auto]
+    CONT --> LLM
+    LLM --> B[record_cost]
+    B --> OUT[Réponse]
+    style R fill:#141416,stroke:#C8A97E,stroke-width:2px
+    style P fill:#141416,stroke:#7A9B76
+    style C fill:#141416,stroke:#B8954A
+    style LLM fill:#141416,stroke:#8E6B8E,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Fallback chain — par profile</h3>
+    <p>Chaque profile définit sa propre chaîne de secours en cas d'échec. <strong>Le profile <code>on-premise</code> ne tombe jamais sur du cloud</strong> (garantie d'airgap).</p>
+    <table>
+      <tr><th>Profile</th><th>Primary → fallback 1 → fallback 2</th></tr>
+      <tr><td><code>cloud</code></td><td>Anthropic → OpenAI → (échec)</td></tr>
+      <tr><td><code>on-premise</code></td><td>Ollama local → (échec, PAS de cloud)</td></tr>
+      <tr><td><code>freemium</code></td><td>OpenAI → Anthropic (cap coût mensuel)</td></tr>
+    </table>
+
+    <h3>Continuation automatique</h3>
+    <p>Porté depuis V1 (CRIT-02). Quand l'API LLM retourne <code>stop_reason="max_tokens"</code>, le router relance automatiquement avec <code>&lt;<em>réponse tronquée</em>&gt; continue</code> en prompt, jusqu'à N itérations (configurable). Transparente pour l'agent appelant — essentielle pour les sorties Marcus (architecture 15k+ tokens) et Emma (SDS write 20k+ tokens).</p>
+
+    <h3>Historique (session 3 Agent C)</h3>
+    <table>
+      <tr><th>Avant</th><th>Après</th></tr>
+      <tr>
+        <td><code>LLMService</code> 752 LOC avec <code>ANTHROPIC_MODELS</code>, <code>AGENT_TIER_MAP</code>, continuation logic, pricing dupliqué</td>
+        <td><code>LLMService</code> 212 LOC — thin wrapper. <code>LLMRouterService</code> orchestre. YAML unique.</td>
+      </tr>
+      <tr>
+        <td>5 tiers nominaux (<code>critical</code>, <code>complex</code>, <code>simple</code>, <code>search</code>, <code>cheap</code>), tous réduits en 2 classes de modèle dans les faits</td>
+        <td>2 tiers logiques (<code>orchestrator</code>, <code>worker</code>) — la seule granularité qui a du sens business</td>
+      </tr>
+      <tr>
+        <td>Model IDs littéraux dans les services (<code>claude-opus-4-6</code>, <code>gpt-4o</code>). Upgrade = code change + PR + deploy.</td>
+        <td>Model IDs uniquement dans <code>llm_routing.yaml</code>. Upgrade = edit YAML + restart backend.</td>
+      </tr>
+      <tr>
+        <td>Pricing drift de 4× entre <code>budget_service.MODEL_PRICING</code> et console Anthropic (mars 2026)</td>
+        <td>Pricing lu depuis le YAML, mêmes clés que les model aliases. Source unique.</td>
+      </tr>
+    </table>
+  </div>

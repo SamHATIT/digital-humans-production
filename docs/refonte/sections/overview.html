@@ -1,0 +1,53 @@
+  <div id="overview" class="section">
+    <h2>Vue d'ensemble <span style="font-size:14px;font-weight:400;color:var(--text-dim);margin-left:12px">— Dernière mise à jour : 24 avril 2026</span></h2>
+    <p class="section-desc">
+      Digital Humans est une plateforme SaaS B2B qui automatise le développement Salesforce grâce à 11 agents IA spécialisés. Le système génère des spécifications complètes (SDS) puis du code Salesforce déployable (BUILD) via un pipeline multi-phases orchestré avec validation humaine à chaque étape clé.
+    </p>
+    <div class="card-grid">
+      <div class="card">
+        <h4>Pipeline SDS (5 phases)</h4>
+        <p>Sophie → Olivia → Emma → Marcus ↔ Emma → Experts → SDS</p>
+        <p style="margin-top:8px"><span class="tag">144 fichiers Python</span> <span class="tag">40 composants React</span></p>
+      </div>
+      <div class="card">
+        <h4>Pipeline BUILD (6 phases, 4 agents)</h4>
+        <p>Raj → Diego → Zara → Raj → Raj → Aisha + Jordan (deploy) + Elena (review)</p>
+        <p style="margin-top:8px"><span class="tag tag-done">Sonnet 4.5 pour tous</span> <span class="tag tag-critical">Opus pour architecture</span></p>
+      </div>
+      <div class="card">
+        <h4>Worker async (ARQ + Redis)</h4>
+        <p>Toutes les exécutions SDS/BUILD tournent en background via ARQ workers avec suivi temps réel via polling/SSE</p>
+        <p style="margin-top:8px"><span class="tag tag-done">3 tâches : SDS, Resume, Build</span></p>
+      </div>
+      <div class="card">
+        <h4>HITL — Human in the Loop</h4>
+        <p>5 gates de validation (BR, Architecture, Experts, SDS, BUILD) + chat contextuel multi-agent (9 agents)</p>
+        <p style="margin-top:8px"><span class="tag tag-active">State Machine 27 états</span></p>
+      </div>
+    </div>
+
+    <h3>Stack technique</h3>
+    <table>
+      <tr><th>Couche</th><th>Technologie</th><th>Port</th><th>Rôle</th></tr>
+      <tr><td>Backend API</td><td>FastAPI + SQLAlchemy + Uvicorn</td><td>8002</td><td>REST API, orchestration</td></tr>
+      <tr><td>Worker</td><td>ARQ + Redis</td><td>—</td><td>Exécutions async SDS/BUILD</td></tr>
+      <tr><td>Frontend</td><td>React 18 + Vite + TailwindCSS</td><td>3000</td><td>Interface utilisateur SPA</td></tr>
+      <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td><td>41 tables, état complet</td></tr>
+      <tr><td>Queue</td><td>Redis 7</td><td>6379</td><td>Job queue ARQ + cache</td></tr>
+      <tr><td>RAG</td><td>ChromaDB (PersistentClient)</td><td>—</td><td>91,866 chunks, ~1.8 GB, 6 collections</td></tr>
+      <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Désactivé — non nécessaire actuellement (économie RAM)</td></tr>
+      <tr><td>LLM cloud</td><td>Anthropic Claude API</td><td>—</td><td>Opus 4.6 (Sophie, Marcus), Sonnet 4.5 (9 autres agents)</td></tr>
+      <tr><td>CMS</td><td>Ghost</td><td>2368</td><td>Site marketing digital-humans.fr</td></tr>
+      <tr><td>Automation</td><td>N8N</td><td>5678</td><td>Workflows marketing</td></tr>
+      <tr><td>Reverse proxy</td><td>Nginx</td><td>80/443</td><td>SSL, routing, static files</td></tr>
+    </table>
+
+    <h3>Repo & Serveur</h3>
+    <table>
+      <tr><th>Élément</th><th>Valeur</th></tr>
+      <tr><td>VPS</td><td><code>72.61.161.222</code> — Ubuntu 24.04 — Hostinger</td></tr>
+      <tr><td>Repo</td><td><code>github.com/SamHATIT/digital-humans-production</code></td></tr>
+      <tr><td>Services</td><td><code>digital-humans-backend</code>, <code>digital-humans-worker</code>, <code>digital-humans-frontend</code> (systemctl)</td></tr>
+      <tr><td>Workspace</td><td><code>/root/workspace/digital-humans-production</code></td></tr>
+    </table>
+  </div>

@@ -1,0 +1,68 @@
+{#
+  rag_collections_table.html.j2 — pattern tbl-expand
+  Consomme : collect_rag_stats() → { collections: [{name, count, embedding, agents, note, present}], total_chunks, orphan_collections }
+  Summary : Collection / Embedding / Chunks
+  Detail  : agents, note, présence live ChromaDB
+#}
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Collection</th>
+      <th>Embedding</th>
+      <th>Chunks</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for c in collections %}
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><code>{{ c.name }}</code>{% if c.note %} <span class="muted">({{ c.note }})</span>{% endif %}</td>
+      <td>{{ c.embedding }}</td>
+      <td>
+        {%- if not c.present -%}
+          <span class="tag tag-warning">absente</span>
+        {%- elif c.count is none -%}
+          <span class="tag tag-warning">probe ko</span>
+        {%- else -%}
+          {{ '{:,}'.format(c.count).replace(',', ' ') }}
+        {%- endif -%}
+      </td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="4">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>agents consommateurs</dt>
+            <dd>
+              {%- if c.agents -%}
+              <div class="chiprow">{% for a in c.agents %}<span class="chip">{{ a }}</span>{% endfor %}</div>
+              {%- else -%}
+              <em>aucun agent mappé</em>
+              {%- endif -%}
+            </dd>
+            <dt>statut ChromaDB</dt>
+            <dd>
+              {%- if c.present and c.count is not none -%}
+                <span class="tag tag-done">présente — {{ c.count }} chunks</span>
+              {%- elif c.present -%}
+                <span class="tag tag-warning">présente, probe count() échoué</span>
+              {%- else -%}
+                <span class="tag tag-warning">absente du PersistentClient</span>
+              {%- endif -%}
+            </dd>
+            {% if c.note %}
+            <dt>note</dt>
+            <dd>{{ c.note }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+    <tr>
+      <td colspan="3"><strong>Total</strong></td>
+      <td><strong>{{ '{:,}'.format(total_chunks).replace(',', ' ') }}</strong>{% if orphan_collections %} <span class="muted">· orphelines ChromaDB : {{ orphan_collections | join(', ') }}</span>{% endif %}</td>
+    </tr>
+  </tbody>
+</table>

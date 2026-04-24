@@ -1,0 +1,39 @@
+  <div id="agents" class="section">
+    <h2>Les 11 Agents</h2>
+    <p class="section-desc">Chaque agent est un fichier Python dans <code>agents/roles/</code>. Le routage LLM est centralisé dans <code>llm_routing.yaml</code> via l'<code>agent_complexity_map</code>.</p>
+
+    <h3>Pipeline des agents</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    subgraph SDS["Pipeline SDS"]
+        direction LR
+        S[Sophie — PM] -->|BRs| O[Olivia — BA]
+        O -->|UCs| E1[Emma — UC Digest]
+        E1 --> M[Marcus — Architect]
+        M --> E2[Emma — Coverage]
+        E2 -->|score < 85%| M
+        E2 -->|score ≥ 85%| EXP
+        subgraph EXP["Phase 4 — 4 Experts parallèle"]
+            direction TB
+            EL[Elena QA]
+            JO[Jordan DevOps]
+            AI[Aisha Data]
+            LU[Lucas Training]
+        end
+        EXP --> E3[Emma — SDS Write]
+    end
+    style S fill:#8E6B8E,color:#F5F2EC
+    style M fill:#6B7A8F,color:#F5F2EC
+    style E1 fill:#C8A97E,color:#F5F2EC
+    style E2 fill:#C8A97E,color:#F5F2EC
+    style E3 fill:#C8A97E,color:#F5F2EC
+      </pre>
+    </div>
+
+    <h3>Fiches agents</h3>
+    <!-- PARTIAL:agents_table -->
+
+    <h3>Routage LLM (<code>llm_routing.yaml</code>)</h3>
+    <!-- PARTIAL:llm_routing_table -->
+  </div>

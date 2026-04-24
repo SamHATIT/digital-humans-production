@@ -1,0 +1,43 @@
+  <div id="budget" class="section">
+    <h2>Budget &amp; guardrails</h2>
+    <p class="section-desc">Deux services protègent la plateforme contre les runaway coûts et les boucles infinies d'agent : <code>BudgetService</code> (limites financières hiérarchiques) et <code>CircuitBreaker</code> (limites comportementales). Les deux vivent dans <code>backend/app/services/budget_service.py</code>.</p>
+
+    <h3>BudgetService — limites financières</h3>
+    <p>Appelé <strong>avant chaque appel LLM</strong> (<code>check_budget</code>) et <strong>après chaque réponse</strong> (<code>record_cost</code>). Trois niveaux hiérarchiques : si un niveau est dépassé, <code>BudgetExceededError</code> est levée et l'exécution est mise en <code>FAILED</code>.</p>
+    <table>
+      <tr><th>Niveau</th><th>Limite</th><th>Portée</th><th>Reset</th></tr>
+      <tr><td><strong>Execution</strong></td><td>$50 USD</td><td>Une exécution SDS ou BUILD</td><td>Par execution_id</td></tr>
+      <tr><td><strong>Project</strong></td><td>$200 USD</td><td>Somme de toutes les exécutions d'un projet</td><td>Par project_id</td></tr>
+      <tr><td><strong>Monthly</strong></td><td>$500 USD</td><td>Tous projets confondus</td><td>Début de mois calendaire</td></tr>
+    </table>
+    <p>Les limites sont actuellement hardcodées (<code>DEFAULT_EXECUTION_LIMIT_USD</code>, etc.). <strong>Backlog</strong> : rendre paramétrable par projet via <code>projects.budget_limits</code> (table existante, pas encore consommée).</p>
+
+    <h3>Pricing — source unique YAML</h3>
+    <p>Depuis la session 3 (Agent C), <code>BudgetService</code> lit les tarifs depuis <code>llm_routing.yaml</code>. Les clés sont indexées à la fois par <code>provider/alias</code> (ex: <code>anthropic/claude-opus</code>) et par <code>model_id</code> résolu (ex: <code>claude-opus-4-6</code>) pour que les appelants puissent passer l'une ou l'autre forme. Voir la <a href="#agents">table de routage LLM</a> pour les tarifs live.</p>
+
+    <h3>CircuitBreaker — limites comportementales</h3>
+    <p>Prévient les boucles infinies agent ↔ agent (typiquement le loop Marcus ↔ Emma en cas de coverage qui ne monte jamais au-dessus du seuil).</p>
+    <table>
+      <tr><th>Contrainte</th><th>Seuil</th><th>Comportement au dépassement</th></tr>
+      <tr><td><code>MAX_AGENT_RETRIES</code></td><td>3 par agent et par exécution</td><td><code>check_agent_retry</code> retourne <code>False</code>, l'exécution marque l'agent en <code>failed</code></td></tr>
+      <tr><td><code>MAX_REVISION_LOOPS</code></td><td>2 Emma ↔ Marcus max</td><td>Après 2 allers-retours, Emma écrit le SDS avec la meilleure version Marcus disponible</td></tr>
+      <tr><td><code>MAX_TOTAL_LLM_CALLS</code></td><td>80 par exécution (<em>~43 normal pour SDS</em>)</td><td>Exécution mise en <code>FAILED</code> avec <code>failure_reason="circuit_breaker_total_calls"</code></td></tr>
+    </table>
+
+    <h3>Observabilité coûts</h3>
+    <p>Chaque appel LLM est tracé dans la table <code>llm_interactions</code> (18 colonnes) avec <code>model</code>, <code>input_tokens</code>, <code>output_tokens</code>, <code>cost_usd</code>. Les coûts sont aussi agrégés :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><code>executions.cost_usd</code> — rolling sum par exécution (refresh sur <code>record_cost</code>)</li>
+      <li><code>executions.budget_used</code> — fraction [0..1] du <code>DEFAULT_EXECUTION_LIMIT_USD</code></li>
+      <li><code>execution_agents.tokens_used</code> / <code>.cost_usd</code> — ventilation par agent</li>
+    </ul>
+    <p>Voir la section <a href="#observability">Observability</a> pour les requêtes SQL de monitoring coûts.</p>
+
+    <h3>Historique</h3>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>10 fév 2026</strong> — Horizons 2+3 : livraison initiale de <code>BudgetService</code> et <code>CircuitBreaker</code>.</li>
+      <li><strong>13 fév 2026</strong> — Track A : fix du sous-reporting de coût de 262% (<code>record_cost</code> n'était pas appelé partout). <code>MODEL_PRICING</code> du service corrigé vs Anthropic console.</li>
+      <li><strong>18 avr 2026</strong> — Session 3 Agent A : P7 fix, <code>record_cost()</code> fait un commit par défaut (plus d'exécutions avec budget_used=0 alors que des appels réels avaient eu lieu).</li>
+      <li><strong>18 avr 2026</strong> — Session 3 Agent C : pricing migré du dict hardcodé vers <code>llm_routing.yaml</code> (plus de drift possible).</li>
+    </ul>
+  </div>

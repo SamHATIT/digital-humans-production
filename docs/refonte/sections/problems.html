@@ -1,0 +1,14 @@
+  <div id="problems" class="section">
+    <h2>Problèmes architecturaux (P0-P11)</h2>
+    <p class="section-desc">12 problèmes identifiés (audit initial + P10-P11 ajoutés post-E2E). 10 fixés via Sprints 0-3 + Session 3 Refonte (18 avril), 2 partiels restants.</p>
+    <div class="card-grid">
+      <!-- PARTIAL:problems_status_cards -->
+      <div class="card">
+        <h4 style="color:var(--purple)">🆕 Ajouts Session 3 (18 avr)</h4>
+        <p><strong>Agent A</strong> (A-1→A-11) : 22 → 0 F821, Elena fail-closed, P0 event loop<br>
+        <strong>Agent B</strong> : registry YAML unique <code>agents_registry</code> (6 dicts consolidés)<br>
+        <strong>Agent C</strong> (C-0→C-5) : LLM multi-profile (cloud / on-premise / freemium), <code>LLMService</code> 752→212 LOC<br>
+        <strong>Agent D</strong> (D-1→D-5f) : env-driven paths, secrets rotation, 162 imports inutiles, SDS V3 Mistral supprimé, ADR-001 + ADR-002</p>
+      </div>
+    </div>
+  </div>

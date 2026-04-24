@@ -1,0 +1,49 @@
+{#
+  frontend_pages_table.html.j2 — pages React parsées depuis App.tsx
+  Consomme : collect_frontend_pages() → {pages: [{component, routes: [str], description, access, file}], total_routes, orphan_yaml}
+  Summary : composant / route(s) / description
+  Detail  : access, file
+#}
+<p class="section-desc"><strong>{{ pages | length }} pages</strong> ({{ total_routes }} routes React){% if orphan_yaml %} · <span class="muted">YAML orphelins : {{ orphan_yaml | join(', ') }}</span>{% endif %}.</p>
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Composant</th>
+      <th>Route(s)</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in pages %}
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><strong>{{ p.component }}</strong></td>
+      <td>{% for r in p.routes %}<code>{{ r }}</code>{% if not loop.last %} <br>{% endif %}{% endfor %}</td>
+      <td>{{ p.description }}</td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="4">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>accès</dt>
+            <dd>
+              {%- if p.access == 'public' -%}
+                <span class="tag tag-neutral">public</span>
+              {%- else -%}
+                <span class="tag tag-done">protected (JWT)</span>
+              {%- endif -%}
+            </dd>
+            <dt>fichier</dt>
+            <dd><code>{{ p.file }}</code></dd>
+            {% if p.routes | length > 1 %}
+            <dt>routes</dt>
+            <dd>{{ p.routes | length }} routes pointent vers ce composant</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

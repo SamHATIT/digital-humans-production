@@ -1,0 +1,59 @@
+  <div id="security" class="section">
+    <h2>Sécurité &amp; secrets</h2>
+    <p class="section-desc">Inventaire des secrets manipulés par la plateforme, procédures de rotation, et modèle d'authentification. Rien de consumer-grade ici : tout est à la main, à une procédure près documentée dans le playbook secrets.</p>
+
+    <h3>Authentification utilisateur</h3>
+    <table>
+      <tr><th>Élément</th><th>Valeur</th></tr>
+      <tr><td>Méthode</td><td>JWT (HS256) — token Bearer dans header <code>Authorization</code></td></tr>
+      <tr><td>Signature</td><td><code>settings.SECRET_KEY</code> (HMAC). Symétrique.</td></tr>
+      <tr><td>Expiration</td><td><code>ACCESS_TOKEN_EXPIRE_MINUTES</code> (défaut 30 min)</td></tr>
+      <tr><td>Middleware</td><td><code>ProtectedRoute</code> (frontend) + <code>Depends(get_current_user)</code> (backend)</td></tr>
+      <tr><td>Routes publiques</td><td><code>/auth/login</code>, <code>/auth/register</code>, <code>/pricing</code>. Le reste exige un token valide.</td></tr>
+    </table>
+
+    <h3>Inventaire des secrets</h3>
+    <table>
+      <tr><th>Secret</th><th>Usage</th><th>Emplacement</th></tr>
+      <tr><td><code>SECRET_KEY</code></td><td>Signature JWT</td><td><code>backend/.env</code></td></tr>
+      <tr><td><code>ANTHROPIC_API_KEY</code></td><td>Tous les agents cloud (Opus, Sonnet)</td><td><code>backend/.env</code></td></tr>
+      <tr><td><code>OPENAI_API_KEY</code></td><td>Embeddings OpenAI-3-large (RAG) + fallback profile freemium</td><td><code>backend/.env</code> ET <code>/opt/digital-humans/rag/.env</code> <span class="tag tag-warning">P12 partiel</span></td></tr>
+      <tr><td>PostgreSQL password</td><td><code>DATABASE_URL</code> (user <code>digital_humans</code>)</td><td><code>backend/.env</code></td></tr>
+      <tr><td>Redis</td><td>Pas de password en local (bind 127.0.0.1)</td><td>—</td></tr>
+      <tr><td>SFDX credentials</td><td>Par projet, chiffrées</td><td>Table <code>project_credentials</code> (8 cols)</td></tr>
+      <tr><td>Git PAT</td><td>Par projet</td><td>Table <code>project_git_config</code> (17 cols)</td></tr>
+    </table>
+
+    <h3>Procédure de rotation — ANTHROPIC_API_KEY</h3>
+    <p>Livrée en session 3 (Agent D, 18 avr). Procédure manuelle, ~3 minutes, zero downtime sauf fenêtre de 5s pendant le restart.</p>
+    <pre><code># 1. Générer la nouvelle clé dans la console Anthropic
+# 2. Éditer backend/.env, remplacer ANTHROPIC_API_KEY=...
+nano /root/workspace/digital-humans-production/backend/.env
+
+# 3. Restart backend + worker (la clé est lue au démarrage)
+sudo systemctl restart digital-humans-backend digital-humans-worker
+
+# 4. Smoke test
+curl -s localhost:8002/api/health | jq .llm_provider_reachable
+# Doit retourner true
+
+# 5. Révoquer l'ancienne clé dans la console Anthropic</code></pre>
+
+    <h3>Pièges connus</h3>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>P12 — deux fichiers <code>.env</code> OpenAI</strong>. <code>backend/.env</code> (consommé par l'app) et <code>/opt/digital-humans/rag/.env</code> (consommé par les scripts d'ingestion RAG). Rotation de <code>OPENAI_API_KEY</code> = modifier les 2. À consolider via dotenv centralisé (backlog).</li>
+      <li><strong>Pas de rotation automatique</strong>. Toutes les rotations sont manuelles. Pour du production-grade, migrer vers un vault (Vault / AWS SM / Doppler) — hors scope à date.</li>
+      <li><strong>JWT expire_minutes court</strong>. 30 min : OK pour un produit dev-facing, à remonter à quelques heures avec refresh tokens si on ouvre à des utilisateurs non-techniques.</li>
+      <li><strong>Audit trail</strong>. La table <code>audit_logs</code> trace les actions utilisateur (22 cols). Les actions secrets (rotations, changements) ne sont pas tracées — à ajouter.</li>
+    </ul>
+
+    <h3>Hardening — backlog</h3>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li>Refresh tokens JWT (séparation access/refresh)</li>
+      <li>2FA pour les comptes admin</li>
+      <li>Chiffrement at-rest des <code>project_credentials</code> (actuellement clair en DB)</li>
+      <li>Rate limiting sur <code>/auth/login</code> (brute force)</li>
+      <li>CSP strict dans les headers Nginx</li>
+      <li>Rotation auto <code>SECRET_KEY</code> + blacklist des tokens émis avec l'ancienne clé (impossible sans refresh tokens)</li>
+    </ul>
+  </div>

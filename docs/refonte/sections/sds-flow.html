@@ -1,0 +1,50 @@
+  <div id="sds-flow" class="section">
+    <h2>Phase SDS — Spécification</h2>
+    <p class="section-desc">Le pipeline SDS transforme un document métier en spécification Salesforce complète via 5 phases avec validation humaine (HITL).</p>
+
+    <h3>State Machine SDS (27 états)</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+stateDiagram-v2
+    [*] --> queued
+    queued --> sds_phase1_running : start
+    state "Phase 1 — Sophie (BRs)" as sds_phase1_running
+    sds_phase1_running --> waiting_br_validation
+    state "⏸ HITL: Valider BRs" as waiting_br_validation
+    waiting_br_validation --> sds_phase2_running : approve
+    state "Phase 2 — Olivia (UCs)" as sds_phase2_running
+    sds_phase2_running --> sds_phase2_5_running
+    state "Phase 2.5 — Emma (UC Digest)" as sds_phase2_5_running
+    sds_phase2_5_running --> sds_phase3_running
+    state "Phase 3 — Marcus (Architecture)" as sds_phase3_running
+    sds_phase3_running --> coverage_check
+    state "Phase 3.3 — Emma (Coverage)" as coverage_check
+    coverage_check --> waiting_architecture_validation : score ≥ 85%
+    coverage_check --> sds_phase3_running : score < 85% fix_gaps
+    state "⏸ HITL: Review Architecture" as waiting_architecture_validation
+    waiting_architecture_validation --> sds_phase3_running : revise
+    waiting_architecture_validation --> sds_phase4_running : approve
+    state "Phase 4 — 4 Experts parallèle" as sds_phase4_running
+    sds_phase4_running --> waiting_expert_validation
+    state "⏸ HITL: Review Experts" as waiting_expert_validation
+    waiting_expert_validation --> sds_phase5_running : approve
+    state "Phase 5 — Emma (SDS Write)" as sds_phase5_running
+    sds_phase5_running --> sds_complete
+    sds_complete --> waiting_sds_validation
+    state "⏸ HITL: Valider SDS" as waiting_sds_validation
+      </pre>
+    </div>
+
+    <h3>HITL Validation Gates</h3>
+    <table>
+      <tr><th>Gate</th><th>État State Machine</th><th>Action utilisateur</th><th>Endpoint</th></tr>
+      <tr><td>Après Phase 1</td><td><code>WAITING_BR_VALIDATION</code></td><td>Éditer/valider BRs, modifier priorités</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après Phase 3.3</td><td><code>WAITING_ARCHITECTURE_VALIDATION</code></td><td>Review ERD, Flows, WBS → Approve ou Revise</td><td><code>POST .../resume</code></td></tr>
+      <tr><td>Après Phase 4</td><td><code>WAITING_EXPERT_VALIDATION</code></td><td>Valider specs QA, Admin, Data, DevOps, Training</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après Phase 5</td><td><code>WAITING_SDS_VALIDATION</code></td><td>Valider SDS final, télécharger DOCX</td><td><code>POST .../validation-gate/submit</code></td></tr>
+      <tr><td>Après BUILD</td><td><code>WAITING_BUILD_VALIDATION</code></td><td>Valider code avant déploiement</td><td><code>POST .../validation-gate/submit</code></td></tr>
+    </table>
+
+    <h3>Révision Architecture (fix_gaps)</h3>
+    <p>Quand Emma détecte un coverage &lt; 85%, elle génère des gaps (<code>what_is_missing</code> + <code>fix_instruction</code>). Marcus reçoit ces gaps en mode <code>fix_gaps</code> (incrémental). Boucle auto-revision max 3 itérations.</p>
+  </div>

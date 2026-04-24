@@ -1,0 +1,42 @@
+{#
+  llm_routing_table.html.j2
+  Consomme : { llm_profiles: collect_llm_profiles(), agents: collect_agents().agents }
+  Produit  : la table de routage LLM pour le profile actif.
+
+  Map agent_type → display name via le registry, pour afficher "Sophie, Marcus, ..."
+  plutôt que "pm, architect, ...".
+#}
+{%- set display_by_type = {} %}
+{%- for a in agents %}
+  {%- set _ = display_by_type.update({a.agent_type: a.name}) %}
+{%- endfor %}
+<p class="section-desc">Profile actif : <code>{{ llm_profiles.active_profile }}</code>{% if not llm_profiles.build_enabled %} · <span class="tag tag-warning">BUILD désactivé</span>{% endif %}</p>
+<table>
+  <tr><th>Tier</th><th>Modèle</th><th>Pricing (in/out per M tokens)</th><th>Agents</th></tr>
+  {% for t in llm_profiles.tiers %}
+  <tr>
+    <td><code>{{ t.name }}</code></td>
+    <td>{{ t.model_display }}</td>
+    <td>
+      {%- if t.pricing_in is not none and t.pricing_out is not none -%}
+        {%- if t.pricing_in == 0 and t.pricing_out == 0 -%}
+          Gratuit (local)
+        {%- else -%}
+          ${{ '%g' % t.pricing_in }} / ${{ '%g' % t.pricing_out }}
+        {%- endif -%}
+      {%- else -%}
+        —
+      {%- endif -%}
+    </td>
+    <td>
+      {%- set names = [] -%}
+      {%- for at in t.agent_types -%}
+        {%- if at in display_by_type and display_by_type[at] not in names -%}
+          {%- set _ = names.append(display_by_type[at]) -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {{ names | join(', ') if names else '—' }}
+    </td>
+  </tr>
+  {% endfor %}
+</table>

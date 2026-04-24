@@ -1,0 +1,39 @@
+{#
+  problems_status_cards.html.j2
+  Consomme : collect_problems() → { by_status: {fixed, partial, planned}, stats }
+  Produit  : les cartes "Fixés" et "Partiels" (+ "Planifiés" si non vide) SANS
+             le wrapper <div class="card-grid">. La section hôte fournit le wrapper
+             pour permettre d'y ajouter d'autres cartes rédactionnelles (ex: "Ajouts Session 3").
+#}
+<div class="card">
+  <h4 style="color:var(--green)">✅ Fixés ({{ stats.fixed }})</h4>
+  <p>
+    {% for p in by_status.fixed %}
+    <strong>{{ p.id }}</strong> {{ p.title }}
+    {%- set sprints = p.fixed_in | map(attribute='sprint') | list -%}
+    {%- if sprints %} ({{ sprints | join(', ') }}){% endif -%}
+    {% if not loop.last %}<br>{% endif %}
+    {% endfor %}
+  </p>
+</div>
+<div class="card">
+  <h4 style="color:var(--orange)">⚠️ Partiels ({{ stats.partial }})</h4>
+  <p>
+    {% for p in by_status.partial %}
+    <strong>{{ p.id }}</strong> {{ p.title }}
+    {%- if p.remaining and p.remaining.summary %} — <em>reste :</em> {{ p.remaining.summary }}{% endif -%}
+    {% if not loop.last %}<br>{% endif %}
+    {% endfor %}
+  </p>
+</div>
+{% if stats.planned > 0 %}
+<div class="card">
+  <h4 style="color:var(--yellow)">📋 Planifiés ({{ stats.planned }})</h4>
+  <p>
+    {% for p in by_status.planned %}
+    <strong>{{ p.id }}</strong> {{ p.title }}
+    {% if not loop.last %}<br>{% endif %}
+    {% endfor %}
+  </p>
+</div>
+{% endif %}

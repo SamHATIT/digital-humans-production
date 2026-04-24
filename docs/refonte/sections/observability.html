@@ -1,0 +1,80 @@
+  <div id="observability" class="section">
+    <h2>Observability</h2>
+    <p class="section-desc">Comment comprendre ce que fait la plateforme en prod : logs, métriques, audit trail, et tables de tracking. L'approche est délibérément low-tech (journalctl + PostgreSQL) plutôt que stack observability complète — ça tient tant que les incidents sont rares et investigués manuellement.</p>
+
+    <h3>Logs — journalctl par service</h3>
+    <table>
+      <tr><th>Service</th><th>Commande</th><th>Signal utile</th></tr>
+      <tr><td>Backend API</td><td><code>journalctl -u digital-humans-backend -f --no-pager</code></td><td>Toutes les routes HTTP + pipeline SDS</td></tr>
+      <tr><td>ARQ Worker</td><td><code>journalctl -u digital-humans-worker -f --no-pager</code></td><td>Exécutions SDS/BUILD, transitions state machine</td></tr>
+      <tr><td>Frontend</td><td><code>journalctl -u digital-humans-frontend</code></td><td>Vite dev server, peu pertinent en prod</td></tr>
+      <tr><td>Nginx</td><td><code>tail -f /var/log/nginx/access.log</code></td><td>Requêtes entrantes, 5xx, 404</td></tr>
+      <tr><td>PostgreSQL</td><td><code>journalctl -u postgresql</code></td><td>Queries lentes, erreurs transaction</td></tr>
+    </table>
+    <p><strong>Filtres utiles</strong> : <code>| grep -v sqlalchemy</code> pour cacher le chatter DB, <code>| grep -E "ERROR|WARN"</code> pour voir juste les anomalies, <code>--since "10 min ago"</code> pour fenêtre temporelle.</p>
+
+    <h3>Logging structuré (session 3 — P5)</h3>
+    <p>Depuis le 18 avril, tous les services utilisent un <code>ExecutionContextMiddleware</code> qui injecte automatiquement <code>execution_id</code> et <code>agent_id</code> dans les <code>LogRecord</code>. Un grep par <code>execution_id=1234</code> donne toute la trace d'une exécution à travers les processes (backend + worker).</p>
+    <pre><code># Suivre une exécution précise en temps réel
+journalctl -u digital-humans-backend -u digital-humans-worker -f --no-pager | grep 'execution_id=1234'
+
+# Voir toutes les actions d'un agent sur la dernière heure
+journalctl -u digital-humans-worker --since "1 hour ago" | grep 'agent_id=marcus'</code></pre>
+
+    <h3>Tables de tracking en DB</h3>
+    <table>
+      <tr><th>Table</th><th>Ce qu'on y trouve</th><th>Requête utile</th></tr>
+      <tr>
+        <td><code>llm_interactions</code></td>
+        <td>Chaque appel LLM (model, tokens in/out, cost, duration, prompt hash)</td>
+        <td><code>SELECT agent_id, COUNT(*), SUM(cost_usd) FROM llm_interactions WHERE execution_id=1234 GROUP BY agent_id;</code></td>
+      </tr>
+      <tr>
+        <td><code>audit_logs</code></td>
+        <td>Actions utilisateur : login, create project, launch execution, validate gate</td>
+        <td><code>SELECT * FROM audit_logs WHERE user_id=5 ORDER BY created_at DESC LIMIT 20;</code></td>
+      </tr>
+      <tr>
+        <td><code>executions</code></td>
+        <td>État de chaque run SDS/BUILD (status, state, cost_usd, budget_used, error_message)</td>
+        <td><code>SELECT id, status, state, cost_usd, started_at FROM executions WHERE status='failed' ORDER BY started_at DESC;</code></td>
+      </tr>
+      <tr>
+        <td><code>execution_agents</code></td>
+        <td>Ventilation par agent : tokens, cost, progress, iterations, status</td>
+        <td><code>SELECT agent_id, tokens_used, cost_usd, iterations FROM execution_agents WHERE execution_id=1234;</code></td>
+      </tr>
+      <tr>
+        <td><code>validation_gates</code></td>
+        <td>Décisions HITL (approve/reject/revise) avec feedback texte</td>
+        <td><code>SELECT gate_type, decision, LENGTH(feedback) FROM validation_gates WHERE execution_id=1234;</code></td>
+      </tr>
+    </table>
+
+    <h3>Health checks</h3>
+    <pre><code># Healthcheck backend
+curl -s localhost:8002/api/health | jq
+
+# Services actifs
+systemctl list-units 'digital-humans-*' --no-pager
+
+# RAG probe (ChromaDB)
+cd /root/workspace/digital-humans-production/backend
+source venv/bin/activate
+python3 -c "import chromadb; c = chromadb.PersistentClient('/opt/digital-humans/rag/chromadb_data'); print([(col.name, col.count()) for col in c.list_collections()])"
+
+# Redis queue depth
+redis-cli LLEN arq:queue:default</code></pre>
+
+    <h3>Roadmap — Admin Hub</h3>
+    <p>Prévu pour remplacer le bricolage journalctl + psql par une UI unifiée. Accessible sur <code>digital-humans.fr/admin</code>. Objectifs :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li>Statut UP/DOWN de tous les services (backend, worker, frontend, Postgres, Redis, Ollama, Nginx, Ghost, N8N, Open WebUI)</li>
+      <li>Boutons start/stop/restart + visualisation des logs live</li>
+      <li>Dashboard coûts temps réel (par exécution, par projet, par mois)</li>
+      <li>Liste des exécutions récentes avec drill-down</li>
+      <li>État RAG (collections, chunks, dernière ingestion)</li>
+      <li>Alertes sur seuils (budget 80%, circuit breaker, RAG health)</li>
+    </ul>
+    <p class="note">Pas encore commencé. C'est aujourd'hui l'une des priorités post-refonte doc, parce que « script qui tourne en arrière-plan » est une mauvaise UX pour le propriétaire du système, même quand ce propriétaire est aussi son développeur.</p>
+  </div>

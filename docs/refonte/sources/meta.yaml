@@ -1,0 +1,33 @@
+# Métadonnées du site de doc.
+# Auto-mises à jour par tools/build_docs.py (Phase 4+).
+
+version: 1
+
+site:
+  title: "Digital Humans — Documentation"
+  tagline: "Plateforme multi-agents IA pour l'automatisation Salesforce"
+  public_url: "https://digital-humans.fr/docs/refonte/"
+  locale: fr
+
+project:
+  name: digital-humans-production
+  repo_path: /root/workspace/digital-humans-production
+  repo_github: https://github.com/SamHATIT/digital-humans-production
+  vps_ip: 72.61.161.222
+
+build:
+  # Champs mis à jour automatiquement par build_docs.py (Phase 4+) :
+  last_build: "2026-04-24T11:40:00Z"   # mis à jour manuellement pour l'instant
+  last_build_commit: "eb0a803"
+  last_build_tool: "split_sections.py (Phase 2)"
+  output_path_repo: /root/workspace/digital-humans-production/docs/refonte/index.html
+  output_path_web: /var/www/digital-humans.fr/docs/refonte/index.html
+
+refonte:
+  branch: feature/docs-refonte
+  started: 2026-04-24
+  plan_doc: docs/refonte/DOCS_REFONTE_PLAN.md
+  status_doc: docs/refonte/STATUS.md
+  session_protocol: docs/refonte/SESSION_PROTOCOL.md
+  current_phase: "Phase 2 complete"
+  next_phase: "Phase 3 — collectors + Jinja2 templates"

@@ -1,0 +1,31 @@
+  <div id="infra" class="section">
+    <h2>Services & Infrastructure</h2>
+    <p class="section-desc">Tous les services sont gérés via <code>systemctl</code> sur Ubuntu 24.04.</p>
+    <!-- PARTIAL:infra_services_table -->
+
+    <h3>Commandes essentielles</h3>
+    <table>
+      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><td>Restart backend</td><td><code>sudo systemctl restart digital-humans-backend</code></td></tr>
+      <tr><td>Restart worker</td><td><code>sudo systemctl restart digital-humans-worker</code></td></tr>
+      <tr><td>Build frontend</td><td><code>cd frontend && npm run build && sudo systemctl restart digital-humans-frontend</code></td></tr>
+      <tr><td>Logs backend</td><td><code>journalctl -u digital-humans-backend -f --no-pager | grep -v sqlalchemy</code></td></tr>
+      <tr><td>Logs worker</td><td><code>journalctl -u digital-humans-worker -f --no-pager</code></td></tr>
+      <tr><td>DB shell</td><td><code>sudo -u postgres psql digital_humans</code></td></tr>
+      <tr><td>Health check</td><td><code>curl -s localhost:8002/api/health | jq</code></td></tr>
+    </table>
+
+    <h3>Admin Hub</h3>
+    <p>Interface de monitoring centralisée accessible à <code>digital-humans.fr/admin</code>. Permet de visualiser l'état de tous les services, démarrer/arrêter/redémarrer, consulter les logs, et monitorer Docker, Nginx, ChromaDB.</p>
+    <table>
+      <tr><th>Composant affiché</th><th>Infos</th></tr>
+      <tr><td>Backend / Frontend / Worker</td><td>Status UP/DOWN, port, latence, boutons start/stop/restart/logs</td></tr>
+      <tr><td>N8N Workflows</td><td>15 workflows actifs, port 5678</td></tr>
+      <tr><td>Ollama LLM</td><td>Status, modèles chargés, port 11434</td></tr>
+      <tr><td>Ghost CMS</td><td>9 articles, 2 brouillons, port 2368</td></tr>
+      <tr><td>PostgreSQL</td><td>Status, port 5432</td></tr>
+      <tr><td>Docker</td><td>Containers open-webui + ghost-blog (CPU/RAM)</td></tr>
+      <tr><td>Nginx</td><td>Status, test config, port 80</td></tr>
+      <tr><td>RAG ChromaDB</td><td>91,866 chunks, ~1.8 GB data, ~2.7 GB total</td></tr>
+    </table>
+  </div>
