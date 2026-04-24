@@ -1,0 +1,118 @@
+# Source de vérité pour la section "Stack technique" de la doc.
+# Les versions live peuvent être vérifiées via tools/build_docs.py (Phase 3+)
+# qui compare ce fichier avec les versions installées et log un warning si drift.
+
+version: 1
+last_verified: 2026-04-24
+
+os:
+  distribution: Ubuntu
+  version: "24.04"
+
+languages:
+  python: "3.12.3"
+  node: "22.21.0"
+
+backend:
+  framework: FastAPI
+  version: "0.104.1"
+  orm: SQLAlchemy
+  orm_version: "2.0.23"
+  server: Uvicorn
+  port: 8002
+  role: "REST API, orchestration"
+
+worker:
+  framework: ARQ
+  broker: Redis
+  role: "Exécutions async SDS/BUILD (3 tâches : SDS, Resume, Build)"
+
+frontend:
+  framework: React
+  framework_version: "18"
+  bundler: Vite
+  styling: TailwindCSS
+  port: 3000
+  role: "Interface utilisateur SPA"
+
+database:
+  engine: PostgreSQL
+  version: "16.13"
+  port: 5432
+  tables_count: 41
+
+queue_cache:
+  engine: Redis
+  version: "7.0.15"
+  port: 6379
+  role: "Job queue ARQ + cache"
+
+rag:
+  engine: ChromaDB
+  version: "1.3.4"
+  mode: PersistentClient
+  port: null
+  chunks: 91866            # last seen 2026-04-24, auto-updated by build_docs.py (Phase 3+)
+  collections_count: 6
+  data_size_gb: 1.8
+  total_size_gb: 2.7
+  path: /opt/digital-humans/rag/chromadb_data
+  embeddings:
+    - model: text-embedding-3-large
+      provider: OpenAI
+      dim: 3072
+      used_by: [technical_collection, operations_collection, business_collection, china_collection]
+    - model: nomic-embed-text-v1.5
+      provider: local (sentence-transformers)
+      dim: 768
+      used_by: [apex_collection, lwc_collection]
+
+llm:
+  local:
+    engine: Ollama
+    status: disabled
+    port: 11434
+    reason: "Désactivé volontairement (économie RAM) — non nécessaire actuellement"
+  cloud:
+    provider: Anthropic
+    sdk: anthropic
+    profiles:
+      - name: cloud
+        models:
+          orchestrator: claude-opus-4.6
+          worker: claude-sonnet-4.5
+      - name: on-premise
+        models:
+          orchestrator: (local via Ollama, profile inactif actuellement)
+          worker: (local via Ollama)
+      - name: freemium
+        models:
+          orchestrator: claude-sonnet-4.5
+          worker: claude-sonnet-4.5
+        note: "BUILD désactivé (HTTP 403 build_disabled)"
+    note: "Source canonique : backend/config/llm_routing.yaml"
+
+cms:
+  engine: Ghost
+  deployment: Docker
+  container: ghost-blog
+  port: 2368
+  role: "Site marketing digital-humans.fr"
+
+automation:
+  engine: N8N
+  port: 5678
+  role: "Workflows marketing"
+  workflows_count: 15
+
+reverse_proxy:
+  engine: Nginx
+  version: "1.24.0"
+  ports: [80, 443]
+  role: "SSL, routing, static files"
+
+other:
+  - name: Open WebUI
+    deployment: Docker
+    container: open-webui
+    port_mapping: "3200→8080"
