@@ -170,8 +170,9 @@
   pre { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 18px 22px; overflow-x: auto; margin: 14px 0 24px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--bone-2); }
 
   /* ═══ Mermaid wrappers ═══ */
-  .mermaid-wrapper, .mermaid-wrap { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 28px 22px; margin: 18px 0 26px; overflow-x: auto; text-align: center; }
-  .mermaid, .mermaid-wrapper svg, .mermaid-wrap svg { max-width: 100%; height: auto; display: inline-block; }
+  .mermaid-wrapper, .mermaid-wrap { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 28px 22px; margin: 18px 0 26px; overflow-x: auto; }
+  .mermaid { display: block; width: 100%; }
+  .mermaid-wrapper svg, .mermaid-wrap svg { width: 100% !important; height: auto !important; max-width: none; display: block; margin: 0 auto; }
 
   /* ═══ Stats grid ═══ */
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; border-top: var(--rail-brass); border-left: var(--rail); margin: 24px 0 28px; }
@@ -367,14 +368,16 @@
       background: '#141416', primaryColor: '#141416', primaryTextColor: '#F5F2EC',
       primaryBorderColor: '#C8A97E', secondaryColor: '#1C1C1F', tertiaryColor: '#0A0A0B',
       lineColor: '#8C6E4A', textColor: '#F5F2EC',
-      fontFamily: 'Inter, sans-serif', fontSize: '13px',
+      fontFamily: 'Inter, sans-serif', fontSize: '14px',
       mainBkg: '#141416', secondBkg: '#1C1C1F',
       nodeBorder: '#C8A97E', clusterBkg: '#0A0A0B', clusterBorder: '#8C6E4A',
       defaultLinkColor: '#8C6E4A', edgeLabelBackground: '#141416',
       attributeBackgroundColorOdd: '#1C1C1F', attributeBackgroundColorEven: '#141416'
     },
-    flowchart: { curve: 'basis', padding: 18, nodeSpacing: 38, rankSpacing: 56 },
-    sequence: { actorMargin: 40, messageMargin: 30 }
+    flowchart: { useMaxWidth: true, curve: 'basis', padding: 22, nodeSpacing: 44, rankSpacing: 62, htmlLabels: true },
+    sequence: { useMaxWidth: true, actorMargin: 48, messageMargin: 32 },
+    er: { useMaxWidth: true, diagramPadding: 24, entityPadding: 14, layoutDirection: 'TB' },
+    stateDiagram: { useMaxWidth: true }
   });
 </script>
 
