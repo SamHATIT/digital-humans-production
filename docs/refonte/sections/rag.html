@@ -1,15 +1,7 @@
   <div id="rag" class="section">
     <h2>RAG & Knowledge Base</h2>
     <p class="section-desc">ChromaDB héberge 91,866 chunks de documentation Salesforce répartis en 6 collections thématiques.</p>
-    <table>
-      <tr><th>Collection</th><th>Embedding</th><th>Agents (via AGENT_COLLECTIONS)</th></tr>
-      <tr><td><code>technical_collection</code></td><td>OpenAI</td><td>Marcus, Jordan, Raj, Elena, Aisha, Diego, Zara</td></tr>
-      <tr><td><code>operations_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Jordan, Raj, Elena, Aisha, Lucas</td></tr>
-      <tr><td><code>business_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Sophie, Lucas</td></tr>
-      <tr><td><code>apex_collection</code></td><td>Nomic</td><td>Diego, Elena</td></tr>
-      <tr><td><code>lwc_collection</code></td><td>Nomic</td><td>Zara</td></tr>
-      <tr><td><code>china_collection</code></td><td>OpenAI</td><td>Marcus, Olivia (projets <code>region=cn</code> / Hyperforce SFOA)</td></tr>
-    </table>
+    <!-- PARTIAL:rag_collections_table -->
     <p><strong>Statut :</strong> <span class="tag tag-done">OK</span> — 91,866 chunks, ~1.8 GB data + ~2.7 GB total. PersistentClient local (pas de serveur séparé).</p>
     <p><strong>Dernière ingestion (24 avril 2026) :</strong> +21,615 écritures depuis 7 sources Salesforce 2026 — Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript spec (TDX 2026), Headless 360 consolidé, Hyperforce/SFOA Chine. Batch tag : <code>sf_docs_2026_04_23</code> (idempotent, rollback possible).</p>
   </div>

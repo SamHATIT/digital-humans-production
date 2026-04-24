@@ -1,0 +1,111 @@
+# Source de vérité pour la section "Journal de la refonte" de la doc.
+# Consommée par tools/build_docs.py via collect_timeline().
+#
+# Format :
+#   - date        : ISO YYYY-MM-DD (pour tri/chrono, peut être omis pour "Prochain")
+#     label       : libellé humain affiché à l'écran (ex: "5 fév 2026", "23-24 avril 2026", "Prochain")
+#     status      : done | active | planned
+#     title       : titre concis
+#     description : texte libre — HTML inline (<strong>, <code>) autorisé, rendu via |safe
+#
+# L'ordre du fichier = ordre d'affichage (chronologique ascendant).
+
+version: 1
+last_reviewed: 2026-04-24
+
+entries:
+
+  - date: 2026-02-05
+    label: "5 fév 2026"
+    status: done
+    title: "Audit technique exhaustif"
+    description: "Analyse statique (Claude) + contextuelle (Gemini). 15 problèmes, 5 critiques. Plan P0→P8."
+
+  - date: 2026-02-06
+    label: "6 fév 2026"
+    status: done
+    title: "Playbook de migration + Blueprint Agent Teams"
+    description: "Plan d'exécution anti-régression. 6 agents définis."
+
+  - date: 2026-02-07
+    label: "7 fév 2026"
+    status: done
+    title: "Fix rôles agents + P9 SDS Sections"
+    description: "Olivia=BA, Marcus=Architect. Découverte troncature critique safe_content()."
+
+  - date: 2026-02-08
+    label: "7-8 fév 2026"
+    status: done
+    title: "Sprints 0→3 — Refonte backend"
+    description: "S0: P0+P1+P2. S1: P3 subprocess→async. S2: P4 fat controller split. S3: P5+P6+P8."
+
+  - date: 2026-02-09
+    label: "8-9 fév 2026"
+    status: done
+    title: "Sprint H — Horizons 2+3 (10 streams)"
+    description: "State Machine 27 états, ARQ workers, BudgetService + CircuitBreaker, HITL routes, Mermaid/Gantt/Metrics/DiffViewer."
+
+  - date: 2026-02-11
+    label: "10-11 fév 2026"
+    status: done
+    title: "Sprint I — E2E #140 → #142"
+    description: "#140: P0+P1 pass. #141: Phase 4 pass, P5 crash. #142: 🎉 Premier run complet Phases 1→5 (33 BRs → 165 UCs → SDS, ~$13.59)."
+
+  - date: 2026-02-12
+    label: "12 fév 2026"
+    status: done
+    title: "E2E #143 — Coverage scoring fix"
+    description: "Bug Emma: UC format mismatch + weight imbalance. Même design Marcus scorait 45% au lieu de 90.3%."
+
+  - date: 2026-02-12
+    label: "12 fév 2026"
+    status: done
+    title: "E2E #144 — 30 bugs identifiés, Plan V2"
+    description: "SDS docx vide, coût 262% sous-reporté, safe_content() tronque 93-96%, 13 modèles hardcodés."
+
+  - date: 2026-02-13
+    label: "13 fév 2026"
+    status: done
+    title: "🔧 Track A — Backend Cleanup (7 bugs)"
+    description: "4 key mismatches fixés, safe_content ×6, MODEL_PRICING, 13 models→YAML, anti-markdown Marcus."
+
+  - date: 2026-02-13
+    label: "13 fév 2026"
+    status: done
+    title: "🎨 Track B+C — Frontend rewrite"
+    description: "ArchitectureReviewPanel (ERD, Flows, WBS Gantt, Security OWD). StructuredRenderer (BRs, coverage, experts)."
+
+  - date: 2026-02-13
+    label: "13 fév 2026"
+    status: done
+    title: "💬 Sprint 4+5 — Multi-agent Chat + Revision Fix"
+    description: "9 agents color-coded, historique par agent, fix_gaps mode incrémental."
+
+  - date: 2026-02-14
+    label: "14 fév 2026"
+    status: done
+    title: "📝 Documentation site — réécriture complète"
+    description: "Toutes sections vérifiées sur VPS : architecture, workers ARQ, state machine, DB 41 tables, API 178 endpoints, frontend 13 pages / 19 composants."
+
+  - date: 2026-04-12
+    label: "12 avril 2026"
+    status: done
+    title: "🧭 Mise à jour CLAUDE.md — état courant + règles de session autonome"
+    description: "Consolidation du contexte projet et des conventions de travail autonome avant la Session 3 de refonte. Commit <code>064cc04</code>."
+
+  - date: 2026-04-18
+    label: "18 avril 2026"
+    status: done
+    title: "🚀 Session 3 Refonte — 4 agents parallèles mergés"
+    description: "<strong>Agent A</strong> (runtime bugs, P0 event loop, P7 budget, P11 RAG health) · <strong>Agent B</strong> (agents registry YAML unique, HITL contracts) · <strong>Agent C</strong> (LLM multi-profile cloud/on-premise/freemium, continuation auto, thin wrapper 752→212 LOC) · <strong>Agent D</strong> (P2 env paths, P5 logging, P8 secrets rotation, SDS V3 Mistral supprimé, 162 imports inutiles). 4 merges + ADR-001 + ADR-002."
+
+  - date: 2026-04-24
+    label: "23-24 avril 2026"
+    status: done
+    title: "📚 Ingestion RAG — Salesforce 2026 (7 sources, +21 615 écritures)"
+    description: "Ajout de 10 795 chunks dans le RAG (70 251 → 91 866). Sources : Winter/Spring/Summer '26 Release Notes (PDFs officiels), Shield Platform Encryption, AgentScript spec (TDX 2026, open-sourced 15 avr), Headless 360 consolidé (10 sources), Hyperforce/SFOA Chine (8 sources). Nouvelle collection <code>china_collection</code> (isolation <code>region=cn</code>). Coût OpenAI : ~$0.35. Modèle bi-tier : OpenAI 3-large pour docs (3072 dim), Nomic pour code (768 dim)."
+
+  - label: "Prochain"
+    status: active
+    title: "P10 consolidation + E2E post-Session 3"
+    description: "Prochaine étape : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs) et lancer un E2E complet validant les fixes Session 3."

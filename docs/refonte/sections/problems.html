@@ -2,24 +2,7 @@
     <h2>Problèmes architecturaux (P0-P11)</h2>
     <p class="section-desc">12 problèmes identifiés (audit initial + P10-P11 ajoutés post-E2E). 10 fixés via Sprints 0-3 + Session 3 Refonte (18 avril), 2 partiels restants.</p>
     <div class="card-grid">
-      <div class="card">
-        <h4 style="color:var(--green)">✅ Fixés (10)</h4>
-        <p><strong>P0</strong> async def → sync def + <code>asyncio.to_thread</code> (S0, puis A-7/A-8)<br>
-        <strong>P1</strong> pm.py supprimé (S0)<br>
-        <strong>P2</strong> paths centralisés <code>config.py</code> env-driven (S0, puis D-1a)<br>
-        <strong>P3</strong> subprocess → import direct (14 fév, commit <code>7aa5db9</code>)<br>
-        <strong>P5</strong> <code>ExecutionContextMiddleware</code> + logging unifié (D-2, 18 avr)<br>
-        <strong>P6</strong> 13 hardcoded models → YAML (13 fév)<br>
-        <strong>P7</strong> <code>BudgetService.record_cost()</code> commit par défaut (A-9, 18 avr)<br>
-        <strong>P8</strong> Secrets rotation playbook + <code>rotate_anthropic_key.sh</code> (D-3, 18 avr)<br>
-        <strong>P9</strong> safe_content() limits ×6 (13 fév)<br>
-        <strong>P11</strong> RAG health check au startup + erreurs remontées (A-10, 18 avr)</p>
-      </div>
-      <div class="card">
-        <h4 style="color:var(--orange)">⚠️ Partiels (2)</h4>
-        <p><strong>P4</strong> Routes splitées 6 fichiers (S2) — <code>pm_orchestrator_service_v2.py</code> reste volumineux<br>
-        <strong>P10</strong> Agent Architecture Debt — Agent B a unifié le registry (YAML), mais BaseAgent class + contrats <code>_call_llm</code>/<code>execution_id</code> communs pas encore consolidés</p>
-      </div>
+      <!-- PARTIAL:problems_status_cards -->
       <div class="card">
         <h4 style="color:var(--purple)">🆕 Ajouts Session 3 (18 avr)</h4>
         <p><strong>Agent A</strong> (A-1→A-11) : 22 → 0 F821, Elena fail-closed, P0 event loop<br>

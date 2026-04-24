@@ -1,20 +1,7 @@
   <div id="infra" class="section">
     <h2>Services & Infrastructure</h2>
     <p class="section-desc">Tous les services sont gérés via <code>systemctl</code> sur Ubuntu 24.04.</p>
-    <table>
-      <tr><th>Service</th><th>systemctl unit</th><th>Port</th><th>Statut</th></tr>
-      <tr><td>Backend API</td><td><code>digital-humans-backend</code></td><td>8002</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ARQ Worker</td><td><code>digital-humans-worker</code></td><td>—</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 91,866 chunks</span></td></tr>
-      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-warning">OFF — désactivé volontairement (économie RAM)</span></td></tr>
-      <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Open WebUI</td><td>Docker: <code>open-webui</code></td><td>3200→8080</td><td><span class="tag tag-done">active</span></td></tr>
-    </table>
+    <!-- PARTIAL:infra_services_table -->
 
     <h3>Commandes essentielles</h3>
     <table>

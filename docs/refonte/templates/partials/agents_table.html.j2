@@ -1,0 +1,28 @@
+{#
+  agents_table.html.j2
+  Consomme : { agents: collect_agents().agents, llm_profiles: collect_llm_profiles() }
+  Produit  : table des 11 agents avec rôle, phases SDS/BUILD, modèle LLM, agent_type.
+
+  Résolution modèle LLM par agent :
+    agent.agent_type → llm_profiles.tiers[*].agent_types → tier.model_display
+#}
+{%- set tier_by_agent_type = {} %}
+{%- for t in llm_profiles.tiers %}
+  {%- for at in t.agent_types %}
+    {%- set _ = tier_by_agent_type.update({at: t}) %}
+  {%- endfor %}
+{%- endfor %}
+<table>
+  <tr><th>Agent</th><th>Rôle</th><th>Phase SDS</th><th>Phase BUILD</th><th>Modèle LLM</th><th>agent_type → tier</th></tr>
+  {% for a in agents %}
+  {%- set tier = tier_by_agent_type.get(a.agent_type) %}
+  <tr>
+    <td><strong>{{ a.name }}</strong></td>
+    <td>{{ a.role }}</td>
+    <td>{{ a.phase_sds }}</td>
+    <td>{{ a.phase_build }}</td>
+    <td>{% if tier %}{{ tier.model_display }}{% else %}—{% endif %}</td>
+    <td><code>{{ a.agent_type }}</code> → {% if tier %}{{ tier.name }}{% else %}<em>non routé</em>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>

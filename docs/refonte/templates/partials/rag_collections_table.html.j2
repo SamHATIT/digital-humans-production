@@ -1,0 +1,29 @@
+{#
+  rag_collections_table.html.j2
+  Consomme : collect_rag_stats() → { collections: [{name, count, embedding, agents, note, present}], total_chunks, orphan_collections }
+  Produit  : la table des collections avec comptage live + ligne total.
+#}
+<table>
+  <tr><th>Collection</th><th>Embedding</th><th>Chunks</th><th>Agents (via AGENT_COLLECTIONS)</th></tr>
+  {% for c in collections %}
+  <tr>
+    <td><code>{{ c.name }}</code>{% if c.note %} <span class="muted">({{ c.note }})</span>{% endif %}</td>
+    <td>{{ c.embedding }}</td>
+    <td>
+      {%- if not c.present -%}
+        <span class="tag tag-warning">absente</span>
+      {%- elif c.count is none -%}
+        <span class="tag tag-warning">probe ko</span>
+      {%- else -%}
+        {{ '{:,}'.format(c.count).replace(',', ' ') }}
+      {%- endif -%}
+    </td>
+    <td>{{ c.agents | join(', ') }}</td>
+  </tr>
+  {% endfor %}
+  <tr>
+    <td colspan="2"><strong>Total</strong></td>
+    <td><strong>{{ '{:,}'.format(total_chunks).replace(',', ' ') }}</strong></td>
+    <td>{% if orphan_collections %}<span class="muted">collections orphelines ChromaDB : {{ orphan_collections | join(', ') }}</span>{% endif %}</td>
+  </tr>
+</table>

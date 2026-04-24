@@ -32,27 +32,8 @@ flowchart LR
     </div>
 
     <h3>Fiches agents</h3>
-    <table>
-      <tr><th>Agent</th><th>Rôle</th><th>Phase SDS</th><th>Phase BUILD</th><th>Modèle LLM</th><th>agent_type</th></tr>
-      <tr><td><strong>Sophie</strong></td><td>Project Manager</td><td>1 — BR extraction</td><td>—</td><td>Opus 4.6</td><td><code>pm</code> → critical</td></tr>
-      <tr><td><strong>Olivia</strong></td><td>Business Analyst</td><td>2 — Use Cases</td><td>—</td><td>Sonnet 4.5</td><td><code>business_analyst</code> → complex</td></tr>
-      <tr><td><strong>Emma</strong></td><td>Research Analyst</td><td>2.5 / 3.3 / 4.5 / 5</td><td>—</td><td>Sonnet 4.5</td><td><code>research_analyst</code> → complex</td></tr>
-      <tr><td><strong>Marcus</strong></td><td>Solution Architect</td><td>3 — Architecture</td><td>—</td><td>Opus 4.6</td><td><code>architect</code> → critical</td></tr>
-      <tr><td><strong>Elena</strong></td><td>QA Engineer</td><td>4 — Test specs</td><td>—</td><td>Sonnet 4.5</td><td><code>qa_tester</code></td></tr>
-      <tr><td><strong>Jordan</strong></td><td>DevOps / CI-CD</td><td>4 — DevOps specs</td><td>Deploy (toutes phases)</td><td>Sonnet 4.5</td><td><code>devops</code></td></tr>
-      <tr><td><strong>Raj</strong></td><td>Admin Config</td><td>—</td><td>1,4,5 — Model/Auto/Security</td><td>Sonnet 4.5</td><td><code>admin</code></td></tr>
-      <tr><td><strong>Diego</strong></td><td>Apex Developer</td><td>—</td><td>2 — Business logic</td><td>Sonnet 4.5</td><td><code>apex_developer</code></td></tr>
-      <tr><td><strong>Zara</strong></td><td>LWC Developer</td><td>—</td><td>3 — UI components</td><td>Sonnet 4.5</td><td><code>lwc_developer</code></td></tr>
-      <tr><td><strong>Aisha</strong></td><td>Data Migration</td><td>4 — Data specs</td><td>6 — Migration scripts</td><td>Sonnet 4.5</td><td><code>data</code></td></tr>
-      <tr><td><strong>Lucas</strong></td><td>Trainer</td><td>4 — Training specs</td><td>—</td><td>Sonnet</td><td><code>trainer</code></td></tr>
-    </table>
+    <!-- PARTIAL:agents_table -->
 
     <h3>Routage LLM (<code>llm_routing.yaml</code>)</h3>
-    <table>
-      <tr><th>Complexité</th><th>Modèle</th><th>Pricing (in/out per M)</th><th>Agents</th></tr>
-      <tr><td><code>critical</code></td><td>Claude Opus 4.6</td><td>$5 / $25</td><td>Sophie, Marcus</td></tr>
-      <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena (qa), Jordan (devops), Raj (admin), Aisha (data), Lucas, Diego, Zara</td></tr>
-      <tr><td><code>medium</code></td><td>Claude Haiku</td><td>$1 / $5</td><td>(non utilisé actuellement)</td></tr>
-      <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Désactivé — aucun agent mappé à ce tier</td></tr>
-    </table>
+    <!-- PARTIAL:llm_routing_table -->
   </div>

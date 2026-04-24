@@ -1,0 +1,17 @@
+{#
+  journal_timeline.html.j2
+  Consomme : collect_timeline() → { entries: [{label, date, status, title, description}] }
+  Produit  : le bloc <div class="timeline"> avec une timeline-item par entrée.
+
+  description est du HTML inline (<strong>, <code>) → rendu via |safe.
+  status ∈ {done, active, planned} → ajouté comme classe CSS.
+#}
+<div class="timeline">
+  {% for e in entries %}
+  <div class="timeline-item {{ e.status }}">
+    <div class="timeline-date">{{ e.label }}</div>
+    <div class="timeline-title">{{ e.title }}</div>
+    <div class="timeline-desc">{{ e.description | safe }}</div>
+  </div>
+  {% endfor %}
+</div>

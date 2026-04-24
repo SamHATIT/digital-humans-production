@@ -1,0 +1,43 @@
+{#
+  infra_services_table.html.j2
+  Consomme : collect_services() → { services: [{label, unit, port, kind, status, note}] }
+  Produit  : la table des services avec tag de statut live.
+
+  Mapping status → classe CSS :
+    active, embedded → tag-done
+    inactive, stopped → tag-warning
+    failed, missing  → tag-error
+    unknown          → tag-neutral
+#}
+{% macro status_tag(s) -%}
+  {%- if s in ('active', 'embedded') -%}
+    <span class="tag tag-done">{{ s }}</span>
+  {%- elif s in ('inactive', 'stopped') -%}
+    <span class="tag tag-warning">{{ s }}</span>
+  {%- elif s in ('failed', 'missing') -%}
+    <span class="tag tag-error">{{ s }}</span>
+  {%- else -%}
+    <span class="tag tag-neutral">{{ s }}</span>
+  {%- endif -%}
+{%- endmacro %}
+<table>
+  <tr><th>Service</th><th>systemctl unit</th><th>Port</th><th>Statut</th></tr>
+  {% for s in services %}
+  <tr>
+    <td>{{ s.label }}</td>
+    <td>
+      {%- if s.kind == 'docker' -%}
+        Docker: <code>{{ s.unit }}</code>
+      {%- elif s.kind == 'embedded' -%}
+        {{ s.note or 'embedded' }}
+      {%- elif s.unit -%}
+        <code>{{ s.unit }}</code>
+      {%- else -%}
+        —
+      {%- endif -%}
+    </td>
+    <td>{{ s.port }}</td>
+    <td>{{ status_tag(s.status) }}{% if s.note and s.kind != 'embedded' %} <span class="muted">{{ s.note }}</span>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
