@@ -401,7 +401,7 @@
 
   <!-- ==================== VUE D'ENSEMBLE ==================== -->
   <div id="overview" class="section active">
-    <h2>Vue d'ensemble</h2>
+    <h2>Vue d'ensemble <span style="font-size:14px;font-weight:400;color:var(--text-dim);margin-left:12px">— Dernière mise à jour : 24 avril 2026</span></h2>
     <p class="section-desc">
       Digital Humans est une plateforme SaaS B2B qui automatise le développement Salesforce grâce à 11 agents IA spécialisés. Le système génère des spécifications complètes (SDS) puis du code Salesforce déployable (BUILD) via un pipeline multi-phases orchestré avec validation humaine à chaque étape clé.
     </p>
@@ -436,7 +436,7 @@
       <tr><td>Frontend</td><td>React 18 + Vite + TailwindCSS</td><td>3000</td><td>Interface utilisateur SPA</td></tr>
       <tr><td>Base de données</td><td>PostgreSQL 16</td><td>5432</td><td>41 tables, état complet</td></tr>
       <tr><td>Queue</td><td>Redis 7</td><td>6379</td><td>Job queue ARQ + cache</td></tr>
-      <tr><td>RAG</td><td>ChromaDB (PersistentClient)</td><td>—</td><td>70,251 chunks, 1.4 GB, 5 collections</td></tr>
+      <tr><td>RAG</td><td>ChromaDB (PersistentClient)</td><td>—</td><td>91,866 chunks, ~1.8 GB, 6 collections</td></tr>
       <tr><td>LLM local</td><td>Ollama + Mistral 7B</td><td>11434</td><td>Désactivé — non nécessaire actuellement (économie RAM)</td></tr>
       <tr><td>LLM cloud</td><td>Anthropic Claude API</td><td>—</td><td>Opus 4.6 (Sophie, Marcus), Sonnet 4.5 (9 autres agents)</td></tr>
       <tr><td>CMS</td><td>Ghost</td><td>2368</td><td>Site marketing digital-humans.fr</td></tr>
@@ -482,7 +482,7 @@ flowchart TB
     subgraph Storage["Persistence"]
         PG[(PostgreSQL — 41 tables)]
         Redis[(Redis — Job Queue)]
-        Chroma[(ChromaDB PersistentClient — 70K chunks)]
+        Chroma[(ChromaDB PersistentClient — 92K chunks)]
     end
     subgraph LLMs["LLM Providers"]
         Opus[Claude Opus 4.6 — Marcus Sophie]
@@ -697,7 +697,7 @@ flowchart LR
   <!-- ==================== RAG ==================== -->
   <div id="rag" class="section">
     <h2>RAG & Knowledge Base</h2>
-    <p class="section-desc">ChromaDB héberge 70,251 chunks de documentation Salesforce répartis en 5 collections thématiques.</p>
+    <p class="section-desc">ChromaDB héberge 91,866 chunks de documentation Salesforce répartis en 6 collections thématiques.</p>
     <table>
       <tr><th>Collection</th><th>Embedding</th><th>Agents (via AGENT_COLLECTIONS)</th></tr>
       <tr><td><code>technical_collection</code></td><td>OpenAI</td><td>Marcus, Jordan, Raj, Elena, Aisha, Diego, Zara</td></tr>
@@ -705,8 +705,10 @@ flowchart LR
       <tr><td><code>business_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Sophie, Lucas</td></tr>
       <tr><td><code>apex_collection</code></td><td>Nomic</td><td>Diego, Elena</td></tr>
       <tr><td><code>lwc_collection</code></td><td>Nomic</td><td>Zara</td></tr>
+      <tr><td><code>china_collection</code></td><td>OpenAI</td><td>Marcus, Olivia (projets <code>region=cn</code> / Hyperforce SFOA)</td></tr>
     </table>
-    <p><strong>Statut :</strong> <span class="tag tag-done">OK</span> — 70,251 chunks, 1.4 GB data + 2.3 GB total. PersistentClient local (pas de serveur séparé).</p>
+    <p><strong>Statut :</strong> <span class="tag tag-done">OK</span> — 91,866 chunks, ~1.8 GB data + ~2.7 GB total. PersistentClient local (pas de serveur séparé).</p>
+    <p><strong>Dernière ingestion (24 avril 2026) :</strong> +21,615 écritures depuis 7 sources Salesforce 2026 — Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript spec (TDX 2026), Headless 360 consolidé, Hyperforce/SFOA Chine. Batch tag : <code>sf_docs_2026_04_23</code> (idempotent, rollback possible).</p>
   </div>
   <!-- ==================== SERVICES ==================== -->
   <div id="infra" class="section">
@@ -719,7 +721,7 @@ flowchart LR
       <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 70,251 chunks</span></td></tr>
+      <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 91,866 chunks</span></td></tr>
       <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-warning">OFF — désactivé volontairement (économie RAM)</span></td></tr>
       <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
       <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
@@ -750,7 +752,7 @@ flowchart LR
       <tr><td>PostgreSQL</td><td>Status, port 5432</td></tr>
       <tr><td>Docker</td><td>Containers open-webui + ghost-blog (CPU/RAM)</td></tr>
       <tr><td>Nginx</td><td>Status, test config, port 80</td></tr>
-      <tr><td>RAG ChromaDB</td><td>70,251 chunks, 1.4 GB data, 2.3 GB total</td></tr>
+      <tr><td>RAG ChromaDB</td><td>91,866 chunks, ~1.8 GB data, ~2.7 GB total</td></tr>
     </table>
   </div>
 
@@ -883,27 +885,33 @@ flowchart LR
   </div>
   <!-- ==================== PROBLÈMES ==================== -->
   <div id="problems" class="section">
-    <h2>Problèmes architecturaux (P0-P9)</h2>
-    <p class="section-desc">10 problèmes identifiés lors de l'audit. 5 fixés, 3 partiels, 2 restants.</p>
+    <h2>Problèmes architecturaux (P0-P11)</h2>
+    <p class="section-desc">12 problèmes identifiés (audit initial + P10-P11 ajoutés post-E2E). 10 fixés via Sprints 0-3 + Session 3 Refonte (18 avril), 2 partiels restants.</p>
     <div class="card-grid">
       <div class="card">
-        <h4 style="color:var(--green)">✅ Fixés (5)</h4>
-        <p><strong>P0</strong> async def → sync def (S0)<br>
+        <h4 style="color:var(--green)">✅ Fixés (10)</h4>
+        <p><strong>P0</strong> async def → sync def + <code>asyncio.to_thread</code> (S0, puis A-7/A-8)<br>
         <strong>P1</strong> pm.py supprimé (S0)<br>
-        <strong>P2</strong> paths centralisés config.py (S0)<br>
+        <strong>P2</strong> paths centralisés <code>config.py</code> env-driven (S0, puis D-1a)<br>
+        <strong>P3</strong> subprocess → import direct (14 fév, commit <code>7aa5db9</code>)<br>
+        <strong>P5</strong> <code>ExecutionContextMiddleware</code> + logging unifié (D-2, 18 avr)<br>
         <strong>P6</strong> 13 hardcoded models → YAML (13 fév)<br>
-        <strong>P9</strong> safe_content() limits ×6 (13 fév)</p>
+        <strong>P7</strong> <code>BudgetService.record_cost()</code> commit par défaut (A-9, 18 avr)<br>
+        <strong>P8</strong> Secrets rotation playbook + <code>rotate_anthropic_key.sh</code> (D-3, 18 avr)<br>
+        <strong>P9</strong> safe_content() limits ×6 (13 fév)<br>
+        <strong>P11</strong> RAG health check au startup + erreurs remontées (A-10, 18 avr)</p>
       </div>
       <div class="card">
-        <h4 style="color:var(--orange)">⚠️ Partiels (3)</h4>
-        <p><strong>P3</strong> subprocess → asyncio.create_subprocess (S1) — toujours subprocess pas import<br>
-        <strong>P4</strong> Routes splitées 6 fichiers (S2) — service 3396 lignes<br>
-        <strong>P8</strong> SECRET_KEY validé en prod (S3) — pas de rotation</p>
+        <h4 style="color:var(--orange)">⚠️ Partiels (2)</h4>
+        <p><strong>P4</strong> Routes splitées 6 fichiers (S2) — <code>pm_orchestrator_service_v2.py</code> reste volumineux<br>
+        <strong>P10</strong> Agent Architecture Debt — Agent B a unifié le registry (YAML), mais BaseAgent class + contrats <code>_call_llm</code>/<code>execution_id</code> communs pas encore consolidés</p>
       </div>
       <div class="card">
-        <h4 style="color:var(--red)">❌ Planifiés (2)</h4>
-        <p><strong>P5</strong> Logs fragmentés — <code>import logging</code> basique<br>
-        <strong>P7</strong> Transactions — 24 <code>db.commit()</code> éparpillés</p>
+        <h4 style="color:var(--purple)">🆕 Ajouts Session 3 (18 avr)</h4>
+        <p><strong>Agent A</strong> (A-1→A-11) : 22 → 0 F821, Elena fail-closed, P0 event loop<br>
+        <strong>Agent B</strong> : registry YAML unique <code>agents_registry</code> (6 dicts consolidés)<br>
+        <strong>Agent C</strong> (C-0→C-5) : LLM multi-profile (cloud / on-premise / freemium), <code>LLMService</code> 752→212 LOC<br>
+        <strong>Agent D</strong> (D-1→D-5f) : env-driven paths, secrets rotation, 162 imports inutiles, SDS V3 Mistral supprimé, ADR-001 + ADR-002</p>
       </div>
     </div>
   </div>
@@ -1014,15 +1022,30 @@ flowchart TB
         <div class="timeline-title">💬 Sprint 4+5 — Multi-agent Chat + Revision Fix</div>
         <div class="timeline-desc">9 agents color-coded, historique par agent, fix_gaps mode incrémental.</div>
       </div>
-      <div class="timeline-item active">
+      <div class="timeline-item done">
         <div class="timeline-date">14 fév 2026</div>
         <div class="timeline-title">📝 Documentation site — réécriture complète</div>
         <div class="timeline-desc">Toutes sections vérifiées sur VPS : architecture, workers ARQ, state machine, DB 41 tables, API 178 endpoints, frontend 13 pages / 19 composants.</div>
       </div>
-      <div class="timeline-item">
-        <div class="timeline-date">Février 2026</div>
-        <div class="timeline-title">E2E #145 + Agent Teams</div>
-        <div class="timeline-desc">Validation finale post-fixes puis refonte Claude Code Agent Teams.</div>
+      <div class="timeline-item done">
+        <div class="timeline-date">12 avril 2026</div>
+        <div class="timeline-title">🧭 Mise à jour CLAUDE.md — état courant + règles de session autonome</div>
+        <div class="timeline-desc">Consolidation du contexte projet et des conventions de travail autonome avant la Session 3 de refonte. Commit <code>064cc04</code>.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">18 avril 2026</div>
+        <div class="timeline-title">🚀 Session 3 Refonte — 4 agents parallèles mergés</div>
+        <div class="timeline-desc"><strong>Agent A</strong> (runtime bugs, P0 event loop, P7 budget, P11 RAG health) · <strong>Agent B</strong> (agents registry YAML unique, HITL contracts) · <strong>Agent C</strong> (LLM multi-profile cloud/on-premise/freemium, continuation auto, thin wrapper 752→212 LOC) · <strong>Agent D</strong> (P2 env paths, P5 logging, P8 secrets rotation, SDS V3 Mistral supprimé, 162 imports inutiles). 4 merges + ADR-001 + ADR-002.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">23-24 avril 2026</div>
+        <div class="timeline-title">📚 Ingestion RAG — Salesforce 2026 (7 sources, +21 615 écritures)</div>
+        <div class="timeline-desc">Ajout de 10 795 chunks dans le RAG (70 251 → 91 866). Sources : Winter/Spring/Summer '26 Release Notes (PDFs officiels), Shield Platform Encryption, AgentScript spec (TDX 2026, open-sourced 15 avr), Headless 360 consolidé (10 sources), Hyperforce/SFOA Chine (8 sources). Nouvelle collection <code>china_collection</code> (isolation <code>region=cn</code>). Coût OpenAI : ~$0.35. Modèle bi-tier : OpenAI 3-large pour docs (3072 dim), Nomic pour code (768 dim).</div>
+      </div>
+      <div class="timeline-item active">
+        <div class="timeline-date">Prochain</div>
+        <div class="timeline-title">P10 consolidation + E2E post-Session 3</div>
+        <div class="timeline-desc">Prochaine étape : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs) et lancer un E2E complet validant les fixes Session 3.</div>
       </div>
     </div>
   </div>
