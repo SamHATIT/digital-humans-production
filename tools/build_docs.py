@@ -1,30 +1,56 @@
 #!/usr/bin/env python3
-"""Phase 3 — build_docs.py minimal.
+"""Phase 4 — build_docs.py avec backup, deploy atomique, purge.
 
 Assemble la doc en 3 passes :
-
     1. Rendu des partials Jinja2 avec les données collectées.
     2. Substitution des markers ``<!-- PARTIAL:X -->`` dans les fragments de
        ``sections/*.html``. L'indentation du marker est préservée sur chaque
        ligne du bloc rendu.
     3. Substitution des markers ``<!-- SECTION:X -->`` dans ``shell.html``
-       avec les sections assemblées. (Marker format posé par split_sections.py.)
+       avec les sections assemblées.
 
-Le HTML final est écrit dans ``docs/refonte/index.generated.html`` (pas
-d'écrasement de ``index.html`` en Phase 3 — c'est Phase 4 qui ajoutera
-backup + copy atomique vers /var/www). Un diff unifié contre ``index.html``
-est imprimé pour vérification manuelle.
+Modes :
 
-Usage:
-    python3 tools/build_docs.py             # build + diff contre index.html
-    python3 tools/build_docs.py --strict    # échoue si markers manquants ou surnuméraires
+    python3 tools/build_docs.py
+        → Écrit dans ``docs/refonte/index.html`` avec backup préalable
+          ``index.html.bak.YYYYMMDD_HHMMSS``. Purge les backups > 7 jours.
+          Imprime un diff contre l'ancienne version.
+
+    python3 tools/build_docs.py --dry-run
+        → Écrit dans ``docs/refonte/index.generated.html`` (comportement
+          historique). Pas de backup, pas de modification de l'index.html
+          canonique. Diff imprimé. Utile pour tester sans impact.
+
+    python3 tools/build_docs.py --deploy
+        → Build normal (write + backup dans le repo) PUIS copie atomique
+          vers /var/www/digital-humans.fr/docs/refonte/index.html avec
+          backup de la version /var/www avant écrasement. Smoke test HTTP
+          post-deploy. Purge /var/www des backups > 7 jours.
+
+    python3 tools/build_docs.py --strict
+        → Échoue au premier marker manquant ou surnuméraire. Combinable
+          avec les autres flags.
+
+    python3 tools/build_docs.py --no-backup
+        → Skippe la création de backup (utile pour rebuild rapide sans
+          pollution). Incompatible avec --deploy (le backup /var/www
+          est toujours créé avant écrasement).
+
+    python3 tools/build_docs.py --purge-days N
+        → Change la rétention des backups (défaut 7). N=0 désactive la purge.
 """
 from __future__ import annotations
 
 import argparse
 import difflib
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # Permet l'import du package local "lib" quand on lance depuis le repo root.
@@ -36,12 +62,17 @@ from lib import collect, render  # noqa: E402
 DOCS = REPO_ROOT / "docs" / "refonte"
 SECTIONS_DIR = DOCS / "sections"
 SHELL = DOCS / "templates" / "shell.html"
-OUTPUT = DOCS / "index.generated.html"
-REFERENCE = DOCS / "index.html"
+INDEX = DOCS / "index.html"
+GENERATED = DOCS / "index.generated.html"
+
+DEPLOY_DIR = Path("/var/www/digital-humans.fr/docs/refonte")
+DEPLOY_INDEX = DEPLOY_DIR / "index.html"
+SMOKE_URL = "https://digital-humans.fr/docs/refonte/"
+
+BACKUP_GLOB = "index.html.bak.*"
 
 
 # Mapping partial → (template_name, context_builder).
-# context_builder reçoit le dict `data` global et retourne le contexte du template.
 PARTIALS: dict[str, tuple[str, callable]] = {
     "problems_status_cards": (
         "problems_status_cards",
@@ -89,11 +120,10 @@ def replace_marker_preserving_indent(
 ) -> tuple[str, bool]:
     """Remplace ``{indent}<!-- {marker_prefix}:{marker_name} -->\\n`` dans content.
 
-    L'indentation du marker est préservée sur chaque ligne non-vide du bloc rendu.
-
-    Returns:
-        Tuple ``(content_modifié, True)`` si le marker a été trouvé et substitué,
-        ``(content, False)`` sinon.
+    L'indentation du marker est préservée sur chaque ligne non-vide du bloc rendu
+    si ``reindent=True`` (pour les PARTIALS à colonne 0). Si ``reindent=False``
+    (pour les SECTIONS déjà indentées par split_sections), on fait une simple
+    substitution textuelle.
     """
     pattern = re.compile(
         r"^([ \t]*)<!-- " + re.escape(marker_prefix) + r":"
@@ -111,21 +141,18 @@ def replace_marker_preserving_indent(
         indented = []
         for line in lines:
             if line.strip() == "":
-                indented.append("")  # Lignes vides → vraiment vides (pas d'indent-trail)
+                indented.append("")
             else:
                 indented.append(indent + line)
         replacement = "\n".join(indented) + "\n"
     else:
-        # Le contenu injecté porte déjà son indentation d'origine (cas SECTION,
-        # cohérent avec split_sections.py). On substitue à l'identique, avec
-        # un simple '\n' final si le rendu n'en a pas.
         replacement = rendered if rendered.endswith("\n") else rendered + "\n"
 
     return pattern.sub(replacement, content, count=1), True
 
 
 def collect_all() -> dict:
-    """Exécute les 6 fonctions de collecte et retourne un dict global."""
+    """Exécute les 6 fonctions de collecte."""
     return {
         "agents": collect.collect_agents(),
         "llm_profiles": collect.collect_llm_profiles(),
@@ -137,7 +164,7 @@ def collect_all() -> dict:
 
 
 def render_all_partials(data: dict) -> dict[str, str]:
-    """Rend chaque partial avec son contexte. Retourne {partial_name: rendered_html}."""
+    """Rend chaque partial avec son contexte."""
     out = {}
     for name, (tpl_name, ctx_builder) in PARTIALS.items():
         ctx = ctx_builder(data)
@@ -145,35 +172,22 @@ def render_all_partials(data: dict) -> dict[str, str]:
     return out
 
 
-def assemble_sections(
-    rendered_partials: dict[str, str], strict: bool = False
-) -> dict[str, str]:
-    """Pour chaque ``sections/*.html``, substitue tous les markers PARTIAL présents.
-
-    Args:
-        rendered_partials: Dict {partial_name: html_rendu}.
-        strict: Si True, échoue au moindre marker présent dans un fragment
-            mais absent de ``rendered_partials`` (incohérence marker/code).
-
-    Returns:
-        Dict {section_id: contenu_assemblé}.
-    """
+def assemble_sections(rendered_partials: dict[str, str], strict: bool = False) -> dict[str, str]:
+    """Pour chaque section, substitue les markers PARTIAL."""
     assembled = {}
     used_partials: set[str] = set()
-    unknown_markers_re = re.compile(r"<!-- PARTIAL:([a-z0-9_]+) -->")
+    unknown_re = re.compile(r"<!-- PARTIAL:([a-z0-9_]+) -->")
 
     for path in sorted(SECTIONS_DIR.glob("*.html")):
         content = path.read_text()
-        # Détecter les markers présents, alerter si certains sont inconnus
-        markers_in_file = set(unknown_markers_re.findall(content))
-        unknown = markers_in_file - rendered_partials.keys()
+        markers = set(unknown_re.findall(content))
+        unknown = markers - rendered_partials.keys()
         if unknown:
             msg = f"{path.name}: markers inconnus : {sorted(unknown)}"
             if strict:
                 raise RuntimeError(msg)
             print(f"  ⚠ {msg}", file=sys.stderr)
 
-        # Substituer chaque partial connu
         for name, html in rendered_partials.items():
             new_content, replaced = replace_marker_preserving_indent(
                 content, name, html, marker_prefix="PARTIAL"
@@ -195,26 +209,23 @@ def assemble_sections(
 
 
 def assemble_shell(sections: dict[str, str], strict: bool = False) -> str:
-    """Substitue chaque ``<!-- SECTION:X -->`` dans shell.html par le fragment correspondant."""
+    """Substitue ``<!-- SECTION:X -->`` dans shell.html."""
     shell = SHELL.read_text()
-    used: set[str] = set()
     for sec_id, content in sections.items():
         new_shell, replaced = replace_marker_preserving_indent(
             shell, sec_id, content, marker_prefix="SECTION", reindent=False,
         )
         if replaced:
             shell = new_shell
-            used.add(sec_id)
         else:
             msg = f"Section '{sec_id}' n'a pas de marker dans shell.html"
             if strict:
                 raise RuntimeError(msg)
             print(f"  ⚠ {msg}", file=sys.stderr)
 
-    # Vérifier qu'il ne reste aucun marker SECTION non consommé
     leftover = re.findall(r"<!-- SECTION:([a-z0-9\-]+) -->", shell)
     if leftover:
-        msg = f"Markers SECTION non consommés dans le shell : {leftover}"
+        msg = f"Markers SECTION non consommés : {leftover}"
         if strict:
             raise RuntimeError(msg)
         print(f"  ⚠ {msg}", file=sys.stderr)
@@ -222,38 +233,146 @@ def assemble_shell(sections: dict[str, str], strict: bool = False) -> str:
     return shell
 
 
-def diff_report(reference: Path, generated: str, max_lines: int = 60) -> int:
-    """Imprime un diff unifié et retourne le nombre de lignes différentes (±)."""
+def diff_report(reference: Path, generated: str, max_lines: int = 40) -> int:
+    """Imprime un diff unifié et retourne le nombre de lignes différentes."""
     if not reference.exists():
-        print(f"  ℹ Pas de fichier de référence ({reference}), diff skippé")
+        print(f"  ℹ Pas de référence ({reference.name}), diff skippé")
         return 0
     ref = reference.read_text()
     if ref == generated:
-        print("\n✅ Aucune différence avec index.html")
+        print(f"\n✅ Aucune différence avec {reference.name}")
         return 0
     diff_lines = list(difflib.unified_diff(
         ref.splitlines(keepends=True),
         generated.splitlines(keepends=True),
-        fromfile=str(reference.name),
+        fromfile=reference.name,
         tofile="generated",
         n=2,
     ))
-    changed = sum(1 for l in diff_lines if l.startswith(("+", "-")) and not l.startswith(("+++", "---")))
-    print(f"\n📝 Différences détectées ({changed} lignes modifiées)")
-    print(f"   Aperçu (max {max_lines} lignes) :\n")
-    for line in diff_lines[:max_lines]:
-        print(line, end="")
-    if len(diff_lines) > max_lines:
-        print(f"\n   ... ({len(diff_lines) - max_lines} lignes de diff suivantes omises)")
+    changed = sum(
+        1 for l in diff_lines
+        if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))
+    )
+    print(f"\n📝 {changed} lignes modifiées vs {reference.name}")
+    if changed > 0 and max_lines > 0:
+        print(f"   Aperçu (max {max_lines} lignes) :\n")
+        for line in diff_lines[:max_lines]:
+            print(line, end="")
+        if len(diff_lines) > max_lines:
+            print(f"\n   ... ({len(diff_lines) - max_lines} lignes de diff omises)")
     return changed
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 4 additions : backup, purge, atomic deploy, smoke test
+# ─────────────────────────────────────────────────────────────────────────
+
+def backup_file(path: Path, dry: bool = False) -> Path | None:
+    """Crée un backup ``{path}.bak.YYYYMMDD_HHMMSS`` et retourne son chemin.
+
+    Retourne None si le fichier source n'existe pas (rien à sauvegarder).
+    ``dry=True`` affiche ce qui serait fait sans l'exécuter.
+    """
+    if not path.exists():
+        return None
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    bak = path.with_name(f"{path.name}.bak.{ts}")
+    if dry:
+        print(f"  · [dry] backup {path.name} → {bak.name}")
+        return bak
+    shutil.copy2(path, bak)
+    print(f"  · backup : {bak.name}")
+    return bak
+
+
+def purge_backups(directory: Path, glob_pattern: str, days: int) -> int:
+    """Supprime les backups matching glob_pattern plus vieux que ``days`` jours.
+
+    Retourne le nombre de fichiers supprimés. ``days=0`` désactive la purge.
+    """
+    if days <= 0:
+        return 0
+    if not directory.exists():
+        return 0
+    cutoff = time.time() - days * 86400
+    removed = 0
+    for bak in directory.glob(glob_pattern):
+        try:
+            if bak.stat().st_mtime < cutoff:
+                bak.unlink()
+                removed += 1
+        except OSError as e:
+            print(f"  ⚠ échec suppression {bak.name}: {e}", file=sys.stderr)
+    if removed:
+        print(f"  · purge : {removed} backup(s) > {days}j supprimé(s) dans {directory}")
+    return removed
+
+
+def atomic_write(dst: Path, content: str) -> None:
+    """Écrit ``content`` dans ``dst`` de manière atomique.
+
+    Écrit dans un tmpfile dans le MÊME répertoire que dst (pour que
+    ``os.replace`` soit atomique — pas de cross-device), puis rename.
+    """
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=f".{dst.name}.tmp.", dir=str(dst.parent)
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        # Préserver les permissions du fichier existant si possible
+        if dst.exists():
+            shutil.copymode(dst, tmp_path)
+        os.replace(tmp_path, dst)
+    except Exception:
+        # Cleanup en cas d'échec
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise
+
+
+def smoke_test(url: str, timeout: int = 10) -> tuple[bool, str]:
+    """HEAD request via curl, retourne (ok, message)."""
+    try:
+        r = subprocess.run(
+            ["curl", "-sI", "-o", "/dev/null", "-w", "%{http_code}",
+             "--max-time", str(timeout), url],
+            capture_output=True, text=True, timeout=timeout + 2,
+        )
+        code = r.stdout.strip()
+        ok = code == "200"
+        return ok, f"HTTP {code}"
+    except subprocess.TimeoutExpired:
+        return False, "timeout"
+    except FileNotFoundError:
+        return False, "curl not installed"
+    except Exception as e:
+        return False, f"erreur : {e}"
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Main
+# ─────────────────────────────────────────────────────────────────────────
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Build docs/refonte/index.html from sources.")
+    ap = argparse.ArgumentParser(
+        description="Build docs/refonte/index.html from sources.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     ap.add_argument("--strict", action="store_true",
                     help="Échoue si un marker est manquant ou surnuméraire")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Écrit dans index.generated.html (pas index.html), pas de backup")
+    ap.add_argument("--deploy", action="store_true",
+                    help="Après le build, copie atomique vers /var/www + smoke test")
+    ap.add_argument("--no-backup", action="store_true",
+                    help="Skippe le backup local (incompatible avec --deploy pour /var/www)")
+    ap.add_argument("--purge-days", type=int, default=7,
+                    help="Rétention backups (jours, défaut 7, 0 pour désactiver)")
     args = ap.parse_args()
 
+    # 1. Collecte
     print("→ Collecte des données…")
     data = collect_all()
     print(f"  · agents        : {len(data['agents']['agents'])}")
@@ -263,21 +382,70 @@ def main() -> int:
     print(f"  · problems      : {data['problems']['stats']}")
     print(f"  · timeline      : {len(data['timeline']['entries'])} entrées")
 
+    # 2. Rendu
     print("\n→ Rendu des partials…")
     rendered = render_all_partials(data)
     for name, html in rendered.items():
         print(f"  · {name:30s} → {len(html):5d} chars")
 
-    print("\n→ Assemblage des sections…")
+    # 3. Assemblage
+    print("\n→ Assemblage…")
     sections = assemble_sections(rendered, strict=args.strict)
-
-    print("\n→ Assemblage du shell…")
     final = assemble_shell(sections, strict=args.strict)
+    print(f"  · HTML final : {len(final):,} chars")
 
-    OUTPUT.write_text(final)
-    print(f"\n✅ Sortie écrite : {OUTPUT} ({len(final):,} chars)")
+    # 4. Écriture
+    print()
+    if args.dry_run:
+        # Mode preview : écrit dans index.generated.html sans toucher index.html
+        GENERATED.write_text(final)
+        print(f"→ [dry-run] écrit dans {GENERATED.name}")
+        diff_report(INDEX, final)
+        return 0
 
-    diff_report(REFERENCE, final)
+    # Mode normal : backup puis write dans index.html
+    print("→ Écriture dans index.html")
+    if not args.no_backup:
+        backup_file(INDEX)
+    else:
+        print("  · [--no-backup] backup skippé")
+
+    # Diff contre l'ancienne version AVANT de l'écraser (si backup) ou
+    # vs l'actuel si pas de backup. On lit l'ancien avant write.
+    old = INDEX.read_text() if INDEX.exists() else ""
+    atomic_write(INDEX, final)
+    print(f"  · {INDEX.name} : {len(final):,} chars")
+
+    if old:
+        diff_changed = sum(
+            1 for l in difflib.unified_diff(old.splitlines(), final.splitlines())
+            if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))
+        )
+        print(f"  · {diff_changed} lignes modifiées vs ancien index.html")
+
+    purge_backups(DOCS, BACKUP_GLOB, args.purge_days)
+
+    # 5. Deploy vers /var/www si demandé
+    if args.deploy:
+        print("\n→ Déploiement /var/www")
+        if not DEPLOY_DIR.exists():
+            print(f"  ❌ répertoire cible inexistant : {DEPLOY_DIR}", file=sys.stderr)
+            return 2
+        backup_file(DEPLOY_INDEX)  # backup /var/www AVANT écrasement
+        atomic_write(DEPLOY_INDEX, final)
+        print(f"  · {DEPLOY_INDEX} : {len(final):,} chars")
+        purge_backups(DEPLOY_DIR, BACKUP_GLOB, args.purge_days)
+
+        # Smoke test
+        print("\n→ Smoke test HTTP")
+        ok, msg = smoke_test(SMOKE_URL)
+        if ok:
+            print(f"  ✅ {SMOKE_URL} : {msg}")
+        else:
+            print(f"  ❌ {SMOKE_URL} : {msg}", file=sys.stderr)
+            return 3
+
+    print("\n✅ Build terminé.")
     return 0
 
 

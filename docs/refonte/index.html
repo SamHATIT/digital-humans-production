@@ -3,403 +3,329 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digital Humans — Documentation Technique</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<title>Digital·Humans — Documentation technique</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
   :root {
-    --bg: #0c0f14;
-    --bg-card: #151922;
-    --bg-card-hover: #1a1f2b;
-    --bg-sidebar: #10131a;
-    --border: #1e2433;
-    --text: #c8cdd8;
-    --text-dim: #6b7280;
-    --text-bright: #eef0f4;
-    --accent: #4f8cff;
-    --accent-dim: #2a4a8a;
-    --green: #34d399;
-    --green-dim: rgba(52,211,153,0.12);
-    --red: #f87171;
-    --red-dim: rgba(248,113,113,0.12);
-    --orange: #fb923c;
-    --orange-dim: rgba(251,146,60,0.12);
-    --purple: #a78bfa;
-    --purple-dim: rgba(167,139,250,0.12);
-    --yellow: #fbbf24;
-    --cyan: #22d3ee;
+    --ink: #0A0A0B; --ink-2: #141416; --ink-3: #1C1C1F;
+    --bone: #F5F2EC; --bone-2: #E8E3D9; --bone-3: #B8B2A6; --bone-4: #76716A;
+    --brass: #C8A97E; --brass-3: #8C6E4A;
+    --sage: #7A9B76; --slate: #6B7A8F; --ochre: #B8954A; --terra: #B8745C; --plum: #8E6B8E;
+    --rail: 1px solid rgba(245,242,236,0.08);
+    --rail-brass: 1px solid rgba(200,169,126,0.32);
+    --serif: 'Cormorant Garamond', Georgia, serif;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --header-h: 62px;
+
+    /* Compat legacy — classes utilisées par les sections actuelles */
+    --green: #7A9B76; --orange: #B8954A; --red: #B8745C; --purple: #8E6B8E;
+    --yellow: #C8A97E; --cyan: #6B7A8F;
+    --green-dim: rgba(122,155,118,0.10);
+    --orange-dim: rgba(184,149,74,0.10);
+    --red-dim: rgba(184,116,92,0.10);
+    --purple-dim: rgba(142,107,142,0.10);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--ink); color: var(--bone); font-family: var(--sans); -webkit-font-smoothing: antialiased; line-height: 1.65; font-size: 14px; }
+  a { color: inherit; }
+  em { font-style: italic; }
+  strong { font-weight: 600; color: var(--bone); }
+  code, tt { font-family: var(--mono); font-size: 12.5px; background: rgba(200,169,126,0.06); padding: 2px 7px; border: 1px solid rgba(200,169,126,0.16); color: var(--bone-2); }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 48px; }
+  @media (max-width: 760px) { .wrap { padding: 0 24px; } }
+  .section, [id] { scroll-margin-top: calc(var(--header-h) + 24px); }
+
+  /* ═══ Header glass ═══ */
+  header.glass { position: sticky; top: 0; z-index: 50; background: rgba(10,10,11,0.82); backdrop-filter: blur(14px) saturate(130%); border-bottom: var(--rail); }
+  header .bar { display: flex; align-items: center; justify-content: space-between; padding: 16px 48px; max-width: 1280px; margin: 0 auto; }
+  .mk { display: flex; align-items: baseline; gap: 14px; text-decoration: none; }
+  .mk .wm { font-family: var(--serif); font-size: 22px; font-weight: 500; color: var(--bone); letter-spacing: -0.02em; }
+  .mk .wm em { font-style: italic; color: var(--brass); font-weight: 400; }
+  .mk .wm .dot { color: var(--brass-3); margin: 0 1px; }
+  .mk .tag-mk { font-family: var(--mono); font-size: 9px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--bone-4); padding-left: 14px; border-left: 1px solid rgba(245,242,236,0.16); }
+  header .meta { font-family: var(--mono); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--bone-4); display: flex; gap: 16px; align-items: center; }
+  header .meta .dot { color: var(--brass-3); }
+  header .meta .pill { padding: 4px 10px; border: 1px solid rgba(245,242,236,0.08); color: var(--bone-3); }
+  header .meta .pill.ok { color: var(--sage); border-color: rgba(122,155,118,0.3); }
+  @media (max-width: 860px) { header .meta .hide-mob { display: none; } header .bar { padding: 16px 24px; } }
+
+  /* ═══ Hero ═══ */
+  .hero { position: relative; padding: 88px 0 64px; overflow: hidden; }
+  .hero::before { content: ""; position: absolute; inset: 0; z-index: 0; background-image: linear-gradient(rgba(245,242,236,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(245,242,236,0.025) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(ellipse at 70% 30%, black 30%, transparent 80%); -webkit-mask-image: radial-gradient(ellipse at 70% 30%, black 30%, transparent 80%); }
+  .hero::after { content: ""; position: absolute; width: 720px; height: 720px; border-radius: 50%; top: -280px; right: -180px; background: radial-gradient(circle at 35% 35%, rgba(200,169,126,0.22), transparent 60%); pointer-events: none; filter: blur(8px); z-index: 0; }
+  .hero .wrap { position: relative; z-index: 1; }
+  .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--brass); display: inline-block; margin-bottom: 24px; }
+  .eyebrow::before { content: "— "; color: var(--brass-3); margin-right: 4px; }
+  .hero h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(44px, 7vw, 78px); color: var(--bone); letter-spacing: -0.025em; line-height: 1.03; max-width: 18ch; margin-bottom: 24px; }
+  .hero h1 em { font-style: italic; font-weight: 400; color: var(--brass); }
+  .hero .sub { max-width: 60ch; font-size: 16px; color: var(--bone-3); line-height: 1.65; margin-bottom: 40px; }
+  .hero-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; border-top: var(--rail-brass); border-left: var(--rail); margin-top: 20px; }
+  .hero-meta .cell { padding: 18px 20px; border-right: var(--rail); border-bottom: var(--rail); background: rgba(20,20,22,0.4); }
+  .hero-meta .k { font-family: var(--mono); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--bone-4); margin-bottom: 8px; }
+  .hero-meta .v { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--bone); letter-spacing: -0.01em; line-height: 1.2; }
+  .hero-meta .v em { font-style: italic; color: var(--brass); font-weight: 400; }
+  .hero-meta .v.sm { font-size: 14px; font-family: var(--sans); font-weight: 400; color: var(--bone-3); }
+  .hero-note { margin-top: 28px; font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.8px; color: var(--bone-4); max-width: 78ch; padding-left: 14px; border-left: 1px solid var(--brass-3); }
+
+  /* ═══ Reading layout : TOC latéral sticky + contenu ═══ */
+  .reading-layout { display: grid; grid-template-columns: 260px 1fr; gap: 56px; max-width: 1280px; margin: 0 auto; padding: 0 48px; }
+  .reading-main { min-width: 0; }
+  .reading-main .wrap { max-width: 900px; margin: 0; padding: 0; }
+  @media (max-width: 1100px) {
+    .reading-layout { grid-template-columns: 1fr; padding: 0 24px; }
+    .toc-side { display: none; }
   }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  .toc-side { position: sticky; top: calc(var(--header-h) + 24px); align-self: start; max-height: calc(100vh - var(--header-h) - 48px); overflow-y: auto; padding: 40px 20px 32px 0; border-right: var(--rail); }
+  .toc-side::-webkit-scrollbar { width: 4px; }
+  .toc-side::-webkit-scrollbar-track { background: transparent; }
+  .toc-side::-webkit-scrollbar-thumb { background: var(--brass-3); opacity: 0.3; }
+  .toc-side-group { margin-bottom: 24px; }
+  .toc-side-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 2.5px; text-transform: uppercase; color: var(--brass); margin-bottom: 14px; padding-left: 12px; }
+  .toc-side-label::before { content: "— "; color: var(--brass-3); }
+  .toc-side-list { list-style: none; }
+  .toc-side-item { padding: 0; border-left: 1px solid transparent; padding-left: 12px; margin-left: 0; }
+  .toc-side-item.active { border-left-color: var(--brass); }
+  .toc-side-link { display: block; padding: 6px 0; text-decoration: none; color: var(--bone-3); font-family: var(--serif); font-size: 14.5px; line-height: 1.35; transition: color 0.15s ease; }
+  .toc-side-link:hover { color: var(--bone); }
+  .toc-side-item.active .toc-side-link { color: var(--bone); }
 
-  body {
-    font-family: 'DM Sans', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.65;
-    display: flex;
-    min-height: 100vh;
-  }
+  /* ═══ Sections : scroll continu (pas de display:none) ═══ */
+  .section { padding: 80px 0 24px; border-top: var(--rail-brass); position: relative; }
+  .section:first-of-type { border-top: none; padding-top: 48px; }
+  .section h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.6vw, 40px); color: var(--bone); letter-spacing: -0.025em; line-height: 1.08; margin-bottom: 18px; max-width: 24ch; }
+  .section h2::before { content: ""; display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 3px; color: var(--brass); text-transform: uppercase; margin-bottom: 14px; }
+  .section h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(20px, 2.4vw, 26px); color: var(--bone); letter-spacing: -0.02em; line-height: 1.2; margin: 44px 0 14px; padding-top: 22px; border-top: var(--rail); }
+  .section h4 { font-family: var(--mono); font-size: 11px; font-weight: 500; letter-spacing: 2.5px; text-transform: uppercase; color: var(--brass); margin: 28px 0 12px; }
+  .section h4::before { content: "— "; color: var(--brass-3); }
+  .section p { font-size: 14.5px; color: var(--bone-2); line-height: 1.7; max-width: 80ch; margin: 0 0 16px; }
+  .section-desc { font-family: var(--serif); font-style: italic; font-size: 16.5px; color: var(--bone-3); padding-left: 14px; border-left: 1px solid var(--brass-3); max-width: 82ch; margin: 0 0 36px; line-height: 1.55; }
 
-  /* Sidebar */
-  .sidebar {
-    width: 280px;
-    min-height: 100vh;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border);
-    padding: 24px 0;
-    position: fixed;
-    top: 0;
-    left: 0;
-    overflow-y: auto;
-    z-index: 100;
-  }
+  /* ═══ Cards (problems, overview, agents par paires) ═══ */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin: 20px 0 32px; }
+  .card { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 22px 24px; transition: background 0.2s ease; }
+  .card:hover { background: rgba(20,20,22,0.7); }
+  .card h4 { font-family: var(--serif); font-size: 17px; font-weight: 500; letter-spacing: -0.01em; color: var(--bone); margin: 0 0 12px; padding: 0; border: none; text-transform: none; }
+  .card h4::before { content: ""; }
+  .card p { font-size: 13px; line-height: 1.6; margin: 0; }
+  .card-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .card-icon { font-size: 18px; color: var(--brass); }
+  .card-title { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--bone); }
+  .card-subtitle { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--bone-4); }
 
-  .sidebar-header {
-    padding: 0 24px 24px;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 16px;
-  }
+  /* ═══ Agent cards (grille) ═══ */
+  .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 20px 0 28px; }
+  .agent-card { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 18px 20px; }
+  .agent-name { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--bone); }
+  .agent-role { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--brass); margin: 3px 0 8px; }
+  .agent-file { font-family: var(--mono); font-size: 10.5px; color: var(--bone-4); margin-bottom: 8px; }
+  .agent-desc { font-size: 13px; color: var(--bone-2); line-height: 1.55; }
 
-  .sidebar-header h1 {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text-bright);
-    letter-spacing: -0.3px;
-  }
+  /* ═══ Tags / Chips ═══ */
+  .tag, .chip { display: inline-block; font-family: var(--mono); font-size: 10px; padding: 3px 9px; background: rgba(200,169,126,0.06); border: 1px solid rgba(200,169,126,0.25); color: var(--bone-2); letter-spacing: 0.3px; border-radius: 2px; text-transform: uppercase; }
+  .tag-done, .tag.tag-done { background: rgba(122,155,118,0.08); border-color: rgba(122,155,118,0.35); color: var(--sage); }
+  .tag-active, .tag.tag-active { background: rgba(200,169,126,0.10); border-color: rgba(200,169,126,0.45); color: var(--brass); }
+  .tag-warning, .tag.tag-warning { background: rgba(184,149,74,0.08); border-color: rgba(184,149,74,0.4); color: var(--ochre); }
+  .tag-error, .tag.tag-error { background: rgba(184,116,92,0.08); border-color: rgba(184,116,92,0.4); color: var(--terra); }
+  .tag-critical, .tag.tag-critical { background: rgba(184,116,92,0.10); border-color: rgba(184,116,92,0.45); color: var(--terra); }
+  .tag-major { background: rgba(184,149,74,0.08); border-color: rgba(184,149,74,0.4); color: var(--ochre); }
+  .tag-medium { background: rgba(142,107,142,0.08); border-color: rgba(142,107,142,0.4); color: var(--plum); }
+  .tag-pending, .tag-neutral { background: rgba(118,113,106,0.08); border-color: rgba(118,113,106,0.4); color: var(--bone-4); }
 
-  .sidebar-header .subtitle {
-    font-size: 12px;
-    color: var(--text-dim);
-    margin-top: 4px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
+  /* ═══ Tables (style éditorial Studio) ═══ */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 28px; font-size: 13px; background: var(--ink-2); border: var(--rail); }
+  th { text-align: left; padding: 12px 14px; background: var(--ink-3); font-family: var(--mono); font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; font-weight: 500; color: var(--brass); border-bottom: 1px solid rgba(200,169,126,0.2); }
+  td { padding: 11px 14px; border-bottom: var(--rail); vertical-align: top; color: var(--bone-2); line-height: 1.55; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(200,169,126,0.03); }
+  td strong { color: var(--bone); }
+  td em { font-family: var(--serif); font-style: italic; color: var(--bone-3); }
 
-  .nav-section {
-    padding: 8px 16px;
-  }
+  /* ═══ Expandable table rows (tbl-expand pattern) ═══ */
+  .tbl-expand .tbl-toggle-col { width: 36px; padding: 12px 0 12px 14px !important; }
+  .tbl-expand .tbl-toggle { width: 36px; padding: 11px 0 11px 14px !important; text-align: left; }
+  .tbl-expand .tbl-caret { display: inline-block; width: 7px; height: 7px; border-right: 1.2px solid var(--brass); border-bottom: 1.2px solid var(--brass); transform: rotate(-45deg); transition: transform 0.2s ease; position: relative; top: -2px; }
+  .tbl-expand tr.tbl-row-summary { cursor: pointer; transition: background 0.15s ease; }
+  .tbl-expand tr.tbl-row-summary:hover { background: rgba(200,169,126,0.05); }
+  .tbl-expand tr.tbl-row-summary:focus-visible { outline: 1px solid var(--brass); outline-offset: -1px; }
+  .tbl-expand tr.tbl-row-summary.open { background: rgba(200,169,126,0.08); }
+  .tbl-expand tr.tbl-row-summary.open .tbl-caret { transform: rotate(45deg); top: -4px; }
+  .tbl-expand tr.tbl-row-detail { display: none; }
+  .tbl-expand tr.tbl-row-detail > td { padding: 0 !important; background: rgba(10,10,11,0.55) !important; border-bottom: var(--rail) !important; }
+  .tbl-expand tr.tbl-row-summary.open + tr.tbl-row-detail { display: table-row; }
+  .tbl-detail-body { padding: 18px 28px 20px 52px; border-left: 2px solid var(--brass); animation: row-fade 0.25s ease-out; }
+  @keyframes row-fade { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .detail-kv { display: grid; grid-template-columns: 160px 1fr; gap: 8px 24px; font-size: 12.5px; }
+  .detail-kv dt { font-family: var(--mono); font-size: 9.5px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--bone-4); padding-top: 3px; }
+  .detail-kv dt::before { content: "— "; color: var(--brass-3); }
+  .detail-kv dd { color: var(--bone-2); line-height: 1.6; margin: 0; }
+  .chiprow { display: flex; flex-wrap: wrap; gap: 6px; }
 
-  .nav-section-title {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: var(--text-dim);
-    padding: 8px;
-    margin-top: 8px;
-  }
+  /* ═══ Code / pre ═══ */
+  pre { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 18px 22px; overflow-x: auto; margin: 14px 0 24px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--bone-2); }
 
-  .nav-link {
-    display: block;
-    padding: 8px 12px;
-    border-radius: 8px;
-    color: var(--text);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 400;
-    transition: all 0.15s;
-    cursor: pointer;
-  }
+  /* ═══ Mermaid wrappers ═══ */
+  .mermaid-wrapper, .mermaid-wrap { background: var(--ink-2); border: var(--rail); border-left: 2px solid var(--brass); padding: 28px 22px; margin: 18px 0 26px; overflow-x: auto; }
+  .mermaid { display: block; width: 100%; }
+  .mermaid-wrapper svg, .mermaid-wrap svg { width: 100% !important; height: auto !important; max-width: none; display: block; margin: 0 auto; }
 
-  .nav-link:hover { background: var(--bg-card); color: var(--text-bright); }
-  .nav-link.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
+  /* ═══ Stats grid ═══ */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0; border-top: var(--rail-brass); border-left: var(--rail); margin: 24px 0 28px; }
+  .stat-card { padding: 18px 20px; border-right: var(--rail); border-bottom: var(--rail); background: rgba(20,20,22,0.4); text-align: left; }
+  .stat-value { font-family: var(--serif); font-size: 26px; font-weight: 500; color: var(--bone); letter-spacing: -0.01em; line-height: 1.1; }
+  .stat-label { font-family: var(--mono); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--bone-4); margin-top: 8px; }
 
-  /* Main */
-  .main {
-    margin-left: 280px;
-    flex: 1;
-    padding: 48px 64px;
-    max-width: 960px;
-  }
+  /* ═══ Timeline (journal) ═══ */
+  .timeline { position: relative; padding-left: 32px; margin: 24px 0 32px; }
+  .timeline::before { content: ""; position: absolute; left: 10px; top: 6px; bottom: 6px; width: 1px; background: var(--brass-3); opacity: 0.35; }
+  .timeline-item { position: relative; margin-bottom: 26px; padding: 2px 0 2px 2px; }
+  .timeline-item::before { content: ""; position: absolute; left: -27px; top: 7px; width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--brass-3); background: var(--ink); }
+  .timeline-item.done::before { background: var(--brass); border-color: var(--brass); }
+  .timeline-item.active::before { background: var(--bone); border-color: var(--brass); box-shadow: 0 0 0 3px rgba(200,169,126,0.18); }
+  .timeline-item.planned::before { background: var(--ink); border-color: var(--bone-4); }
+  .timeline-date { font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--brass); margin-bottom: 4px; }
+  .timeline-title { font-family: var(--serif); font-size: 17px; font-weight: 500; color: var(--bone); margin-bottom: 4px; line-height: 1.25; }
+  .timeline-desc { font-size: 13px; color: var(--bone-2); line-height: 1.55; }
 
-  .section { display: none; }
-  .section.active { display: block; }
+  /* ═══ Service status (legacy) ═══ */
+  .service-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: var(--rail); }
+  .service-name { font-family: var(--serif); font-size: 15px; font-weight: 500; color: var(--bone); }
+  .service-port { font-family: var(--mono); font-size: 11px; color: var(--bone-4); }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+  .status-dot.active { background: var(--sage); box-shadow: 0 0 4px var(--sage); }
+  .status-dot.inactive { background: var(--terra); }
+  .status-dot.partial { background: var(--ochre); }
+  .muted { color: var(--bone-4); opacity: 0.65; }
 
-  h2 {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text-bright);
-    letter-spacing: -0.5px;
-    margin-bottom: 8px;
-  }
+  /* ═══ CTA + Footer ═══ */
+  .cta { position: relative; padding: 88px 0 72px; border-top: var(--rail-brass); border-bottom: var(--rail-brass); overflow: hidden; margin-top: 96px; }
+  .cta::before { content: ""; position: absolute; width: 520px; height: 520px; border-radius: 50%; top: -260px; right: -160px; background: radial-gradient(circle at 35% 35%, rgba(200,169,126,0.14), transparent 60%); filter: blur(6px); pointer-events: none; }
+  .cta .wrap { position: relative; z-index: 1; }
+  .cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(28px, 4.2vw, 40px); color: var(--bone); letter-spacing: -0.025em; line-height: 1.1; max-width: 24ch; margin-bottom: 18px; }
+  .cta h2 em { font-style: italic; color: var(--brass); font-weight: 400; }
+  .cta p { font-size: 14.5px; color: var(--bone-3); max-width: 60ch; }
+  footer { padding: 36px 0 48px; }
+  footer .row { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; font-family: var(--mono); font-size: 9.5px; letter-spacing: 2px; text-transform: uppercase; color: var(--bone-4); padding: 0 48px; max-width: 1280px; margin: 0 auto; }
+  footer .row .r { color: var(--bone-3); }
 
-  h3 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-bright);
-    margin-top: 36px;
-    margin-bottom: 12px;
-  }
+  ::selection { background: var(--brass); color: var(--ink); }
 
-  h4 {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--accent);
-    margin-top: 24px;
-    margin-bottom: 8px;
-  }
-
-  .section-desc {
-    font-size: 15px;
-    color: var(--text-dim);
-    margin-bottom: 32px;
-    line-height: 1.5;
-  }
-
-  p { margin-bottom: 16px; }
-
-  /* Cards */
-  .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 24px;
-    margin-bottom: 20px;
-    transition: border-color 0.2s;
-  }
-  .card:hover { border-color: var(--accent-dim); }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .card-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  .card-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-bright);
-  }
-
-  .card-subtitle {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  /* Agent cards */
-  .agent-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .agent-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    transition: all 0.2s;
-  }
-  .agent-card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
-
-  .agent-name { font-weight: 600; color: var(--text-bright); font-size: 15px; }
-  .agent-role { font-size: 13px; color: var(--accent); margin-bottom: 8px; }
-  .agent-file { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-dim); margin-bottom: 8px; }
-  .agent-desc { font-size: 13px; color: var(--text); line-height: 1.5; }
-
-  /* Tags */
-  .tag {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .tag-critical { background: var(--red-dim); color: var(--red); }
-  .tag-major { background: var(--orange-dim); color: var(--orange); }
-  .tag-medium { background: var(--purple-dim); color: var(--purple); }
-  .tag-done { background: var(--green-dim); color: var(--green); }
-  .tag-pending { background: rgba(107,114,128,0.15); color: var(--text-dim); }
-  .tag-active { background: var(--orange-dim); color: var(--orange); }
-
-  /* Tables */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 16px 0 24px;
-    font-size: 14px;
-  }
-  th {
-    text-align: left;
-    padding: 10px 14px;
-    background: var(--bg-card);
-    color: var(--text-dim);
-    font-weight: 600;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid var(--border);
-  }
-  td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border);
-    vertical-align: top;
-  }
-  tr:hover td { background: rgba(79,140,255,0.03); }
-
-  /* Code */
-  code {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    background: rgba(79,140,255,0.08);
-    padding: 2px 7px;
-    border-radius: 5px;
-    color: var(--accent);
-  }
-
-  pre {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
-    overflow-x: auto;
-    margin: 16px 0 24px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--text);
-  }
-
-  /* Mermaid */
-  .mermaid-wrapper {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 32px 24px;
-    margin: 20px 0 28px;
-    overflow-x: auto;
-  }
-  .mermaid { display: flex; justify-content: center; }
-  .mermaid svg { max-width: 100%; }
-
-  /* Stats row */
-  .stats-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 32px;
-  }
-
-  .stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-  }
-  .stat-value { font-size: 32px; font-weight: 700; color: var(--text-bright); }
-  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-
-  /* Timeline */
-  .timeline { position: relative; padding-left: 28px; margin: 24px 0; }
-  .timeline::before {
-    content: '';
-    position: absolute;
-    left: 8px;
-    top: 4px;
-    bottom: 4px;
-    width: 2px;
-    background: var(--border);
-  }
-  .timeline-item { position: relative; margin-bottom: 28px; }
-  .timeline-item::before {
-    content: '';
-    position: absolute;
-    left: -24px;
-    top: 6px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid var(--accent);
-    background: var(--bg);
-  }
-  .timeline-item.done::before { background: var(--green); border-color: var(--green); }
-  .timeline-item.active::before { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent); }
-  .timeline-date { font-size: 12px; color: var(--text-dim); font-weight: 500; }
-  .timeline-title { font-size: 15px; font-weight: 600; color: var(--text-bright); margin: 4px 0; }
-  .timeline-desc { font-size: 13px; color: var(--text); }
-
-  /* Services status */
-  .service-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .service-name { font-weight: 500; color: var(--text-bright); }
-  .service-port { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text-dim); }
-  .status-dot {
-    width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px;
-  }
-  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .status-dot.inactive { background: var(--red); }
-  .status-dot.partial { background: var(--orange); }
-
-  /* Responsive */
-  @media (max-width: 900px) {
-    .sidebar { display: none; }
-    .main { margin-left: 0; padding: 24px; }
-    .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    .agent-grid { grid-template-columns: 1fr; }
+  /* ═══ PRINT — thème clair inversé, page breaks ═══ */
+  @media print {
+    :root {
+      --ink: #FDFCF8; --ink-2: #F5F2EC; --ink-3: #EFEAE0;
+      --bone: #0A0A0B; --bone-2: #1C1C1F; --bone-3: #3A3733; --bone-4: #6B6862;
+      --brass: #8C6E4A; --brass-3: #6B5238;
+      --sage: #5C7A58; --slate: #4F5F73;
+      --rail: 1px solid rgba(10,10,11,0.12);
+      --rail-brass: 1px solid rgba(140,110,74,0.4);
+    }
+    html, body { background: var(--ink); color: var(--bone); font-size: 10.5pt; line-height: 1.5; }
+    header.glass, .toc-side, .cta { display: none !important; }
+    .hero::before, .hero::after { display: none !important; }
+    .wrap, .reading-main .wrap { max-width: 100%; padding: 0; }
+    .reading-layout { display: block; padding: 0; max-width: 100%; }
+    .hero { padding: 0 0 20pt; page-break-after: always; }
+    .hero h1 { font-size: 30pt; max-width: none; }
+    .hero-meta { border-top: 1pt solid var(--brass); border-left: 1pt solid var(--bone-3); background: none; }
+    .hero-meta .cell { background: none; border-right: 1pt solid var(--bone-3); border-bottom: 1pt solid var(--bone-3); padding: 8pt 10pt; }
+    .section { padding: 18pt 0 10pt; page-break-before: always; border-top: 1pt solid var(--brass); }
+    .section:first-of-type { page-break-before: auto; }
+    .section h2 { font-size: 20pt; }
+    .section h3 { font-size: 14pt; }
+    table { background: var(--ink); border: 0.5pt solid var(--bone-3); font-size: 9pt; page-break-inside: auto; }
+    th { background: var(--ink-2); color: var(--brass); border-bottom: 0.5pt solid var(--brass); padding: 5pt 7pt; }
+    td { padding: 4pt 7pt; color: var(--bone-2); border-bottom: 0.5pt solid var(--bone-3); }
+    tbody tr { page-break-inside: avoid; }
+    .tbl-expand tr.tbl-row-detail { display: table-row !important; }
+    .tbl-expand .tbl-caret { display: none; }
+    .card { background: var(--ink-2); border: 0.5pt solid var(--bone-3); border-left: 1.5pt solid var(--brass); }
+    .mermaid-wrapper, .mermaid-wrap { background: var(--ink-2); border: 0.5pt solid var(--bone-3); border-left: 1.5pt solid var(--brass); padding: 12pt 10pt; page-break-inside: avoid; }
+    .timeline::before { background: var(--brass); opacity: 0.4; }
+    .timeline-item::before { background: var(--ink); border-color: var(--brass); }
+    .timeline-item.done::before { background: var(--brass); }
+    footer { border-top: 0.5pt solid var(--bone-3); padding: 10pt 0; }
+    @page { size: A4; margin: 18mm 16mm 22mm 16mm; }
   }
 </style>
 </head>
 <body>
 
-<nav class="sidebar">
-  <div class="sidebar-header">
-    <h1>🤖 Digital Humans</h1>
-    <div class="subtitle">Documentation technique</div>
+<header class="glass">
+  <div class="bar">
+    <a class="mk" href="#top">
+      <span class="wm">Digital<span class="dot">·</span><em>Humans</em></span>
+      <span class="tag-mk">Documentation</span>
+    </a>
+    <div class="meta">
+      <span class="pill hide-mob">v. refonte 2026</span>
+      <span class="dot">·</span>
+      <span class="pill ok">live</span>
+    </div>
   </div>
-  <div class="nav-section">
-    <div class="nav-section-title">Général</div>
-    <a class="nav-link active" onclick="showSection('overview')">Vue d'ensemble</a>
-    <a class="nav-link" onclick="showSection('architecture')">Architecture</a>
-    <a class="nav-link" onclick="showSection('agents')">Les 11 Agents</a>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-title">Flux métier</div>
-    <a class="nav-link" onclick="showSection('sds-flow')">Phase SDS</a>
-    <a class="nav-link" onclick="showSection('build-flow')">Phase BUILD</a>
-    <a class="nav-link" onclick="showSection('hitl')">HITL & Chat</a>
-    <a class="nav-link" onclick="showSection('rag')">RAG & Knowledge</a>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-title">Infrastructure</div>
-    <a class="nav-link" onclick="showSection('infra')">Services & Ports</a>
-    <a class="nav-link" onclick="showSection('database')">Base de données</a>
-    <a class="nav-link" onclick="showSection('api')">API Reference</a>
-    <a class="nav-link" onclick="showSection('frontend')">Frontend</a>
-  </div>
-  <div class="nav-section">
-    <div class="nav-section-title">Refonte 2026</div>
-    <a class="nav-link" onclick="showSection('problems')">Problèmes (P0-P9)</a>
-    <a class="nav-link" onclick="showSection('refonte')">Plan de refonte</a>
-    <a class="nav-link" onclick="showSection('journal')">Journal</a>
-  </div>
-</nav>
+</header>
 
-<main class="main">
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="eyebrow">Salesforce · Multi-agent studio</div>
+    <h1>Une plateforme qui <em>écrit</em> Salesforce.</h1>
+    <p class="sub">Onze agents IA spécialisés, orchestrés par un pipeline déterministe. Des Business Requirements bruts à la spécification technique validée, puis au code Apex/LWC/Admin livré sur sandbox — sans improvisation, sans pièce manquante.</p>
+    <div class="hero-meta">
+      <div class="cell"><div class="k">Agents</div><div class="v"><em>11</em> rôles</div></div>
+      <div class="cell"><div class="k">RAG</div><div class="v"><em>91 866</em> chunks</div></div>
+      <div class="cell"><div class="k">Pipelines</div><div class="v">SDS · <em>BUILD</em></div></div>
+      <div class="cell"><div class="k">Stack</div><div class="v sm">FastAPI · React · Postgres · ChromaDB</div></div>
+    </div>
+    <p class="hero-note">Ce document est vivant : comptages RAG et statuts services sont lus à chaque build depuis les sources de vérité. La date de mise à jour affichée correspond au dernier rebuild.</p>
+  </div>
+</section>
 
-  <!-- ==================== VUE D'ENSEMBLE ==================== -->
+<div class="reading-layout">
+
+  <aside class="toc-side">
+    <div class="toc-side-group">
+      <div class="toc-side-label">Général</div>
+      <ul class="toc-side-list">
+        <li class="toc-side-item" data-sec="overview"><a class="toc-side-link" href="#overview">Vue d'ensemble</a></li>
+        <li class="toc-side-item" data-sec="architecture"><a class="toc-side-link" href="#architecture">Architecture</a></li>
+        <li class="toc-side-item" data-sec="agents"><a class="toc-side-link" href="#agents">Les 11 agents</a></li>
+      </ul>
+    </div>
+    <div class="toc-side-group">
+      <div class="toc-side-label">Flux métier</div>
+      <ul class="toc-side-list">
+        <li class="toc-side-item" data-sec="sds-flow"><a class="toc-side-link" href="#sds-flow">Phase SDS</a></li>
+        <li class="toc-side-item" data-sec="build-flow"><a class="toc-side-link" href="#build-flow">Phase BUILD</a></li>
+        <li class="toc-side-item" data-sec="hitl"><a class="toc-side-link" href="#hitl">HITL &amp; Chat</a></li>
+        <li class="toc-side-item" data-sec="rag"><a class="toc-side-link" href="#rag">RAG &amp; Knowledge</a></li>
+      </ul>
+    </div>
+    <div class="toc-side-group">
+      <div class="toc-side-label">Infrastructure</div>
+      <ul class="toc-side-list">
+        <li class="toc-side-item" data-sec="infra"><a class="toc-side-link" href="#infra">Services &amp; ports</a></li>
+        <li class="toc-side-item" data-sec="database"><a class="toc-side-link" href="#database">Base de données</a></li>
+        <li class="toc-side-item" data-sec="api"><a class="toc-side-link" href="#api">API Reference</a></li>
+        <li class="toc-side-item" data-sec="frontend"><a class="toc-side-link" href="#frontend">Frontend</a></li>
+      </ul>
+    </div>
+    <div class="toc-side-group">
+      <div class="toc-side-label">Refonte 2026</div>
+      <ul class="toc-side-list">
+        <li class="toc-side-item" data-sec="problems"><a class="toc-side-link" href="#problems">Problèmes P0-P12</a></li>
+        <li class="toc-side-item" data-sec="refonte"><a class="toc-side-link" href="#refonte">Plan de refonte</a></li>
+        <li class="toc-side-item" data-sec="journal"><a class="toc-side-link" href="#journal">Journal</a></li>
+      </ul>
+    </div>
+  </aside>
+
+  <main class="reading-main">
+    <div class="wrap">
   <div id="overview" class="section active">
     <h2>Vue d'ensemble <span style="font-size:14px;font-weight:400;color:var(--text-dim);margin-left:12px">— Dernière mise à jour : 24 avril 2026</span></h2>
     <p class="section-desc">
@@ -453,8 +379,6 @@
       <tr><td>Workspace</td><td><code>/root/workspace/digital-humans-production</code></td></tr>
     </table>
   </div>
-
-  <!-- ==================== ARCHITECTURE ==================== -->
   <div id="architecture" class="section">
     <h2>Architecture</h2>
     <p class="section-desc">Architecture 3-tier avec orchestrateur central, workers async, et state machine pour gérer les transitions de phase.</p>
@@ -522,7 +446,6 @@ flowchart TB
       <tr><td>Budget</td><td><code>budget_service.py</code></td><td>Estimation coûts, suivi tokens, CircuitBreaker</td></tr>
     </table>
   </div>
-  <!-- ==================== LES 11 AGENTS ==================== -->
   <div id="agents" class="section">
     <h2>Les 11 Agents</h2>
     <p class="section-desc">Chaque agent est un fichier Python dans <code>agents/roles/</code>. Le routage LLM est centralisé dans <code>llm_routing.yaml</code> via l'<code>agent_complexity_map</code>.</p>
@@ -557,32 +480,349 @@ flowchart LR
     </div>
 
     <h3>Fiches agents</h3>
-    <table>
-      <tr><th>Agent</th><th>Rôle</th><th>Phase SDS</th><th>Phase BUILD</th><th>Modèle LLM</th><th>agent_type</th></tr>
-      <tr><td><strong>Sophie</strong></td><td>Project Manager</td><td>1 — BR extraction</td><td>—</td><td>Opus 4.6</td><td><code>pm</code> → critical</td></tr>
-      <tr><td><strong>Olivia</strong></td><td>Business Analyst</td><td>2 — Use Cases</td><td>—</td><td>Sonnet 4.5</td><td><code>business_analyst</code> → complex</td></tr>
-      <tr><td><strong>Emma</strong></td><td>Research Analyst</td><td>2.5 / 3.3 / 4.5 / 5</td><td>—</td><td>Sonnet 4.5</td><td><code>research_analyst</code> → complex</td></tr>
-      <tr><td><strong>Marcus</strong></td><td>Solution Architect</td><td>3 — Architecture</td><td>—</td><td>Opus 4.6</td><td><code>architect</code> → critical</td></tr>
-      <tr><td><strong>Elena</strong></td><td>QA Engineer</td><td>4 — Test specs</td><td>—</td><td>Sonnet 4.5</td><td><code>qa_tester</code></td></tr>
-      <tr><td><strong>Jordan</strong></td><td>DevOps / CI-CD</td><td>4 — DevOps specs</td><td>Deploy (toutes phases)</td><td>Sonnet 4.5</td><td><code>devops</code></td></tr>
-      <tr><td><strong>Raj</strong></td><td>Admin Config</td><td>—</td><td>1,4,5 — Model/Auto/Security</td><td>Sonnet 4.5</td><td><code>admin</code></td></tr>
-      <tr><td><strong>Diego</strong></td><td>Apex Developer</td><td>—</td><td>2 — Business logic</td><td>Sonnet 4.5</td><td><code>apex_developer</code></td></tr>
-      <tr><td><strong>Zara</strong></td><td>LWC Developer</td><td>—</td><td>3 — UI components</td><td>Sonnet 4.5</td><td><code>lwc_developer</code></td></tr>
-      <tr><td><strong>Aisha</strong></td><td>Data Migration</td><td>4 — Data specs</td><td>6 — Migration scripts</td><td>Sonnet 4.5</td><td><code>data</code></td></tr>
-      <tr><td><strong>Lucas</strong></td><td>Trainer</td><td>4 — Training specs</td><td>—</td><td>Sonnet</td><td><code>trainer</code></td></tr>
+    <table class="tbl-expand">
+      <thead>
+        <tr>
+          <th class="tbl-toggle-col" aria-hidden="true"></th>
+          <th>Agent</th>
+          <th>Rôle</th>
+          <th>Phase SDS</th>
+          <th>Phase BUILD</th>
+          <th>Modèle LLM</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Sophie</strong></td>
+          <td>Project Manager</td>
+          <td>1 — BR extraction</td>
+          <td>—</td>
+          <td>Claude Opus 4.6</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>pm</code> → tier <code>orchestrator</code></dd>
+                <dt>complexity</dt>
+                <dd><code>critical</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.10</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">business</span><span class="chip">operations</span><span class="chip">technical</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">pm</span><span class="chip">pm_orchestrator</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>purple</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Olivia</strong></td>
+          <td>Business Analyst</td>
+          <td>2 — Use Cases</td>
+          <td>—</td>
+          <td>Claude Opus 4.6</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>ba</code> → tier <code>orchestrator</code></dd>
+                <dt>complexity</dt>
+                <dd><code>critical</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.80</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">business</span><span class="chip">operations</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">ba</span><span class="chip">business_analyst</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>green</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Emma</strong></td>
+          <td>Research Analyst</td>
+          <td>2.5 / 3.3 / 4.5 / 5</td>
+          <td>—</td>
+          <td>Claude Opus 4.6</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>research_analyst</code> → tier <code>orchestrator</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.50</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">technical</span><span class="chip">operations</span><span class="chip">business</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">research_analyst</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>cyan</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Marcus</strong></td>
+          <td>Solution Architect</td>
+          <td>3 — Architecture</td>
+          <td>—</td>
+          <td>Claude Opus 4.6</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>architect</code> → tier <code>orchestrator</code></dd>
+                <dt>complexity</dt>
+                <dd><code>critical</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$1.20</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">technical</span><span class="chip">operations</span><span class="chip">business</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">architect</span><span class="chip">solution_architect</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>blue</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Elena</strong></td>
+          <td>QA Engineer</td>
+          <td>4 — Test specs</td>
+          <td>—</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>qa</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.50</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">technical</span><span class="chip">operations</span><span class="chip">apex</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">qa</span><span class="chip">qa_tester</span><span class="chip">qa_engineer</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>pink</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Jordan</strong></td>
+          <td>DevOps / CI-CD</td>
+          <td>4 — DevOps specs</td>
+          <td>Deploy (toutes phases)</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>devops</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.30</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">technical</span><span class="chip">operations</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">devops</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>yellow</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Raj</strong></td>
+          <td>Admin Config</td>
+          <td>—</td>
+          <td>1,4,5 — Model/Auto/Security</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>admin</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.40</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">operations</span><span class="chip">technical</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">admin</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>indigo</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Diego</strong></td>
+          <td>Apex Developer</td>
+          <td>—</td>
+          <td>2 — Business logic</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>apex</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.60</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">apex</span><span class="chip">technical</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">apex</span><span class="chip">apex_developer</span><span class="chip">developer_apex</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>red</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Zara</strong></td>
+          <td>LWC Developer</td>
+          <td>—</td>
+          <td>3 — UI components</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>lwc</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.50</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">lwc</span><span class="chip">technical</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">lwc</span><span class="chip">lwc_developer</span><span class="chip">developer_lwc</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>magenta</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Aisha</strong></td>
+          <td>Data Migration</td>
+          <td>4 — Data specs</td>
+          <td>6 — Migration scripts</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>data</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.40</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">technical</span><span class="chip">operations</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">data</span><span class="chip">data_migration</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>orange</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Lucas</strong></td>
+          <td>Trainer</td>
+          <td>4 — Training specs</td>
+          <td>—</td>
+          <td>Claude Sonnet 4.5</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agent_type</dt>
+                <dd><code>trainer</code> → tier <code>worker</code></dd>
+                <dt>complexity</dt>
+                <dd><code>complex</code></dd>
+                <dt>coût estimé / exécution</dt>
+                <dd>$0.30</dd>
+                <dt>collections RAG</dt>
+                <dd><div class="chiprow"><span class="chip">business</span><span class="chip">operations</span></div></dd>
+                <dt>alias</dt>
+                <dd><div class="chiprow"><span class="chip">trainer</span></div></dd>
+                <dt>couleur UI</dt>
+                <dd>teal</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+      </tbody>
     </table>
 
     <h3>Routage LLM (<code>llm_routing.yaml</code>)</h3>
+    <p class="section-desc">Profile actif : <code>cloud</code></p>
     <table>
-      <tr><th>Complexité</th><th>Modèle</th><th>Pricing (in/out per M)</th><th>Agents</th></tr>
-      <tr><td><code>critical</code></td><td>Claude Opus 4.6</td><td>$5 / $25</td><td>Sophie, Marcus</td></tr>
-      <tr><td><code>complex</code></td><td>Claude Sonnet 4.5</td><td>$3 / $15</td><td>Olivia, Emma, Elena (qa), Jordan (devops), Raj (admin), Aisha (data), Lucas, Diego, Zara</td></tr>
-      <tr><td><code>medium</code></td><td>Claude Haiku</td><td>$1 / $5</td><td>(non utilisé actuellement)</td></tr>
-      <tr><td><code>simple</code></td><td>Ollama Mistral 7B</td><td>Gratuit (local)</td><td>Désactivé — aucun agent mappé à ce tier</td></tr>
+      <tr><th>Tier</th><th>Modèle</th><th>Pricing (in/out per M tokens)</th><th>Agents</th></tr>
+      <tr>
+        <td><code>orchestrator</code></td>
+        <td>Claude Opus 4.6</td>
+        <td>$15 / $75</td>
+        <td>Marcus, Olivia, Sophie, Emma
+        </td>
+      </tr>
+      <tr>
+        <td><code>worker</code></td>
+        <td>Claude Sonnet 4.5</td>
+        <td>$3 / $15</td>
+        <td>Raj, Diego, Aisha, Jordan, Zara, Elena, Lucas
+        </td>
+      </tr>
     </table>
   </div>
-
-  <!-- ==================== PIPELINE SDS ==================== -->
   <div id="sds-flow" class="section">
     <h2>Phase SDS — Spécification</h2>
     <p class="section-desc">Le pipeline SDS transforme un document métier en spécification Salesforce complète via 5 phases avec validation humaine (HITL).</p>
@@ -633,7 +873,6 @@ stateDiagram-v2
     <h3>Révision Architecture (fix_gaps)</h3>
     <p>Quand Emma détecte un coverage &lt; 85%, elle génère des gaps (<code>what_is_missing</code> + <code>fix_instruction</code>). Marcus reçoit ces gaps en mode <code>fix_gaps</code> (incrémental). Boucle auto-revision max 3 itérations.</p>
   </div>
-  <!-- ==================== PIPELINE BUILD ==================== -->
   <div id="build-flow" class="section">
     <h2>Phase BUILD — Génération de code</h2>
     <p class="section-desc">Le BUILD transforme les specs SDS en code Salesforce déployable. Chaque agent BUILD utilise Sonnet 4.5 et reçoit les specs détaillées de Marcus comme contexte. Raj (Admin) intervient sur 3 phases, Jordan orchestre le déploiement de chaque phase via JordanDeployService, et Elena review chaque output avant deploy.</p>
@@ -667,8 +906,6 @@ flowchart LR
       <tr><td>6</td><td>Aisha</td><td><code>data_migration</code> — Migration scripts, package.xml, deploy</td></tr>
     </table>
   </div>
-
-  <!-- ==================== HITL & CHAT ==================== -->
   <div id="hitl" class="section">
     <h2>HITL & Chat Multi-Agent</h2>
     <p class="section-desc">Chat contextuel avec 9 agents (pas Diego/Zara, BUILD-only). Chaque agent charge ses deliverables comme contexte et maintient un historique séparé.</p>
@@ -693,40 +930,364 @@ flowchart LR
     <h3>Versioning</h3>
     <p>Chaque exécution de CR crée une nouvelle version du SDS. Historique des versions avec diff side-by-side.</p>
   </div>
-
-  <!-- ==================== RAG ==================== -->
   <div id="rag" class="section">
     <h2>RAG & Knowledge Base</h2>
     <p class="section-desc">ChromaDB héberge 91,866 chunks de documentation Salesforce répartis en 6 collections thématiques.</p>
-    <table>
-      <tr><th>Collection</th><th>Embedding</th><th>Agents (via AGENT_COLLECTIONS)</th></tr>
-      <tr><td><code>technical_collection</code></td><td>OpenAI</td><td>Marcus, Jordan, Raj, Elena, Aisha, Diego, Zara</td></tr>
-      <tr><td><code>operations_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Jordan, Raj, Elena, Aisha, Lucas</td></tr>
-      <tr><td><code>business_collection</code></td><td>OpenAI</td><td>Marcus, Olivia, Sophie, Lucas</td></tr>
-      <tr><td><code>apex_collection</code></td><td>Nomic</td><td>Diego, Elena</td></tr>
-      <tr><td><code>lwc_collection</code></td><td>Nomic</td><td>Zara</td></tr>
-      <tr><td><code>china_collection</code></td><td>OpenAI</td><td>Marcus, Olivia (projets <code>region=cn</code> / Hyperforce SFOA)</td></tr>
+    <table class="tbl-expand">
+      <thead>
+        <tr>
+          <th class="tbl-toggle-col" aria-hidden="true"></th>
+          <th>Collection</th>
+          <th>Embedding</th>
+          <th>Chunks</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>technical_collection</code></td>
+          <td>OpenAI</td>
+          <td>39 895</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Marcus</span><span class="chip">Jordan</span><span class="chip">Raj</span><span class="chip">Elena</span><span class="chip">Aisha</span><span class="chip">Diego</span><span class="chip">Zara</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 39895 chunks</span></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>operations_collection</code></td>
+          <td>OpenAI</td>
+          <td>27 977</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Marcus</span><span class="chip">Olivia</span><span class="chip">Jordan</span><span class="chip">Raj</span><span class="chip">Elena</span><span class="chip">Aisha</span><span class="chip">Lucas</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 27977 chunks</span></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>business_collection</code></td>
+          <td>OpenAI</td>
+          <td>16 292</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Marcus</span><span class="chip">Olivia</span><span class="chip">Sophie</span><span class="chip">Lucas</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 16292 chunks</span></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>apex_collection</code></td>
+          <td>Nomic</td>
+          <td>1 645</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Diego</span><span class="chip">Elena</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 1645 chunks</span></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>lwc_collection</code></td>
+          <td>Nomic</td>
+          <td>6 032</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Zara</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 6032 chunks</span></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><code>china_collection</code> <span class="muted">(projets region=cn)</span></td>
+          <td>OpenAI</td>
+          <td>25</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>agents consommateurs</dt>
+                <dd><div class="chiprow"><span class="chip">Marcus</span><span class="chip">Olivia</span></div></dd>
+                <dt>statut ChromaDB</dt>
+                <dd><span class="tag tag-done">présente — 25 chunks</span></dd>
+                <dt>note</dt>
+                <dd>projets region=cn</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3"><strong>Total</strong></td>
+          <td><strong>91 866</strong></td>
+        </tr>
+      </tbody>
     </table>
     <p><strong>Statut :</strong> <span class="tag tag-done">OK</span> — 91,866 chunks, ~1.8 GB data + ~2.7 GB total. PersistentClient local (pas de serveur séparé).</p>
     <p><strong>Dernière ingestion (24 avril 2026) :</strong> +21,615 écritures depuis 7 sources Salesforce 2026 — Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript spec (TDX 2026), Headless 360 consolidé, Hyperforce/SFOA Chine. Batch tag : <code>sf_docs_2026_04_23</code> (idempotent, rollback possible).</p>
   </div>
-  <!-- ==================== SERVICES ==================== -->
   <div id="infra" class="section">
     <h2>Services & Infrastructure</h2>
     <p class="section-desc">Tous les services sont gérés via <code>systemctl</code> sur Ubuntu 24.04.</p>
-    <table>
-      <tr><th>Service</th><th>systemctl unit</th><th>Port</th><th>Statut</th></tr>
-      <tr><td>Backend API</td><td><code>digital-humans-backend</code></td><td>8002</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ARQ Worker</td><td><code>digital-humans-worker</code></td><td>—</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Frontend</td><td><code>digital-humans-frontend</code></td><td>3000</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>PostgreSQL</td><td><code>postgresql</code></td><td>5432</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Redis</td><td><code>redis-server</code></td><td>6379</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>ChromaDB</td><td>PersistentClient (embedded)</td><td>—</td><td><span class="tag tag-done">OK — 91,866 chunks</span></td></tr>
-      <tr><td>Ollama</td><td><code>ollama</code></td><td>11434</td><td><span class="tag tag-warning">OFF — désactivé volontairement (économie RAM)</span></td></tr>
-      <tr><td>Nginx</td><td><code>nginx</code></td><td>80/443</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Ghost CMS</td><td>Docker: <code>ghost-blog</code></td><td>2368</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>N8N</td><td><code>n8n</code></td><td>5678</td><td><span class="tag tag-done">active</span></td></tr>
-      <tr><td>Open WebUI</td><td>Docker: <code>open-webui</code></td><td>3200→8080</td><td><span class="tag tag-done">active</span></td></tr>
+    <table class="tbl-expand">
+      <thead>
+        <tr>
+          <th class="tbl-toggle-col" aria-hidden="true"></th>
+          <th>Service</th>
+          <th>systemctl unit</th>
+          <th>Port</th>
+          <th>Statut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Backend API</strong></td>
+          <td><code>digital-humans-backend</code></td>
+          <td>8002</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status digital-humans-backend</code> · <code>journalctl -u digital-humans-backend -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>ARQ Worker</strong></td>
+          <td><code>digital-humans-worker</code></td>
+          <td>—</td>
+          <td><span class="tag tag-warning">inactive</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status digital-humans-worker</code> · <code>journalctl -u digital-humans-worker -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Frontend</strong></td>
+          <td><code>digital-humans-frontend</code></td>
+          <td>3000</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status digital-humans-frontend</code> · <code>journalctl -u digital-humans-frontend -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>PostgreSQL</strong></td>
+          <td><code>postgresql</code></td>
+          <td>5432</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status postgresql</code> · <code>journalctl -u postgresql -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Redis</strong></td>
+          <td><code>redis-server</code></td>
+          <td>6379</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status redis-server</code> · <code>journalctl -u redis-server -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>ChromaDB</strong></td>
+          <td>PersistentClient</td>
+          <td>—</td>
+          <td><span class="tag tag-done">embedded</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>embedded</code></dd>
+                <dt>note</dt>
+                <dd>PersistentClient</dd>
+                <dt>diagnostic</dt>
+                <dd>Embedded dans le backend (pas de commande systemctl dédiée)</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Ollama</strong></td>
+          <td><code>ollama</code></td>
+          <td>11434</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status ollama</code> · <code>journalctl -u ollama -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Nginx</strong></td>
+          <td><code>nginx</code></td>
+          <td>80/443</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status nginx</code> · <code>journalctl -u nginx -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Ghost CMS</strong></td>
+          <td>Docker: <code>ghost-blog</code></td>
+          <td>2368</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>docker</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>docker inspect ghost-blog</code> · <code>docker logs ghost-blog --tail 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>N8N</strong></td>
+          <td><code>n8n</code></td>
+          <td>5678</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status n8n</code> · <code>journalctl -u n8n -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>Open WebUI</strong></td>
+          <td>Docker: <code>open-webui</code></td>
+          <td>3200→8080</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="5">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>docker</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>docker inspect open-webui</code> · <code>docker logs open-webui --tail 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+      </tbody>
     </table>
 
     <h3>Commandes essentielles</h3>
@@ -755,8 +1316,6 @@ flowchart LR
       <tr><td>RAG ChromaDB</td><td>91,866 chunks, ~1.8 GB data, ~2.7 GB total</td></tr>
     </table>
   </div>
-
-  <!-- ==================== DATABASE ==================== -->
   <div id="database" class="section">
     <h2>Base de données</h2>
     <p class="section-desc">PostgreSQL 16 — 41 tables.</p>
@@ -782,7 +1341,6 @@ flowchart LR
     <p><code>audit_logs</code> (22), <code>quality_gates</code> (11), <code>execution_artifacts</code> (16), <code>project_environments</code> (21), <code>project_credentials</code> (8), <code>project_git_config</code> (17), <code>project_documents</code> (12), <code>project_data_sources</code> (11), <code>sds_templates</code> (20), <code>users</code> (11), <code>agents</code> (6), <code>deliverable_items</code> (14)</p>
     <p>Marketing : <code>leads</code>, <code>prospects</code>, <code>blog_articles</code>, <code>blog_topics</code>, <code>linkedin_posts</code>, <code>outreach_emails</code>, <code>newsletter_sends</code>, <code>meeting_requests</code>, <code>veille_reports</code></p>
   </div>
-  <!-- ==================== API REFERENCE ==================== -->
   <div id="api" class="section">
     <h2>API Reference</h2>
     <p class="section-desc">178 endpoints REST répartis sur 29 fichiers. Préfixe <code>/api/pm-orchestrator/</code> (orchestrateur) ou <code>/api/</code>.</p>
@@ -848,8 +1406,6 @@ flowchart LR
       <tr><td>GET</td><td><code>.../execute/{id}/build-tasks</code></td><td>Détail tâches BUILD</td></tr>
     </table>
   </div>
-
-  <!-- ==================== FRONTEND ==================== -->
   <div id="frontend" class="section">
     <h2>Frontend</h2>
     <p class="section-desc">React 18 + Vite + TailwindCSS. 13 pages, 19 composants spécialisés.</p>
@@ -883,28 +1439,19 @@ flowchart LR
       <tr><td><code>BuildPhasesPanel</code></td><td>Suivi 6 phases BUILD avec code preview</td></tr>
     </table>
   </div>
-  <!-- ==================== PROBLÈMES ==================== -->
   <div id="problems" class="section">
     <h2>Problèmes architecturaux (P0-P11)</h2>
     <p class="section-desc">12 problèmes identifiés (audit initial + P10-P11 ajoutés post-E2E). 10 fixés via Sprints 0-3 + Session 3 Refonte (18 avril), 2 partiels restants.</p>
     <div class="card-grid">
       <div class="card">
         <h4 style="color:var(--green)">✅ Fixés (10)</h4>
-        <p><strong>P0</strong> async def → sync def + <code>asyncio.to_thread</code> (S0, puis A-7/A-8)<br>
-        <strong>P1</strong> pm.py supprimé (S0)<br>
-        <strong>P2</strong> paths centralisés <code>config.py</code> env-driven (S0, puis D-1a)<br>
-        <strong>P3</strong> subprocess → import direct (14 fév, commit <code>7aa5db9</code>)<br>
-        <strong>P5</strong> <code>ExecutionContextMiddleware</code> + logging unifié (D-2, 18 avr)<br>
-        <strong>P6</strong> 13 hardcoded models → YAML (13 fév)<br>
-        <strong>P7</strong> <code>BudgetService.record_cost()</code> commit par défaut (A-9, 18 avr)<br>
-        <strong>P8</strong> Secrets rotation playbook + <code>rotate_anthropic_key.sh</code> (D-3, 18 avr)<br>
-        <strong>P9</strong> safe_content() limits ×6 (13 fév)<br>
-        <strong>P11</strong> RAG health check au startup + erreurs remontées (A-10, 18 avr)</p>
+        <p>
+          <strong>P0</strong> Routes async avec SQLAlchemy sync bloquaient l'event loop (S0, A-7 / A-8 (Session 3))<br>    <strong>P1</strong> Split brain — pm.py v1 et pm_orchestrator.py v2 cohabitaient (S0)<br>    <strong>P2</strong> 52 chemins absolus hardcodés (S0, D-1a (Session 3))<br>    <strong>P3</strong> Agents lancés via subprocess.run() — overhead 3-5s/appel (pre-E2E #145)<br>    <strong>P5</strong> Logs fragmentés — import logging basique partout (D-2 (Session 3))<br>    <strong>P6</strong> 13 modèles LLM hardcodés dans le code (Track A, C-5 (Session 3))<br>    <strong>P7</strong> Transactions non-atomiques — 24 db.commit() éparpillés (A-9 (Session 3))<br>    <strong>P8</strong> Rotation de secrets absente (SECRET_KEY, ANTHROPIC_API_KEY) (S3, D-3 (Session 3))<br>    <strong>P9</strong> safe_content() tronquait 93-96% du contenu (Track A)<br>    <strong>P11</strong> RAG health silencieux — outages non détectés (A-10 (Session 3))  </p>
       </div>
       <div class="card">
-        <h4 style="color:var(--orange)">⚠️ Partiels (2)</h4>
-        <p><strong>P4</strong> Routes splitées 6 fichiers (S2) — <code>pm_orchestrator_service_v2.py</code> reste volumineux<br>
-        <strong>P10</strong> Agent Architecture Debt — Agent B a unifié le registry (YAML), mais BaseAgent class + contrats <code>_call_llm</code>/<code>execution_id</code> communs pas encore consolidés</p>
+        <h4 style="color:var(--orange)">⚠️ Partiels (3)</h4>
+        <p>
+          <strong>P4</strong> Fat controller pm_orchestrator (2637 lignes) — <em>reste :</em> Service pm_orchestrator_service_v2.py reste à ~3396 lignes — à décomposer par phase (SDS/BUILD)<br>    <strong>P10</strong> Agent Architecture Debt — pas de BaseAgent commun — <em>reste :</em> BaseAgent class + contrats _call_llm/execution_id/logging pas encore consolidés. Prévu : prochain sprint.<br>    <strong>P12</strong> Deux fichiers .env pour clé OpenAI — <em>reste :</em> Consolider en un seul fichier via dotenv centralisé, ou générer le second depuis le premier.  </p>
       </div>
       <div class="card">
         <h4 style="color:var(--purple)">🆕 Ajouts Session 3 (18 avr)</h4>
@@ -915,8 +1462,6 @@ flowchart LR
       </div>
     </div>
   </div>
-
-  <!-- ==================== PLAN DE REFONTE ==================== -->
   <div id="refonte" class="section">
     <h2>Plan de refonte 2026</h2>
     <p class="section-desc">Refonte architecturale utilisant Claude Code Agent Teams (Opus 4.6). Méthodologie anti-régression avec tags git et baseline tests.</p>
@@ -961,8 +1506,6 @@ flowchart TB
       <tr><td>S10</td><td>Agent Teams</td><td>Refonte finale Claude Code Agent Teams</td><td><span class="tag tag-pending">Planifié (fin fév)</span></td></tr>
     </table>
   </div>
-
-  <!-- ==================== JOURNAL ==================== -->
   <div id="journal" class="section">
     <h2>Journal de la refonte</h2>
     <p class="section-desc">Timeline des événements, décisions et résultats.</p>
@@ -1049,57 +1592,105 @@ flowchart TB
       </div>
     </div>
   </div>
+    </div>
+  </main>
 
-</main>
+</div>
+
+<section class="cta">
+  <div class="wrap">
+    <h2>Fin de la <em>documentation technique</em>.</h2>
+    <p>Ce site est régénéré à partir des sources de vérité à chaque rebuild. Les écarts éventuels entre ce que vous lisez et ce que fait le système sont un bug — à signaler, pas à contourner.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="row">
+    <span>Digital<span style="color:var(--brass-3)">·</span>Humans · Autonomous Salesforce studio</span>
+    <span class="r">Refonte 2026 · docs/refonte</span>
+  </div>
+</footer>
+
 <script>
-  // Navigation
-  function showSection(id) {
-    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-    event.target.classList.add('active');
-    window.scrollTo(0, 0);
-  }
-
-  // Mermaid init
   mermaid.initialize({
-    startOnLoad: false,
-    theme: 'dark',
+    startOnLoad: true,
+    theme: 'base',
+    securityLevel: 'loose',
     themeVariables: {
-      primaryColor: '#1e2433',
-      primaryTextColor: '#c8cdd8',
-      primaryBorderColor: '#4f8cff',
-      lineColor: '#4f8cff',
-      secondaryColor: '#151922',
-      tertiaryColor: '#151922',
-      fontFamily: 'DM Sans, sans-serif',
-      fontSize: '13px'
+      background: '#141416', primaryColor: '#141416', primaryTextColor: '#F5F2EC',
+      primaryBorderColor: '#C8A97E', secondaryColor: '#1C1C1F', tertiaryColor: '#0A0A0B',
+      lineColor: '#8C6E4A', textColor: '#F5F2EC',
+      fontFamily: 'Inter, sans-serif', fontSize: '14px',
+      mainBkg: '#141416', secondBkg: '#1C1C1F',
+      nodeBorder: '#C8A97E', clusterBkg: '#0A0A0B', clusterBorder: '#8C6E4A',
+      defaultLinkColor: '#8C6E4A', edgeLabelBackground: '#141416',
+      attributeBackgroundColorOdd: '#1C1C1F', attributeBackgroundColorEven: '#141416'
     },
-    flowchart: { curve: 'basis', padding: 16 },
-    sequence: { actorMargin: 40, messageMargin: 30 }
+    flowchart: { useMaxWidth: true, curve: 'basis', padding: 22, nodeSpacing: 44, rankSpacing: 62, htmlLabels: true },
+    sequence: { useMaxWidth: true, actorMargin: 48, messageMargin: 32 },
+    er: { useMaxWidth: true, diagramPadding: 24, entityPadding: 14, layoutDirection: 'TB' },
+    stateDiagram: { useMaxWidth: true }
   });
+</script>
 
-  // Render mermaid on section change
-  async function renderMermaid() {
-    const elements = document.querySelectorAll('.section.active .mermaid');
-    for (const el of elements) {
-      if (!el.getAttribute('data-processed')) {
-        const { svg } = await mermaid.render('mermaid-' + Math.random().toString(36).substr(2, 9), el.textContent);
-        el.innerHTML = svg;
-        el.setAttribute('data-processed', 'true');
+<script>
+(function() {
+  // Expandable table rows
+  const summaries = document.querySelectorAll('tr.tbl-row-summary');
+  summaries.forEach(tr => {
+    const toggle = () => {
+      const isOpen = tr.classList.toggle('open');
+      tr.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+    tr.addEventListener('click', toggle);
+    tr.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+    tr.setAttribute('tabindex', '0');
+    tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-expanded', 'false');
+  });
+  // Open all before print, restore after
+  const originalRowStates = new WeakMap();
+  window.addEventListener('beforeprint', () => {
+    summaries.forEach(tr => {
+      originalRowStates.set(tr, tr.classList.contains('open'));
+      tr.classList.add('open');
+    });
+  });
+  window.addEventListener('afterprint', () => {
+    summaries.forEach(tr => {
+      if (originalRowStates.has(tr) && !originalRowStates.get(tr)) {
+        tr.classList.remove('open');
       }
+    });
+  });
+})();
+</script>
+
+<script>
+(function() {
+  // Scroll-spy : highlight TOC entry for the section most in view
+  const items = document.querySelectorAll('.toc-side-item');
+  if (!items.length) return;
+  const map = {};
+  items.forEach(it => { map[it.dataset.sec] = it; });
+  const observer = new IntersectionObserver((entries) => {
+    let best = null;
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        if (!best || e.boundingClientRect.top < best.boundingClientRect.top) best = e;
+      }
+    });
+    if (best) {
+      items.forEach(it => it.classList.remove('active'));
+      const id = best.target.id;
+      if (map[id]) map[id].classList.add('active');
     }
-  }
-
-  // Override showSection to also render mermaid
-  const originalShow = showSection;
-  showSection = function(id) {
-    originalShow(id);
-    setTimeout(renderMermaid, 50);
-  };
-
-  // Initial render
-  document.addEventListener('DOMContentLoaded', () => setTimeout(renderMermaid, 100));
+  }, { rootMargin: '-80px 0px -60% 0px', threshold: 0 });
+  document.querySelectorAll('.section[id]').forEach(s => observer.observe(s));
+  if (items[0]) items[0].classList.add('active');
+})();
 </script>
 
 </body>
