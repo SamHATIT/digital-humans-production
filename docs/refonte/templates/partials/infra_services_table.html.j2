@@ -1,13 +1,8 @@
 {#
-  infra_services_table.html.j2
+  infra_services_table.html.j2 — pattern tbl-expand
   Consomme : collect_services() → { services: [{label, unit, port, kind, status, note}] }
-  Produit  : la table des services avec tag de statut live.
-
-  Mapping status → classe CSS :
-    active, embedded → tag-done
-    inactive, stopped → tag-warning
-    failed, missing  → tag-error
-    unknown          → tag-neutral
+  Summary : Service / systemctl unit / Port / Statut
+  Detail  : kind, note, commande de diagnostic
 #}
 {% macro status_tag(s) -%}
   {%- if s in ('active', 'embedded') -%}
@@ -20,24 +15,61 @@
     <span class="tag tag-neutral">{{ s }}</span>
   {%- endif -%}
 {%- endmacro %}
-<table>
-  <tr><th>Service</th><th>systemctl unit</th><th>Port</th><th>Statut</th></tr>
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Service</th>
+      <th>systemctl unit</th>
+      <th>Port</th>
+      <th>Statut</th>
+    </tr>
+  </thead>
+  <tbody>
   {% for s in services %}
-  <tr>
-    <td>{{ s.label }}</td>
-    <td>
-      {%- if s.kind == 'docker' -%}
-        Docker: <code>{{ s.unit }}</code>
-      {%- elif s.kind == 'embedded' -%}
-        {{ s.note or 'embedded' }}
-      {%- elif s.unit -%}
-        <code>{{ s.unit }}</code>
-      {%- else -%}
-        —
-      {%- endif -%}
-    </td>
-    <td>{{ s.port }}</td>
-    <td>{{ status_tag(s.status) }}{% if s.note and s.kind != 'embedded' %} <span class="muted">{{ s.note }}</span>{% endif %}</td>
-  </tr>
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><strong>{{ s.label }}</strong></td>
+      <td>
+        {%- if s.kind == 'docker' -%}
+          Docker: <code>{{ s.unit }}</code>
+        {%- elif s.kind == 'embedded' -%}
+          {{ s.note or 'embedded' }}
+        {%- elif s.unit -%}
+          <code>{{ s.unit }}</code>
+        {%- else -%}
+          —
+        {%- endif -%}
+      </td>
+      <td>{{ s.port }}</td>
+      <td>{{ status_tag(s.status) }}</td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="5">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>type de service</dt>
+            <dd><code>{{ s.kind }}</code></dd>
+            {% if s.note %}
+            <dt>note</dt>
+            <dd>{{ s.note }}</dd>
+            {% endif %}
+            <dt>diagnostic</dt>
+            <dd>
+              {%- if s.kind == 'systemd' -%}
+                <code>systemctl status {{ s.unit }}</code> · <code>journalctl -u {{ s.unit }} -n 50</code>
+              {%- elif s.kind == 'docker' -%}
+                <code>docker inspect {{ s.unit }}</code> · <code>docker logs {{ s.unit }} --tail 50</code>
+              {%- elif s.kind == 'embedded' -%}
+                Embedded dans le backend (pas de commande systemctl dédiée)
+              {%- else -%}
+                —
+              {%- endif -%}
+            </dd>
+          </dl>
+        </div>
+      </td>
+    </tr>
   {% endfor %}
+  </tbody>
 </table>
