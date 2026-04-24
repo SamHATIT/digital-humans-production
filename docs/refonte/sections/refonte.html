@@ -1,0 +1,44 @@
+  <div id="refonte" class="section">
+    <h2>Plan de refonte 2026</h2>
+    <p class="section-desc">Refonte architecturale utilisant Claude Code Agent Teams (Opus 4.6). Méthodologie anti-régression avec tags git et baseline tests.</p>
+
+    <h3>Stratégie Agent Teams</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart TB
+    subgraph P1["Phase 1 — L'Architecte"]
+        A1["1 agent Opus — Fenêtre 1M tokens — Analyse repo 680K tokens"]
+    end
+    subgraph P2["Phase 2 — Les Spécialistes — parallèle"]
+        direction LR
+        S["Stabilizer P0+P1+P2 — Terminé"]
+        R["Refactorer P3 11 agents — Partiel"]
+        M["Modernizer P4+P7 — Partiel"]
+    end
+    subgraph P3["Phase 3 — L'Intégrateur"]
+        I1["Smoke tests + Contrats + Tag git"]
+    end
+    P1 -->|Docs référence| P2
+    P2 --> P3
+    style P1 fill:#151922,stroke:#4f8cff,stroke-width:2px
+    style P2 fill:#151922,stroke:#34d399,stroke-width:2px
+    style P3 fill:#151922,stroke:#a78bfa,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Planning</h3>
+    <table>
+      <tr><th>Semaine</th><th>Phase</th><th>Actions</th><th>Statut</th></tr>
+      <tr><td>S1</td><td>Phase 1</td><td>Architecte : analyse + 5 docs référence</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S2</td><td>Sprint 0</td><td>Stabilizer : P0 (async) + P1 (dead code) + P2 (paths)</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S3</td><td>Sprint 1+2</td><td>Refactorer P3 (subprocess→async) + Modernizer P4/P7</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S4</td><td>Sprint 3</td><td>P5 logging + P6 LLM router + P8 secrets</td><td><span class="tag tag-done">✅ Terminé</span></td></tr>
+      <tr><td>S5</td><td>Horizons 2+3</td><td>10 streams : State Machine, ARQ, Budget, RAG, UX, HITL, Prompts</td><td><span class="tag tag-done">✅ Mergé (10 fév)</span></td></tr>
+      <tr><td>S6</td><td>Sprint I</td><td>E2E #140→#142 + 16 fixes + HITL coverage gate</td><td><span class="tag tag-done">✅ Terminé (11 fév)</span></td></tr>
+      <tr><td>S7</td><td>E2E #143+#144</td><td>Coverage fix (45%→90.3%), 30 bugs, Plan V2</td><td><span class="tag tag-done">✅ Terminé (12 fév)</span></td></tr>
+      <tr><td>S7.5</td><td>Tracks A+B+C</td><td>7 bugs backend, ArchitectureReviewPanel, StructuredRenderer, ChatSidebar multi-agent, fix_gaps</td><td><span class="tag tag-done">✅ Terminé (13 fév)</span></td></tr>
+      <tr><td>S8</td><td>E2E #145</td><td>Validation complète post-fixes</td><td><span class="tag tag-active">🔄 Prochain</span></td></tr>
+      <tr><td>S9</td><td>P10</td><td>Agent Architecture Debt : BaseAgent class</td><td><span class="tag tag-pending">Planifié</span></td></tr>
+      <tr><td>S10</td><td>Agent Teams</td><td>Refonte finale Claude Code Agent Teams</td><td><span class="tag tag-pending">Planifié (fin fév)</span></td></tr>
+    </table>
+  </div>
