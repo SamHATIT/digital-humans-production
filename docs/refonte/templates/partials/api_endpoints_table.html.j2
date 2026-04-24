@@ -1,0 +1,52 @@
+{#
+  api_endpoints_table.html.j2 — endpoints FastAPI parsés AST + mapping prefix
+  Consomme : collect_api_endpoints() → {groups: [{id, label, file, endpoints: [{method, full_path, fn_name, summary}]}], total_endpoints, unmapped_files}
+
+  Un h3 par groupe éditorial (≈ un fichier route), puis une table tbl-expand
+  par groupe pour garder chaque bloc compact.
+#}
+<p class="section-desc"><strong>{{ total_endpoints }} endpoints</strong> répartis sur {{ groups | length }} modules{% if unmapped_files %} · <span class="muted">fichiers non groupés : {{ unmapped_files | join(', ') }}</span>{% endif %}.</p>
+
+{% macro method_chip(m) -%}
+  {%- if m == 'GET' -%}<span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">{{ m }}</span>
+  {%- elif m == 'POST' -%}<span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">{{ m }}</span>
+  {%- elif m == 'PUT' or m == 'PATCH' -%}<span class="chip" style="color:var(--ochre); border-color:rgba(184,149,74,0.55);">{{ m }}</span>
+  {%- elif m == 'DELETE' -%}<span class="chip" style="color:var(--terra); border-color:rgba(184,116,92,0.55);">{{ m }}</span>
+  {%- else -%}<span class="chip">{{ m }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% for g in groups %}
+<h3>{{ g.label }} <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— {{ g.endpoints | length }} endpoints · <code>{{ g.file }}</code></span></h3>
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th style="width: 70px;">Method</th>
+      <th>Path</th>
+      <th>Handler</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for ep in g.endpoints %}
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td>{{ method_chip(ep.method) }}</td>
+      <td><code>{{ ep.full_path }}</code></td>
+      <td><code>{{ ep.fn_name }}</code></td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="4">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>summary</dt>
+            <dd>{% if ep.summary %}{{ ep.summary }}{% else %}<em>pas de docstring</em>{% endif %}</dd>
+            <dt>source</dt>
+            <dd><code>{{ g.file }}</code></dd>
+          </dl>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}

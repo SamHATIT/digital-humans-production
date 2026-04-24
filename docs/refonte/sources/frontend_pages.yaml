@@ -1,0 +1,48 @@
+# SSoT rédactionnelle pour frontend_pages_table (partial Jinja2).
+# Consommé par collect_frontend_pages() qui croise cette liste avec les
+# <Route path="..." element={<X/>} /> extraits de frontend/src/App.tsx.
+#
+# Chaque entrée fournit la `description` rédactionnelle. Route et composant
+# viennent du code en live (parsing regex de App.tsx).
+#
+# La clé est le nom du composant (pas la route), pour gérer les cas où
+# plusieurs routes pointent vers le même composant (ProjectWizard a /wizard
+# et /wizard/:projectId).
+
+pages:
+  LoginPage:
+    description: Authentification JWT (email + password)
+    access: public
+  Pricing:
+    description: Grille tarifaire publique (plans Starter/Pro/Enterprise)
+    access: public
+  Dashboard:
+    description: Vue d'ensemble utilisateur — stats, dernières exécutions, raccourcis
+    access: protected
+  Projects:
+    description: Liste des projets de l'utilisateur, filtrage, tri
+    access: protected
+  NewProject:
+    description: Création rapide d'un projet (formulaire minimal, legacy)
+    access: protected
+  ProjectWizard:
+    description: Assistant pas-à-pas de configuration projet (Salesforce connection, settings, BRs initiales)
+    access: protected
+  BRValidationPage:
+    description: Validation HITL des Business Requirements extraites par Sophie (approve/edit/reject)
+    access: protected
+  ProjectDetailPage:
+    description: Détail projet — change requests, SDS versions, configuration, intégrations
+    access: protected
+  ExecutionPage:
+    description: Lancement et suivi initial d'une exécution SDS
+    access: protected
+  ExecutionMonitoringPage:
+    description: Monitoring temps réel SDS — timeline, deliverables, chat multi-agent, HITL gates
+    access: protected
+  BuildMonitoringPage:
+    description: Monitoring phase BUILD — 6 phases, tâches, preview code Apex/LWC
+    access: protected
+  AgentTesterPage:
+    description: Test unitaire d'un agent (prompt custom, output inspection)
+    access: protected

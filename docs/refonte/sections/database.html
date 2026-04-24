@@ -1,25 +1,4 @@
   <div id="database" class="section">
     <h2>Base de données</h2>
-    <p class="section-desc">PostgreSQL 16 — 41 tables.</p>
-    <h3>Tables principales (métier)</h3>
-    <table>
-      <tr><th>Table</th><th>Cols</th><th>Rôle</th></tr>
-      <tr><td><code>projects</code></td><td>51</td><td>Projets Salesforce (nom, description, config, settings)</td></tr>
-      <tr><td><code>executions</code></td><td>22</td><td>Exécutions SDS/BUILD (status, state, budget_used, cost_usd)</td></tr>
-      <tr><td><code>agent_deliverables</code></td><td>10</td><td>Livrables JSON par agent et par exécution</td></tr>
-      <tr><td><code>execution_agents</code></td><td>7</td><td>Status/progress/tokens par agent</td></tr>
-      <tr><td><code>agent_iterations</code></td><td>10</td><td>Historique itérations (Marcus revisions, Emma re-checks)</td></tr>
-      <tr><td><code>validation_gates</code></td><td>13</td><td>Décisions HITL (gate_type, decision, feedback)</td></tr>
-      <tr><td><code>project_conversations</code></td><td>10</td><td>Chat HITL multi-agent (agent_id, role, message)</td></tr>
-      <tr><td><code>change_requests</code></td><td>21</td><td>CR lifecycle (status, impact_analysis, estimated_cost)</td></tr>
-      <tr><td><code>sds_versions</code></td><td>11</td><td>Versioning des SDS (diff entre versions)</td></tr>
-      <tr><td><code>business_requirements</code></td><td>17</td><td>BRs extraites par Sophie</td></tr>
-      <tr><td><code>uc_requirement_sheets</code></td><td>17</td><td>Use Cases structurées par Olivia</td></tr>
-      <tr><td><code>llm_interactions</code></td><td>18</td><td>Log appels LLM (model, tokens, cost_usd)</td></tr>
-      <tr><td><code>build_phase_executions</code></td><td>21</td><td>Suivi phases BUILD</td></tr>
-      <tr><td><code>task_executions</code></td><td>29</td><td>Tâches BUILD individuelles</td></tr>
-    </table>
-    <h3>Tables secondaires</h3>
-    <p><code>audit_logs</code> (22), <code>quality_gates</code> (11), <code>execution_artifacts</code> (16), <code>project_environments</code> (21), <code>project_credentials</code> (8), <code>project_git_config</code> (17), <code>project_documents</code> (12), <code>project_data_sources</code> (11), <code>sds_templates</code> (20), <code>users</code> (11), <code>agents</code> (6), <code>deliverable_items</code> (14)</p>
-    <p>Marketing : <code>leads</code>, <code>prospects</code>, <code>blog_articles</code>, <code>blog_topics</code>, <code>linkedin_posts</code>, <code>outreach_emails</code>, <code>newsletter_sends</code>, <code>meeting_requests</code>, <code>veille_reports</code></p>
+    <!-- PARTIAL:database_tables -->
   </div>

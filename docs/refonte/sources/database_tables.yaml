@@ -1,0 +1,78 @@
+# SSoT rédactionnelle pour database_tables_table (partial Jinja2).
+# Consommé par collect_database_tables() qui croise cette liste avec
+# information_schema.tables de PostgreSQL (query live).
+#
+# Chaque entrée fournit le `role` rédactionnel (phrase courte, en français).
+# Les colonnes et comptages viennent de la DB en live, pas d'ici.
+#
+# groups : ordre d'affichage + label affiché dans la table (regroupement éditorial).
+
+groups:
+  - id: core_sds
+    label: Orchestration SDS
+    tables:
+      projects: Projets Salesforce (nom, description, config, settings Salesforce)
+      executions: Exécutions SDS/BUILD (status, state, budget_used, cost_usd)
+      execution_agents: Status/progress/tokens par agent et par exécution
+      agent_iterations: Historique itérations (Marcus revisions, Emma re-checks)
+      agent_deliverables: Livrables JSON par agent et par exécution
+      deliverable_items: Items individuels d'un deliverable (structuration fine)
+      pm_orchestration: État d'orchestration PM (phase active, transitions)
+
+  - id: hitl
+    label: HITL & Chat
+    tables:
+      validation_gates: Décisions HITL (gate_type, decision, feedback)
+      project_conversations: Chat HITL multi-agent (agent_id, role, message)
+      change_requests: CR lifecycle (status, impact_analysis, estimated_cost)
+      agent_questions: Questions agent → utilisateur (HITL proactif)
+
+  - id: content
+    label: Contenu & Versions
+    tables:
+      business_requirements: BRs extraites par Sophie
+      uc_requirement_sheets: Use Cases structurées par Olivia
+      sds_versions: Versioning des SDS (diff entre versions)
+      sds_templates: Templates de SDS par domaine
+      document_fusion: Fusion de documents pour contexte étendu
+      outputs: Sorties génériques (format flexible)
+
+  - id: build
+    label: BUILD & Tâches
+    tables:
+      build_phase_executions: Suivi phases BUILD (6 phases séquentielles)
+      task_executions: Tâches BUILD individuelles
+      quality_gates: Seuils de qualité par phase BUILD
+      execution_artifacts: Artefacts générés (code, configs, docs)
+
+  - id: project_meta
+    label: Métadonnées projet
+    tables:
+      project_environments: Environnements Salesforce (DEV/QA/UAT/PROD)
+      project_credentials: SFDX credentials, API keys chiffrées
+      project_git_config: Config Git (repo, branch, PAT)
+      project_documents: Documents uploadés par l'utilisateur
+      project_data_sources: Sources de données (CSV, DB, API externes)
+      training_content: Supports de formation générés par Lucas
+
+  - id: observability
+    label: Observability & Users
+    tables:
+      llm_interactions: Log appels LLM (model, tokens, cost_usd)
+      audit_logs: Logs d'audit (actions, user, timestamp)
+      users: Utilisateurs (auth JWT)
+      agents: Table legacy — métadonnées agents runtime
+      alembic_version: Version courante des migrations Alembic
+
+  - id: marketing
+    label: Marketing & Growth
+    tables:
+      leads: Leads entrants (formulaire contact, démo)
+      prospects: Prospects qualifiés pour outreach
+      blog_articles: Articles publiés sur Ghost CMS
+      blog_topics: Sujets de blog (éditorial)
+      linkedin_posts: Posts LinkedIn programmés
+      outreach_emails: Emails de prospection envoyés
+      newsletter_sends: Envois newsletter
+      meeting_requests: Demandes de rendez-vous
+      veille_reports: Rapports de veille concurrentielle

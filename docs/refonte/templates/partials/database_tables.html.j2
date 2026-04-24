@@ -1,0 +1,47 @@
+{#
+  database_tables.html.j2 — tables Postgres groupées, pattern tbl-expand
+  Consomme : collect_database_tables() → {groups: [{id, label, tables: [{name, col_count, role, columns: [{name, type}]}]}], total_tables, orphan_tables}
+  Summary : nom / cols / rôle
+  Detail  : liste complète des colonnes avec types
+#}
+<p class="section-desc"><strong>{{ total_tables }} tables</strong> dans le schema <code>public</code>{% if orphan_tables %} · <span class="muted">non documentées : {{ orphan_tables | join(', ') }}</span>{% endif %}.</p>
+
+{% for g in groups %}
+<h3>{{ g.label }}</h3>
+<table class="tbl-expand">
+  <thead>
+    <tr>
+      <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Table</th>
+      <th style="width:70px;">Cols</th>
+      <th>Rôle</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in g.tables %}
+    <tr class="tbl-row-summary">
+      <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><code>{{ t.name }}</code></td>
+      <td>{{ t.col_count }}</td>
+      <td>{{ t.role }}</td>
+    </tr>
+    <tr class="tbl-row-detail">
+      <td colspan="4">
+        <div class="tbl-detail-body">
+          <dl class="detail-kv">
+            <dt>colonnes</dt>
+            <dd>
+              <div class="chiprow">
+                {%- for c in t.columns -%}
+                <span class="chip"><strong>{{ c.name }}</strong> <span class="muted">· {{ c.type }}</span></span>
+                {%- endfor -%}
+              </div>
+            </dd>
+          </dl>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}

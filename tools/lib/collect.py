@@ -20,6 +20,7 @@ Sources de vérité consommées :
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -430,3 +431,446 @@ def collect_timeline() -> dict[str, Any]:
                 f"timeline.yaml entry #{i}: status '{st}' invalide (attendu : {valid_status})"
             )
     return {"entries": entries}
+
+
+# --------------------------------------------------------------------------
+# 7. Database tables — live PostgreSQL + SSoT YAML rédactionnelle
+# --------------------------------------------------------------------------
+
+def _load_db_url() -> str:
+    """Lit DATABASE_URL depuis backend/.env. Retourne l'URL ou raise BuildError."""
+    env_path = REPO_ROOT / "backend" / ".env"
+    if not env_path.exists():
+        raise BuildError(f"backend/.env introuvable : {env_path}")
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if line.startswith("DATABASE_URL="):
+            url = line.split("=", 1)[1].strip().strip('"').strip("'")
+            if url:
+                return url
+    raise BuildError("DATABASE_URL absent de backend/.env")
+
+
+def collect_database_tables() -> dict[str, Any]:
+    """Liste les tables Postgres groupées (YAML éditorial) + comptages live.
+
+    Croisement :
+      - ``database_tables.yaml`` définit l'ordre, le regroupement et les rôles
+      - ``information_schema`` fournit le nombre de colonnes et la liste des colonnes
+
+    Garde-fous :
+      - Chaque table du YAML DOIT exister en DB (sinon BuildError)
+      - Chaque table live absente du YAML est listée comme "orpheline"
+
+    Returns:
+        ``{"groups": [{id, label, tables: [{name, col_count, role, columns: [{name, type}]}]}],
+          "total_tables": int, "orphan_tables": [str]}``
+    """
+    path = DOCS_SOURCES / "database_tables.yaml"
+    if not path.exists():
+        raise BuildError(f"database_tables.yaml introuvable : {path}")
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except yaml.YAMLError as e:
+        raise BuildError(f"database_tables.yaml invalide : {e}") from e
+
+    yaml_groups = raw.get("groups") or []
+    if not yaml_groups:
+        raise BuildError("database_tables.yaml : liste 'groups' vide")
+
+    # Live probe via psycopg2 (disponible dans le venv backend)
+    try:
+        import psycopg2
+    except ImportError as e:
+        raise BuildError(
+            "Module 'psycopg2' indisponible. Activer backend/venv avant build_docs."
+        ) from e
+
+    db_url = _load_db_url()
+    # psycopg2 n'accepte pas le préfixe postgresql+psycopg2:// (c'est du SQLAlchemy)
+    if db_url.startswith("postgresql+psycopg2://"):
+        db_url = db_url.replace("postgresql+psycopg2://", "postgresql://", 1)
+
+    try:
+        conn = psycopg2.connect(db_url)
+    except Exception as e:
+        raise BuildError(f"Connexion Postgres échouée : {e}") from e
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT table_name,
+                       (SELECT COUNT(*)
+                        FROM information_schema.columns
+                        WHERE table_name = t.table_name
+                          AND table_schema = 'public') AS col_count
+                FROM information_schema.tables t
+                WHERE table_schema = 'public'
+                ORDER BY table_name
+            """)
+            live_tables = {row[0]: row[1] for row in cur.fetchall()}
+
+            # Pour chaque table du YAML, on récupère aussi les colonnes (detail row)
+            yaml_table_names = {
+                tname
+                for g in yaml_groups
+                for tname in (g.get("tables") or {}).keys()
+            }
+            columns_by_table: dict[str, list] = {}
+            if yaml_table_names:
+                cur.execute("""
+                    SELECT table_name, column_name, data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = ANY(%s)
+                    ORDER BY table_name, ordinal_position
+                """, (list(yaml_table_names),))
+                for tname, cname, ctype in cur.fetchall():
+                    columns_by_table.setdefault(tname, []).append(
+                        {"name": cname, "type": ctype}
+                    )
+    finally:
+        conn.close()
+
+    # Build output : pour chaque group, annotation col_count + columns
+    groups_out = []
+    yaml_all_tables: set[str] = set()
+    for g in yaml_groups:
+        tables_dict = g.get("tables") or {}
+        tables_out = []
+        for tname, role in tables_dict.items():
+            yaml_all_tables.add(tname)
+            if tname not in live_tables:
+                raise BuildError(
+                    f"Table '{tname}' listée dans database_tables.yaml "
+                    f"(group={g.get('id')}) mais absente de la DB."
+                )
+            tables_out.append({
+                "name": tname,
+                "col_count": live_tables[tname],
+                "role": role,
+                "columns": columns_by_table.get(tname, []),
+            })
+        groups_out.append({
+            "id": g.get("id", ""),
+            "label": g.get("label", g.get("id", "")),
+            "tables": tables_out,
+        })
+
+    orphans = sorted(set(live_tables) - yaml_all_tables)
+
+    return {
+        "groups": groups_out,
+        "total_tables": len(live_tables),
+        "orphan_tables": orphans,
+    }
+
+
+# --------------------------------------------------------------------------
+# 8. Frontend pages — scan App.tsx + YAML rédactionnelle
+# --------------------------------------------------------------------------
+
+def collect_frontend_pages() -> dict[str, Any]:
+    """Extrait les routes React de ``frontend/src/App.tsx`` et merge avec YAML.
+
+    Garde-fou : chaque composant mentionné par une Route DOIT avoir une entrée
+    dans ``frontend_pages.yaml`` (sinon BuildError). Inversement, les entrées
+    YAML non utilisées par une Route sont listées comme "orphelines".
+
+    Returns:
+        ``{"pages": [{component, routes: [str], description, access, file}],
+          "total_routes": int, "orphan_yaml": [str]}``
+    """
+    app_tsx = REPO_ROOT / "frontend" / "src" / "App.tsx"
+    if not app_tsx.exists():
+        raise BuildError(f"frontend/src/App.tsx introuvable : {app_tsx}")
+    yaml_path = DOCS_SOURCES / "frontend_pages.yaml"
+    if not yaml_path.exists():
+        raise BuildError(f"frontend_pages.yaml introuvable : {yaml_path}")
+    try:
+        yaml_raw = yaml.safe_load(yaml_path.read_text())
+    except yaml.YAMLError as e:
+        raise BuildError(f"frontend_pages.yaml invalide : {e}") from e
+    pages_meta = yaml_raw.get("pages") or {}
+
+    source = app_tsx.read_text()
+    # Regex robuste : capture path et le nom du composant (premier <Component ...)
+    # Tolère saut de ligne entre path et element grâce à re.DOTALL.
+    route_pattern = re.compile(
+        r'<Route\s+path="([^"]+)"\s+element=\{\s*<([A-Z][A-Za-z0-9]*)',
+        re.DOTALL,
+    )
+    # Cas multi-ligne où element est un wrapper : <Route ... element={<ProtectedRoute><Page/></ProtectedRoute>}
+    # Le regex ci-dessus capture ProtectedRoute. On refait un second pass pour
+    # extraire la VRAIE page dans le children.
+    routes: list[tuple[str, str]] = []
+    for m in re.finditer(
+        r'<Route\s+path="([^"]+)"\s+element=\{([^}]+)\}',
+        source, re.DOTALL,
+    ):
+        path_val = m.group(1)
+        element = m.group(2)
+        # Premier <ComponentName> qui n'est PAS ProtectedRoute ni Navigate
+        for cm in re.finditer(r'<([A-Z][A-Za-z0-9]*)', element):
+            name = cm.group(1)
+            if name not in ("ProtectedRoute", "Navigate"):
+                routes.append((path_val, name))
+                break
+        else:
+            # Cas du fallback Navigate — on skippe
+            if path_val == "*":
+                continue
+
+    # Grouper par composant (un composant peut avoir plusieurs routes)
+    by_component: dict[str, list[str]] = {}
+    for path_val, comp in routes:
+        by_component.setdefault(comp, []).append(path_val)
+
+    # Vérification YAML ↔ code
+    components_in_code = set(by_component.keys())
+    components_in_yaml = set(pages_meta.keys())
+    missing_in_yaml = components_in_code - components_in_yaml
+    if missing_in_yaml:
+        raise BuildError(
+            f"Composants présents dans App.tsx mais absents de frontend_pages.yaml : "
+            f"{sorted(missing_in_yaml)}"
+        )
+    orphan_yaml = sorted(components_in_yaml - components_in_code)
+
+    # Construire output, dans l'ordre du YAML pour la stabilité d'affichage
+    pages_out = []
+    for comp, meta in pages_meta.items():
+        if comp not in by_component:
+            continue  # orphelin — on l'a listé séparément
+        file_path = f"frontend/src/pages/{comp}.tsx"
+        pages_out.append({
+            "component": comp,
+            "routes": by_component[comp],
+            "description": meta.get("description", ""),
+            "access": meta.get("access", "protected"),
+            "file": file_path,
+        })
+
+    return {
+        "pages": pages_out,
+        "total_routes": len(routes),
+        "orphan_yaml": orphan_yaml,
+    }
+
+
+# --------------------------------------------------------------------------
+# 9. API endpoints — AST parse des routes FastAPI + mapping prefix
+# --------------------------------------------------------------------------
+
+# Groupes éditoriaux pour regrouper les fichiers route sous un label lisible.
+# Une route non mappée tombe dans le groupe "other".
+API_FILE_GROUPS: dict[str, str] = {
+    "projects": "Projets",
+    "pm_orchestrator": "Orchestrateur (legacy, à migrer)",
+    "orchestrator/project_routes": "Orchestrateur — projets",
+    "orchestrator/execution_routes": "Orchestrateur — exécutions SDS",
+    "orchestrator/build_routes": "Orchestrateur — phase BUILD",
+    "orchestrator/build_executor": "Orchestrateur — exécuteur BUILD",
+    "orchestrator/validation_gate_routes": "Orchestrateur — HITL gates",
+    "orchestrator/retry_routes": "Orchestrateur — retry",
+    "orchestrator/chat_ws_routes": "Orchestrateur — WebSocket chat",
+    "hitl_routes": "HITL — chat, métriques, change requests",
+    "deliverables": "Deliverables",
+    "business_requirements": "Business Requirements",
+    "change_requests": "Change Requests",
+    "sds_versions": "SDS — versioning",
+    "project_chat": "Chat projet",
+    "agent_tester": "Agent Tester",
+    "audit": "Audit logs",
+    "auth": "Authentification",
+    "config": "Configuration",
+    "analytics": "Analytics",
+    "artifacts": "Artifacts",
+    "deployment": "Déploiement Salesforce",
+    "documents": "Documents",
+    "environments": "Environnements Salesforce",
+    "leads": "Leads (marketing)",
+    "blog": "Blog (marketing)",
+    "subscription": "Abonnements",
+    "wizard": "Wizard projet",
+    "quality_gates": "Quality Gates BUILD",
+    "quality_dashboard": "Quality Dashboard",
+}
+
+API_ROUTES_DIRS = [
+    REPO_ROOT / "backend" / "app" / "api" / "routes",
+    REPO_ROOT / "backend" / "app" / "api",  # contient audit.py
+]
+
+API_MAIN = REPO_ROOT / "backend" / "app" / "main.py"
+
+
+def _parse_main_prefixes() -> dict[str, str]:
+    """Parse backend/app/main.py pour extraire les prefixes include_router.
+
+    Returns:
+        dict {module_name: prefix}. Module = dernier segment d'import
+        (ex: 'projects', 'hitl_routes', 'orchestrator').
+    """
+    if not API_MAIN.exists():
+        raise BuildError(f"main.py introuvable : {API_MAIN}")
+    source = API_MAIN.read_text()
+    prefixes: dict[str, str] = {}
+    api_prefix = "/api/v1"  # settings.API_V1_PREFIX — constante connue
+
+    # Pattern : include_router(module.router, prefix=...)
+    # prefix peut être settings.API_V1_PREFIX, f"...", "..." ou absent.
+    pattern = re.compile(
+        r"include_router\(\s*([a-z_]+)\.router"
+        r"(?:,\s*prefix\s*=\s*([^,\)]+))?"
+        r"[^)]*\)",
+        re.DOTALL,
+    )
+    for m in pattern.finditer(source):
+        mod = m.group(1)
+        raw_prefix = (m.group(2) or "").strip()
+        if not raw_prefix:
+            prefix = ""
+        elif raw_prefix == "settings.API_V1_PREFIX":
+            prefix = api_prefix
+        elif raw_prefix.startswith('f"') or raw_prefix.startswith("f'"):
+            # f-string : remplace settings.API_V1_PREFIX et les {} simples
+            p = raw_prefix[2:-1]  # retire f" ... "
+            p = p.replace("{settings.API_V1_PREFIX}", api_prefix)
+            prefix = p
+        elif raw_prefix.startswith('"') or raw_prefix.startswith("'"):
+            prefix = raw_prefix.strip('"').strip("'")
+        else:
+            prefix = raw_prefix
+        prefixes[mod] = prefix
+    return prefixes
+
+
+def _extract_routes_from_file(py_file: Path) -> list[dict]:
+    """Parse un fichier .py via AST, retourne la liste des @router.METHOD endpoints.
+
+    Returns:
+        list of ``{method, path, fn_name, docstring_first_line}``.
+    """
+    import ast
+    try:
+        tree = ast.parse(py_file.read_text())
+    except SyntaxError:
+        return []
+
+    # Récupérer aussi le prefix local du APIRouter() pour concaténer
+    local_prefix = ""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "router":
+                    if (isinstance(node.value, ast.Call)
+                            and isinstance(node.value.func, ast.Name)
+                            and node.value.func.id == "APIRouter"):
+                        for kw in node.value.keywords:
+                            if kw.arg == "prefix" and isinstance(kw.value, ast.Constant):
+                                local_prefix = kw.value.value or ""
+                                break
+            break
+
+    HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
+    endpoints = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for dec in node.decorator_list:
+            # Pattern : @router.get("path", ...) ou @router.get("path")
+            if not isinstance(dec, ast.Call):
+                continue
+            if not isinstance(dec.func, ast.Attribute):
+                continue
+            if not (isinstance(dec.func.value, ast.Name)
+                    and dec.func.value.id == "router"):
+                continue
+            method = dec.func.attr
+            if method not in HTTP_METHODS:
+                continue
+            # Premier arg = path (str constant)
+            if not dec.args or not isinstance(dec.args[0], ast.Constant):
+                continue
+            path_val = dec.args[0].value
+            # Docstring ?
+            doc = ast.get_docstring(node) or ""
+            summary = doc.splitlines()[0].strip() if doc else ""
+            endpoints.append({
+                "method": method.upper(),
+                "path": local_prefix + path_val,
+                "fn_name": node.name,
+                "summary": summary,
+            })
+    return endpoints
+
+
+def collect_api_endpoints() -> dict[str, Any]:
+    """Scanne les fichiers routes FastAPI et retourne la liste des endpoints.
+
+    Parsing AST + mapping prefix via main.py. Regroupement éditorial par
+    fichier source (``API_FILE_GROUPS``).
+
+    Returns:
+        ``{"groups": [{id, label, file, endpoints: [{method, full_path,
+          fn_name, summary}]}], "total_endpoints": int, "unmapped_files": [str]}``
+    """
+    prefixes = _parse_main_prefixes()
+
+    # Collecter tous les fichiers .py ayant un APIRouter
+    route_files: list[Path] = []
+    for d in API_ROUTES_DIRS:
+        if d.exists():
+            for p in d.rglob("*.py"):
+                if p.name.startswith("_") or p.name == "__init__.py":
+                    continue
+                route_files.append(p)
+
+    groups_out = []
+    total_endpoints = 0
+    unmapped: list[str] = []
+
+    # Ordonner par API_FILE_GROUPS (clé = chemin relatif sans .py)
+    for file_key, label in API_FILE_GROUPS.items():
+        # Chemin relatif potentiel
+        candidates = [
+            REPO_ROOT / "backend" / "app" / "api" / "routes" / f"{file_key}.py",
+            REPO_ROOT / "backend" / "app" / "api" / f"{file_key}.py",
+        ]
+        py_file = next((c for c in candidates if c.exists()), None)
+        if not py_file:
+            continue
+        # Extraire les endpoints
+        endpoints = _extract_routes_from_file(py_file)
+        if not endpoints:
+            continue
+
+        # Appliquer le prefix global (main.py include_router)
+        mod_name = file_key.split("/")[-1]
+        global_prefix = prefixes.get(mod_name, "")
+        for ep in endpoints:
+            ep["full_path"] = global_prefix + ep["path"]
+        total_endpoints += len(endpoints)
+        groups_out.append({
+            "id": file_key.replace("/", "_"),
+            "label": label,
+            "file": str(py_file.relative_to(REPO_ROOT)),
+            "endpoints": endpoints,
+        })
+
+    # Fichiers avec @router non mappés dans API_FILE_GROUPS
+    mapped_paths = set()
+    for g in groups_out:
+        mapped_paths.add(REPO_ROOT / g["file"])
+    for p in route_files:
+        if p not in mapped_paths:
+            eps = _extract_routes_from_file(p)
+            if eps:
+                unmapped.append(str(p.relative_to(REPO_ROOT)))
+
+    return {
+        "groups": groups_out,
+        "total_endpoints": total_endpoints,
+        "unmapped_files": unmapped,
+    }

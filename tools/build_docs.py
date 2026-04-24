@@ -111,6 +111,30 @@ PARTIALS: dict[str, tuple[str, callable]] = {
         "journal_timeline",
         lambda d: {"entries": d["timeline"]["entries"]},
     ),
+    "database_tables": (
+        "database_tables",
+        lambda d: {
+            "groups": d["database"]["groups"],
+            "total_tables": d["database"]["total_tables"],
+            "orphan_tables": d["database"]["orphan_tables"],
+        },
+    ),
+    "frontend_pages_table": (
+        "frontend_pages_table",
+        lambda d: {
+            "pages": d["frontend"]["pages"],
+            "total_routes": d["frontend"]["total_routes"],
+            "orphan_yaml": d["frontend"]["orphan_yaml"],
+        },
+    ),
+    "api_endpoints_table": (
+        "api_endpoints_table",
+        lambda d: {
+            "groups": d["api"]["groups"],
+            "total_endpoints": d["api"]["total_endpoints"],
+            "unmapped_files": d["api"]["unmapped_files"],
+        },
+    ),
 }
 
 
@@ -160,6 +184,9 @@ def collect_all() -> dict:
         "services": collect.collect_services(),
         "problems": collect.collect_problems(),
         "timeline": collect.collect_timeline(),
+        "database": collect.collect_database_tables(),
+        "frontend": collect.collect_frontend_pages(),
+        "api": collect.collect_api_endpoints(),
     }
 
 
@@ -381,6 +408,9 @@ def main() -> int:
     print(f"  · services      : {len(data['services']['services'])}")
     print(f"  · problems      : {data['problems']['stats']}")
     print(f"  · timeline      : {len(data['timeline']['entries'])} entrées")
+    print(f"  · db tables     : {data['database']['total_tables']} ({len(data['database']['groups'])} groupes)")
+    print(f"  · fe pages      : {len(data['frontend']['pages'])} ({data['frontend']['total_routes']} routes)")
+    print(f"  · api endpoints : {data['api']['total_endpoints']} ({len(data['api']['groups'])} modules)")
 
     # 2. Rendu
     print("\n→ Rendu des partials…")
