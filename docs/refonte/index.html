@@ -300,6 +300,7 @@
       <div class="toc-side-label">Flux métier</div>
       <ul class="toc-side-list">
         <li class="toc-side-item" data-sec="sds-flow"><a class="toc-side-link" href="#sds-flow">Phase SDS</a></li>
+        <li class="toc-side-item" data-sec="sds-templating"><a class="toc-side-link" href="#sds-templating">SDS templating</a></li>
         <li class="toc-side-item" data-sec="build-flow"><a class="toc-side-link" href="#build-flow">Phase BUILD</a></li>
         <li class="toc-side-item" data-sec="hitl"><a class="toc-side-link" href="#hitl">HITL &amp; Chat</a></li>
         <li class="toc-side-item" data-sec="rag"><a class="toc-side-link" href="#rag">RAG &amp; Knowledge</a></li>
@@ -883,6 +884,106 @@ stateDiagram-v2
 
     <h3>Révision Architecture (fix_gaps)</h3>
     <p>Quand Emma détecte un coverage &lt; 85%, elle génère des gaps (<code>what_is_missing</code> + <code>fix_instruction</code>). Marcus reçoit ces gaps en mode <code>fix_gaps</code> (incrémental). Boucle auto-revision max 3 itérations.</p>
+  </div>
+  <div id="sds-templating" class="section">
+    <h2>SDS — Templating depuis DB</h2>
+    <p class="section-desc">Chantier en cours sur la branche <code>feat/sds-templating</code>. Objectif : remplacer la phase 5 Emma <em>SDS Final</em> ($5-10 / 10-15 min de LLM) par un assemblage Jinja2 templaté à partir des deliverables persistés en PostgreSQL. Build local en ~1.2s, 0 coût LLM, et — découverte transversale — notre rendu DB-driven <em>corrige</em> les bugs systématiques de l'ancien pipeline (API names <code>__c</code> tronqués, colonnes vides, sous-sections oubliées).</p>
+
+    <h3>Architecture</h3>
+    <div class="mermaid-wrapper">
+      <pre class="mermaid">
+flowchart LR
+    DB[(PostgreSQL<br/>agent_deliverables)] --> C[collect_sds.py<br/>collectors par section]
+    C --> CTX[build_render_context]
+    CTX --> J[Jinja2<br/>StrictUndefined]
+    J --> SH[sds_shell.html.j2]
+    SH --> P[partials/<br/>solution_design.html.j2<br/>+ futurs partials]
+    P --> H[rendered.html<br/>~466K chars]
+    H --> PV[Preview live<br/>/sds-preview/]
+    H --> SV[Snapshot figé<br/>outputs/SDS_*_v*.html]
+    style DB fill:#141416,stroke:#7A9B76,stroke-width:2px
+    style J fill:#141416,stroke:#C8A97E,stroke-width:2px
+    style H fill:#141416,stroke:#B8954A,stroke-width:2px
+      </pre>
+    </div>
+
+    <h3>Pipeline & outils</h3>
+    <table>
+      <tr><th>Composant</th><th>Rôle</th><th>Fichier</th></tr>
+      <tr><td>CLI builder</td><td>Build d'un SDS depuis une <code>execution_id</code>, avec flags <code>--diff-reference</code>, <code>--check</code>, <code>--output</code></td><td><code>tools/build_sds.py</code></td></tr>
+      <tr><td>Collectors</td><td>Lecture DB par section : <code>collect_execution_metadata</code>, <code>collect_coverage</code>, <code>collect_toc</code>, <code>collect_agents_meta</code>, <code>build_render_context</code></td><td><code>tools/lib/collect_sds.py</code></td></tr>
+      <tr><td>Shell template</td><td>Hero + TOC + 12 sections, charge Mermaid CDN client-side avec palette Studio</td><td><code>docs/sds/templates/sds_shell.html.j2</code></td></tr>
+      <tr><td>Partial sec-6</td><td>13 sous-sections Solution Design avec macro récursive <code>render_value</code> réutilisable</td><td><code>docs/sds/templates/partials/solution_design.html.j2</code></td></tr>
+      <tr><td>Référence figée</td><td>Capture de l'exec 146 produite par l'ancien pipeline phase 5 — md5 <code>66da5fef…</code>, baseline diff immutable</td><td><code>docs/sds/templates/_reference_logifleet_146.html</code></td></tr>
+      <tr><td>Status dédié</td><td>Décisions actées, sessions, workflow, prochaines étapes, 8 pièges connus (151 lignes)</td><td><code>docs/sds/STATUS.md</code></td></tr>
+    </table>
+
+    <h3>Itérations livrées</h3>
+    <table>
+      <tr><th>Iter</th><th>Périmètre</th><th>Pattern</th><th>Status vs référence</th></tr>
+      <tr>
+        <td><strong>1</strong></td>
+        <td>Hero + TOC instrumentés Jinja2 ; 12 sections inline en dur</td>
+        <td>Filtre <code>humanize</code>, contexte de rendu DB-driven</td>
+        <td>14 lignes diff cosmétiques (titre marketing FR/EN, date temps réel)</td>
+      </tr>
+      <tr>
+        <td><strong>2</strong></td>
+        <td>Section 6 Solution Design — 13/13 sous-sections (6.1 à 6.13)</td>
+        <td>1 partial par sous-section + macro <code>render_value</code> récursive ; <code>ordered_keys</code> explicite pour contrer JSONB</td>
+        <td>Diff 287→687 lignes : <em>quasi tous des correctifs vs référence</em></td>
+      </tr>
+    </table>
+
+    <h4>Stats sec-6 après itération 2</h4>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value">13/13</div><div class="stat-label">Sous-sections instrumentées</div></div>
+      <div class="stat-card"><div class="stat-value">~1.2s</div><div class="stat-label">Build time vs 10-15 min Emma</div></div>
+      <div class="stat-card"><div class="stat-value">$0</div><div class="stat-label">Coût LLM vs $5-10 Emma</div></div>
+      <div class="stat-card"><div class="stat-value">88 %</div><div class="stat-label">Réduction taille partial (116K → 14K)</div></div>
+    </div>
+
+    <h3>Découverte transversale — le templating corrige le pipeline</h3>
+    <p>En cherchant le pixel-near sur la référence, on a découvert que l'ancien pipeline phase 5 Emma produisait des bugs systématiques. Notre rendu DB-driven les corrige par construction :</p>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>~30 corrections d'API names Salesforce</strong> : <code>Vehiclec</code>, <code>Sinistrec</code>, <code>Maintenance_Activityc</code>, <code>Alert_Configurationmdt</code> → <code>Vehicle__c</code>, <code>Sinistre__c</code>, etc. Bug racine : parser markdown qui interprétait les <code>__</code> comme italique dans les textes descriptifs.</li>
+      <li><strong>4 sections avec colonnes vides corrigées</strong> : OWD (Internal+External), Reports Purpose (Object/Filters/Grouping), Flows Trigger (event+condition), UI Components Purpose.</li>
+      <li><strong>5 sous-sections manquantes ajoutées</strong> en 6.8 et 6.10 : Apex Triggers (3), Scheduled Jobs (9), Platform Events (1), LWC Components (13), Quick Actions (6).</li>
+      <li><strong>1 phrase tronquée restaurée</strong> dans 6.12 Tech Considerations.</li>
+    </ul>
+
+    <h3>Décisions actées</h3>
+    <table>
+      <tr><th>Décision</th><th>Détail</th></tr>
+      <tr><td>Stratégie phase 5</td><td>Suppression de la phase Emma <em>SDS Final</em> au profit de l'assemblage Jinja2 depuis <code>agent_deliverables</code>. Compensation narrative : 1 LLM call court Emma pour titre + subtitle marketing du hero (option C validée par Sam).</td></tr>
+      <tr><td>Endpoints cibles</td><td><code>GET /api/executions/{id}/sds.html</code> (live preview) · <code>POST /api/projects/{id}/sds-versions</code> (snapshot figé) · <code>GET /api/projects/{id}/sds-versions/{n}/view</code> (immutable).</td></tr>
+      <tr><td>Pattern Jinja2</td><td>Un partial par section (<code>partials/&lt;section&gt;.html.j2</code>), inclus depuis <code>sds_shell.html.j2</code>. <code>StrictUndefined</code> activé : si une clé manque, le rendu plante (mieux qu'un trou silencieux).</td></tr>
+      <tr><td>Ordre canonique</td><td>PostgreSQL JSONB ne préserve pas l'ordre d'insertion des clés. <code>ordered_keys</code> explicite dans chaque partial avec rendu k-v. Les clés inconnues vont à la fin (defensive).</td></tr>
+      <tr><td>Mermaid client-side</td><td>Le shell charge <code>mermaid@10.9.0</code> avec config Studio (palette ink/bone/brass). Le partial 6.1 ERD rend du <code>&lt;pre class="mermaid"&gt;</code>, conversion SVG au chargement. Économie de 20K chars par exécution vs SVG inline pré-rendu.</td></tr>
+      <tr><td>Langue</td><td>Auto-détection FR/EN depuis le brief — pas de paramètre.</td></tr>
+    </table>
+
+    <h3>Prochaines étapes</h3>
+    <table>
+      <tr><th>Priorité</th><th>Chantier</th><th>Note</th></tr>
+      <tr><td><span class="tag tag-active">Iter 3</span></td><td>Sections 1, 2, 3 — Project Overview + Business Requirements + Use Cases</td><td>~25 BRs Sophie + 58 UCs Olivia. Une fois fait, 4/12 sections templatées.</td></tr>
+      <tr><td><span class="tag tag-pending">Iter 4</span></td><td>Sections lourdes 7 (Gap Analysis, 81K JSON) et 11 (Test Strategy, 157K)</td><td>Le helper <code>render_value</code> de sec-6 sera réutilisé partout où il y a des structures imbriquées.</td></tr>
+      <tr><td><span class="tag tag-pending">Iter 5</span></td><td>Sections 4, 5, 8, 9, 10, 12 — UC Digest, As-Is, Coverage, Migration, Training, CI/CD</td><td>Sections moyennes restantes.</td></tr>
+      <tr><td><span class="tag tag-pending">Bascule</span></td><td>Endpoints API + frontend "Live preview" + suppression phase 5 Emma</td><td>En parallèle ou après le templating complet. Bouton dans <code>ProjectDetailPage.tsx</code>.</td></tr>
+      <tr><td><span class="tag tag-pending">Backlog</span></td><td>Compensation narrative — 1 LLM call court Emma pour hero (titre + subtitle marketing)</td><td>Quand tout le pipeline est en place.</td></tr>
+    </table>
+
+    <h3>Pièges connus</h3>
+    <ul style="margin:12px 0 24px 24px; color: var(--bone-2); line-height: 1.8;">
+      <li><strong>JSONB ordre des clés</strong> : PostgreSQL ne préserve pas l'ordre d'insertion. Pour tout rendu k-v vertical, définir <code>ordered_keys</code> explicite dans le partial.</li>
+      <li><strong>Jinja2 <code>dict.values</code> piège</strong> : la résolution attribut Python prend <code>field.values</code> pour la <em>méthode built-in</em> avant la clé <code>'values'</code>. Utiliser <code>field['values']</code> et <code>'values' in field</code>. Idem pour <code>keys</code> et <code>items</code>.</li>
+      <li><strong>Mermaid déjà chargé dans le shell</strong> : ne PAS rajouter de <code>&lt;script&gt;</code> dans les partials — l'init existe avec la palette Studio.</li>
+      <li><strong>Référence figée</strong> : <code>_reference_logifleet_146.html</code> ne doit JAMAIS être régénéré. C'est notre baseline diff. Pour une nouvelle référence, créer un fichier différent.</li>
+      <li><strong>StrictUndefined</strong> : si une clé est légitimement optionnelle, l'envelopper dans <code>{% if key %}</code> avant accès.</li>
+      <li><strong>Le HTML de référence a des bugs</strong> : ne PAS les copier. Le diff métrique augmente avec les corrections, c'est normal.</li>
+      <li><strong>Connection PostgreSQL hardcodée</strong> dans <code>collect_sds.py</code>. À déporter dans <code>.env</code> à la bascule prod.</li>
+      <li><strong>Filtre <code>humanize</code> à étendre</strong> : si une nouvelle clé snake_case ambiguë apparaît, ajouter un mapping dans <code>SPECIAL</code> de <code>tools/build_sds.py</code>.</li>
+    </ul>
   </div>
   <div id="build-flow" class="section">
     <h2>Phase BUILD — Génération de code</h2>
@@ -6359,12 +6460,18 @@ flowchart TB
         direction LR
         D1["Phases 0→4<br/>SSoT + collectors + charte"]
     end
-    V1 --> V2 --> V3 --> V4 --> V5
+    subgraph V6["Vague 6 — LLM bump + SDS templating (25 avril)"]
+        direction LR
+        L1["Migration<br/>Opus 4.7 + Sonnet 4.6"]
+        L2["SDS templating<br/>iter 1+2 (sec-6 13/13)"]
+    end
+    V1 --> V2 --> V3 --> V4 --> V5 --> V6
     style V1 fill:#141416,stroke:#7A9B76,stroke-width:2px
     style V2 fill:#141416,stroke:#6B7A8F,stroke-width:2px
     style V3 fill:#141416,stroke:#8E6B8E,stroke-width:2px
     style V4 fill:#141416,stroke:#B8954A,stroke-width:2px
     style V5 fill:#141416,stroke:#C8A97E,stroke-width:2px
+    style V6 fill:#141416,stroke:#B8745C,stroke-width:2px
       </pre>
     </div>
 
@@ -6382,6 +6489,7 @@ flowchart TB
       <tr><td>18 avr</td><td>Session 3 Refonte — 4 agents parallèles</td><td><strong>Agent A</strong> (runtime, P0 event loop, P7 budget, P11 RAG health) · <strong>Agent B</strong> (registry YAML unique, HITL contracts) · <strong>Agent C</strong> (LLM multi-profile, thin wrapper 752→212 LOC) · <strong>Agent D</strong> (P2 env paths, P5 logging, P8 secrets rotation, SDS V3 Mistral supprimé). 4 merges + ADR-001 + ADR-002.</td><td><span class="tag tag-done">Terminé</span></td></tr>
       <tr><td>23-24 avr</td><td>Ingestion RAG 2026</td><td>+21 615 écritures (10 795 chunks) : Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript TDX 2026, Headless 360, Hyperforce/SFOA Chine. Passage 70 251 → 91 866 chunks.</td><td><span class="tag tag-done">Terminé</span></td></tr>
       <tr><td>24 avr</td><td>Refonte doc (Phases 0→4)</td><td>SSoT YAML (problems, timeline, stack, meta) + 6 collectors Python + partials Jinja2 + charte Studio (palette, fonts, scroll continu, TOC scroll-spy, tbl-expand, print inversé) + build auto atomique avec backup & smoke test HTTP</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>25 avr</td><td>Migration LLM + SDS templating</td><td>Bump Opus 4.6→4.7 (pricing corrigé, drop temperature) et Sonnet 4.5→4.6, hook <code>post-commit</code> auto-rebuild. Démarrage chantier <strong>SDS templating</strong> sur <code>feat/sds-templating</code> : iter 1 (hero+TOC) + iter 2 (sec-6 13/13 sous-sections, macro <code>render_value</code>). Build ~1.2s, 0 coût LLM, ~30 corrections API names <code>__c</code> vs référence.</td><td><span class="tag tag-active">En cours</span></td></tr>
     </table>
 
     <h3>Bilan par problème</h3>
@@ -6394,6 +6502,7 @@ flowchart TB
     <h3>Prochaines étapes</h3>
     <table>
       <tr><th>Priorité</th><th>Chantier</th><th>Note</th></tr>
+      <tr><td><span class="tag tag-active">En cours</span></td><td>SDS templating — iter 3 + bascule</td><td>Templater sections 1-3 (Project Overview, BRs, UCs) puis 4-12. Endpoints <code>GET .../sds.html</code> et <code>POST .../sds-versions</code>. Voir <a href="#sds-templating">SDS templating</a>.</td></tr>
       <tr><td><span class="tag tag-active">Next</span></td><td>P10 — <code>BaseAgent</code> class + contrats <code>_call_llm</code> / <code>execution_id</code> / logging communs</td><td>Premier sprint post-Session 3. Ordre migration : Sophie → Lucas → Jordan → Olivia → Aisha → Elena → Zara → Diego → Raj → Marcus → Emma.</td></tr>
       <tr><td><span class="tag tag-pending">Planifié</span></td><td>Admin Hub centralisé</td><td>Monitoring tous services (backend/frontend, N8N, Ollama, Ghost, PostgreSQL, Nginx, RAG) sans SSH. Éviter le feel « script qui tourne en arrière-plan ».</td></tr>
       <tr><td><span class="tag tag-pending">Planifié</span></td><td>P4 — décomposer <code>pm_orchestrator_service_v2</code></td><td>Split par phase (SDS / BUILD) pour descendre sous les 2000 lignes par fichier.</td></tr>
@@ -6526,10 +6635,20 @@ flowchart TB
         <div class="timeline-title">📚 Ingestion RAG — Salesforce 2026 (7 sources, +21 615 écritures)</div>
         <div class="timeline-desc">Ajout de 10 795 chunks dans le RAG (70 251 → 91 866). Sources : Winter/Spring/Summer '26 Release Notes (PDFs officiels), Shield Platform Encryption, AgentScript spec (TDX 2026, open-sourced 15 avr), Headless 360 consolidé (10 sources), Hyperforce/SFOA Chine (8 sources). Nouvelle collection <code>china_collection</code> (isolation <code>region=cn</code>). Coût OpenAI : ~$0.35. Modèle bi-tier : OpenAI 3-large pour docs (3072 dim), Nomic pour code (768 dim).</div>
       </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">25 avril 2026</div>
+        <div class="timeline-title">⚙️ Migration LLM — Opus 4.6 → 4.7, Sonnet 4.5 → 4.6</div>
+        <div class="timeline-desc">Bump des modèles par défaut : Opus 4.7 (pricing $5/$25 corrigé, drop <code>temperature</code> déprécié), Sonnet 4.6. SSoT <code>display_name</code> dans <code>llm_routing.yaml</code>. Hook <code>post-commit</code> auto-rebuild docs versionné dans <code>tools/git-hooks/</code>. ⚠️ Tokenizer Opus 4.7 utilise 1-1.35× plus de tokens que 4.6 — surveillance pour <code>MAX_TOTAL_LLM_CALLS=80</code>. Commits <code>bfc0c06</code> + <code>99d079b</code> + <code>fcb9a66</code>.</div>
+      </div>
       <div class="timeline-item active">
+        <div class="timeline-date">25 avril 2026</div>
+        <div class="timeline-title">📐 Chantier SDS templating — itérations 1+2 livrées</div>
+        <div class="timeline-desc">Branche <code>feat/sds-templating</code>, 7 commits (non mergée). Objectif : remplacer la phase 5 Emma SDS Final ($5-10 / 10-15 min) par un assemblage Jinja2 depuis <code>agent_deliverables</code>. <strong>Iter 1</strong> : hero + TOC instrumentés (collectors PostgreSQL, filtre <code>humanize</code>, 14 lignes diff cosmétiques). <strong>Iter 2</strong> : 13/13 sous-sections de Solution Design instrumentées (sec-6.1 à 6.13) avec macro récursive <code>render_value</code>. Build ~1.2s, 0 coût LLM. Découverte : notre rendu DB-driven corrige ~30 API names <code>__c</code> et 5 sous-sections oubliées par le pipeline original. Voir <a href="#sds-templating">SDS templating</a>.</div>
+      </div>
+      <div class="timeline-item planned">
         <div class="timeline-date">Prochain</div>
-        <div class="timeline-title">P10 consolidation + E2E post-Session 3</div>
-        <div class="timeline-desc">Prochaine étape : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs) et lancer un E2E complet validant les fixes Session 3.</div>
+        <div class="timeline-title">Iter 3 templating SDS + P10 BaseAgent</div>
+        <div class="timeline-desc">Templating sections 1, 2, 3 (Project Overview + 25 BRs Sophie + 58 UCs Olivia) puis bascule API/frontend. En parallèle : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs).</div>
       </div>
     </div>
   </div>
