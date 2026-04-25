@@ -191,6 +191,53 @@ def collect_agents_meta(execution_id: int) -> dict[str, Any]:
     }
 
 
+
+# ─── 6. Solution Design (section 6 du SDS) ─────────────────────────────────
+def collect_solution_design(execution_id: int) -> dict[str, Any]:
+    """Récupère le deliverable architect_solution_design et le retourne brut.
+    
+    Le content JSON contient (clés L1) : data_model, security_model, queues,
+    reporting, automation_design, integration_points, ui_components,
+    uc_traceability, technical_considerations, risks.
+    
+    Itération 2A.1 — utilise seulement queues, technical_considerations, risks.
+    Les autres clés sont retournées telles quelles, le partial les ignore et
+    affiche le bloc HTML en dur copié de la référence pour l'instant.
+    """
+    with _db_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute("""
+            SELECT content
+            FROM agent_deliverables
+            WHERE execution_id = %s AND deliverable_type = 'architect_solution_design'
+            LIMIT 1
+        """, (execution_id,))
+        row = cur.fetchone()
+        if not row:
+            return {
+                "data_model": {}, "security_model": {}, "queues": [],
+                "reporting": {}, "automation_design": {}, "integration_points": [],
+                "ui_components": {}, "uc_traceability": {},
+                "technical_considerations": [], "risks": [],
+            }
+    
+    raw = row["content"]
+    parsed = json.loads(raw) if isinstance(raw, str) else raw
+    content = parsed.get("content", parsed) if isinstance(parsed, dict) else {}
+    
+    return {
+        "data_model": content.get("data_model", {}),
+        "security_model": content.get("security_model", {}),
+        "queues": content.get("queues", []),
+        "reporting": content.get("reporting", {}),
+        "automation_design": content.get("automation_design", {}),
+        "integration_points": content.get("integration_points", []),
+        "ui_components": content.get("ui_components", {}),
+        "uc_traceability": content.get("uc_traceability", {}),
+        "technical_considerations": content.get("technical_considerations", []),
+        "risks": content.get("risks", []),
+    }
+
+
 # ─── 5. Build context — assemble tout pour le rendu Jinja2 ─────────────────
 def build_render_context(execution_id: int) -> dict[str, Any]:
     """Assemble le dict complet à passer à Jinja2."""
@@ -201,6 +248,7 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
     uc_count = _count_use_cases(execution_id)
     toc = collect_toc(execution_id, br_count=br_count, uc_count=uc_count,
                      coverage_score=cov.get("score", 0))
+    sd = collect_solution_design(execution_id)
     
     # Status mapping → label + CSS class. La couleur indique le degré de finition
     # (brass = approved/complete, sage = build done, ochre = in progress, terra = failed).
@@ -239,6 +287,17 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
         "execution": meta["execution"],
         "project": meta["project"],
         "coverage": cov,
+        # Solution Design : sous-clés exposées au top-level pour le partial
+        "data_model": sd["data_model"],
+        "security_model": sd["security_model"],
+        "queues": sd["queues"],
+        "reporting": sd["reporting"],
+        "automation_design": sd["automation_design"],
+        "integration_points": sd["integration_points"],
+        "ui_components": sd["ui_components"],
+        "uc_traceability": sd["uc_traceability"],
+        "technical_considerations": sd["technical_considerations"],
+        "risks": sd["risks"],
         "agents": agents,
         "deliverables": {"count": agents["deliverable_count"]},
         "toc": toc,

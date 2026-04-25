@@ -1,0 +1,2845 @@
+<section id='sec-6' class='block'>
+<div class='act'><span class='act-num'>— Scene VI</span><span class='act-sep'></span><span class='act-tag'>Artifact 06</span></div><h1 class='sec-h1'><span>Solution Design</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
+<p>The target architecture: data model, security, automation, integrations, UI. This is the longest section of the SDS — Marcus must produce this in enough detail for BUILD agents (Diego/Zara) to implement without inventing missing pieces.</p>
+<p class='note'>This section is the primary input to all BUILD-phase agents. Every gap or vagueness here translates into improvisation by Diego (Apex), Zara (LWC), Raj (Admin) and Jordan (DevOps).</p>
+<h2 id='sub-6-1' class='sec-h2'><span>6.1 Data Model</span> <em class='brass'>Entity Relationship Diagram</em></h2>
+<p>The target data model has 5 standard objects extended, 17 new custom objects, and 26 relationships.</p>
+<div class='figure-block'><div class='figure-caption'>Figure 1 — Target ERD (17 custom objects, 26 relationships) — generated from Marcus<strong>'</strong>s erd_mermaid block</div>
+<div class='mermaid-wrap'><svg id="svg-1" width="100%" xmlns="http://www.w3.org/2000/svg" style="max-width: 2220.41796875px;" viewBox="0 0 2220.41796875 465" role="graphics-document document" aria-roledescription="er"><style>#svg-1{font-family:Inter,sans-serif;font-size:13px;fill:#F5F2EC;}#svg-1 .error-icon{fill:#0A0A0B;}#svg-1 .error-text{fill:#f5f5f4;stroke:#f5f5f4;}#svg-1 .edge-thickness-normal{stroke-width:2px;}#svg-1 .edge-thickness-thick{stroke-width:3.5px;}#svg-1 .edge-pattern-solid{stroke-dasharray:0;}#svg-1 .edge-pattern-dashed{stroke-dasharray:3;}#svg-1 .edge-pattern-dotted{stroke-dasharray:2;}#svg-1 .marker{fill:#8C6E4A;stroke:#8C6E4A;}#svg-1 .marker.cross{stroke:#8C6E4A;}#svg-1 svg{font-family:Inter,sans-serif;font-size:13px;}#svg-1 .entityBox{fill:#141416;stroke:#C8A97E;}#svg-1 .attributeBoxOdd{fill:#1C1C1F;stroke:#C8A97E;}#svg-1 .attributeBoxEven{fill:#141416;stroke:#C8A97E;}#svg-1 .relationshipLabelBox{fill:#0A0A0B;opacity:0.7;background-color:#0A0A0B;}#svg-1 .relationshipLabelBox rect{opacity:0.5;}#svg-1 .relationshipLine{stroke:#8C6E4A;}#svg-1 .entityTitleText{text-anchor:middle;font-size:18px;fill:#F5F2EC;}#svg-1 #MD_PARENT_START{fill:#f5f5f5!important;stroke:#8C6E4A!important;stroke-width:1;}#svg-1 #MD_PARENT_END{fill:#f5f5f5!important;stroke:#8C6E4A!important;stroke-width:1;}#svg-1 :root{--mermaid-font-family:"trebuchet ms",verdana,arial,sans-serif;}</style><g></g><defs><marker id="MD_PARENT_START" refX="0" refY="7" markerWidth="190" markerHeight="240" orient="auto"><path d="M 18,7 L9,13 L1,7 L9,1 Z"></path></marker></defs><defs><marker id="MD_PARENT_END" refX="19" refY="7" markerWidth="20" markerHeight="28" orient="auto"><path d="M 18,7 L9,13 L1,7 L9,1 Z"></path></marker></defs><defs><marker id="ONLY_ONE_START" refX="0" refY="9" markerWidth="18" markerHeight="18" orient="auto"><path stroke="gray" fill="none" d="M9,0 L9,18 M15,0 L15,18"></path></marker></defs><defs><marker id="ONLY_ONE_END" refX="18" refY="9" markerWidth="18" markerHeight="18" orient="auto"><path stroke="gray" fill="none" d="M3,0 L3,18 M9,0 L9,18"></path></marker></defs><defs><marker id="ZERO_OR_ONE_START" refX="0" refY="9" markerWidth="30" markerHeight="18" orient="auto"><circle stroke="gray" fill="white" cx="21" cy="9" r="6"></circle><path stroke="gray" fill="none" d="M9,0 L9,18"></path></marker></defs><defs><marker id="ZERO_OR_ONE_END" refX="30" refY="9" markerWidth="30" markerHeight="18" orient="auto"><circle stroke="gray" fill="white" cx="9" cy="9" r="6"></circle><path stroke="gray" fill="none" d="M21,0 L21,18"></path></marker></defs><defs><marker id="ONE_OR_MORE_START" refX="18" refY="18" markerWidth="45" markerHeight="36" orient="auto"><path stroke="gray" fill="none" d="M0,18 Q 18,0 36,18 Q 18,36 0,18 M42,9 L42,27"></path></marker></defs><defs><marker id="ONE_OR_MORE_END" refX="27" refY="18" markerWidth="45" markerHeight="36" orient="auto"><path stroke="gray" fill="none" d="M3,9 L3,27 M9,18 Q27,0 45,18 Q27,36 9,18"></path></marker></defs><defs><marker id="ZERO_OR_MORE_START" refX="18" refY="18" markerWidth="57" markerHeight="36" orient="auto"><circle stroke="gray" fill="white" cx="48" cy="18" r="6"></circle><path stroke="gray" fill="none" d="M0,18 Q18,0 36,18 Q18,36 0,18"></path></marker></defs><defs><marker id="ZERO_OR_MORE_END" refX="39" refY="18" markerWidth="57" markerHeight="36" orient="auto"><circle stroke="gray" fill="white" cx="9" cy="18" r="6"></circle><path stroke="gray" fill="none" d="M21,18 Q39,0 57,18 Q39,36 21,18"></path></marker></defs><path class="er relationshipLine" d="M1058.84,62.16L910.7,75.967C762.56,89.773,466.28,117.387,318.14,139.527C170,161.667,170,178.333,170,186.667L170,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1058.84,63.624L948.098,77.186C837.355,90.749,615.87,117.875,505.127,139.771C394.385,161.667,394.385,178.333,394.385,186.667L394.385,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1058.84,66.325L984.547,79.437C910.254,92.55,761.667,118.775,687.373,140.221C613.08,161.667,613.08,178.333,613.08,186.667L613.08,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1058.84,73.943L1022.83,85.786C986.819,97.629,914.797,121.314,878.786,147.741C842.775,174.167,842.775,203.333,842.775,232.5C842.775,261.667,842.775,290.833,838.013,313.75C833.252,336.667,823.728,353.333,818.966,361.667L814.204,370" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1062.828,95L1052.603,103.333C1042.378,111.667,1021.928,128.333,1011.703,145C1001.479,161.667,1001.479,178.333,1001.479,186.667L1001.479,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1154.853,95L1165.077,103.333C1175.302,111.667,1195.752,128.333,1205.977,145C1216.202,161.667,1216.202,178.333,1216.202,186.667L1216.202,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1158.84,71.255L1203.52,83.545C1248.199,95.836,1337.557,120.418,1382.237,141.042C1426.916,161.667,1426.916,178.333,1426.916,186.667L1426.916,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1158.84,65.334L1243.585,78.612C1328.33,91.889,1497.82,118.445,1582.566,140.056C1667.311,161.667,1667.311,178.333,1667.311,186.667L1667.311,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1158.84,63.009L1282.869,76.674C1406.897,90.339,1654.955,117.67,1778.983,139.668C1903.012,161.667,1903.012,178.333,1903.012,186.667L1903.012,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1158.84,61.798L1320.153,75.665C1481.465,89.532,1804.09,117.266,1965.402,139.466C2126.715,161.667,2126.715,178.333,2126.715,186.667L2126.715,195" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M127.143,270L117.619,278.333C108.095,286.667,89.048,303.333,79.524,320C70,336.667,70,353.333,70,361.667L70,370" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M221.725,270L233.22,278.333C244.714,286.667,267.703,303.333,279.198,320C290.692,336.667,290.692,353.333,290.692,361.667L290.692,370" marker-end="url(#ONLY_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1667.311,270L1667.311,278.333C1667.311,286.667,1667.311,303.333,1618.019,324.141C1568.727,344.949,1470.143,369.898,1420.851,382.372L1371.559,394.846" marker-end="url(#ONLY_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M563.08,268.749L551.298,277.291C539.516,285.833,515.952,302.916,504.17,319.792C492.388,336.667,492.388,353.333,492.388,361.667L492.388,370" marker-end="url(#ZERO_OR_MORE_END)" marker-start="url(#ONLY_ONE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M657.949,270L667.92,278.333C677.891,286.667,697.833,303.333,714.947,320C732.061,336.667,746.347,353.333,753.49,361.667L760.633,370" marker-end="url(#ZERO_OR_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1001.479,270L1001.479,278.333C1001.479,286.667,1001.479,303.333,1046.492,323.972C1091.505,344.611,1181.532,369.221,1226.546,381.526L1271.559,393.832" marker-end="url(#ZERO_OR_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1216.202,270L1216.202,278.333C1216.202,286.667,1216.202,303.333,1226.236,320C1236.27,336.667,1256.338,353.333,1266.372,361.667L1276.406,370" marker-end="url(#ONLY_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><path class="er relationshipLine" d="M1426.916,270L1426.916,278.333C1426.916,286.667,1426.916,303.333,1416.882,320C1406.848,336.667,1386.78,353.333,1376.746,361.667L1366.712,370" marker-end="url(#ONLY_ONE_END)" marker-start="url(#ZERO_OR_MORE_START)" style="stroke: gray; fill: none;"></path><g id="entity-Vehicle-41182262-62dc-5a53-a24b-9ac0ff6daf9a" transform="translate(1058.84033203125,20 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Vehicle-41182262-62dc-5a53-a24b-9ac0ff6daf9a" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Vehicle</text></g><g id="entity-RentalContract-e05f96e9-773a-545b-9e7a-e8711f1358f2" transform="translate(114.310546875,195 )"><rect class="er entityBox" x="0" y="0" width="111.37890625" height="75"></rect><text class="er entityLabel" id="text-entity-RentalContract-e05f96e9-773a-545b-9e7a-e8711f1358f2" x="0" y="0" transform="translate(55.689453125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Rental_Contract</text></g><g id="entity-MaintenanceActivity-752c1f1d-9efe-59c6-ba72-14b9483f7b05" transform="translate(325.689453125,195 )"><rect class="er entityBox" x="0" y="0" width="137.390625" height="75"></rect><text class="er entityLabel" id="text-entity-MaintenanceActivity-752c1f1d-9efe-59c6-ba72-14b9483f7b05" x="0" y="0" transform="translate(68.6953125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Maintenance_Activity</text></g><g id="entity-Sinistre-a684b6ab-d73e-5861-a75d-1d712611e5c3" transform="translate(563.080078125,195 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Sinistre-a684b6ab-d73e-5861-a75d-1d712611e5c3" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Sinistre</text></g><g id="entity-InsurancePolicy-eaa3f660-a8d1-5087-8ed8-82724062b19f" transform="translate(735.080078125,370 )"><rect class="er entityBox" x="0" y="0" width="115.390625" height="75"></rect><text class="er entityLabel" id="text-entity-InsurancePolicy-eaa3f660-a8d1-5087-8ed8-82724062b19f" x="0" y="0" transform="translate(57.6953125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Insurance_Policy</text></g><g id="entity-MileageReading-d2d925a1-979c-53ae-8ff2-5af95f82529e" transform="translate(942.775390625,195 )"><rect class="er entityBox" x="0" y="0" width="117.40625" height="75"></rect><text class="er entityLabel" id="text-entity-MileageReading-d2d925a1-979c-53ae-8ff2-5af95f82529e" x="0" y="0" transform="translate(58.703125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Mileage_Reading</text></g><g id="entity-ProblemReport-2b4ad557-2551-529a-a1b7-eaa051eccf7a" transform="translate(1160.181640625,195 )"><rect class="er entityBox" x="0" y="0" width="112.041015625" height="75"></rect><text class="er entityLabel" id="text-entity-ProblemReport-2b4ad557-2551-529a-a1b7-eaa051eccf7a" x="0" y="0" transform="translate(56.0205078125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Problem_Report</text></g><g id="entity-IncidentReport-68ae2496-2dc2-5fc8-967e-151e61f8c43b" transform="translate(1372.22265625,195 )"><rect class="er entityBox" x="0" y="0" width="109.38671875" height="75"></rect><text class="er entityLabel" id="text-entity-IncidentReport-68ae2496-2dc2-5fc8-967e-151e61f8c43b" x="0" y="0" transform="translate(54.693359375,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Incident_Report</text></g><g id="entity-DriverVehicleAssignment-17e4b77f-9e87-556a-ae30-f15c373d6cd9" transform="translate(1581.609375,195 )"><rect class="er entityBox" x="0" y="0" width="171.40234375" height="75"></rect><text class="er entityLabel" id="text-entity-DriverVehicleAssignment-17e4b77f-9e87-556a-ae30-f15c373d6cd9" x="0" y="0" transform="translate(85.701171875,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Driver_Vehicle_Assignment</text></g><g id="entity-Alert-1a335651-330e-5233-ae15-2a07b441fdb9" transform="translate(1853.01171875,195 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Alert-1a335651-330e-5233-ae15-2a07b441fdb9" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Alert</text></g><g id="entity-VehicleStatusHistory-f4e1676e-9f4a-5f05-b04b-eb0e518331e4" transform="translate(2053.01171875,195 )"><rect class="er entityBox" x="0" y="0" width="147.40625" height="75"></rect><text class="er entityLabel" id="text-entity-VehicleStatusHistory-f4e1676e-9f4a-5f05-b04b-eb0e518331e4" x="0" y="0" transform="translate(73.703125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Vehicle_Status_History</text></g><g id="entity-Invoice-d74bdb79-28bd-5529-bee8-09cc57ef8182" transform="translate(20,370 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Invoice-d74bdb79-28bd-5529-bee8-09cc57ef8182" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Invoice</text></g><g id="entity-Account-3e57c4b6-cd9d-514f-a2f6-ac5478bb332e" transform="translate(240.6923828125,370 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Account-3e57c4b6-cd9d-514f-a2f6-ac5478bb332e" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Account</text></g><g id="entity-Contact-a4626517-d92a-5eaf-904d-ed1fdd3a62ce" transform="translate(1271.55908203125,370 )"><rect class="er entityBox" x="0" y="0" width="100" height="75"></rect><text class="er entityLabel" id="text-entity-Contact-a4626517-d92a-5eaf-904d-ed1fdd3a62ce" x="0" y="0" transform="translate(50,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Contact</text></g><g id="entity-InvolvedParty-12b0083b-ae46-50af-92bc-ee8364d0eb7e" transform="translate(440.6923828125,370 )"><rect class="er entityBox" x="0" y="0" width="103.390625" height="75"></rect><text class="er entityLabel" id="text-entity-InvolvedParty-12b0083b-ae46-50af-92bc-ee8364d0eb7e" x="0" y="0" transform="translate(51.6953125,37.5)" style="dominant-baseline: middle; text-anchor: middle; font-size: 12px;">Involved_Party</text></g><rect class="er relationshipLabelBox" x="594.232177734375" y="98.70597839355469" width="19.359375" height="14"></rect><text class="er relationshipLabel" id="rel1" x="603.911865234375" y="105.70597839355469" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">has</text><rect class="er relationshipLabelBox" x="699.0354614257812" y="99.92332458496094" width="32.015625" height="14"></rect><text class="er relationshipLabel" id="rel2" x="715.0432739257812" y="106.92332458496094" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">tracks</text><rect class="er relationshipLabelBox" x="801.1351928710938" y="102.29090881347656" width="43.359375" height="14"></rect><text class="er relationshipLabel" id="rel3" x="822.8148803710938" y="109.29090881347656" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">involves</text><rect class="er relationshipLabelBox" x="831.3130493164062" y="155.59498596191406" width="62.046875" height="14"></rect><text class="er relationshipLabel" id="rel4" x="862.3364868164062" y="162.59498596191406" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">covered_by</text><rect class="er relationshipLabelBox" x="991.12255859375" y="129.83953857421875" width="52.6875" height="14"></rect><text class="er relationshipLabel" id="rel5" x="1017.46630859375" y="136.83953857421875" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">measures</text><rect class="er relationshipLabelBox" x="1167.525390625" y="129.84011840820312" width="65.376953125" height="14"></rect><text class="er relationshipLabel" id="rel6" x="1200.2138671875" y="136.84011840820312" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">reported_for</text><rect class="er relationshipLabelBox" x="1275.281982421875" y="106.8656997680664" width="65.376953125" height="14"></rect><text class="er relationshipLabel" id="rel7" x="1307.970458984375" y="113.8656997680664" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">reported_for</text><rect class="er relationshipLabelBox" x="1393.1708984375" y="101.40725708007812" width="65.04296875" height="14"></rect><text class="er relationshipLabel" id="rel8" x="1425.6923828125" y="108.40725708007812" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">assigned_to</text><rect class="er relationshipLabelBox" x="1522.0623779296875" y="99.40679931640625" width="40.015625" height="14"></rect><text class="er relationshipLabel" id="rel9" x="1542.0701904296875" y="106.40679931640625" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">triggers</text><rect class="er relationshipLabelBox" x="1641.9874267578125" y="98.41261291503906" width="22.015625" height="14"></rect><text class="er relationshipLabel" id="rel10" x="1652.9952392578125" y="105.41261291503906" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">logs</text><rect class="er relationshipLabelBox" x="57.674468994140625" y="305.5645751953125" width="53.375" height="14"></rect><text class="er relationshipLabel" id="rel11" x="84.36196899414062" y="312.5645751953125" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">generates</text><rect class="er relationshipLabelBox" x="249.076171875" y="303.5912780761719" width="45.02734375" height="14"></rect><text class="er relationshipLabel" id="rel12" x="271.58984375" y="310.5912780761719" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">billed_to</text><rect class="er relationshipLabelBox" x="1519.171630859375" y="345.1754455566406" width="30.015625" height="14"></rect><text class="er relationshipLabel" id="rel13" x="1534.179443359375" y="352.1754455566406" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">driver</text><rect class="er relationshipLabelBox" x="490.29608154296875" y="302.8753662109375" width="44.03125" height="14"></rect><text class="er relationshipLabel" id="rel14" x="512.3117065429688" y="309.8753662109375" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">includes</text><rect class="er relationshipLabelBox" x="684.0285034179688" y="310.1929931640625" width="56.01953125" height="14"></rect><text class="er relationshipLabel" id="rel15" x="712.0382690429688" y="317.1929931640625" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">files_claim</text><rect class="er relationshipLabelBox" x="1085.7647705078125" y="344.2159729003906" width="71.375" height="14"></rect><text class="er relationshipLabel" id="rel16" x="1121.4522705078125" y="351.2159729003906" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">submitted_by</text><rect class="er relationshipLabelBox" x="1199.7169189453125" y="320.9649658203125" width="64.046875" height="14"></rect><text class="er relationshipLabel" id="rel17" x="1231.7403564453125" y="327.9649658203125" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">reported_by</text><rect class="er relationshipLabelBox" x="1379.353759765625" y="320.9645690917969" width="64.046875" height="14"></rect><text class="er relationshipLabel" id="rel18" x="1411.377197265625" y="327.9645690917969" style="text-anchor: middle; dominant-baseline: middle; font-size: 12px;">reported_by</text></svg></div>
+</div>
+<h2 id='sub-6-2' class='sec-h2'><span>6.2 Custom Objects</span> <em class='brass'>(17)</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Sharing</strong></th>
+<th><strong>Purpose</strong></th>
+<th><strong># Fields</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Private</td>
+<td>Central entity representing each vehicle in the fleet. Tracks vehicle details, status, mileage, maintenance dates, and inspection information. Referenced by nearly all business requirements.</td>
+<td><strong>23</strong></td>
+</tr>
+<tr>
+<td><strong>Vehicle_Status_History__c</strong></td>
+<td>ControlledByParent</td>
+<td>Audit trail recording every change to a vehicle's Condition_Status__c. Created automatically by Flow when status changes (BR-002).</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td>Private</td>
+<td>Represents a rental agreement between LogiFleet and a client for a specific vehicle. Tracks contract lifecycle, billing, and expiration alerts (BR-003, BR-004, BR-010, BR-014).</td>
+<td><strong>14</strong></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Activity__c</strong></td>
+<td>Private</td>
+<td>Consolidated maintenance object (per Emma's recommendation) representing both logged maintenance activities and scheduled maintenance. Covers BR-006, BR-007, BR-009, BR-019, BR-020.</td>
+<td><strong>18</strong></td>
+</tr>
+<tr>
+<td><strong>Sinistre__c</strong></td>
+<td>Private</td>
+<td>Consolidated object for insurance claims and incidents (per Emma's recommendation, merging Sinistrec and Claimc from BR-011 and BR-013). Tracks incidents, resolution, and insurance claim details.</td>
+<td><strong>13</strong></td>
+</tr>
+<tr>
+<td><strong>Involved_Party__c</strong></td>
+<td>ControlledByParent</td>
+<td>Tracks third parties involved in an incident/claim (BR-011). Child of Sinistre__c.</td>
+<td><strong>4</strong></td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy__c</strong></td>
+<td>Private</td>
+<td>Consolidated insurance policy object (per Emma's recommendation, merging Insurance_Policyc and Vehicle_Insurancec from BR-012 and BR-024). Tracks policy details, coverage, and claim aggregation.</td>
+<td><strong>12</strong></td>
+</tr>
+<tr>
+<td><strong>Invoice__c</strong></td>
+<td>Private</td>
+<td>Represents monthly invoices generated for active rental contracts. Tracks billing, payment status, and overdue flagging (BR-014, BR-015).</td>
+<td><strong>11</strong></td>
+</tr>
+<tr>
+<td><strong>Invoice_Generation_Log__c</strong></td>
+<td>Private</td>
+<td>Audit log for monthly invoice generation batch runs (BR-014). Tracks success/failure of each generation cycle.</td>
+<td><strong>6</strong></td>
+</tr>
+<tr>
+<td><strong>Incident_Report__c</strong></td>
+<td>Private</td>
+<td>Mobile-submitted incident reports by drivers (BR-016). Captures real-time incident information with photo attachments.</td>
+<td><strong>6</strong></td>
+</tr>
+<tr>
+<td><strong>Mileage_Reading__c</strong></td>
+<td>Private</td>
+<td>Records individual mileage/odometer readings submitted by drivers or fleet staff (BR-017, BR-022). Supports anomaly detection and trend analysis.</td>
+<td><strong>12</strong></td>
+</tr>
+<tr>
+<td><strong>Driver_Vehicle_Assignment__c</strong></td>
+<td>Private</td>
+<td>Junction object managing the assignment of drivers (Contacts) to vehicles (BR-018). Enforces one active assignment per vehicle and per driver.</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td><strong>Alert__c</strong></td>
+<td>Private</td>
+<td>Consolidated alert object (per Emma's recommendation, merging Inspection_Alertc, Insurance_Alertc, and Alertc from BR-008, BR-021, BR-024). Tracks all types of fleet alerts with Alert_Typec differentiation.</td>
+<td><strong>12</strong></td>
+</tr>
+<tr>
+<td><strong>Fleet_Metric__c</strong></td>
+<td>Private</td>
+<td>Daily snapshot of aggregated fleet metrics for dashboard display and trend analysis (BR-019).</td>
+<td><strong>11</strong></td>
+</tr>
+<tr>
+<td><strong>Problem_Report__c</strong></td>
+<td>Private</td>
+<td>Mobile-submitted problem reports by drivers for vehicle issues (BR-023). Supports assignment workflow and resolution tracking.</td>
+<td><strong>12</strong></td>
+</tr>
+<tr>
+<td><strong>Alert_Configuration__mdt</strong></td>
+<td>N/A</td>
+<td>Custom metadata type for configuring alert lead times and behavior (BR-021). Allows administrators to adjust alert thresholds without code changes.</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Alert_Setting__mdt</strong></td>
+<td>N/A</td>
+<td>Custom metadata type for maintenance-specific alert configuration (BR-009). Configures days before alert, notification method, and recipient.</td>
+<td><strong>3</strong></td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-3' class='sec-h2'><span>6.3 Custom Object</span> <em class='brass'>Field Details</em></h2>
+<p><strong>Vehicle__c  </strong>(Vehicle) — 23 fields</p>
+<p class='note'>Central entity representing each vehicle in the fleet. Tracks vehicle details, status, mileage, maintenance dates, and inspection information. Referenced by nearly all business requirements.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Brand__c</strong></td>
+<td>Text(100)</td>
+<td><strong>✓</strong></td>
+<td>Vehicle manufacturer/brand (e.g., Renault, Peugeot)</td>
+</tr>
+<tr>
+<td><strong>Model__c</strong></td>
+<td>Text(100)</td>
+<td><strong>✓</strong></td>
+<td>Vehicle model name</td>
+</tr>
+<tr>
+<td><strong>Registration_Number__c</strong></td>
+<td>Text(20)</td>
+<td><strong>✓</strong></td>
+<td>Unique vehicle registration/license plate number. External ID with unique constraint.</td>
+</tr>
+<tr>
+<td><strong>Year__c</strong></td>
+<td>Number(4,0)</td>
+<td></td>
+<td>Manufacturing year of the vehicle</td>
+</tr>
+<tr>
+<td><strong>Mileage__c</strong></td>
+<td>Number(10,0)</td>
+<td></td>
+<td>Current odometer reading in kilometers. Updated by mileage readings and maintenance activities.</td>
+</tr>
+<tr>
+<td><strong>Condition_Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current operational status of the vehicle</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Available, Rented, In Maintenance, Out of Service</em></td>
+</tr>
+<tr>
+<td><strong>Status_Last_Changed__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Timestamp of the last Condition_Status__c change. Auto-populated by Flow.</td>
+</tr>
+<tr>
+<td><strong>Last_Oil_Change_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date of the most recent oil change maintenance activity</td>
+</tr>
+<tr>
+<td><strong>Last_Technical_Inspection_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date of the most recent technical inspection (controle technique)</td>
+</tr>
+<tr>
+<td><strong>Last_Inspection_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Alias/same as Last_Technical_Inspection_Date__c for BR-008 compatibility</td>
+</tr>
+<tr>
+<td><strong>Inspection_Interval_Months__c</strong></td>
+<td>Number(3,0)</td>
+<td></td>
+<td>Number of months between required technical inspections. Defaults to 24 if blank.</td>
+</tr>
+<tr>
+<td><strong>Next_Inspection_Due_Date__c</strong></td>
+<td>Formula(Date)</td>
+<td></td>
+<td>Formula: ADDMONTHS(Last_Technical_Inspection_Datec, IF(ISBLANK(Inspection_Interval_Monthsc), 24, Inspection_Interval_Months__c))</td>
+</tr>
+<tr>
+<td><strong>Inspection_Alert_Status__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Indicates if an inspection alert has been generated</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>None, Alert Generated, Overdue</em></td>
+</tr>
+<tr>
+<td><strong>Last_Mileage_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date of the most recent mileage reading</td>
+</tr>
+<tr>
+<td><strong>Average_Daily_Mileage__c</strong></td>
+<td>Number(8,2)</td>
+<td></td>
+<td>Calculated average daily mileage based on recent readings</td>
+</tr>
+<tr>
+<td><strong>Has_Mileage_Anomaly__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag indicating an unresolved mileage anomaly exists</td>
+</tr>
+<tr>
+<td><strong>Maintenance_Status__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Maintenance warning status</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>OK, Due Soon, Overdue</em></td>
+</tr>
+<tr>
+<td><strong>Total_Maintenance_Cost__c</strong></td>
+<td>Currency(12,2)</td>
+<td></td>
+<td>Aggregated total cost of all maintenance activities. Updated by Flow on Maintenance_Activity__c changes.</td>
+</tr>
+<tr>
+<td><strong>Fleet_Manager__c</strong></td>
+<td>Lookup(User)</td>
+<td></td>
+<td>User designated as the fleet manager responsible for this vehicle</td>
+</tr>
+<tr>
+<td><strong>Purchase_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date the vehicle was purchased/acquired</td>
+</tr>
+<tr>
+<td><strong>Last_Service_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date of the most recent service/maintenance activity</td>
+</tr>
+<tr>
+<td><strong>Next_Maintenance_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Next scheduled maintenance date, derived from Maintenance_Schedule__c</td>
+</tr>
+<tr>
+<td><strong>Contract_End_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>End date of the current active rental contract, for alert generation purposes</td>
+</tr>
+</tbody></table>
+<p><strong>Vehicle_Status_History__c  </strong>(Vehicle Status History) — 5 fields</p>
+<p class='note'>Audit trail recording every change to a vehicle<strong>'</strong>s Condition_Status__c. Created automatically by Flow when status changes (BR-002).</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>MasterDetail(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>Parent vehicle record</td>
+</tr>
+<tr>
+<td><strong>Previous_Status__c</strong></td>
+<td>Text(50)</td>
+<td><strong>✓</strong></td>
+<td>The status value before the change</td>
+</tr>
+<tr>
+<td><strong>New_Status__c</strong></td>
+<td>Text(50)</td>
+<td><strong>✓</strong></td>
+<td>The status value after the change</td>
+</tr>
+<tr>
+<td><strong>Changed_Date__c</strong></td>
+<td>DateTime</td>
+<td><strong>✓</strong></td>
+<td>Timestamp when the status change occurred</td>
+</tr>
+<tr>
+<td><strong>Changed_By__c</strong></td>
+<td>Lookup(User)</td>
+<td><strong>✓</strong></td>
+<td>User who made the status change</td>
+</tr>
+</tbody></table>
+<p><strong>Rental_Contract__c  </strong>(Rental Contract) — 14 fields</p>
+<p class='note'>Represents a rental agreement between LogiFleet and a client for a specific vehicle. Tracks contract lifecycle, billing, and expiration alerts (BR-003, BR-004, BR-010, BR-014).</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Contract_Number__c</strong></td>
+<td>AutoNumber</td>
+<td><strong>✓</strong></td>
+<td>Auto-generated unique contract number (RC-{00000})</td>
+</tr>
+<tr>
+<td><strong>Client__c</strong></td>
+<td>Lookup(Account)</td>
+<td><strong>✓</strong></td>
+<td>The client company or individual renting the vehicle</td>
+</tr>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle being rented under this contract</td>
+</tr>
+<tr>
+<td><strong>Start_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Contract start date</td>
+</tr>
+<tr>
+<td><strong>End_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Contract end date</td>
+</tr>
+<tr>
+<td><strong>Monthly_Rate__c</strong></td>
+<td>Currency(10,2)</td>
+<td><strong>✓</strong></td>
+<td>Monthly rental rate in EUR</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current contract status, managed by scheduled flow</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Upcoming, Active, Expired, Terminated</em></td>
+</tr>
+<tr>
+<td><strong>Duration_Months__c</strong></td>
+<td>Formula(Number)</td>
+<td></td>
+<td>Formula: IF(OR(ISBLANK(Start_Datec), ISBLANK(End_Datec)), NULL, ROUND((End_Datec - Start_Datec) / 30.44, 0))</td>
+</tr>
+<tr>
+<td><strong>Rental_Manager__c</strong></td>
+<td>Lookup(User)</td>
+<td></td>
+<td>User responsible for managing this contract</td>
+</tr>
+<tr>
+<td><strong>Tenant__c</strong></td>
+<td>Lookup(Contact)</td>
+<td></td>
+<td>Primary contact/tenant for the rental</td>
+</tr>
+<tr>
+<td><strong>Expiration_Alert_Sent__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag indicating an expiration alert has been sent. Reset when End_Date__c is extended.</td>
+</tr>
+<tr>
+<td><strong>Contract_Action__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Last action taken on the contract</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>None, Renewed, Terminated, Reassigned</em></td>
+</tr>
+<tr>
+<td><strong>Termination_Reason__c</strong></td>
+<td>LongTextArea(5000)</td>
+<td></td>
+<td>Reason for contract termination if applicable</td>
+</tr>
+<tr>
+<td><strong>New_Tenant__c</strong></td>
+<td>Lookup(Contact)</td>
+<td></td>
+<td>New tenant when contract is reassigned</td>
+</tr>
+</tbody></table>
+<p><strong>Maintenance_Activity__c  </strong>(Maintenance Activity) — 18 fields</p>
+<p class='note'>Consolidated maintenance object (per Emma<strong>'</strong>s recommendation) representing both logged maintenance activities and scheduled maintenance. Covers BR-006, BR-007, BR-009, BR-019, BR-020.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle this maintenance activity is for</td>
+</tr>
+<tr>
+<td><strong>Maintenance_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type of maintenance performed or scheduled</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Oil Change, Technical Inspection, Repair, Tire Change, Brake Service, General Service, Other</em></td>
+</tr>
+<tr>
+<td><strong>Record_Type_Category__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Distinguishes between logged activities and scheduled maintenance</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Completed Activity, Scheduled Maintenance</em></td>
+</tr>
+<tr>
+<td><strong>Activity_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date the maintenance was performed (for completed activities)</td>
+</tr>
+<tr>
+<td><strong>Scheduled_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Planned date for scheduled maintenance</td>
+</tr>
+<tr>
+<td><strong>Completion_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Actual completion date for scheduled maintenance</td>
+</tr>
+<tr>
+<td><strong>Mileage_At_Service__c</strong></td>
+<td>Number(10,0)</td>
+<td></td>
+<td>Odometer reading at time of service</td>
+</tr>
+<tr>
+<td><strong>Description__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td></td>
+<td>Detailed description of maintenance work performed</td>
+</tr>
+<tr>
+<td><strong>Cost__c</strong></td>
+<td>Currency(10,2)</td>
+<td></td>
+<td>Total cost of the maintenance activity</td>
+</tr>
+<tr>
+<td><strong>Service_Provider__c</strong></td>
+<td>Text(255)</td>
+<td></td>
+<td>Name of the service provider/garage</td>
+</tr>
+<tr>
+<td><strong>Next_Due_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Next due date for this type of maintenance</td>
+</tr>
+<tr>
+<td><strong>Repair_Category__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Category for repair-type maintenance</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Engine, Transmission, Electrical, Body, Suspension, Other</em></td>
+</tr>
+<tr>
+<td><strong>Parts_Replaced__c</strong></td>
+<td>LongTextArea(5000)</td>
+<td></td>
+<td>List of parts replaced during maintenance</td>
+</tr>
+<tr>
+<td><strong>Recurrence_Interval__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Recurrence interval in days for scheduled maintenance. When populated and schedule is completed, next schedule is auto-created.</td>
+</tr>
+<tr>
+<td><strong>Notes__c</strong></td>
+<td>LongTextArea(5000)</td>
+<td></td>
+<td>Additional notes for scheduled maintenance</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Status of the maintenance activity or schedule</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Planned, In Progress, Completed, Cancelled, Overdue</em></td>
+</tr>
+<tr>
+<td><strong>Responsible_Party__c</strong></td>
+<td>Lookup(User)</td>
+<td></td>
+<td>User responsible for this maintenance activity</td>
+</tr>
+<tr>
+<td><strong>Alert_Sent__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag indicating a maintenance alert has been sent for this activity. Reset when Scheduled_Date__c changes.</td>
+</tr>
+</tbody></table>
+<p><strong>Sinistre__c  </strong>(Claim/Incident (Sinistre)) — 13 fields</p>
+<p class='note'>Consolidated object for insurance claims and incidents (per Emma<strong>'</strong>s recommendation, merging Sinistrec and Claimc from BR-011 and BR-013). Tracks incidents, resolution, and insurance claim details.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Claim_Number__c</strong></td>
+<td>AutoNumber</td>
+<td><strong>✓</strong></td>
+<td>Auto-generated unique claim/incident number (SIN-{00000})</td>
+</tr>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle involved in the incident</td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy__c</strong></td>
+<td>Lookup(Insurance_Policy__c)</td>
+<td></td>
+<td>Associated insurance policy for the claim</td>
+</tr>
+<tr>
+<td><strong>Incident_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Date the incident occurred. Cannot be in the future.</td>
+</tr>
+<tr>
+<td><strong>Description__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td><strong>✓</strong></td>
+<td>Detailed description of the incident</td>
+</tr>
+<tr>
+<td><strong>Location__c</strong></td>
+<td>Text(255)</td>
+<td></td>
+<td>Location where the incident occurred</td>
+</tr>
+<tr>
+<td><strong>Incident_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type/category of the incident</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Accident, Theft, Vandalism, Natural Disaster, Mechanical Failure, Other</em></td>
+</tr>
+<tr>
+<td><strong>Resolution_Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current resolution status of the claim</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Open, Under Investigation, In Progress, Closed, Rejected</em></td>
+</tr>
+<tr>
+<td><strong>Resolution_Notes__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td></td>
+<td>Notes on the resolution of the claim</td>
+</tr>
+<tr>
+<td><strong>Resolution_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>Date the claim was resolved. Required when Resolution_Status__c is Closed.</td>
+</tr>
+<tr>
+<td><strong>Last_Status_Change_Date__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Timestamp of the last Resolution_Status__c change. Auto-populated by Flow.</td>
+</tr>
+<tr>
+<td><strong>Claimed_Amount__c</strong></td>
+<td>Currency(12,2)</td>
+<td></td>
+<td>Amount claimed from insurance</td>
+</tr>
+<tr>
+<td><strong>Claim_Status__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Insurance claim processing status</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Not Filed, Filed, Under Review, Approved, Denied, Paid</em></td>
+</tr>
+</tbody></table>
+<p><strong>Involved_Party__c  </strong>(Involved Party) — 4 fields</p>
+<p class='note'>Tracks third parties involved in an incident/claim (BR-011). Child of Sinistre__c.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Sinistre__c</strong></td>
+<td>MasterDetail(Sinistre__c)</td>
+<td><strong>✓</strong></td>
+<td>Parent claim/incident record</td>
+</tr>
+<tr>
+<td><strong>Name__c</strong></td>
+<td>Text(255)</td>
+<td><strong>✓</strong></td>
+<td>Name of the involved party</td>
+</tr>
+<tr>
+<td><strong>Role__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Role of the party in the incident</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Driver, Passenger, Witness, Third Party Driver, Pedestrian, Other</em></td>
+</tr>
+<tr>
+<td><strong>Contact_Info__c</strong></td>
+<td>LongTextArea(2000)</td>
+<td></td>
+<td>Contact information for the involved party (phone, email, address)</td>
+</tr>
+</tbody></table>
+<p><strong>Insurance_Policy__c  </strong>(Insurance Policy) — 12 fields</p>
+<p class='note'>Consolidated insurance policy object (per Emma<strong>'</strong>s recommendation, merging Insurance_Policyc and Vehicle_Insurancec from BR-012 and BR-024). Tracks policy details, coverage, and claim aggregation.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle covered by this policy</td>
+</tr>
+<tr>
+<td><strong>Policy_Number__c</strong></td>
+<td>Text(50)</td>
+<td><strong>✓</strong></td>
+<td>Unique insurance policy number</td>
+</tr>
+<tr>
+<td><strong>Insurer_Name__c</strong></td>
+<td>Text(255)</td>
+<td><strong>✓</strong></td>
+<td>Name of the insurance company</td>
+</tr>
+<tr>
+<td><strong>Coverage_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type of insurance coverage</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Comprehensive, Third Party, Third Party Fire and Theft, Collision Only</em></td>
+</tr>
+<tr>
+<td><strong>Premium_Amount__c</strong></td>
+<td>Currency(10,2)</td>
+<td></td>
+<td>Annual or periodic premium amount</td>
+</tr>
+<tr>
+<td><strong>Start_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Policy effective start date</td>
+</tr>
+<tr>
+<td><strong>Expiration_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Policy expiration date. Must be after Start_Date__c.</td>
+</tr>
+<tr>
+<td><strong>Policy_Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current status of the policy, managed by scheduled flow</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Active, Expiring Soon, Expired, Cancelled, Renewed</em></td>
+</tr>
+<tr>
+<td><strong>Coverage_Limit__c</strong></td>
+<td>Currency(12,2)</td>
+<td></td>
+<td>Maximum coverage limit for the policy</td>
+</tr>
+<tr>
+<td><strong>Total_Claims_Count__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Aggregated count of claims filed against this policy. Updated by Flow.</td>
+</tr>
+<tr>
+<td><strong>Total_Claimed_Amount__c</strong></td>
+<td>Currency(12,2)</td>
+<td></td>
+<td>Aggregated total amount claimed against this policy. Updated by Flow.</td>
+</tr>
+<tr>
+<td><strong>Coverage_Limit_Exceeded__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag set to true when Total_Claimed_Amountc exceeds Coverage_Limitc</td>
+</tr>
+</tbody></table>
+<p><strong>Invoice__c  </strong>(Invoice) — 11 fields</p>
+<p class='note'>Represents monthly invoices generated for active rental contracts. Tracks billing, payment status, and overdue flagging (BR-014, BR-015).</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Invoice_Number__c</strong></td>
+<td>AutoNumber</td>
+<td><strong>✓</strong></td>
+<td>Auto-generated unique invoice number (INV-{00000})</td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td>Lookup(Rental_Contract__c)</td>
+<td><strong>✓</strong></td>
+<td>The rental contract this invoice is generated for</td>
+</tr>
+<tr>
+<td><strong>Account__c</strong></td>
+<td>Lookup(Account)</td>
+<td><strong>✓</strong></td>
+<td>The client account being billed</td>
+</tr>
+<tr>
+<td><strong>Invoice_Amount__c</strong></td>
+<td>Currency(10,2)</td>
+<td><strong>✓</strong></td>
+<td>Total invoice amount (may be prorated)</td>
+</tr>
+<tr>
+<td><strong>Invoice_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Date the invoice was generated</td>
+</tr>
+<tr>
+<td><strong>Due_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Payment due date (typically 30 days after Invoice_Date__c)</td>
+</tr>
+<tr>
+<td><strong>Billing_Period__c</strong></td>
+<td>Text(7)</td>
+<td><strong>✓</strong></td>
+<td>Billing period in YYYY-MM format to prevent duplicates</td>
+</tr>
+<tr>
+<td><strong>Prorated__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Indicates if the invoice amount was prorated for a partial month</td>
+</tr>
+<tr>
+<td><strong>Payment_Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current payment status of the invoice</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Unpaid, Paid, Partially Paid, Overdue</em></td>
+</tr>
+<tr>
+<td><strong>Amount_Paid__c</strong></td>
+<td>Currency(10,2)</td>
+<td></td>
+<td>Amount paid against this invoice</td>
+</tr>
+<tr>
+<td><strong>Total_Amount__c</strong></td>
+<td>Currency(10,2)</td>
+<td></td>
+<td>Alias for Invoice_Amountc for compatibility. Formula: Invoice_Amountc</td>
+</tr>
+</tbody></table>
+<p><strong>Invoice_Generation_Log__c  </strong>(Invoice Generation Log) — 6 fields</p>
+<p class='note'>Audit log for monthly invoice generation batch runs (BR-014). Tracks success/failure of each generation cycle.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Run_Date__c</strong></td>
+<td>DateTime</td>
+<td><strong>✓</strong></td>
+<td>Timestamp of the invoice generation run</td>
+</tr>
+<tr>
+<td><strong>Billing_Period__c</strong></td>
+<td>Text(7)</td>
+<td><strong>✓</strong></td>
+<td>Billing period processed (YYYY-MM)</td>
+</tr>
+<tr>
+<td><strong>Total_Contracts_Processed__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Number of contracts processed</td>
+</tr>
+<tr>
+<td><strong>Invoices_Created__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Number of invoices successfully created</td>
+</tr>
+<tr>
+<td><strong>Errors__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td></td>
+<td>Error details if any invoices failed to generate</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Overall status of the generation run</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Success, Partial Success, Failed</em></td>
+</tr>
+</tbody></table>
+<p><strong>Incident_Report__c  </strong>(Incident Report) — 6 fields</p>
+<p class='note'>Mobile-submitted incident reports by drivers (BR-016). Captures real-time incident information with photo attachments.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Report_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type of incident being reported</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Accident, Breakdown, Theft, Damage, Near Miss, Other</em></td>
+</tr>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle involved in the incident</td>
+</tr>
+<tr>
+<td><strong>Driver__c</strong></td>
+<td>Lookup(Contact)</td>
+<td><strong>✓</strong></td>
+<td>The driver reporting the incident</td>
+</tr>
+<tr>
+<td><strong>Description__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td><strong>✓</strong></td>
+<td>Detailed description of the incident</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current status of the incident report</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Submitted, Under Review, Assigned, Resolved, Closed</em></td>
+</tr>
+<tr>
+<td><strong>Reported_DateTime__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Auto-populated timestamp of when the report was submitted</td>
+</tr>
+</tbody></table>
+<p><strong>Mileage_Reading__c  </strong>(Mileage Reading) — 12 fields</p>
+<p class='note'>Records individual mileage/odometer readings submitted by drivers or fleet staff (BR-017, BR-022). Supports anomaly detection and trend analysis.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle this reading is for</td>
+</tr>
+<tr>
+<td><strong>Driver__c</strong></td>
+<td>Lookup(Contact)</td>
+<td></td>
+<td>The driver who submitted the reading</td>
+</tr>
+<tr>
+<td><strong>Reading_Value__c</strong></td>
+<td>Number(10,0)</td>
+<td><strong>✓</strong></td>
+<td>Odometer value in kilometers. Alias for Odometer_Value__c.</td>
+</tr>
+<tr>
+<td><strong>Odometer_Value__c</strong></td>
+<td>Number(10,0)</td>
+<td><strong>✓</strong></td>
+<td>Odometer value in kilometers</td>
+</tr>
+<tr>
+<td><strong>Reading_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Date the reading was taken. Cannot be in the future.</td>
+</tr>
+<tr>
+<td><strong>Source__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Source of the mileage reading</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Mobile App, Manual Entry, Maintenance Service, Telematics</em></td>
+</tr>
+<tr>
+<td><strong>Is_Anomaly__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag set by Apex when the reading is detected as anomalous</td>
+</tr>
+<tr>
+<td><strong>Anomaly_Reason__c</strong></td>
+<td>Text(255)</td>
+<td></td>
+<td>Reason the reading was flagged as anomalous</td>
+</tr>
+<tr>
+<td><strong>Notes__c</strong></td>
+<td>LongTextArea(5000)</td>
+<td></td>
+<td>Additional notes about the reading</td>
+</tr>
+<tr>
+<td><strong>Daily_Mileage_Rate__c</strong></td>
+<td>Number(8,2)</td>
+<td></td>
+<td>Calculated daily mileage rate based on difference from previous reading</td>
+</tr>
+<tr>
+<td><strong>Requires_Review__c</strong></td>
+<td>Checkbox</td>
+<td></td>
+<td>Flag indicating the reading requires manual review</td>
+</tr>
+<tr>
+<td><strong>Odometer_Photo__c</strong></td>
+<td>Text(255)</td>
+<td></td>
+<td>Reference to the ContentVersion ID of the odometer photo</td>
+</tr>
+</tbody></table>
+<p><strong>Driver_Vehicle_Assignment__c  </strong>(Driver Vehicle Assignment) — 5 fields</p>
+<p class='note'>Junction object managing the assignment of drivers (Contacts) to vehicles (BR-018). Enforces one active assignment per vehicle and per driver.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Driver__c</strong></td>
+<td>Lookup(Contact)</td>
+<td><strong>✓</strong></td>
+<td>The driver being assigned</td>
+</tr>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle being assigned</td>
+</tr>
+<tr>
+<td><strong>Assignment_Start_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Start date of the assignment</td>
+</tr>
+<tr>
+<td><strong>Assignment_End_Date__c</strong></td>
+<td>Date</td>
+<td></td>
+<td>End date of the assignment. Blank means currently active.</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current status of the assignment</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Active, Ended, Cancelled</em></td>
+</tr>
+</tbody></table>
+<p><strong>Alert__c  </strong>(Alert) — 12 fields</p>
+<p class='note'>Consolidated alert object (per Emma<strong>'</strong>s recommendation, merging Inspection_Alertc, Insurance_Alertc, and Alertc from BR-008, BR-021, BR-024). Tracks all types of fleet alerts with Alert_Typec differentiation.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Alert_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type of alert</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Technical Inspection, Maintenance Due, Contract Expiration, Insurance Expiration, Mileage Anomaly</em></td>
+</tr>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle this alert pertains to</td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy__c</strong></td>
+<td>Lookup(Insurance_Policy__c)</td>
+<td></td>
+<td>Related insurance policy (for insurance expiration alerts)</td>
+</tr>
+<tr>
+<td><strong>Due_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>The date of the event triggering the alert</td>
+</tr>
+<tr>
+<td><strong>Days_Until_Due__c</strong></td>
+<td>Formula(Number)</td>
+<td></td>
+<td>Formula: Due_Date__c - TODAY()</td>
+</tr>
+<tr>
+<td><strong>Priority__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Alert priority level</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Low, Medium, High, Critical</em></td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current status of the alert</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Open, Acknowledged, In Progress, Closed, Auto-Closed</em></td>
+</tr>
+<tr>
+<td><strong>Assigned_To__c</strong></td>
+<td>Lookup(User)</td>
+<td></td>
+<td>User assigned to handle this alert</td>
+</tr>
+<tr>
+<td><strong>Alert_Generated_Date__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Timestamp when the alert was auto-generated</td>
+</tr>
+<tr>
+<td><strong>Acknowledged_Date__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Timestamp when the alert was acknowledged. Auto-stamped on status change.</td>
+</tr>
+<tr>
+<td><strong>Action_Notes__c</strong></td>
+<td>LongTextArea(5000)</td>
+<td></td>
+<td>Notes on actions taken to address the alert</td>
+</tr>
+<tr>
+<td><strong>Source_Record_Id__c</strong></td>
+<td>Text(18)</td>
+<td></td>
+<td>ID of the source record (maintenance schedule, contract, policy) that triggered the alert for deduplication</td>
+</tr>
+</tbody></table>
+<p><strong>Fleet_Metric__c  </strong>(Fleet Metric Snapshot) — 11 fields</p>
+<p class='note'>Daily snapshot of aggregated fleet metrics for dashboard display and trend analysis (BR-019).</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Snapshot_Date__c</strong></td>
+<td>Date</td>
+<td><strong>✓</strong></td>
+<td>Date of the metric snapshot</td>
+</tr>
+<tr>
+<td><strong>Total_Vehicles__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Total number of vehicles in the fleet</td>
+</tr>
+<tr>
+<td><strong>Vehicles_Available__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of vehicles with Available status</td>
+</tr>
+<tr>
+<td><strong>Vehicles_Rented__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of vehicles with Rented status</td>
+</tr>
+<tr>
+<td><strong>Vehicles_In_Maintenance__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of vehicles with In Maintenance status</td>
+</tr>
+<tr>
+<td><strong>Vehicles_Out_Of_Service__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of vehicles with Out of Service status</td>
+</tr>
+<tr>
+<td><strong>Upcoming_Maintenance_Count__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of maintenance activities scheduled within next 30 days</td>
+</tr>
+<tr>
+<td><strong>Expiring_Contracts__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of active contracts expiring within next 30 days</td>
+</tr>
+<tr>
+<td><strong>Open_Claims__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of claims/incidents with Open or In Progress status</td>
+</tr>
+<tr>
+<td><strong>Overdue_Invoices__c</strong></td>
+<td>Number(5,0)</td>
+<td></td>
+<td>Count of invoices with Overdue payment status</td>
+</tr>
+<tr>
+<td><strong>Total_Maintenance_Cost_MTD__c</strong></td>
+<td>Currency(12,2)</td>
+<td></td>
+<td>Month-to-date total maintenance cost</td>
+</tr>
+</tbody></table>
+<p><strong>Problem_Report__c  </strong>(Problem Report) — 12 fields</p>
+<p class='note'>Mobile-submitted problem reports by drivers for vehicle issues (BR-023). Supports assignment workflow and resolution tracking.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup(Vehicle__c)</td>
+<td><strong>✓</strong></td>
+<td>The vehicle with the reported problem</td>
+</tr>
+<tr>
+<td><strong>Driver__c</strong></td>
+<td>Lookup(Contact)</td>
+<td><strong>✓</strong></td>
+<td>The driver reporting the problem</td>
+</tr>
+<tr>
+<td><strong>Category__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Category of the problem</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Engine, Brakes, Tires, Electrical, Body Damage, Interior, Lights, Fluid Leak, Noise, Other</em></td>
+</tr>
+<tr>
+<td><strong>Description__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td><strong>✓</strong></td>
+<td>Detailed description of the problem</td>
+</tr>
+<tr>
+<td><strong>Status__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Current status of the problem report</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Submitted, Under Review, Assigned, In Progress, Closed</em></td>
+</tr>
+<tr>
+<td><strong>Submitted_Date__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Auto-populated timestamp of submission</td>
+</tr>
+<tr>
+<td><strong>Priority__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>Priority level of the problem</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Low, Medium, High, Critical</em></td>
+</tr>
+<tr>
+<td><strong>Assigned_To__c</strong></td>
+<td>Lookup(User)</td>
+<td></td>
+<td>Technician or staff assigned to resolve the problem</td>
+</tr>
+<tr>
+<td><strong>Resolution_Notes__c</strong></td>
+<td>LongTextArea(10000)</td>
+<td></td>
+<td>Notes on how the problem was resolved</td>
+</tr>
+<tr>
+<td><strong>Resolution_Date__c</strong></td>
+<td>DateTime</td>
+<td></td>
+<td>Auto-stamped when Status__c changes to Closed</td>
+</tr>
+<tr>
+<td><strong>Resolution_Time_Hours__c</strong></td>
+<td>Formula(Number)</td>
+<td></td>
+<td>Formula: IF(ISBLANK(Resolution_Datec), NULL, (Resolution_Datec - Submitted_Date__c) * 24)</td>
+</tr>
+<tr>
+<td><strong>Related_Report__c</strong></td>
+<td>Lookup(Problem_Report__c)</td>
+<td></td>
+<td>Self-lookup for related/duplicate problem reports</td>
+</tr>
+</tbody></table>
+<p><strong>Alert_Configuration__mdt  </strong>(Alert Configuration) — 5 fields</p>
+<p class='note'>Custom metadata type for configuring alert lead times and behavior (BR-021). Allows administrators to adjust alert thresholds without code changes.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Alert_Type__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Type of alert this configuration applies to</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Technical Inspection, Maintenance Due, Contract Expiration, Insurance Expiration</em></td>
+</tr>
+<tr>
+<td><strong>Lead_Time_Days__c</strong></td>
+<td>Number(4,0)</td>
+<td><strong>✓</strong></td>
+<td>Number of days before the event to generate the alert. Must be positive.</td>
+</tr>
+<tr>
+<td><strong>Is_Active__c</strong></td>
+<td>Checkbox</td>
+<td><strong>✓</strong></td>
+<td>Whether this alert configuration is active</td>
+</tr>
+<tr>
+<td><strong>Notification_Method__c</strong></td>
+<td>Picklist</td>
+<td></td>
+<td>How the alert notification should be delivered</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Email, Task, Both</em></td>
+</tr>
+<tr>
+<td><strong>Alert_Recipient_Role__c</strong></td>
+<td>Text(100)</td>
+<td></td>
+<td>Role or queue that should receive the alert notification</td>
+</tr>
+</tbody></table>
+<p><strong>Maintenance_Alert_Setting__mdt  </strong>(Maintenance Alert Setting) — 3 fields</p>
+<p class='note'>Custom metadata type for maintenance-specific alert configuration (BR-009). Configures days before alert, notification method, and recipient.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Days_Before_Alert__c</strong></td>
+<td>Number(4,0)</td>
+<td><strong>✓</strong></td>
+<td>Number of days before scheduled maintenance to send alert</td>
+</tr>
+<tr>
+<td><strong>Notification_Method__c</strong></td>
+<td>Picklist</td>
+<td><strong>✓</strong></td>
+<td>Notification delivery method</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>Email, Task, Both</em></td>
+</tr>
+<tr>
+<td><strong>Alert_Recipient_Role__c</strong></td>
+<td>Text(100)</td>
+<td></td>
+<td>Role that should receive the maintenance alert. Defaults to record owner if blank.</td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-4' class='sec-h2'><span>6.4 Relationships</span> <em class='brass'>(26)</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Parent</strong></th>
+<th><strong>Child</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Field</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle_Status_History__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>MasterDetail</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td><strong>Account</strong></td>
+<td>Lookup</td>
+<td>Client__c</td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td><strong>User</strong></td>
+<td>Lookup</td>
+<td>Rental_Manager__c</td>
+</tr>
+<tr>
+<td><strong>Rental_Contract__c</strong></td>
+<td><strong>Contact</strong></td>
+<td>Lookup</td>
+<td>Tenant__c</td>
+</tr>
+<tr>
+<td><strong>Maintenance_Activity__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Maintenance_Activity__c</strong></td>
+<td><strong>User</strong></td>
+<td>Lookup</td>
+<td>Responsible_Party__c</td>
+</tr>
+<tr>
+<td><strong>Sinistre__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Sinistre__c</strong></td>
+<td><strong>Insurance_Policy__c</strong></td>
+<td>Lookup</td>
+<td>Insurance_Policy__c</td>
+</tr>
+<tr>
+<td><strong>Involved_Party__c</strong></td>
+<td><strong>Sinistre__c</strong></td>
+<td>MasterDetail</td>
+<td>Sinistre__c</td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Invoice__c</strong></td>
+<td><strong>Rental_Contract__c</strong></td>
+<td>Lookup</td>
+<td>Rental_Contract__c</td>
+</tr>
+<tr>
+<td><strong>Invoice__c</strong></td>
+<td><strong>Account</strong></td>
+<td>Lookup</td>
+<td>Account__c</td>
+</tr>
+<tr>
+<td><strong>Incident_Report__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Incident_Report__c</strong></td>
+<td><strong>Contact</strong></td>
+<td>Lookup</td>
+<td>Driver__c</td>
+</tr>
+<tr>
+<td><strong>Mileage_Reading__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Mileage_Reading__c</strong></td>
+<td><strong>Contact</strong></td>
+<td>Lookup</td>
+<td>Driver__c</td>
+</tr>
+<tr>
+<td><strong>Driver_Vehicle_Assignment__c</strong></td>
+<td><strong>Contact</strong></td>
+<td>Lookup</td>
+<td>Driver__c</td>
+</tr>
+<tr>
+<td><strong>Driver_Vehicle_Assignment__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Alert__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Alert__c</strong></td>
+<td><strong>Insurance_Policy__c</strong></td>
+<td>Lookup</td>
+<td>Insurance_Policy__c</td>
+</tr>
+<tr>
+<td><strong>Alert__c</strong></td>
+<td><strong>User</strong></td>
+<td>Lookup</td>
+<td>Assigned_To__c</td>
+</tr>
+<tr>
+<td><strong>Problem_Report__c</strong></td>
+<td><strong>Vehicle__c</strong></td>
+<td>Lookup</td>
+<td>Vehicle__c</td>
+</tr>
+<tr>
+<td><strong>Problem_Report__c</strong></td>
+<td><strong>Contact</strong></td>
+<td>Lookup</td>
+<td>Driver__c</td>
+</tr>
+<tr>
+<td><strong>Problem_Report__c</strong></td>
+<td><strong>User</strong></td>
+<td>Lookup</td>
+<td>Assigned_To__c</td>
+</tr>
+<tr>
+<td><strong>Problem_Report__c</strong></td>
+<td><strong>Problem_Report__c</strong></td>
+<td>Lookup</td>
+<td>Related_Report__c</td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-5' class='sec-h2'><span>6.5 Security Model</span></h2>
+<h3 class='sec-h3'>Profiles (5)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Profile</strong></th>
+<th><strong>License</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>LogiFleet System Administrator</strong></td>
+<td>Salesforce</td>
+<td>Full system access for LogiFleet administrators. Can configure custom metadata, manage all objects, and access all data.</td>
+</tr>
+<tr>
+<td><strong>LogiFleet Fleet Manager</strong></td>
+<td>Salesforce</td>
+<td>Fleet managers who oversee vehicle operations, maintenance, contracts, and alerts. Full CRUD on fleet objects.</td>
+</tr>
+<tr>
+<td><strong>LogiFleet Finance User</strong></td>
+<td>Salesforce</td>
+<td>Finance team members responsible for invoicing and payment tracking. Access to invoices, contracts (read), and accounts.</td>
+</tr>
+<tr>
+<td><strong>LogiFleet Driver (Community)</strong></td>
+<td>Customer Community Plus</td>
+<td>External community profile for drivers using the mobile app to submit incident reports, mileage readings, and problem reports.</td>
+</tr>
+<tr>
+<td><strong>LogiFleet Standard User</strong></td>
+<td>Salesforce</td>
+<td>Standard internal user with read access to most fleet objects. Base profile for internal staff.</td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Permission Sets (6)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Permission Set</strong></th>
+<th><strong>Grants</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>PS_Fleet_Manager</strong></td>
+<td>Full CRUD access to all fleet management objects for fleet managers.</td>
+</tr>
+<tr>
+<td><strong>PS_Finance_User</strong></td>
+<td>Access for finance team to manage invoices and view contracts.</td>
+</tr>
+<tr>
+<td><strong>PS_Maintenance_Technician</strong></td>
+<td>Access for maintenance technicians to manage maintenance activities and view vehicle details.</td>
+</tr>
+<tr>
+<td><strong>PS_Driver_Mobile</strong></td>
+<td>Permission set for drivers using the mobile app. Limited to submitting reports and mileage readings.</td>
+</tr>
+<tr>
+<td><strong>PS_Insurance_Manager</strong></td>
+<td>Access for users managing insurance policies and claims.</td>
+</tr>
+<tr>
+<td><strong>PS_Contract_Manager</strong></td>
+<td>Access for users managing rental contracts and related operations.</td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Sharing Rules (7)</h3>
+<p>- {"name":"Share_Vehicles_With_All_Internal","object":"Vehicle__c","type":"Criteria-Based","criteria":"Registration_Number__c != null (all records)","shared_with":"All Internal Users","access":"Read Only"}</p>
+<p>- {"name":"Share_Alerts_With_Fleet_Managers","object":"Alert__c","type":"Criteria-Based","criteria":"Statusc = 'Open' OR Statusc = 'Acknowledged'","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
+<p>- {"name":"Share_Active_Contracts_With_Finance","object":"Rental_Contract__c","type":"Criteria-Based","criteria":"Status__c = 'Active'","shared_with":"Finance_Team_Group","access":"Read Only"}</p>
+<p>- {"name":"Share_Overdue_Invoices_With_Managers","object":"Invoice__c","type":"Criteria-Based","criteria":"Payment_Status__c = 'Overdue'","shared_with":"Fleet_Managers_Group","access":"Read Only"}</p>
+<p>- {"name":"Share_Incident_Reports_With_Fleet_Ops","object":"Incident_Report__c","type":"Owner-Based","criteria":"Owned by Fleet_Operations_Queue","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
+<p>- {"name":"Share_Problem_Reports_With_Fleet_Ops","object":"Problem_Report__c","type":"Owner-Based","criteria":"Owned by Fleet_Operations_Queue","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
+<p>- {"name":"Share_Driver_Assignments_With_Drivers","object":"Driver_Vehicle_Assignment__c","type":"Criteria-Based","criteria":"Status__c = 'Active'","shared_with":"All Customer Portal Users","access":"Read Only"}</p>
+<h3 class='sec-h3'>Org-Wide Defaults</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>OWD</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Account</td>
+<td></td>
+</tr>
+<tr>
+<td>Contact</td>
+<td></td>
+</tr>
+<tr>
+<td>Task</td>
+<td></td>
+</tr>
+<tr>
+<td>Vehicle__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Vehicle_Status_History__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Rental_Contract__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Maintenance_Activity__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Sinistre__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Involved_Party__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Insurance_Policy__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Invoice__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Invoice_Generation_Log__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Incident_Report__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Mileage_Reading__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Driver_Vehicle_Assignment__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Alert__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Problem_Report__c</td>
+<td></td>
+</tr>
+<tr>
+<td>Fleet_Metric__c</td>
+<td></td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-6' class='sec-h2'><span>6.6 Queues</span> <em class='brass'>({{ queues | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Queue</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Members type</strong></th>
+<th><strong>Members</strong></th>
+</tr></thead>
+<tbody>
+{% for q in queues %}<tr>
+<td><strong>{{ q.name }}</strong></td>
+<td>{{ q.object }}</td>
+<td>{{ q.members_type }}</td>
+<td>{{ q.members | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-7' class='sec-h2'><span>6.7 Reporting</span></h2>
+<h3 class='sec-h3'>Reports (19)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Fleet_Vehicle_Status_Summary</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Active_Rental_Contracts</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Contracts_Expiring_Next_30_Days</strong></td>
+<td>Tabular</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Monthly_Invoice_Summary</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Overdue_Invoices</strong></td>
+<td>Tabular</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Cost_By_Vehicle</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Cost_By_Type</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Upcoming_Scheduled_Maintenance</strong></td>
+<td>Tabular</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Open_Claims_By_Type</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Claims_By_Vehicle</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Policies_Expiring_Soon</strong></td>
+<td>Tabular</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Coverage_Utilization</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Open_Alerts_By_Type</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Mileage_Anomalies</strong></td>
+<td>Tabular</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Driver_Vehicle_Assignments_Active</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Incident_Reports_By_Status</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Problem_Reports_Resolution_Time</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Fleet_Metric_Trend</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Vehicle_Total_Maintenance_Cost_Ranking</strong></td>
+<td>Summary</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Dashboards (5)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Audience</strong></th>
+<th><strong>Components</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Fleet_Overview_Dashboard</strong></td>
+<td>—</td>
+<td><span class='muted'>—</span></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Cost_Dashboard</strong></td>
+<td>—</td>
+<td><span class='muted'>—</span></td>
+</tr>
+<tr>
+<td><strong>Finance_Dashboard</strong></td>
+<td>—</td>
+<td><span class='muted'>—</span></td>
+</tr>
+<tr>
+<td><strong>Claims_Insurance_Dashboard</strong></td>
+<td>—</td>
+<td><span class='muted'>—</span></td>
+</tr>
+<tr>
+<td><strong>Mobile_Operations_Dashboard</strong></td>
+<td>—</td>
+<td><span class='muted'>—</span></td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-8' class='sec-h2'><span>6.8 Automation Design</span></h2>
+<h3 class='sec-h3'>Flows (27)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Flow name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Trigger</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle_Status_Change_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Rental_Contract_Status_Scheduler</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Client_Number_Auto_Generation</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Activity_Vehicle_Update</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Cost_Aggregation</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Recurring_Maintenance_Generator</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Inspection_Default_Interval</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Inspection_Alert_Generator</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Maintenance_Alert_Generator</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Alert_Reset</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Contract_Expiration_Alert</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Contract_Expiration_Alert_Reset</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Take_Contract_Action</strong></td>
+<td>Screen Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Sinistre_Status_Change_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Insurance_Policy_Status_Update</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Claims_Aggregation</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Monthly_Invoice_Generation</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Invoice_Payment_Auto_Amount</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Invoice_Overdue_Check</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Incident_Report_Submission_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Mileage_Reading_Vehicle_Update</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Problem_Report_Submission_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Problem_Report_Assignment_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Daily_Fleet_Metrics_Snapshot</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Alert_Acknowledge_Handler</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy_Renewal_Alert_Closer</strong></td>
+<td>Record-Triggered Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Overdue_Status_Update</strong></td>
+<td>Scheduled Flow</td>
+<td><span class='muted'>—</span></td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Apex Triggers (3)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Trigger</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>DriverVehicleAssignmentTrigger</strong></td>
+<td>Driver_Vehicle_Assignment__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MileageReadingTrigger</strong></td>
+<td>Mileage_Reading__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>InvoiceValidationTrigger</strong></td>
+<td>Invoice__c</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Scheduled Jobs (9)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Job</strong></th>
+<th><strong>Schedule</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>ContractStatusScheduler</strong></td>
+<td>Daily 1:00 AM</td>
+<td>Evaluate and update Rental_Contractc Statusc based on current date vs Start/End dates</td>
+</tr>
+<tr>
+<td><strong>InspectionAlertScheduler</strong></td>
+<td>Daily 6:00 AM</td>
+<td>Generate inspection alerts and tasks for vehicles with upcoming technical inspections</td>
+</tr>
+<tr>
+<td><strong>MaintenanceAlertScheduler</strong></td>
+<td>Daily 6:15 AM</td>
+<td>Generate maintenance alerts and tasks for upcoming scheduled maintenance activities</td>
+</tr>
+<tr>
+<td><strong>ContractExpirationAlertScheduler</strong></td>
+<td>Daily 6:30 AM</td>
+<td>Generate expiration alerts for active rental contracts approaching end date</td>
+</tr>
+<tr>
+<td><strong>InsurancePolicyStatusScheduler</strong></td>
+<td>Daily 6:45 AM</td>
+<td>Update insurance policy statuses and generate expiration alerts</td>
+</tr>
+<tr>
+<td><strong>FleetMetricsSnapshotScheduler</strong></td>
+<td>Daily 6:00 AM</td>
+<td>Aggregate fleet metrics and create daily Fleet_Metric__c snapshot</td>
+</tr>
+<tr>
+<td><strong>InvoiceOverdueScheduler</strong></td>
+<td>Daily 7:00 AM</td>
+<td>Flag unpaid/partially paid invoices past due date as Overdue</td>
+</tr>
+<tr>
+<td><strong>MaintenanceOverdueScheduler</strong></td>
+<td>Daily 7:15 AM</td>
+<td>Update planned maintenance activities past scheduled date to Overdue status</td>
+</tr>
+<tr>
+<td><strong>MonthlyInvoiceGenerationScheduler</strong></td>
+<td>Monthly on 1st at 2:00 AM</td>
+<td>Generate Invoice__c records for all active rental contracts</td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Platform Events (1)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Event</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Fleet_Alert_Event__e</strong></td>
+<td>Real-time notification event for critical fleet alerts (vehicle breakdowns, urgent incidents) to update dashboards and notify stakeholders immediately</td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-9' class='sec-h2'><span>6.9 Integration Points</span> <em class='brass'>(2)</em></h2>
+<p><strong>Salesforce Mobile App Integration</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th>system</th>
+<th>Salesforce Mobile App</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>direction</td>
+<td>Bidirectional</td>
+</tr>
+<tr>
+<td>method</td>
+<td>REST</td>
+</tr>
+<tr>
+<td>frequency</td>
+<td>Real-time</td>
+</tr>
+<tr>
+<td>auth</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>type</span></td><td>OAuth 2.0</td></tr>
+<tr><td><span class='key'>grant</span></td><td>Authorization Code</td></tr>
+<tr><td><span class='key'>scopes</span></td><td><div class='chiprow'><span class='chip'>api</span> <span class='chip'>full</span></div></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>rate limits</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>requests per day</span></td><td><code class='json-num'>10000</code></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>named credential</td>
+<td>N/A - Native Salesforce Mobile App uses standard session authentication</td>
+</tr>
+<tr>
+<td>UC refs</td>
+<td>UC-016-01, UC-016-02, UC-016-03, UC-017-01, UC-017-02, UC-023-01, UC-023-02, UC-023-03</td>
+</tr>
+<tr>
+<td>endpoint spec</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>url pattern</span></td><td>/services/data/vXX.0/sobjects/{ObjectName}</td></tr>
+<tr><td><span class='key'>payload format</span></td><td>JSON</td></tr>
+<tr><td><span class='key'>key fields</span></td><td><div class='chiprow'><span class='chip'>Id</span> <span class='chip'>Vehicle__c</span> <span class='chip'>Driver__c</span></div></td></tr>
+<tr><td><span class='key'>response codes</span></td><td><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>200</span></td><td>Success - Record retrieved</td></tr>
+<tr><td><span class='key'>201</span></td><td>Created - Record created successfully</td></tr>
+<tr><td><span class='key'>400</span></td><td>Bad Request - Validation error</td></tr>
+<tr><td><span class='key'>401</span></td><td>Unauthorized - Session expired</td></tr>
+<tr><td><span class='key'>403</span></td><td>Forbidden - Insufficient permissions</td></tr>
+</tbody></table></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>error handling</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>retry strategy</span></td><td>Automatic retry on network failure, max 3 attempts</td></tr>
+<tr><td><span class='key'>dead letter</span></td><td>Error displayed to user with option to retry</td></tr>
+</tbody></table></td>
+</tr>
+</tbody></table>
+<p><strong>Email Notification Service</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th>system</th>
+<th>Salesforce Email Service</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>direction</td>
+<td>Outbound</td>
+</tr>
+<tr>
+<td>method</td>
+<td>Platform Event / Email Alert</td>
+</tr>
+<tr>
+<td>frequency</td>
+<td>Real-time and Scheduled</td>
+</tr>
+<tr>
+<td>auth</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>type</span></td><td>N/A</td></tr>
+<tr><td><span class='key'>grant</span></td><td>Internal Salesforce service</td></tr>
+<tr><td><span class='key'>scopes</span></td><td><span class='muted'>—</span></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>rate limits</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>requests per day</span></td><td><code class='json-num'>5000</code></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>named credential</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>UC refs</td>
+<td>UC-009-02, UC-010-01, UC-012-02, UC-016-02, UC-024-01</td>
+</tr>
+<tr>
+<td>endpoint spec</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>url pattern</span></td><td>Internal Salesforce Email Service</td></tr>
+<tr><td><span class='key'>payload format</span></td><td>Email Template (HTML/Text)</td></tr>
+<tr><td><span class='key'>key fields</span></td><td><div class='chiprow'><span class='chip'>RecipientId</span> <span class='chip'>TemplateId</span> <span class='chip'>WhatId</span></div></td></tr>
+<tr><td><span class='key'>response codes</span></td><td><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>200</span></td><td>Email queued successfully</td></tr>
+<tr><td><span class='key'>400</span></td><td>Invalid recipient or template</td></tr>
+</tbody></table></td></tr>
+</tbody></table></td>
+</tr>
+<tr>
+<td>error handling</td>
+<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
+<tr><td><span class='key'>retry strategy</span></td><td>Salesforce handles email delivery retries internally</td></tr>
+<tr><td><span class='key'>dead letter</span></td><td>Failed emails logged in Email Log; Error_Log__c created for flow failures</td></tr>
+</tbody></table></td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-10' class='sec-h2'><span>6.10 UI Components</span></h2>
+<h3 class='sec-h3'>Lightning Apps (2)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Type/Object</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>LogiFleet_Manager</strong></td>
+<td>Standard App</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>LogiFleet_Mobile</strong></td>
+<td>Standard App</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Lightning Pages (9)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Type/Object</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Vehicle_Record_Page</strong></td>
+<td>Vehicle__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Rental_Contract_Record_Page</strong></td>
+<td>Rental_Contract__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Maintenance_Activity_Record_Page</strong></td>
+<td>Maintenance_Activity__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Sinistre_Record_Page</strong></td>
+<td>Sinistre__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Insurance_Policy_Record_Page</strong></td>
+<td>Insurance_Policy__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Invoice_Record_Page</strong></td>
+<td>Invoice__c</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Fleet_Overview_Home_Page</strong></td>
+<td>App Page</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Account_Record_Page</strong></td>
+<td>Account</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Alert_Configuration_Page</strong></td>
+<td>App Page</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Lightning Web Components (13)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Type/Object</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>vehicleStatusBadge</strong></td>
+<td>—</td>
+<td>Displays the current vehicle condition status as a color-coded badge with last changed timestamp. Shows Available (green), Rented (blue), In Maintenance (orange), Out of Service (red).</td>
+</tr>
+<tr>
+<td><strong>vehicleMileageTrend</strong></td>
+<td>—</td>
+<td>Displays a line chart showing mileage readings over time for a vehicle, with anomaly markers highlighted in red.</td>
+</tr>
+<tr>
+<td><strong>contractStatusIndicator</strong></td>
+<td>—</td>
+<td>Displays contract status with visual progress bar showing contract timeline, days remaining, and expiration warning.</td>
+</tr>
+<tr>
+<td><strong>fleetOverviewDashboard</strong></td>
+<td>—</td>
+<td>Custom dashboard component showing real-time fleet KPIs: total vehicles by status, upcoming maintenance, expiring contracts, open claims, overdue invoices.</td>
+</tr>
+<tr>
+<td><strong>fleetMetricCard</strong></td>
+<td>—</td>
+<td>Reusable card component displaying a single fleet metric with icon, value, label, and trend indicator.</td>
+</tr>
+<tr>
+<td><strong>fleetAlertsSummary</strong></td>
+<td>—</td>
+<td>Displays a summary list of recent open alerts (inspection, maintenance, insurance, contract) with priority indicators and quick action links.</td>
+</tr>
+<tr>
+<td><strong>coverageUtilizationGauge</strong></td>
+<td>—</td>
+<td>Displays a gauge chart showing insurance coverage utilization (Total_Claimed_Amountc vs Coverage_Limitc) with warning threshold.</td>
+</tr>
+<tr>
+<td><strong>incidentTimeline</strong></td>
+<td>—</td>
+<td>Displays a visual timeline of incident/claim status changes with dates and user information.</td>
+</tr>
+<tr>
+<td><strong>paymentStatusBadge</strong></td>
+<td>—</td>
+<td>Displays invoice payment status as a color-coded badge with amount details.</td>
+</tr>
+<tr>
+<td><strong>mobileIncidentReportForm</strong></td>
+<td>—</td>
+<td>Mobile-optimized form for drivers to submit incident reports with photo upload capability.</td>
+</tr>
+<tr>
+<td><strong>mobileMileageSubmission</strong></td>
+<td>—</td>
+<td>Mobile-optimized screen for drivers to submit mileage readings with odometer photo upload.</td>
+</tr>
+<tr>
+<td><strong>mobileProblemReportForm</strong></td>
+<td>—</td>
+<td>Mobile-optimized form for drivers to submit problem reports with category selection and photo upload.</td>
+</tr>
+<tr>
+<td><strong>alertConfigurationManager</strong></td>
+<td>—</td>
+<td>Admin interface for managing Alert_Configurationmdt and Maintenance_Alert_Settingmdt custom metadata records.</td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Quick Actions (6)</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Type/Object</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>Rental_Contract__c.Take_Contract_Action</strong></td>
+<td>Screen Flow</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Vehicle__c.Log_Maintenance</strong></td>
+<td>LWC</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Global.Report_Incident</strong></td>
+<td>Screen Flow</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Global.Submit_Mileage</strong></td>
+<td>Screen Flow</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Global.Report_Problem</strong></td>
+<td>Screen Flow</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Vehicle__c.Record_Mileage</strong></td>
+<td>Screen Flow</td>
+<td></td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-11' class='sec-h2'><span>6.11 Use Case → Architecture Traceability</span> <em class='brass'>(58 UCs)</em></h2>
+<p>For each UC, the architecture elements that implement it. This is what Emma's coverage validator checks against.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>UC ID</strong></th>
+<th><strong>Architecture references</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td><strong>UC-001-01</strong></td>
+<td>Vehicle__c Record Page (Lightning Page), vehicleStatusBadge (LWC), VR_Vehicle_Required_Fields (Validation Rule on Vehiclec: Brandc, Modelc, Registration_Numberc required), Registration_Number__c unique index (Field)</td>
+</tr>
+<tr>
+<td><strong>UC-001-02</strong></td>
+<td>Vehicle__c List View (UI), VR_Unique_Registration (Validation Rule on Vehiclec: unique Registration_Numberc)</td>
+</tr>
+<tr>
+<td><strong>UC-002-01</strong></td>
+<td>Vehicle_Status_Change_Handler (Flow), vehicleStatusBadge (LWC), Condition_Status__c (Field), Status_Last_Changed__c (Field)</td>
+</tr>
+<tr>
+<td><strong>UC-002-02</strong></td>
+<td>Vehicle_Status_Change_Handler (Flow), Vehicle_Status_History__c (Object), Vehicle__c Record Page - Status History Related List (UI)</td>
+</tr>
+<tr>
+<td><strong>UC-003-01</strong></td>
+<td>Rental_Contract__c Record Page (Lightning Page), contractStatusIndicator (LWC), VR_No_Duplicate_Active_Contract (Validation Rule), VR_Monthly_Rate_Required (Validation Rule), VR_End_Date_After_Start (Validation Rule)</td>
+</tr>
+<tr>
+<td><strong>UC-003-02</strong></td>
+<td>VR_No_Edit_Expired_Contract (Validation Rule on Rental_Contract__c), Rental_Contract__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-004-01</strong></td>
+<td>Duration_Monthsc (Formula Field on Rental_Contractc), contractStatusIndicator (LWC), Rental_Contract__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-004-02</strong></td>
+<td>Rental_Contract_Status_Scheduler (Scheduled Flow), ContractStatusScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-005-01</strong></td>
+<td>Client_Number_Auto_Generation (Flow), Account Record Page (Lightning Page), VR_Required_Client_Fields (Validation Rule on Account), VR_Unique_National_ID (Validation Rule on Account)</td>
+</tr>
+<tr>
+<td><strong>UC-005-02</strong></td>
+<td>VR_Email_Format (Validation Rule on Account), VR_Phone_Format (Validation Rule on Account), Account Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-006-01</strong></td>
+<td>Maintenance_Activity_Vehicle_Update (Flow), Maintenance_Activity__c Record Page (Lightning Page), VR_No_Future_Activity_Date (Validation Rule on Maintenance_Activity__c)</td>
+</tr>
+<tr>
+<td><strong>UC-006-02</strong></td>
+<td>Maintenance_Activity_Vehicle_Update (Flow), Vehicle__c Record Page - Maintenance Related List (UI)</td>
+</tr>
+<tr>
+<td><strong>UC-006-03</strong></td>
+<td>Maintenance_Activity_Vehicle_Update (Flow), Maintenance_Cost_Aggregation (Flow)</td>
+</tr>
+<tr>
+<td><strong>UC-007-01</strong></td>
+<td>Maintenance_Activity__c Record Page (Lightning Page), VR_No_Past_Scheduled_Date (Validation Rule on Maintenance_Activity__c)</td>
+</tr>
+<tr>
+<td><strong>UC-007-02</strong></td>
+<td>Recurring_Maintenance_Generator (Flow), Maintenance_Overdue_Status_Update (Scheduled Flow)</td>
+</tr>
+<tr>
+<td><strong>UC-007-03</strong></td>
+<td>Recurring_Maintenance_Generator (Flow) - Decision: Check_Vehicle_Active</td>
+</tr>
+<tr>
+<td><strong>UC-008-01</strong></td>
+<td>Inspection_Default_Interval (Flow), Next_Inspection_Due_Datec (Formula Field on Vehiclec), VR_No_Future_Inspection_Date (Validation Rule on Vehicle__c), Vehicle__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-008-02</strong></td>
+<td>Daily_Inspection_Alert_Generator (Scheduled Flow), fleetAlertsSummary (LWC), Alert__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-009-01</strong></td>
+<td>Maintenance_Alert_Setting__mdt (Custom Metadata), alertConfigurationManager (LWC), Alert_Configuration_Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-009-02</strong></td>
+<td>Daily_Maintenance_Alert_Generator (Scheduled Flow), MaintenanceAlertScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-009-03</strong></td>
+<td>Maintenance_Alert_Reset (Flow), Daily_Maintenance_Alert_Generator (Scheduled Flow)</td>
+</tr>
+<tr>
+<td><strong>UC-010-01</strong></td>
+<td>Daily_Contract_Expiration_Alert (Scheduled Flow), contractStatusIndicator (LWC), ContractExpirationAlertScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-010-02</strong></td>
+<td>Contract_Expiration_Alert_Reset (Flow), Daily_Contract_Expiration_Alert (Scheduled Flow)</td>
+</tr>
+<tr>
+<td><strong>UC-010-03</strong></td>
+<td>Take_Contract_Action (Screen Flow), Rental_Contract__c.Take_Contract_Action (Quick Action), Rental_Contract__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-011-01</strong></td>
+<td>Sinistre__c Record Page (Lightning Page), VR_No_Future_Incident_Date (Validation Rule on Sinistre__c), incidentTimeline (LWC)</td>
+</tr>
+<tr>
+<td><strong>UC-011-02</strong></td>
+<td>Sinistre_Status_Change_Handler (Flow), incidentTimeline (LWC)</td>
+</tr>
+<tr>
+<td><strong>UC-011-03</strong></td>
+<td>VR_Resolution_Date_Required_On_Close (Validation Rule on Sinistre__c), Sinistre__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-012-01</strong></td>
+<td>Insurance_Policy__c Record Page (Lightning Page), VR_Expiration_After_Start (Validation Rule on Insurance_Policy__c), Vehicle__c Record Page - Insurance Policies Related List (UI)</td>
+</tr>
+<tr>
+<td><strong>UC-012-02</strong></td>
+<td>Daily_Insurance_Policy_Status_Update (Scheduled Flow), InsurancePolicyStatusScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-013-01</strong></td>
+<td>Insurance_Claims_Aggregation (Flow), coverageUtilizationGauge (LWC), VR_Warn_Expired_Policy (Validation Rule on Sinistre__c)</td>
+</tr>
+<tr>
+<td><strong>UC-013-02</strong></td>
+<td>Insurance_Claims_Aggregation (Flow), coverageUtilizationGauge (LWC), Insurance_Policy__c Record Page - Claims Related List (UI)</td>
+</tr>
+<tr>
+<td><strong>UC-014-01</strong></td>
+<td>Monthly_Invoice_Generation (Scheduled Flow), InvoiceValidationTrigger (Apex Trigger), MonthlyInvoiceGenerationScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-014-02</strong></td>
+<td>Monthly_Invoice_Generation (Scheduled Flow) - Proration logic, InvoiceValidationTrigger (Apex Trigger), Invoice__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-015-01</strong></td>
+<td>Invoice_Payment_Auto_Amount (Flow), paymentStatusBadge (LWC), VR_Partially_Paid_Validation (Validation Rule on Invoice__c)</td>
+</tr>
+<tr>
+<td><strong>UC-015-02</strong></td>
+<td>Invoice_Payment_Auto_Amount (Flow), paymentStatusBadge (LWC), Invoice__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-015-03</strong></td>
+<td>Daily_Invoice_Overdue_Check (Scheduled Flow), InvoiceOverdueScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-016-01</strong></td>
+<td>mobileIncidentReportForm (LWC), Incident_Report_Submission_Handler (Flow), Global.Report_Incident (Quick Action)</td>
+</tr>
+<tr>
+<td><strong>UC-016-02</strong></td>
+<td>Incident_Report_Submission_Handler (Flow), mobileIncidentReportForm (LWC) - lightning-file-upload</td>
+</tr>
+<tr>
+<td><strong>UC-016-03</strong></td>
+<td>Incident_Report_Submission_Handler (Flow) - Decision: Check_Fleet_Manager, Fleet_Operations_Queue (Queue)</td>
+</tr>
+<tr>
+<td><strong>UC-017-01</strong></td>
+<td>mobileMileageSubmission (LWC), Mileage_Reading_Vehicle_Update (Flow), Global.Submit_Mileage (Quick Action)</td>
+</tr>
+<tr>
+<td><strong>UC-017-02</strong></td>
+<td>VR_Mileage_Greater_Than_Current (Validation Rule on Mileage_Reading__c), VR_Vehicle_Required_On_Mileage (Validation Rule on Mileage_Reading__c), Mileage_Reading_Vehicle_Update (Flow)</td>
+</tr>
+<tr>
+<td><strong>UC-018-01</strong></td>
+<td>DriverVehicleAssignmentTrigger (Apex Trigger), DriverVehicleAssignmentTriggerHandler (Apex Class), Driver_Vehicle_Assignment__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-018-02</strong></td>
+<td>DriverVehicleAssignmentTrigger (Apex Trigger), DriverVehicleAssignmentTriggerHandler (Apex Class)</td>
+</tr>
+<tr>
+<td><strong>UC-019-01</strong></td>
+<td>Daily_Fleet_Metrics_Snapshot (Scheduled Flow), fleetOverviewDashboard (LWC), fleetMetricCard (LWC), Fleet_Overview_Home_Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-019-02</strong></td>
+<td>Daily_Fleet_Metrics_Snapshot (Scheduled Flow), fleetOverviewDashboard (LWC), FleetMetricsSnapshotScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-020-01</strong></td>
+<td>Maintenance_Cost_Aggregation (Flow), VR_No_Negative_Cost (Validation Rule on Maintenance_Activity__c), Maintenance_Activity__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-020-02</strong></td>
+<td>Maintenance_Cost_Aggregation (Flow), Total_Maintenance_Costc (Field on Vehiclec)</td>
+</tr>
+<tr>
+<td><strong>UC-020-03</strong></td>
+<td>Maintenance_Cost_Aggregation (Flow), Vehicle__c Record Page - Maintenance Related List (UI)</td>
+</tr>
+<tr>
+<td><strong>UC-021-01</strong></td>
+<td>Alert_Configuration__mdt (Custom Metadata), alertConfigurationManager (LWC), VR_Positive_Lead_Time (Validation Rule on Alert_Configuration__mdt)</td>
+</tr>
+<tr>
+<td><strong>UC-021-02</strong></td>
+<td>Daily_Inspection_Alert_Generator (Scheduled Flow), Daily_Insurance_Policy_Status_Update (Scheduled Flow), Daily_Contract_Expiration_Alert (Scheduled Flow), fleetAlertsSummary (LWC)</td>
+</tr>
+<tr>
+<td><strong>UC-022-01</strong></td>
+<td>MileageReadingTrigger (Apex Trigger), MileageReadingTriggerHandler (Apex Class), Mileage_Reading_Vehicle_Update (Flow), VR_Mileage_Greater_Than_Current (Validation Rule)</td>
+</tr>
+<tr>
+<td><strong>UC-022-02</strong></td>
+<td>MileageReadingTrigger (Apex Trigger) - anomaly detection logic, VR_No_Future_Reading_Date (Validation Rule on Mileage_Reading__c)</td>
+</tr>
+<tr>
+<td><strong>UC-022-03</strong></td>
+<td>MileageReadingTrigger (Apex Trigger) - Task creation for anomalies, vehicleMileageTrend (LWC)</td>
+</tr>
+<tr>
+<td><strong>UC-023-01</strong></td>
+<td>mobileProblemReportForm (LWC), Problem_Report_Submission_Handler (Flow), Global.Report_Problem (Quick Action), VR_Description_Required (Validation Rule on Problem_Report__c)</td>
+</tr>
+<tr>
+<td><strong>UC-023-02</strong></td>
+<td>Problem_Report_Assignment_Handler (Flow), VR_Assigned_To_Required (Validation Rule on Problem_Report__c when Status = Assigned)</td>
+</tr>
+<tr>
+<td><strong>UC-023-03</strong></td>
+<td>Problem_Report_Assignment_Handler (Flow) - Resolution handling, Problem_Report__c Record Page (Lightning Page)</td>
+</tr>
+<tr>
+<td><strong>UC-024-01</strong></td>
+<td>Daily_Insurance_Policy_Status_Update (Scheduled Flow), fleetAlertsSummary (LWC), InsurancePolicyStatusScheduler (Scheduled Job)</td>
+</tr>
+<tr>
+<td><strong>UC-024-02</strong></td>
+<td>Insurance_Alert_Acknowledge_Handler (Flow), Insurance_Policy_Renewal_Alert_Closer (Flow), Alert__c Record Page (Lightning Page)</td>
+</tr>
+</tbody></table>
+<h2 id='sub-6-12' class='sec-h2'><span>6.12 Technical Considerations</span> <em class='brass'>({{ technical_considerations | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Topic</strong></th>
+<th><strong>Consideration</strong></th>
+<th><strong>Mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for tc in technical_considerations %}<tr>
+<td><strong>{{ tc.topic }}</strong></td>
+<td>{{ tc.consideration }}</td>
+<td>{{ tc.mitigation }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-13' class='sec-h2'><span>6.13 Risks</span> <em class='brass'>({{ risks | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Risk</strong></th>
+<th><strong>Probability</strong></th>
+<th><strong>Impact</strong></th>
+<th><strong>Mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for risk in risks %}<tr>
+<td>{{ risk.risk }}</td>
+<td><strong>{{ risk.probability }}</strong></td>
+<td><strong>{{ risk.impact }}</strong></td>
+<td>{{ risk.mitigation }}</td>
+</tr>
+{% endfor %}</tbody></table>
+</section>
