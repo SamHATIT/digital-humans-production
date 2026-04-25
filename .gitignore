@@ -87,3 +87,14 @@ backend/.env.pre-refonte-backup
 # Daily session context logs (Méta-5)
 archives/CONTEXT_*.md
 index.generated.html
+
+# Artefacts ad-hoc & scripts one-shot (préfère _archive/ hors repo)
+docs/sds_*_rebuild/
+backend/scripts/run_exec*.py
+*.tar.gz
+*.tar.bz2
+tasks/
+phase*_bundle*
+
+# Backups locaux de la refonte doc
+docs/refonte/index.html.pre_*
