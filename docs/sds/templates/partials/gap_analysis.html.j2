@@ -1,0 +1,98 @@
+{# sec-7 : Gap Analysis (Marcus) - 99 gaps, summary tables, migration, risks.
+   La sec-7.4 Risk Areas dans la ref a un bug (texte en col 1 strong, severity
+   '—', description vide). On reproduit la structure visuelle pour rester aligne. #}
+{% set total_gaps = gap.summary.total_gaps or 0 %}{% set agent_total = gap.summary.by_agent.values() | sum %}<section id='sec-7' class='block'>
+<div class='act'><span class='act-num'>— Scene VII</span><span class='act-sep'></span><span class='act-tag'>Artifact 07</span></div><h1 class='sec-h1'><span>Gap Analysis</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
+<p>This is a greenfield project — Marcus identified {{ total_gaps }} gaps to fill, totalling an estimated {{ gap.summary.total_effort_days }} effort-days.</p>
+<h2 id='sub-7-1' class='sec-h2'><span>7.1 Summary</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th>Total gaps</th>
+<th><strong>{{ total_gaps }}</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Total effort (days)</td>
+<td><strong>{{ gap.summary.total_effort_days }}</strong></td>
+</tr>
+</tbody></table>
+<h3 class='sec-h3'>Gaps by category</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Category</strong></th>
+<th><strong>Count</strong></th>
+<th><strong>% of total</strong></th>
+</tr></thead>
+<tbody>
+{% for cat, cnt in gap.summary.by_category.items() %}<tr>
+<td><strong>{{ cat }}</strong></td>
+<td><strong>{{ cnt }}</strong></td>
+<td>{{ ((cnt / total_gaps * 100) | round(1)) if total_gaps > 0 else 0 }}%</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Gaps by complexity</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Complexity</strong></th>
+<th><strong>Count</strong></th>
+<th><strong>% of total</strong></th>
+</tr></thead>
+<tbody>
+{% for cx, cnt in gap.summary.by_complexity.items() %}<tr>
+<td><strong>{{ cx }}</strong></td>
+<td><strong>{{ cnt }}</strong></td>
+<td>{{ ((cnt / total_gaps * 100) | round(1)) if total_gaps > 0 else 0 }}%</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Gaps by responsible agent</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Agent</strong></th>
+<th><strong>Gap count</strong></th>
+<th><strong>% of total</strong></th>
+</tr></thead>
+<tbody>
+{% for ag, cnt in gap.summary.by_agent.items() %}<tr>
+<td><strong>{{ ag }}</strong></td>
+<td><strong>{{ cnt }}</strong></td>
+<td>{{ ((cnt / agent_total * 100) | round(1)) if agent_total > 0 else 0 }}%</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-7-2' class='sec-h2'><span>7.2 Gap Catalog</span> <em class='brass'>({{ total_gaps }} gaps)</em></h2>
+<p>Each gap with category, complexity, responsible agent, effort estimate and acceptance criteria. Sorted as produced by Marcus.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>ID</strong></th>
+<th><strong>Title / Description</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Complexity</strong></th>
+<th><strong>Effort (d)</strong></th>
+<th><strong>Agent</strong></th>
+</tr></thead>
+<tbody>
+{% for g in gap.gaps %}<tr>
+<td><strong>{{ g.id }}</strong></td>
+<td>{{ g.gap_description }}</td>
+<td>{{ g.category }}</td>
+<td><strong>{{ g.complexity }}</strong></td>
+<td><strong>{{ g.effort_days }}</strong></td>
+<td>{{ g.assigned_agent or '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-7-3' class='sec-h2'><span>7.3 Migration Considerations</span></h2>
+{% for mc in gap.migration_considerations %}<p>- {{ mc }}</p>
+{% endfor %}<h2 id='sub-7-4' class='sec-h2'><span>7.4 Risk Areas</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Risk area</strong></th>
+<th><strong>Severity</strong></th>
+<th><strong>Description / mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for ra in gap.risk_areas %}<tr>
+<td><strong>{{ ra }}</strong></td>
+<td><strong>—</strong></td>
+<td></td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

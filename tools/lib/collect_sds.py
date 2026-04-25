@@ -391,6 +391,49 @@ def collect_uc_digest(execution_id: int) -> dict[str, Any]:
     }
 
 
+# ─── 5. As-Is Analysis (sec-5) ─────────────────────────────────────────────
+def collect_as_is(execution_id: int) -> dict[str, Any]:
+    """Recupere architect_as_is (Marcus).
+    
+    Retour:
+        {
+          "organization": {edition, api_version, release, custom_objects, ...,
+                           permission_sets_standard[], profiles_standard[]},
+          "standard_objects": [{name, label, standard_fields_count,
+                                custom_fields_count, record_types_custom, description}]
+        }
+    """
+    content = _load_deliverable(execution_id, "architect_as_is")
+    return {
+        "organization": content.get("organization", {}),
+        "standard_objects": content.get("standard_objects", []),
+    }
+
+
+# ─── 7. Gap Analysis (sec-7) ───────────────────────────────────────────────
+def collect_gap_analysis(execution_id: int) -> dict[str, Any]:
+    """Recupere architect_gap_analysis (Marcus).
+    
+    Retour:
+        {
+          "summary": {total_gaps, by_category{}, by_complexity{}, by_agent{},
+                      total_effort_days},
+          "gaps": [{id, category, complexity, effort_days, gap_description,
+                    current_state, target_state, assigned_agent, uc_refs[],
+                    dependencies[]}],
+          "migration_considerations": [str, ...],  # 7 strings
+          "risk_areas": [str, ...],                # 8 strings
+        }
+    """
+    content = _load_deliverable(execution_id, "architect_gap_analysis")
+    return {
+        "summary": content.get("summary", {}),
+        "gaps": content.get("gaps", []),
+        "migration_considerations": content.get("migration_considerations", []),
+        "risk_areas": content.get("risk_areas", []),
+    }
+
+
 # ─── 5. Build context — assemble tout pour le rendu Jinja2 ─────────────────
 def build_render_context(execution_id: int) -> dict[str, Any]:
     """Assemble le dict complet à passer à Jinja2."""
@@ -408,6 +451,11 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
     ucs = collect_use_cases(execution_id)
     digest = collect_uc_digest(execution_id)
     initial_needs = _parse_initial_needs(meta["project"]["business_requirements"])
+    
+    # Lot B — sections 5, 7, 8
+    as_is = collect_as_is(execution_id)
+    gap = collect_gap_analysis(execution_id)
+    # sec-8 utilise 'coverage' deja collecte ci-dessus
     
     # Status mapping → label + CSS class. La couleur indique le degré de finition
     # (brass = approved/complete, sage = build done, ochre = in progress, terra = failed).
@@ -468,4 +516,8 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
         "br_data": brs,           # sec-2 : project_summary, business_requirements, constraints, assumptions
         "uc_data": ucs,           # sec-3 : use_cases, by_br
         "uc_digest": digest,      # sec-4 : synthesis_by_br, cross_cutting_concerns, recommendations, data_volume_estimates
+        # Lot B — sections 5, 7, 8
+        "as_is": as_is,           # sec-5 : organization, standard_objects
+        "gap": gap,               # sec-7 : summary, gaps, migration_considerations, risk_areas
+        # sec-8 reuse 'coverage' (deja expose)
     }

@@ -1,0 +1,39 @@
+{# sec-8 : Coverage Report (Emma) - score, by_category, critical_gaps.
+   Reuse 'coverage' deja expose dans le contexte (collect_coverage). #}
+{% set crit_count = coverage.critical_gaps | length %}{% set missing_pct = (100 - coverage.score) | round(1) %}<section id='sec-8' class='block'>
+<div class='act'><span class='act-num'>— Scene VIII</span><span class='act-sep'></span><span class='act-tag'>Artifact 08</span></div><h1 class='sec-h1'><span>Coverage Report</span> <em class='brass'>(Emma — Research Analyst)</em></h1>
+<p><strong>{{ coverage.score }}%</strong></p>
+<p><strong>{{ coverage.verdict }}</strong></p>
+<p>Emma's programmatic validator scored Marcus's solution design at {{ coverage.score }}%. Threshold for APPROVED is typically 80%. Method: {{ coverage.scoring_method }}.</p>
+<h2 id='sub-8-1' class='sec-h2'><span>8.1 Score by Category</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Category</strong></th>
+<th><strong>Score</strong></th>
+<th><strong>Missing elements</strong></th>
+</tr></thead>
+<tbody>
+{% for cat_name, cat_data in coverage.by_category.items() %}{% set missing = cat_data.get('missing', []) or [] %}<tr>
+<td><strong>{{ cat_name }}</strong></td>
+<td><strong>{{ cat_data.score | int if cat_data.score == cat_data.score | int else cat_data.score }}%</strong></td>
+<td>{% if missing | length == 0 %}(none){% elif missing | length <= 8 %}{{ missing | join(', ') }}{% else %}{{ missing[:8] | join(', ') }}… (+{{ missing | length - 8 }}){% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-8-2' class='sec-h2'><span>8.2 Critical Gaps</span> <em class='brass'>({{ crit_count }})</em></h2>
+<p class='note'>These {{ crit_count }} gaps account for the missing {{ missing_pct }}%. The DATA_MODEL gaps are likely false positives — the validator is matching on raw object names from BR text against the architect<strong>'</strong>s API names. The objects ARE in the design but under different names (e.g. <strong>"</strong>maintenance__c<strong>"</strong> vs <strong>"</strong>Maintenance_Activity__c<strong>"</strong>). This is a known scoring issue that should be addressed in Emma<strong>'</strong>s validator.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Type</strong></th>
+<th><strong>Value</strong></th>
+<th><strong>Severity</strong></th>
+<th><strong>Category</strong></th>
+</tr></thead>
+<tbody>
+{% for cg in coverage.critical_gaps %}<tr>
+<td><strong>{{ cg.element_type }}</strong></td>
+<td>{{ cg.element_value }}</td>
+<td><strong>{{ cg.severity }}</strong></td>
+<td>{{ cg.category }}</td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

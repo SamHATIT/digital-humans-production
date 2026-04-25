@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 3 — Lot A close)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 4 — Lot B close)
 
 ## Phase courante
-**Itération 3 — Lot A (sec-1 à sec-4) close.** 4 sections SDS templatées en Jinja2 + DB : Project Overview, Business Requirements (25 BRs en tbl-expand), Use Cases (58 UCs avec uc-cards groupées par BR), Use Case Digest (synthesis enrichie + cross-cutting concerns + recommendations + data volume estimates). Combiné à l'iter 2, **5/12 sections** sont maintenant DB-driven (sec-1, 2, 3, 4, 6). Reste 7 sections en HTML "en dur" : sec-5, 7, 8, 9, 10, 11, 12 (cf. Lots B/C/D).
+**Itération 4 — Lot B (sec-5, 7, 8) close.** 3 sections supplémentaires DB-driven : As-Is Analysis (organization + 20 standard objects), Gap Analysis (99 gaps avec descriptions + agents enrichis là où la ref est vide, summary tables, migration considerations, risk areas), Coverage Report (score + by_category avec missing tronqués + 14 critical gaps). Combiné aux iter 2/3, **8/12 sections** sont maintenant DB-driven (sec-1, 2, 3, 4, 5, 6, 7, 8). Reste 4 sections en HTML "en dur" : sec-9, 10, 11, 12 (cf. Lots C/D).
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -94,6 +94,33 @@ Avant le chantier templating, migration des modèles LLM par défaut :
 - **Diffs résiduelles dans les sections Lot A** : 0 régression. 79 diffs = 53 corrections __c (sec-3) + 26 enrichissements 4.1 (sec-4) — tous des gains qualitatifs nets.
 - Build time : inchangé ~1.2s, **0 coût LLM**
 
+### Itération 4 — Lot B (sec-5, 7, 8) — 3/3 sections ✅
+1 commit sur `feat/sds-templating` :
+
+| # | Section | Pattern | Status vs ref |
+|---|---|---|---|
+| 5 | As-Is Analysis | 5.1 organization en table key-value avec ordre canonique (PostgreSQL JSONB ne preserve pas) + chips pour les listes (permission_sets_standard, profiles_standard) ; 5.2 standard_objects en table 3 cols | 0 diff (pixel-near) |
+| 7 | Gap Analysis | 7.1 4 sous-tables summary (totaux, by_category, by_complexity, by_agent — pourcentages calcules) ; 7.2 catalog 99 gaps avec gap_description + assigned_agent enrichis (la ref a les colonnes vides) ; 7.3 migration_considerations en bullets ; 7.4 risk_areas en table 3 cols (structure ref reproduite) | +201 enrichissements (99 gaps × 2 cols vides en ref) |
+| 8 | Coverage Report | Preambule score + verdict + scoring_method ; 8.1 by_category avec missing tronques a 8 et "(+N)" pour le reste, "(none)" si vide ; 8.2 critical_gaps en table 4 cols ; preambule 8.2 avec missing_pct = 100 - score calcule | 0 diff (pixel-near apres fix 100.0% → 100% pour scores entiers float) |
+
+### Nouveaux collectors (`tools/lib/collect_sds.py`)
+- **`collect_as_is`** : charge `architect_as_is`, retourne `organization` (dict avec edition, api_version, release, custom_objects, apex_classes, apex_triggers, flows, lightning_pages, permission_sets_custom, permission_sets_standard, profiles_standard) + `standard_objects` (list[20] avec name, label, custom_fields_count, description).
+- **`collect_gap_analysis`** : charge `architect_gap_analysis`, retourne `summary` (total_gaps, by_category, by_complexity, by_agent, total_effort_days), `gaps` (list[99] avec id, category, complexity, effort_days, gap_description, current_state, target_state, assigned_agent, uc_refs[], dependencies[]), `migration_considerations` (list[7]), `risk_areas` (list[8]).
+- `collect_coverage` etait deja en place (iter 1) — reutilise pour sec-8.
+
+### Pieges resolus
+- **Bug shell : include sec-6 perdu** lors du remplacement automatique des sec-5/7/8. Mon script awk identifiait les bornes via `<section id='sec-X'>` mais sec-6 etait deja en `{% include %}` (pas de balise `<section>` dans le shell). Donc en remplacant sec-5 par son include, le code suivant jusqu'a sec-7 (incluant l'include sec-6) etait supprime. Fix : restaurer manuellement l'include solution_design.html.j2 entre as_is et gap. **Lecon** : pour les futurs lots, verifier que tous les includes existants sont preserves apres modification du shell.
+- **Score 100.0% vs 100%** : `coverage.by_category[*].score` est tantot float (100.0) tantot int (100) selon la categorie. La ref affiche tout en int quand c'est entier. Fix : `{{ score | int if score == score | int else score }}` dans le partial sec-8.
+- **Pourcentages de gaps by_agent** : la somme by_agent = 93 (pas 99 = total_gaps), donc 6 gaps n'ont pas d'agent assigne. Pourcentages calcules sur `agent_total = by_agent.values() | sum`, comme la ref.
+
+### Stats finales Lot B
+- Shell : 5282 → 4007 lignes (**-24%**, -1275 lignes en dur remplacees par 3 includes)
+- 3 partials : 40 + 98 + 39 = **177 lignes Jinja2** redigees
+- HTML rendu : 479,915 chars (vs 474,023 ref, delta +5,892 = enrichissements sec-7 + corrections sec-3 + sec-2 fields)
+- Diff total vs ref : 977 → 309 hunks (**-67%**) — l'augmentation massive sec-7 (+201) compensee par la fin du HTML dur sur sec-5/7/8
+- **Diffs residuelles dans les sections Lot B** : 0 regression. 201 diffs sec-7 = 100% enrichissements (gap_description + assigned_agent), 0 diff sec-5 et sec-8 (pixel-near).
+- Build time : ~1.2s (inchange), **0 cout LLM**
+
 ## Workflow de référence
 
 ```bash
@@ -116,11 +143,6 @@ git push
 ```
 
 ## Prochaines étapes
-
-### Iter 4 — Lot B (sec-5, 7, 8) — proposé
-- Section 5 As-Is Analysis (Marcus, deliverable_type `architect_as_is`)
-- Section 7 Gap Analysis (Marcus, 81K JSON, ~985 lignes en dur) — réutiliser le helper `render_value` du partial sec-6
-- Section 8 Coverage Report (Emma, deliverable_type `research_analyst_coverage_report` — déjà partiellement collecté via `collect_coverage`)
 
 ### Iter 5 — Lot C (sec-9, 10) — proposé
 - Section 9 Data Migration (Aisha, ~1207 lignes en dur — la plus structurée)
@@ -171,7 +193,10 @@ git push
 - Partial sec-2 : `docs/sds/templates/partials/business_requirements.html.j2`
 - Partial sec-3 : `docs/sds/templates/partials/use_cases.html.j2`
 - Partial sec-4 : `docs/sds/templates/partials/uc_digest.html.j2`
+- Partial sec-5 : `docs/sds/templates/partials/as_is_analysis.html.j2`
 - Partial sec-6 : `docs/sds/templates/partials/solution_design.html.j2`
+- Partial sec-7 : `docs/sds/templates/partials/gap_analysis.html.j2`
+- Partial sec-8 : `docs/sds/templates/partials/coverage_report.html.j2`
 - Collector : `tools/lib/collect_sds.py`
 - Builder : `tools/build_sds.py`
 - Status sœur (refonte doc) : `../refonte/STATUS.md`
