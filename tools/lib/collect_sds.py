@@ -238,6 +238,129 @@ def collect_solution_design(execution_id: int) -> dict[str, Any]:
     }
 
 
+
+
+# ─── Loader générique deliverable ──────────────────────────────────────────
+def _load_deliverable(execution_id: int, deliverable_type: str) -> dict[str, Any]:
+    """Charge un deliverable et retourne son content parsé.
+    
+    Convention : les deliverables sont stockés en {"content": {...}} ou directement le payload.
+    On gère les deux cas.
+    """
+    with _db_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute("""
+            SELECT content
+            FROM agent_deliverables
+            WHERE execution_id = %s AND deliverable_type = %s
+            ORDER BY id DESC LIMIT 1
+        """, (execution_id, deliverable_type))
+        row = cur.fetchone()
+        if not row:
+            return {}
+    raw = row["content"]
+    parsed = json.loads(raw) if isinstance(raw, str) else raw
+    if isinstance(parsed, dict):
+        return parsed.get("content", parsed) or {}
+    return {}
+
+
+# ─── 1. Project Overview (sec-1) ───────────────────────────────────────────
+def _parse_initial_needs(business_requirements_text: str) -> list[str]:
+    """Parse le brief utilisateur (texte libre avec bullets) en liste de needs.
+    
+    Format typique : "Besoins :\n- need 1\n- need 2\n..."
+    """
+    if not business_requirements_text:
+        return []
+    needs = []
+    for line in business_requirements_text.splitlines():
+        line = line.strip()
+        if line.startswith(("- ", "* ", "• ")):
+            needs.append(line[2:].strip())
+        elif line.startswith("-"):
+            needs.append(line[1:].strip())
+    return needs
+
+
+# ─── 2. Business Requirements (sec-2) ──────────────────────────────────────
+def collect_business_requirements(execution_id: int) -> dict[str, Any]:
+    """Récupère le deliverable pm_br_extraction (Sophie).
+    
+    Retour:
+        {
+          "project_summary": str,
+          "business_requirements": [{id, title, description, category, priority, stakeholder, metadata{...}}],
+          "constraints": [...],
+          "assumptions": [...],
+        }
+    """
+    content = _load_deliverable(execution_id, "pm_br_extraction")
+    return {
+        "project_summary": content.get("project_summary", ""),
+        "business_requirements": content.get("business_requirements", []),
+        "constraints": content.get("constraints", []),
+        "assumptions": content.get("assumptions", []),
+    }
+
+
+# ─── 3. Use Cases (sec-3) ──────────────────────────────────────────────────
+def collect_use_cases(execution_id: int) -> dict[str, Any]:
+    """Récupère les Use Cases d'Olivia depuis deliverable_items.
+    
+    Les UCs sont stockés un-par-row dans deliverable_items (agent_id='ba',
+    item_type='use_case'), avec content JSON par UC.
+    
+    Retour:
+        {"use_cases": [{id, title, br_refs, ...}], "by_br": {br_id: [uc, ...]}}
+    """
+    use_cases = []
+    with _db_conn() as conn, conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+        cur.execute("""
+            SELECT content_parsed, content_raw, item_id
+            FROM deliverable_items
+            WHERE execution_id = %s AND agent_id = 'ba' AND item_type = 'use_case'
+            ORDER BY id
+        """, (execution_id,))
+        for row in cur.fetchall():
+            parsed = row["content_parsed"]
+            if parsed is None and row["content_raw"]:
+                try:
+                    parsed = json.loads(row["content_raw"])
+                except json.JSONDecodeError:
+                    continue
+            if isinstance(parsed, dict):
+                # Le content peut être nested sous "content"
+                uc = parsed.get("content", parsed)
+                if isinstance(uc, dict):
+                    # S'assurer que l'item_id de la table est présent comme id
+                    uc.setdefault("id", row["item_id"])
+                    use_cases.append(uc)
+    
+    # Index par BR pour le rendu "Use Case Index by Business Requirement"
+    by_br: dict[str, list] = {}
+    for uc in use_cases:
+        for br_id in uc.get("br_refs", []) or [uc.get("br_id")] if uc.get("br_id") else []:
+            by_br.setdefault(br_id, []).append(uc)
+    
+    return {"use_cases": use_cases, "by_br": by_br}
+
+
+# ─── 4. Use Case Digest (sec-4) ────────────────────────────────────────────
+def collect_uc_digest(execution_id: int) -> dict[str, Any]:
+    """Récupère research_analyst_uc_digest (Emma).
+    
+    Retour: payload brut (synthesis_by_br, cross_cutting_concerns, recommendations,
+    data_volume_estimates).
+    """
+    content = _load_deliverable(execution_id, "research_analyst_uc_digest")
+    return {
+        "synthesis_by_br": content.get("synthesis_by_br", []),
+        "cross_cutting_concerns": content.get("cross_cutting_concerns", {}),
+        "recommendations": content.get("recommendations", []),
+        "data_volume_estimates": content.get("data_volume_estimates", {}),
+    }
+
+
 # ─── 5. Build context — assemble tout pour le rendu Jinja2 ─────────────────
 def build_render_context(execution_id: int) -> dict[str, Any]:
     """Assemble le dict complet à passer à Jinja2."""
@@ -249,6 +372,12 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
     toc = collect_toc(execution_id, br_count=br_count, uc_count=uc_count,
                      coverage_score=cov.get("score", 0))
     sd = collect_solution_design(execution_id)
+    
+    # Lot A — sections 1-4 (sec-1 utilise meta + project, sec-2/3/4 ont leurs deliverables)
+    brs = collect_business_requirements(execution_id)
+    ucs = collect_use_cases(execution_id)
+    digest = collect_uc_digest(execution_id)
+    initial_needs = _parse_initial_needs(meta["project"]["business_requirements"])
     
     # Status mapping → label + CSS class. La couleur indique le degré de finition
     # (brass = approved/complete, sage = build done, ochre = in progress, terra = failed).
@@ -304,4 +433,9 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
         "status": {"label": label, "css_class": css},
         "hero": hero,
         "build": build,
+        # Lot A — sections 1-4
+        "initial_needs": initial_needs,
+        "br_data": brs,           # sec-2 : project_summary, business_requirements, constraints, assumptions
+        "uc_data": ucs,           # sec-3 : use_cases, by_br
+        "uc_digest": digest,      # sec-4 : synthesis_by_br, cross_cutting_concerns, recommendations, data_volume_estimates
     }
