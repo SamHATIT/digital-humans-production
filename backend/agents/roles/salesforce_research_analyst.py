@@ -722,7 +722,105 @@ class ResearchAnalystAgent:
         execution_id: int,
         project_id: int,
     ) -> Dict[str, Any]:
-        """Assemble all deliverables into final SDS document."""
+        """Generate the final SDS document.
+
+        Iter 8 (2026-04-25) — Bascule DB-driven : appelle build_sds(execution_id)
+        qui rend le HTML directement depuis PostgreSQL via Jinja2 partials. Plus
+        besoin d'un LLM call massif (etait ~5-10$ par run avec Sonnet 4.5,
+        max_tokens=32000). Build time ~1.6s, 0 cout LLM.
+
+        Le rendu utilise les 12 partials/ + le shell sds_shell.html.j2. Toutes
+        les sections (1 a 12) + les 30 sous-sections sont DB-driven via les
+        12 collectors dans tools/lib/collect_sds.py.
+
+        Le retour conserve la cle content.raw_markdown pour compat avec
+        pm_orchestrator_service_v2.py (qui consomme ce champ ligne ~2715), mais
+        son contenu est desormais du HTML rendu. Le champ content.raw_html est
+        ajoute pour clarification semantique. Tant que pm_orchestrator append
+        toujours "Annexe A" en markdown, ce sera redondant (les UCs sont deja
+        inclus dans le HTML via les sections 3 et 4) — a nettoyer dans iter 10.
+        """
+        start_time = time.time()
+        timestamp = datetime.now().isoformat()
+
+        # ──────────────────────────────────────────────────────────────────
+        # Build SDS depuis la DB via build_sds (tools/build_sds.py)
+        # ──────────────────────────────────────────────────────────────────
+        import sys
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[3]
+        tools_path = str(repo_root / "tools")
+        if tools_path not in sys.path:
+            sys.path.insert(0, tools_path)
+
+        try:
+            from build_sds import build_sds
+            content = build_sds(execution_id)
+            logger.info(f"WRITE_SDS via build_sds(): {len(content):,} chars rendered")
+        except Exception as e:
+            logger.error(f"build_sds failed for execution {execution_id}: {e}", exc_info=True)
+            raise
+
+        execution_time = time.time() - start_time
+
+        # Log interaction (cosmetique, plus de tokens consommes)
+        self._log_interaction(
+            mode="write_sds", prompt="[DB-driven, no LLM prompt]", content=content[:5000] + "...",
+            execution_id=execution_id, input_tokens=0,
+            tokens_used=0, model_used="build_sds (no LLM)",
+            provider_used="local", execution_time=execution_time,
+        )
+
+        return {
+            "success": True,
+            "agent_id": "research_analyst",
+            "agent_name": "Emma (Research Analyst)",
+            "mode": "write_sds",
+            "execution_id": execution_id,
+            "project_id": project_id,
+            "deliverable_type": "sds_document",
+            "artifact_id": "SDS-001",
+            "content": {
+                "raw_markdown": content,  # NOTE iter 8: contient du HTML, pas du Markdown
+                "raw_html": content,       # alias semantique correct
+                "word_count": len(content.split()),
+                "sections_count": 12,      # 12 sections DB-driven
+            },
+            "metadata": {
+                "tokens_used": 0,
+                "cost_usd": 0.0,
+                "model": "build_sds (DB-driven, no LLM)",
+                "provider": "local",
+                "execution_time_seconds": round(execution_time, 2),
+                "content_length": len(content),
+                "generated_at": timestamp,
+                "rendering_engine": "jinja2_partials_v1",
+            }
+        }
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TODO REMOVE: legacy phase 5 LLM call (~5-10$/run with Sonnet 4.5)
+    # Kept commented during iter 8/9/10 testing of the DB-driven build_sds()
+    # path above. Once we confirm 0 regression vs the LLM-generated SDS over
+    # several test runs, this entire block can be deleted along with the
+    # YAML prompt template emma_research.yaml -> write_sds (~500 lines).
+    # Date d'introduction du commentaire : 2026-04-25 (iter 9, branch
+    # feat/sds-templating). Owner cleanup : Sam.
+    # ══════════════════════════════════════════════════════════════════════
+    def _execute_write_sds_LEGACY_LLM(  # noqa: N802 — TODO REMOVE
+        self,
+        input_data: dict,
+        execution_id: int,
+        project_id: int,
+    ) -> Dict[str, Any]:
+        """LEGACY: Assemble all deliverables into final SDS document via LLM.
+
+        TODO REMOVE: replaced by build_sds() in iter 8. Cf. _execute_write_sds
+        above. This implementation made a single huge LLM call (max_tokens=32000,
+        ~200K char prompt) to Emma to write the full SDS in markdown. Cost was
+        roughly 5-10 USD per run with Sonnet 4.5. The DB-driven path now does
+        the same in 1.6s for 0 USD.
+        """
         start_time = time.time()
 
         project_name = input_data.get('project_name', 'Salesforce Project')
@@ -756,7 +854,7 @@ class ResearchAnalystAgent:
 
         system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
 
-        logger.info(f"WRITE_SDS mode: prompt size: {len(prompt)} chars")
+        logger.info(f"WRITE_SDS mode (LEGACY): prompt size: {len(prompt)} chars")
 
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
             prompt, system_prompt, max_tokens=32000, temperature=0.4,
@@ -798,6 +896,9 @@ class ResearchAnalystAgent:
                 "generated_at": timestamp
             }
         }
+    # ══════════════════════════════════════════════════════════════════════
+    # END TODO REMOVE block (legacy LLM SDS generation)
+    # ══════════════════════════════════════════════════════════════════════
 
     # ------------------------------------------------------------------
     # LLM / RAG / Logger helpers
