@@ -1,0 +1,48 @@
+<section id='sec-2' class='block'>
+<div class='act'><span class='act-num'>— Scene II</span><span class='act-sep'></span><span class='act-tag'>Artifact 02</span></div><h1 class='sec-h1'><span>Business Requirements</span> <em class='brass'>(Sophie — PM)</em></h1>
+<p>{{ br_data.project_summary }}</p>
+<h2 id='sub-2-1' class='sec-h2'><span>2.1 Requirements Summary</span> <em class='brass'>({{ br_data.business_requirements | length }} BRs)</em></h2>
+<p>All requirements extracted by Sophie, with category, priority, stakeholder, and traceability to use cases.</p>
+<table class='tbl tbl-expand tbl-br_summary'>
+<thead><tr>
+<th class='tbl-toggle-col' aria-hidden='true'></th>
+<th><strong>ID</strong></th>
+<th><strong>Title</strong></th>
+<th><strong>Category</strong></th>
+<th><strong>Priority</strong></th>
+<th><strong>Stakeholder</strong></th>
+</tr></thead>
+<tbody>
+{% for br in br_data.business_requirements %}<tr class='tbl-row-summary' data-id='{{ br.id }}' tabindex='0' role='button' aria-expanded='false' aria-controls='detail-br_summary-{{ br.id }}'>
+<td class='tbl-toggle'><span class='tbl-caret'></span></td>
+<td><strong>{{ br.id }}</strong></td>
+<td>{{ br.title }}</td>
+<td>{{ br.category }}</td>
+<td><strong>{{ br.priority }}</strong></td>
+<td>{{ br.stakeholder }}</td>
+</tr>
+<tr class='tbl-row-detail' id='detail-br_summary-{{ br.id }}'><td colspan='6'><div class='tbl-detail-body'>
+<p class='detail-desc'>{{ br.description }}</p>
+<dl class='detail-kv'>
+<dt>Stakeholder</dt><dd>{{ br.stakeholder }}</dd>
+{% set md = br.metadata or {} %}{% if md.fields %}<dt>Fields</dt><dd>• {{ md.fields | dot_join }}</dd>
+{% endif %}{% if md.validation_rules %}<dt>Validation Rules</dt><dd>• {{ md.validation_rules | dot_join }}</dd>
+{% endif %}{% if md.dependencies %}<dt>Dependencies</dt><dd>{{ md.dependencies | join(', ') }}</dd>
+{% endif %}{% if md.acceptance_criteria %}<dt>Acceptance Criteria</dt><dd>• {{ md.acceptance_criteria | dot_join }}</dd>
+{% endif %}</dl></div></td></tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-2-3' class='sec-h2'><span>2.3 Constraints</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Type</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+{% for c in br_data.constraints %}<tr>
+<td></td>
+<td>{{ c }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-2-4' class='sec-h2'><span>2.4 Assumptions</span></h2>
+{% for a in br_data.assumptions %}<p>- {{ a }}</p>
+{% endfor %}</section>

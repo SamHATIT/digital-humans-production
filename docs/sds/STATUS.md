@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 2)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 3 — Lot A close)
 
 ## Phase courante
-**Itération 2 (Solution Design / sec-6) close.** 13/13 sous-sections instrumentées en Jinja2 + DB. Build ~1.2s, 0 coût LLM. Reste 11 sections SDS encore en HTML "en dur" dans le shell.
+**Itération 3 — Lot A (sec-1 à sec-4) close.** 4 sections SDS templatées en Jinja2 + DB : Project Overview, Business Requirements (25 BRs en tbl-expand), Use Cases (58 UCs avec uc-cards groupées par BR), Use Case Digest (synthesis enrichie + cross-cutting concerns + recommendations + data volume estimates). Combiné à l'iter 2, **5/12 sections** sont maintenant DB-driven (sec-1, 2, 3, 4, 6). Reste 7 sections en HTML "en dur" : sec-5, 7, 8, 9, 10, 11, 12 (cf. Lots B/C/D).
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -69,6 +69,31 @@ Avant le chantier templating, migration des modèles LLM par défaut :
 - Diff métrique : 287 → 687 lignes (augmentation due aux enrichissements, pas à des régressions — les diffs supplémentaires sont quasi tous des corrections)
 - Build time : ~1.2s vs 10-15min phase 5 Emma actuelle, **0 coût LLM**
 
+### Itération 3 — Lot A (sec-1 à sec-4) — 4/4 sections ✅
+1 commit sur `feat/sds-templating` :
+
+| # | Section | Pattern | Status vs ref |
+|---|---|---|---|
+| 1 | Project Overview | Tables simples (project + 7 needs parsés du brief) | 0 diff (pixel-near) |
+| 2 | Business Requirements | tbl-expand 25 BRs (id, title, category, priority, stakeholder, metadata.fields/validation_rules/acceptance_criteria/dependencies) + 5 constraints + 8 assumptions | 0 diff (pixel-near) |
+| 3 | Use Cases | tbl-expand groupé par BR (24 BRs avec UCs), uc-cards avec actor/trigger/main_flow par UC, total 58 UCs | +53 corrections __c |
+| 4 | Use Case Digest | 4.1 Synthesis enrichie (UC IDs croisés depuis uc_data.by_br, Complexity dérivée, Architectural notes) + 4.2 cross-cutting (23 shared objects, 1 integration point, 7 security req) + 4.3 19 recommendations + 4.4 25 data volume estimates | +26 enrichissements (4.1 vide en ref) |
+
+### Bugs collectors corrigés (lot A blocking)
+- **`collect_use_cases.by_br` était vide** : code utilisait `br_refs`/`br_id`, mais Olivia produit la clé `parent_br` (string). Fix : support `parent_br` en priorité, fallback sur `br_refs` puis `br_id`. Résultat : 58 UCs distribués sur 24 BRs (2 UCs/BR moyenne).
+- **`collect_uc_digest.synthesis_by_br` était vide** : code lisait `synthesis_by_br` (liste), mais Emma produit `by_requirement` (dict {BR-id: {...}}). Fix : transformation dict → liste ordonnée par BR-id avec tri numérique propre. Bonus : `total_use_cases_analyzed` exposé pour le préambule sec-4.
+
+### Filtres Jinja2 ajoutés à `build_sds.py`
+- **`dot_join`** : joint une liste avec ` <span class='dot'>·</span> ` en escapant chaque item via un escape minimaliste (`& < >` seulement, pas les apostrophes — pour matcher la ref qui garde `'` brut). Indispensable car `autoescape=False` pour ne pas casser sec-6 (qui contient du HTML formé).
+- **`ftrim`** : strip whitespace pour les valeurs DB qui peuvent avoir des espaces parasites (saisie utilisateur dans `projects.name`).
+
+### Stats finales Lot A
+- Shell : 7045 → 5282 lignes (**-25%**, -1763 lignes en dur remplacées par 4 includes)
+- 4 partials : 33 + 48 + 34 + 53 = **168 lignes Jinja2** rédigées
+- Diff total vs ref : 1133 → 977 lignes (réduction par convergence + corrections)
+- **Diffs résiduelles dans les sections Lot A** : 0 régression. 79 diffs = 53 corrections __c (sec-3) + 26 enrichissements 4.1 (sec-4) — tous des gains qualitatifs nets.
+- Build time : inchangé ~1.2s, **0 coût LLM**
+
 ## Workflow de référence
 
 ```bash
@@ -92,21 +117,18 @@ git push
 
 ## Prochaines étapes
 
-### Iter 3 — Sections 1, 2, 3 (proposé)
-Templater **Project Overview + Business Requirements + Use Cases**. Les 2 et 3 sont l'ossature du SDS et représentent ~25 BRs Sophie + 58 UCs Olivia. Une fois fait, on aura **4/12 sections** templatées DB-driven.
+### Iter 4 — Lot B (sec-5, 7, 8) — proposé
+- Section 5 As-Is Analysis (Marcus, deliverable_type `architect_as_is`)
+- Section 7 Gap Analysis (Marcus, 81K JSON, ~985 lignes en dur) — réutiliser le helper `render_value` du partial sec-6
+- Section 8 Coverage Report (Emma, deliverable_type `research_analyst_coverage_report` — déjà partiellement collecté via `collect_coverage`)
 
-### Iter 4 — Sections lourdes (à explorer)
-- Section 7 Gap Analysis (Marcus, 81K JSON) — challenge structuré
-- Section 11 Test Strategy (Elena, 157K) — la plus volumineuse
-- Le helper `render_value` du partial sec-6 sera réutilisé partout où il y a des structures imbriquées
+### Iter 5 — Lot C (sec-9, 10) — proposé
+- Section 9 Data Migration (Aisha, ~1207 lignes en dur — la plus structurée)
+- Section 10 Training (Lucas, ~419 lignes en dur)
 
-### Iter 5 — Sections moyennes
-- Section 4 Use Case Digest (Emma)
-- Section 5 As-Is Analysis (Marcus)
-- Section 8 Coverage Report (Emma)
-- Section 9 Data Migration (Aisha)
-- Section 10 Training (Lucas)
-- Section 12 CI/CD Deployment (Jordan)
+### Iter 6 — Lot D (sec-11, 12) — proposé
+- Section 11 Test Strategy (Elena, ~1316 lignes en dur — la plus volumineuse)
+- Section 12 CI/CD Deployment (Jordan, ~347 lignes en dur)
 
 ### Bascule API et frontend (à faire en parallèle ou après)
 - Endpoint `GET /api/executions/{id}/sds.html` (live preview)
@@ -145,6 +167,10 @@ Templater **Project Overview + Business Requirements + Use Cases**. Les 2 et 3 s
 ## Liens
 - Référence visuelle : `docs/sds/templates/_reference_logifleet_146.html`
 - Shell : `docs/sds/templates/sds_shell.html.j2`
+- Partial sec-1 : `docs/sds/templates/partials/project_overview.html.j2`
+- Partial sec-2 : `docs/sds/templates/partials/business_requirements.html.j2`
+- Partial sec-3 : `docs/sds/templates/partials/use_cases.html.j2`
+- Partial sec-4 : `docs/sds/templates/partials/uc_digest.html.j2`
 - Partial sec-6 : `docs/sds/templates/partials/solution_design.html.j2`
 - Collector : `tools/lib/collect_sds.py`
 - Builder : `tools/build_sds.py`

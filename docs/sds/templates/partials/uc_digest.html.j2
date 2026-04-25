@@ -1,0 +1,53 @@
+<section id='sec-4' class='block'>
+<div class='act'><span class='act-num'>— Scene IV</span><span class='act-sep'></span><span class='act-tag'>Artifact 04</span></div><h1 class='sec-h1'><span>Use Case Digest</span> <em class='brass'>(Emma — Research Analyst)</em></h1>
+<p>Emma analyzed {{ uc_digest.total_use_cases_analyzed }} of the use cases to extract architectural signals: shared objects, integration points, security implications, and data volume estimates. This digest informs Marcus's solution design.</p>
+<h2 id='sub-4-1' class='sec-h2'><span>4.1 Synthesis by</span> <em class='brass'>Business Requirement</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>BR</strong></th>
+<th><strong>UC IDs</strong></th>
+<th><strong>Complexity</strong></th>
+<th><strong>Architectural notes</strong></th>
+</tr></thead>
+<tbody>
+{% for item in uc_digest.synthesis_by_br %}{% set ucs_for_br = uc_data.by_br.get(item.br_id, []) %}{% set obj_count = (item.sf_objects or []) | length %}{% set auto_count = (item.automations or []) | length %}{% set ui_count = (item.ui_components or []) | length %}{% set complexity_score = obj_count + auto_count + ui_count %}{% set complexity = 'Low' if complexity_score <= 3 else ('Medium' if complexity_score <= 6 else 'High') %}<tr>
+<td><strong>{{ item.br_id }}</strong></td>
+<td>{{ ucs_for_br | map(attribute='id') | join(', ') }}</td>
+<td><strong>{{ complexity }}</strong></td>
+<td>{{ item.title }}{% if item.sf_objects %} — {{ item.sf_objects | join(', ') }}{% endif %}{% if auto_count %} ({{ auto_count }} automation{{ 's' if auto_count > 1 else '' }}){% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-4-2' class='sec-h2'><span>4.2 Cross</span> <em class='brass'>Cutting Concerns</em></h2>
+<h3 class='sec-h3'>Shared objects</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Used by</strong></th>
+</tr></thead>
+<tbody>
+{% for so in uc_digest.cross_cutting_concerns.shared_objects %}<tr>
+<td><strong>{{ so.object }}</strong></td>
+<td>{{ so.usage }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Integration points</h3>
+{% for ip in uc_digest.cross_cutting_concerns.integration_points %}<p>- {{ ip.name }}</p>
+{% endfor %}<h3 class='sec-h3'>Security requirements</h3>
+{% for sr in uc_digest.cross_cutting_concerns.security_requirements %}<p>- {{ sr }}</p>
+{% endfor %}<h2 id='sub-4-3' class='sec-h2'><span>4.3 Recommendations to Architect</span></h2>
+{% for r in uc_digest.recommendations %}<p>- {{ r }}</p>
+{% endfor %}<h2 id='sub-4-4' class='sec-h2'><span>4.4 Data Volume Estimates</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Year 1 records</strong></th>
+<th><strong>Notes</strong></th>
+</tr></thead>
+<tbody>
+{% for obj_name, estimate in uc_digest.data_volume_estimates.items() %}<tr>
+<td><strong>{{ obj_name }}</strong></td>
+<td>{{ estimate }}</td>
+<td></td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

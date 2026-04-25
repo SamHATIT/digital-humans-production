@@ -10,6 +10,7 @@ Itérations suivantes ajouteront les collectors par section.
 from __future__ import annotations
 
 import json
+import re
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -336,10 +337,17 @@ def collect_use_cases(execution_id: int) -> dict[str, Any]:
                     uc.setdefault("id", row["item_id"])
                     use_cases.append(uc)
     
-    # Index par BR pour le rendu "Use Case Index by Business Requirement"
+    # Index par BR pour le rendu "Use Case Index by Business Requirement".
+    # Olivia produit la cle 'parent_br' (string). On supporte aussi 'br_refs' (liste)
+    # et 'br_id' (string) en fallback defensif si le format evolue.
     by_br: dict[str, list] = {}
     for uc in use_cases:
-        for br_id in uc.get("br_refs", []) or [uc.get("br_id")] if uc.get("br_id") else []:
+        br_refs = uc.get("br_refs") or []
+        if not br_refs:
+            single = uc.get("parent_br") or uc.get("br_id")
+            if single:
+                br_refs = [single]
+        for br_id in br_refs:
             by_br.setdefault(br_id, []).append(uc)
     
     return {"use_cases": use_cases, "by_br": by_br}
@@ -347,17 +355,39 @@ def collect_use_cases(execution_id: int) -> dict[str, Any]:
 
 # ─── 4. Use Case Digest (sec-4) ────────────────────────────────────────────
 def collect_uc_digest(execution_id: int) -> dict[str, Any]:
-    """Récupère research_analyst_uc_digest (Emma).
+    """Recupere research_analyst_uc_digest (Emma).
     
-    Retour: payload brut (synthesis_by_br, cross_cutting_concerns, recommendations,
-    data_volume_estimates).
+    Le payload Emma contient :
+    - by_requirement : dict {BR-id: {title, uc_count, sf_objects, sf_fields,
+                                      automations, ui_components, key_acceptance_criteria}}
+    - cross_cutting_concerns : dict {shared_objects[], integration_points[], security_requirements[]}
+    - recommendations : list[str]
+    - data_volume_estimates : dict {ObjectName: "X-Y records (notes)"}
+    
+    On expose 'synthesis_by_br' comme une LISTE ordonnee par BR-id (BR-001, BR-002, ...)
+    chaque item etant {br_id, title, uc_count, sf_objects, sf_fields, automations,
+    ui_components, key_acceptance_criteria}. Jinja2 itere proprement sans dependre
+    de l'ordre JSONB PostgreSQL.
     """
     content = _load_deliverable(execution_id, "research_analyst_uc_digest")
+    
+    # by_requirement : dict -> liste ordonnee
+    by_req_dict = content.get("by_requirement", {}) or {}
+    def _br_sort_key(br_id: str):
+        # 'BR-001' -> (0, 1) ; clefs non standard -> (1, br_id)
+        m = re.match(r"BR-(\d+)", br_id)
+        return (0, int(m.group(1))) if m else (1, br_id)
+    synthesis_list = []
+    for br_id in sorted(by_req_dict.keys(), key=_br_sort_key):
+        item = {"br_id": br_id, **by_req_dict[br_id]}
+        synthesis_list.append(item)
+    
     return {
-        "synthesis_by_br": content.get("synthesis_by_br", []),
+        "synthesis_by_br": synthesis_list,
         "cross_cutting_concerns": content.get("cross_cutting_concerns", {}),
         "recommendations": content.get("recommendations", []),
         "data_volume_estimates": content.get("data_volume_estimates", {}),
+        "total_use_cases_analyzed": content.get("total_use_cases_analyzed", 0),
     }
 
 

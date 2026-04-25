@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined  # noqa: E402
+from markupsafe import Markup, escape  # noqa: E402
 from lib.collect_sds import build_render_context  # noqa: E402
 
 
@@ -59,6 +60,37 @@ def humanize(s):
     return SPECIAL.get(s, s.replace("_", " "))
 
 
+def _text_escape(s):
+    """Escape minimaliste pour contenu textuel HTML : & < > seulement.
+    
+    Apostrophes et guillemets sont laisses bruts (pas necessaires en contenu
+    textuel hors-attribut). Reproduit le comportement du rendu de reference.
+    """
+    if not isinstance(s, str):
+        s = str(s)
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def dot_join(items):
+    """Joint une liste avec ' <span class='dot'>·</span> ' en escapant chaque item.
+    
+    Necessaire car autoescape=False : sans ce filtre, les '>' '<' '&' contenus
+    dans les data ne seraient pas convertis en entites HTML.
+    Utilise un escape minimaliste pour ne pas convertir les apostrophes en
+    &#39; (la ref les garde brutes).
+    """
+    if not items:
+        return Markup("")
+    parts = [_text_escape(it) for it in items]
+    return Markup(" <span class='dot'>·</span> ".join(parts))
+
+
+def ftrim(s):
+    """Strip whitespace pour les valeurs venant de la DB qui peuvent avoir
+    des espaces parasites (saisie utilisateur dans projects.name)."""
+    return s.strip() if isinstance(s, str) else s
+
+
 def render(execution_id: int) -> str:
     """Charge le contexte depuis la DB, rend le shell, retourne le HTML."""
     env = Environment(
@@ -71,6 +103,8 @@ def render(execution_id: int) -> str:
         lstrip_blocks=False,
     )
     env.filters["humanize"] = humanize
+    env.filters["dot_join"] = dot_join
+    env.filters["ftrim"] = ftrim
     template = env.get_template("sds_shell.html.j2")
     
     context = build_render_context(execution_id)

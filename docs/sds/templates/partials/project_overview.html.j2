@@ -1,0 +1,33 @@
+<section id='sec-1' class='block'>
+<div class='act'><span class='act-num'>— Scene I</span><span class='act-sep'></span><span class='act-tag'>Artifact 01</span></div><h1 class='sec-h1'><span>Project Overview</span></h1>
+<h2 id='sub-1-1' class='sec-h2'><span>1.1 Project Identity</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th>Project name</th>
+<th><strong>{{ project.name | ftrim }}</strong></th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Description</td>
+<td>{{ project.description }}</td>
+</tr>
+<tr>
+<td>Execution</td>
+<td>#{{ execution.id }}</td>
+</tr>
+</tbody></table>
+<h2 id='sub-1-2' class='sec-h2'><span>1.2 Initial Business Needs</span> <em class='brass'>(User Brief)</em></h2>
+<p>The following needs were submitted in the original brief and triggered Sophie's requirements extraction.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>#</strong></th>
+<th><strong>Need</strong></th>
+</tr></thead>
+<tbody>
+{% for need in initial_needs %}<tr>
+<td>{{ loop.index }}</td>
+<td>{{ need }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<p class='note'>These {{ initial_needs | length }} informal needs were transformed by Sophie into {{ br_data.business_requirements | length }} structured Business Requirements, then by Olivia into {{ uc_data.use_cases | length }} Use Cases — see sections 2 and 3.</p>
+</section>
