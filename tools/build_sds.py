@@ -71,6 +71,15 @@ def _text_escape(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def humanize(s):
+    """Transforme une key snake_case ou camelCase en libelle humain.
+    Ex: 'unit_test_coverage' -> 'unit test coverage', 'Client_Type__c' -> 'Client Type  c'.
+    Le shell reproduit le pattern du pipeline original (double espace pour __)."""
+    if not isinstance(s, str):
+        return s
+    return s.replace('_', ' ')
+
+
 def etext(s):
     """Escape minimaliste pour valeurs textuelles (& < > seulement, pas les
     apostrophes ni guillemets). Filtre l'equivalent ponctuel de dot_join pour
@@ -112,6 +121,7 @@ def render(execution_id: int) -> str:
     env.filters["humanize"] = humanize
     env.filters["dot_join"] = dot_join
     env.filters["etext"] = etext
+    env.filters["humanize"] = humanize
     env.filters["ftrim"] = ftrim
     template = env.get_template("sds_shell.html.j2")
     

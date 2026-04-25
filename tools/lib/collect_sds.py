@@ -463,12 +463,59 @@ def _parse_raw_markdown_json(md: str) -> tuple[dict, str | None]:
         return json.loads(md, strict=False), None
     except json.JSONDecodeError:
         pass
-    # 3. Drop lignes ```...```
-    cleaned = '\n'.join(l for l in md.split('\n') if not l.strip().startswith('```'))
-    try:
-        return json.loads(cleaned, strict=False), None
-    except json.JSONDecodeError as e:
-        last_err = e
+    # 3. Gerer les ``` parasites au milieu du JSON. 2 patterns observes :
+    #   A) LLM tronque une string puis sort un ``` puis recommence la cle entiere
+    #      -> drop la ligne ``` ET la ligne avant (incomplete)
+    #   B) LLM coupe une string en plein milieu par un ``` puis continue la string
+    #      -> drop juste la ligne ``` et merger prev+next (continuation de string)
+    src_lines = md.split('\n')
+    bt_indices = [i for i, l in enumerate(src_lines) if l.strip().startswith('```')]
+    
+    if bt_indices:
+        # Tentative A : drop ``` + ligne avant
+        skip_a = set(bt_indices) | {i - 1 for i in bt_indices if i > 0}
+        cleaned_a = '\n'.join(l for i, l in enumerate(src_lines) if i not in skip_a)
+        try:
+            return json.loads(cleaned_a, strict=False), "recovered: dropped ``` + previous line"
+        except json.JSONDecodeError:
+            pass
+        
+        # Tentative B : drop juste ``` (la ligne suivante est la suite de la string)
+        skip_b = set(bt_indices)
+        cleaned_b = '\n'.join(l for i, l in enumerate(src_lines) if i not in skip_b)
+        try:
+            return json.loads(cleaned_b, strict=False), "recovered: dropped ``` only (string continuation)"
+        except json.JSONDecodeError:
+            pass
+        
+        # Tentative C : per-occurrence — pour chaque ```, choisir A ou B selon le contexte
+        # Si la ligne suivante commence par du texte (pas '"' ni '}' ni '],'), c'est une continuation -> drop juste ```
+        # Sinon -> drop ``` + ligne avant
+        skip_c = set()
+        for bt_i in bt_indices:
+            skip_c.add(bt_i)
+            next_line = src_lines[bt_i + 1].strip() if bt_i + 1 < len(src_lines) else ''
+            # Continuation de string : ligne suivante ne commence pas par un token JSON valide
+            looks_like_string_continuation = next_line and not (
+                next_line.startswith('"') or next_line.startswith('{') or
+                next_line.startswith('}') or next_line.startswith('[') or
+                next_line.startswith(']')
+            )
+            if not looks_like_string_continuation and bt_i > 0:
+                skip_c.add(bt_i - 1)
+        cleaned_c = '\n'.join(l for i, l in enumerate(src_lines) if i not in skip_c)
+        try:
+            return json.loads(cleaned_c, strict=False), "recovered: per-occurrence heuristic"
+        except json.JSONDecodeError as e:
+            last_err = e
+            cleaned = cleaned_c
+    else:
+        cleaned = md
+        try:
+            json.loads(cleaned, strict=False)
+            return json.loads(cleaned, strict=False), None
+        except json.JSONDecodeError as e:
+            last_err = e
     # 4. Tronque au point d'erreur + ferme les structures
     try:
         truncated = cleaned[:last_err.pos]
@@ -566,6 +613,74 @@ def collect_training(execution_id: int) -> dict[str, Any]:
     }
 
 
+# ─── 11. Test Strategy & QA (sec-11) ───────────────────────────────────────
+def collect_test_strategy(execution_id: int) -> dict[str, Any]:
+    """Recupere qa_qa_specifications (Elena).
+    
+    Le payload Elena est wrappe en raw_markdown ```json...``` avec corruptions LLM
+    observees (cf. _parse_raw_markdown_json v2 qui gere 2 patterns de corruption).
+    
+    Retour:
+        {
+          "test_strategy": {approach, environments[], tools[], exit_criteria{}},
+          "traceability_matrix": [list[55] avec uc_id, uc_title, test_case_ids[], architecture_refs[], risk_level],
+          "test_cases": [list[83] avec id, title, category, priority, uc_ref, preconditions[], steps[], test_data, apex_test_hint, automation_potential],
+          "test_data_strategy": {seed_data[], bulk_test_data[], negative_test_data[]},
+          "automation_plan": {apex_tests[], flow_tests[]},
+          "risk_assessment": [list[12] avec risk, impact, mitigation, test_refs[]],
+          "_parse_error": str | None,
+        }
+    """
+    payload = _load_deliverable(execution_id, "qa_qa_specifications")
+    md = payload.get("raw_markdown", "") if isinstance(payload, dict) else ""
+    data, err = _parse_raw_markdown_json(md)
+    return {
+        "test_strategy": data.get("test_strategy", {}) or {},
+        "traceability_matrix": data.get("traceability_matrix", []) or [],
+        "test_cases": data.get("test_cases", []) or [],
+        "test_data_strategy": data.get("test_data_strategy", {}) or {},
+        "automation_plan": data.get("automation_plan", {}) or {},
+        "risk_assessment": data.get("risk_assessment", []) or [],
+        "_parse_error": err,
+    }
+
+
+# ─── 12. CI/CD & Deployment (sec-12) ───────────────────────────────────────
+def collect_devops(execution_id: int) -> dict[str, Any]:
+    """Recupere devops_devops_specifications (Jordan).
+    
+    Le payload Jordan est wrappe en raw_markdown ```json...``` mais structure
+    propre (pas de corruption observee).
+    
+    Retour:
+        {
+          "environment_strategy": {environments[]},
+          "metadata_inventory": [list[12] avec component_type, components[], deploy_order, notes],
+          "deployment_sequence": [list[6] avec phase, name, components[], validation, rollback],
+          "ci_cd_pipeline": {tool, branching_strategy{}, workflows[]},
+          "rollback_plan": {strategy, steps[], prevention[], data_recovery{}},
+          "monitoring": {post_deployment_checks[], ongoing_monitoring[], alerting{}},
+          "testing_strategy": {unit_testing{}, integration_testing{}, uat_testing{}},
+          "release_schedule": {cadence, maintenance_window, release_phases[], hotfix_process},
+          "_parse_error": str | None,
+        }
+    """
+    payload = _load_deliverable(execution_id, "devops_devops_specifications")
+    md = payload.get("raw_markdown", "") if isinstance(payload, dict) else ""
+    data, err = _parse_raw_markdown_json(md)
+    return {
+        "environment_strategy": data.get("environment_strategy", {}) or {},
+        "metadata_inventory": data.get("metadata_inventory", []) or [],
+        "deployment_sequence": data.get("deployment_sequence", []) or [],
+        "ci_cd_pipeline": data.get("ci_cd_pipeline", {}) or {},
+        "rollback_plan": data.get("rollback_plan", {}) or {},
+        "monitoring": data.get("monitoring", {}) or {},
+        "testing_strategy": data.get("testing_strategy", {}) or {},
+        "release_schedule": data.get("release_schedule", {}) or {},
+        "_parse_error": err,
+    }
+
+
 # ─── 5. Build context — assemble tout pour le rendu Jinja2 ─────────────────
 def build_render_context(execution_id: int) -> dict[str, Any]:
     """Assemble le dict complet à passer à Jinja2."""
@@ -592,6 +707,10 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
     # Lot C — sections 9, 10
     data_mig = collect_data_migration(execution_id)
     training = collect_training(execution_id)
+    
+    # Lot D — sections 11, 12
+    qa = collect_test_strategy(execution_id)
+    devops = collect_devops(execution_id)
     
     # Status mapping → label + CSS class. La couleur indique le degré de finition
     # (brass = approved/complete, sage = build done, ochre = in progress, terra = failed).
@@ -661,4 +780,10 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
                                    #         data_cleansing_rules, validation_plan, rollback_strategy
         "training": training,     # sec-10 : audience_analysis, curriculum, training_approach,
                                    #          adoption_plan, resource_requirements, timeline, risks
+        # Lot D — sections 11, 12
+        "qa": qa,                 # sec-11 : test_strategy, traceability_matrix, test_cases,
+                                   #          test_data_strategy, automation_plan, risk_assessment
+        "devops": devops,         # sec-12 : environment_strategy, metadata_inventory,
+                                   #          deployment_sequence, ci_cd_pipeline, rollback_plan,
+                                   #          monitoring, testing_strategy, release_schedule
     }

@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 5 — Lot C close)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 6 — Lot D close, 12/12 sections)
 
 ## Phase courante
-**Itération 5 — Lot C (sec-9, 10) close.** 2 sections supplémentaires DB-driven : Data Migration Strategy (3 source systems, 12 target objects, 11 field mappings, 14 cleansing rules, validation plan, rollback strategy + mermaid timeline reconstruit depuis les phases), Training & Change Management (6 personas, 11 modules curriculum, training approach, adoption plan, KPIs, timeline, 8 risks). **10/12 sections** maintenant DB-driven (sec-1 à sec-10). Reste 2 sections en HTML "en dur" : sec-11 Test Strategy + sec-12 CI/CD Deployment (Lot D).
+**Itération 6 — Lot D (sec-11, 12) close. 🎯 12/12 sections DB-driven.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -151,6 +151,61 @@ Avant le chantier templating, migration des modèles LLM par défaut :
 - Diff total : 977 → 1,878 hunks. L'augmentation vient de l'enrichissement massif sec-7 (Lot B, 201 hunks de gap_description+agent), des corrections sec-9 (57), et de la non-reproduction des sections synthese 9.9/9.10. **Aucune regression**.
 - Build time : ~1.4s, **0 cout LLM**
 
+### Itération 6 — Lot D (sec-11, 12) — 2/2 sections ✅ — **12/12 sections DB-driven**
+1 commit sur `feat/sds-templating` :
+
+| # | Section | Pattern | Status vs ref |
+|---|---|---|---|
+| 11 | Test Strategy | 11.1 strategy preambule + Test Environments table 3 cols + Tools list + Exit Criteria 7 lignes (booleens true/false fixes) ; 11.2 traceability_matrix 55 entrees table 5 cols ; 11.3 test_cases 83 table 5 cols ; 11.4 test_data_strategy avec tbl-nested imbriquees pour seed_data/bulk_test_data/negative_test_data (7 cols + span muted) ; 11.5 automation_plan apex_tests (chiprow methods/covers) + flow_tests ; 11.6 risk_assessment 12 entrees table 3 cols | +57 corrections __c (Vehicle__c.Brand__c vs Vehiclec.Brandc dans traceability et test data) |
+| 12 | CI/CD Deployment | 12.1 environments table 5 cols + **mermaid Figure 3** environment promotion path (LR) ; 12.2 metadata_inventory 12 lignes (chiprow components) ; 12.3 deployment_sequence 6 phases + **mermaid Figure 4** TB ; 12.4 ci_cd_pipeline (tool, branching_strategy, workflows en sous-table) ; 12.5 rollback_plan (strategy, steps, prevention en dot_join, data_recovery en sous-table) ; 12.6 monitoring (post_deployment_checks, ongoing_monitoring, alerting nested) ; 12.7 testing_strategy nested (unit/integration/uat) ; 12.8 release_schedule (cadence, maintenance_window, release_phases, hotfix_process) | 24 cosmetiques (layout 12.3 phases en p+table individuelles dans la ref vs notre table unique, mermaid texte vs SVG pre-rendu) |
+
+### Parser tolerant v2 (ENRICHI dans `tools/lib/collect_sds.py`)
+Le payload Elena (qa_qa_specifications) avait une 2eme forme de corruption LLM
+non geree par v1 : strings coupees en plein milieu par un \`\`\`json parasite
+puis continuees sur la ligne suivante (vs Aisha v1 ou la ligne avant etait
+juste tronquee).
+
+Strategie v2 : essayer 3 strategies dans l'ordre :
+- A : drop ligne ``` + ligne avant (cas Aisha v1)
+- B : drop juste ligne ``` et merge prev+next (cas Elena, continuation de string)
+- C : per-occurrence — heuristique sur la ligne suivante (commence par token JSON
+  valide \`"\`/`{`/`[`/`}`/`]` -> A, sinon -> B). Trouve le bon mix automatiquement.
+
+**Bonus inattendu** : le data_spec d'Aisha (Lot C) recupere maintenant 12 keys
+au lieu de 8, dont `migration_timeline`, `custom_migration_fields`,
+`post_migration_tasks` qui etaient perdus. Le partial sec-9 pourra etre enrichi
+plus tard pour reactiver 9.8/9.9/9.10.
+
+### Nouveaux collectors (`tools/lib/collect_sds.py`)
+- **`collect_test_strategy`** : charge qa_qa_specifications via parser tolerant v2, retourne `test_strategy, traceability_matrix, test_cases, test_data_strategy, automation_plan, risk_assessment, _parse_error`. Sur exec 146 : `_parse_error='recovered: per-occurrence heuristic'`, 8/8 keys recuperees.
+- **`collect_devops`** : charge devops_devops_specifications, structure propre (pas de corruption observee), retourne `environment_strategy, metadata_inventory, deployment_sequence, ci_cd_pipeline, rollback_plan, monitoring, testing_strategy, release_schedule, _parse_error`.
+
+### Nouveau filtre Jinja2 (`tools/build_sds.py`)
+- **`humanize`** : transforme une key snake_case en libelle (`unit_test_coverage` -> `unit test coverage`). Utilise dans 11.1 exit_criteria, 11.4 test_data_strategy.key_fields, 12.4 branching_strategy, 12.5 data_recovery, 12.6 alerting, 12.7 testing_strategy, 12.8 release_phases.
+
+### Pieges resolus
+- **Booleens Python `True`/`False` vs JSON `true`/`false`** : exit_criteria contient des booleens Python qui se rendent `True`/`False` en string, alors que la ref affiche `true`/`false` (lowercase). Fix : `'true' if v is sameas true else ('false' if v is sameas false else v)`.
+- **`StrictUndefined` sur missing_field/duplicate_field/invalid_field** : negative_test_data items ont des keys variables selon le scenario (missing/duplicate/invalid_field/invalid_value/invalid_state). Fix : `{% if 'key' in nd %}{{ nd.key }}{% else %}<span class='muted'>—</span>{% endif %}` pour chaque colonne.
+- **`<span class='muted'>—</span>` vs `—`** : la ref wrap les valeurs vides en span avec classe `muted`. Aligne dans le partial.
+- **Mermaid Figure 3 et 4 absents** : la ref avait 2 mermaid pre-rendus en SVG (environment promotion path + deployment sequence). Notre rendu DB-driven les reconstruit en `<pre class="mermaid">` (rendu cote client par mermaid.js). Le rendu visuel est identique mais le HTML differe (SVG inline vs pre).
+- **Layout sec-12.3 phases** : la ref affiche chaque phase en `<p><strong>Phase N: ...</strong></p>` + sous-table individuelle. Notre rendu fait une table unique. Cosmetique acceptable.
+
+### Stats finales Lot D
+- Shell : 2384 → 726 lignes (**-70%**, -1658 lignes en dur remplacees par 2 includes). **12 includes au total**, le shell est minimal et ne contient plus que la nav, les meta, et les wrappers.
+- 2 partials : 170 + 159 = **329 lignes Jinja2** redigees
+- HTML rendu : 463,624 chars (vs 474,023 ref, delta -10,399)
+- Diff total : 977 → 462 hunks (**-53%**) avec 12/12 sections DB-driven et **0 regression**
+- Build time : ~1.6s, **0 cout LLM**
+
+### Cumul total templating (Lot A + B + C + D)
+- 11 partials Jinja2 totalisant ~1130 lignes (incluant solution_design.html.j2 d'iter 2)
+- 12 collectors PostgreSQL (un par section + helpers)
+- 2 filtres custom : `dot_join`, `etext`, `humanize` (3 au total avec ftrim de Lot A)
+- Shell : 6044 → 726 lignes (**-88%**)
+- Diff total vs reference : 977 → 462 (**-53%**) avec massivement plus d'enrichissements (sec-7 +201) et corrections (__c partout)
+- **0 cout LLM** par build (vs ~$5-10 pour la phase 5 Emma originale)
+- Build time : ~1.6s (vs ~60-120s pour la phase 5 Emma)
+
 ## Workflow de référence
 
 ```bash
@@ -174,9 +229,17 @@ git push
 
 ## Prochaines étapes
 
-### Iter 6 — Lot D (sec-11, 12) — proposé
-- Section 11 Test Strategy (Elena, ~1316 lignes en dur — la plus volumineuse)
-- Section 12 CI/CD Deployment (Jordan, ~347 lignes en dur)
+### Iter 7 — Bascule API/frontend + suppression phase 5 Emma — proposé
+- `GET /api/executions/{id}/sds.html` : live preview (rendu via build_sds + return HTML)
+- `POST /api/projects/{id}/sds-versions` : snapshot freeze dans `outputs/SDS_<project>_v<n>.html` + sds_versions DB row
+- `GET /api/projects/{id}/sds-versions/{n}/view` : version immutable
+- Frontend "Live preview" button dans `ProjectDetailPage.tsx`
+- Replace phase 5 Emma LLM call par `build_sds()` (compensation : 1 short LLM call Emma pour hero title+subtitle marketing)
+
+### Iter 8 — Bonus : enrichir sec-9 avec 9.8/9.9/9.10 — proposé
+Le parser tolerant v2 recupere maintenant migration_timeline, custom_migration_fields,
+post_migration_tasks (perdus avant). Reactiver ces 3 sous-sections dans
+data_migration.html.j2 pour atteindre la parite avec la ref.
 
 ### Bascule API et frontend (à faire en parallèle ou après)
 - Endpoint `GET /api/executions/{id}/sds.html` (live preview)
@@ -225,6 +288,8 @@ git push
 - Partial sec-8 : `docs/sds/templates/partials/coverage_report.html.j2`
 - Partial sec-9 : `docs/sds/templates/partials/data_migration.html.j2`
 - Partial sec-10 : `docs/sds/templates/partials/training.html.j2`
+- Partial sec-11 : `docs/sds/templates/partials/test_strategy.html.j2`
+- Partial sec-12 : `docs/sds/templates/partials/cicd_deployment.html.j2`
 - Collector : `tools/lib/collect_sds.py`
 - Builder : `tools/build_sds.py`
 - Status sœur (refonte doc) : `../refonte/STATUS.md`
