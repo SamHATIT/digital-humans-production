@@ -1,6 +1,6 @@
 # Refonte doc — État courant
 
-**Dernière mise à jour** : 2026-04-24 (session Claude+Sam, Phase 4 close)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, post-LLM migration + nouveau chantier SDS templating démarré)
 
 ## Phase courante
 **Phases 0, 1, 2, 3, 4 terminées.** Refonte doc livrée. Prochain : enrichissements éditoriaux à la carte (nouvelles sections, hero par section, etc.) et hook git local optionnel (post-N2).
@@ -28,6 +28,22 @@
   - **Atomic write** via `tempfile.mkstemp` dans le même FS puis `os.replace()` — pas de fichier partiel visible par Nginx.
   - `index.generated.html` ajouté au `.gitignore`.
   - Baseline repo promue : `docs/refonte/index.html` contient maintenant la charte Studio validée visuellement.
+
+## Fait session 25 avril 2026
+
+### Migration LLM (sur `main`, mergée)
+- ✅ `bfc0c06` : Opus 4.6 → 4.7 + correction pricing $5/$25 in/out + drop `temperature` (déprécié sur Opus 4.7)
+- ✅ `99d079b` : Sonnet 4.5 → 4.6 + SSoT `model display_name` + post-commit hook auto-rebuild docs (versionné dans `tools/git-hooks/post-commit`)
+- ✅ `fcb9a66` : rebuild `index.html` avec noms LLM à jour dans les sections statiques
+
+⚠️ Le tokenizer Opus 4.7 utilise 1-1.35× plus de tokens qu'Opus 4.6, à surveiller pour `MAX_TOTAL_LLM_CALLS=80`.
+
+### Nouveau chantier — SDS templating depuis DB
+Démarré sur la branche **`feat/sds-templating`** (non mergée). Objectif : remplacer la phase 5 Emma SDS Final ($5-10 / 10-15 min) par un assemblage Jinja2 templaté à partir des deliverables persistés en PostgreSQL.
+
+Itération 2 close : 13/13 sous-sections de la section 6 Solution Design instrumentées DB-driven. Build ~1.2s, 0 coût LLM.
+
+📄 **Status dédié** : `docs/sds/STATUS.md` (151 lignes — décisions actées, sessions, workflow, prochaines étapes, pièges connus).
 
 ## Workflow de référence (pour Sam, futur-Claude, etc.)
 
