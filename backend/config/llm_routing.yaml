@@ -1,6 +1,12 @@
 # LLM Router Configuration — Digital Humans Platform
 # Multi-profile routing with 2 logical tiers (orchestrator / worker).
 #
+# Updated: 2026-04-25 — Migration Opus 4.6 → 4.7 + correction pricing Opus.
+#   - claude-opus.model_id: claude-opus-4-6 → claude-opus-4-7
+#   - pricing/anthropic/claude-opus: $15/$75 → $5/$25 (était obsolète, vrai prix
+#     Anthropic 2026 pour Opus 4.x = $5/$25, vérifié sur docs.claude.com).
+#   - Pas de changement Sonnet/Haiku (déjà au tarif officiel).
+#
 # Updated: 2026-04-18 — Agent C (session3) :
 #   - Consolidation vers 2 tiers logiques : orchestrator (Opus-class) / worker (Sonnet-class).
 #   - Support 3 deployment profiles : cloud / on-premise / freemium.
@@ -122,7 +128,7 @@ providers:
       claude-sonnet:
         model_id: "claude-sonnet-4-5-20250929"
       claude-opus:
-        model_id: "claude-opus-4-6"
+        model_id: "claude-opus-4-7"
 
   openai:
     enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.
@@ -138,16 +144,21 @@ providers:
 # Pricing — par provider/model_alias, prix per 1M tokens.
 # Source de vérité pour budget_service.py.
 #
-# Prix Anthropic officiels (console.anthropic.com/settings/billing, 2026-04-18) :
-#   Claude Opus 4.6     : $15 input / $75 output per 1M tokens
+# Prix Anthropic officiels (console.anthropic.com pricing page, vérifié 2026-04-25) :
+#   Claude Opus 4.7     : $5  input / $25 output per 1M tokens
+#   Claude Opus 4.6     : $5  input / $25 output per 1M tokens (idem 4.7)
+#   Claude Sonnet 4.6   : $3  input / $15 output per 1M tokens
 #   Claude Sonnet 4.5   : $3  input / $15 output per 1M tokens
 #   Claude Haiku 4.5    : $1  input / $5  output per 1M tokens
+# Note : le pricing $15/$75 d'Opus 4.6 (ancien Claude 3 Opus) qui figurait
+# dans ce fichier était obsolète — Opus 4.x est aligné Sonnet ×~1.7 sur input
+# et ×~1.7 sur output, soit $5/$25. Migré 4.6→4.7 sans changement de prix.
 # =============================================================================
 pricing:
   # Anthropic — prix réels vérifiés 2026-04-18
   "anthropic/claude-opus":
-    input:  15.0
-    output: 75.0
+    input:  5.0
+    output: 25.0
   "anthropic/claude-sonnet":
     input:  3.0
     output: 15.0

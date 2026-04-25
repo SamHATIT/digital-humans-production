@@ -403,7 +403,18 @@ class LLMRouterService:
             kw = {"model": model_id, "max_tokens": request.max_tokens, "messages": messages}
             if request.system_prompt:
                 kw["system"] = request.system_prompt
-            if request.temperature <= 1.0:
+            # Opus 4.7+ : sampling parameters (temperature, top_p, top_k) sont déprécies.
+            # Envoyer une de ces valeurs retourne 400. Le code n'utilise ni top_p ni top_k
+            # actuellement, donc seul temperature est filtre ici. Si top_p/top_k sont
+            # ajoutes plus tard, etendre la condition is_opus_47_plus.
+            #
+            # Note sur le thinking : adaptive thinking est OFF par defaut sur Opus 4.7.
+            # Pour l'activer, set thinking={"type": "adaptive"} explicitement (a faire
+            # dans un patch suivant si on veut profiter du raisonnement).
+            #
+            # Reference : https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-7
+            is_opus_47_plus = model_id.startswith("claude-opus-4-7")
+            if not is_opus_47_plus and request.temperature <= 1.0:
                 kw["temperature"] = request.temperature
             return kw
 
