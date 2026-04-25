@@ -143,407 +143,101 @@
 </tr>
 {% endfor %}</tbody></table>
 <h2 id='sub-6-7' class='sec-h2'><span>6.7 Reporting</span></h2>
-<h3 class='sec-h3'>Reports (19)</h3>
+<h3 class='sec-h3'>Reports ({{ reporting.reports | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Name</strong></th>
+<th><strong>Object</strong></th>
 <th><strong>Type</strong></th>
-<th><strong>Purpose</strong></th>
+<th><strong>Filters</strong></th>
+<th><strong>Grouping</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Fleet_Vehicle_Status_Summary</strong></td>
-<td>Summary</td>
-<td></td>
+{% for r in reporting.reports %}<tr>
+<td><strong>{{ r.name }}</strong></td>
+<td>{{ r.object }}</td>
+<td>{{ r.type }}</td>
+<td>{% if r.filters %}{{ r.filters | join(' · ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
+<td>{% if r.grouping %}{{ r.grouping | join(', ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
 </tr>
-<tr>
-<td><strong>Active_Rental_Contracts</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Contracts_Expiring_Next_30_Days</strong></td>
-<td>Tabular</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Monthly_Invoice_Summary</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Overdue_Invoices</strong></td>
-<td>Tabular</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Cost_By_Vehicle</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Cost_By_Type</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Upcoming_Scheduled_Maintenance</strong></td>
-<td>Tabular</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Open_Claims_By_Type</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Claims_By_Vehicle</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Policies_Expiring_Soon</strong></td>
-<td>Tabular</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Coverage_Utilization</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Open_Alerts_By_Type</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Mileage_Anomalies</strong></td>
-<td>Tabular</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Driver_Vehicle_Assignments_Active</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Incident_Reports_By_Status</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Problem_Reports_Resolution_Time</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Fleet_Metric_Trend</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Vehicle_Total_Maintenance_Cost_Ranking</strong></td>
-<td>Summary</td>
-<td></td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Dashboards (5)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Dashboards ({{ reporting.dashboards | length }})</h3>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Name</strong></th>
-<th><strong>Audience</strong></th>
-<th><strong>Components</strong></th>
+<th><strong>Dashboard</strong></th>
+<th><strong>Components ({{ reporting.dashboards | map(attribute='components') | map('length') | sum }} total)</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Fleet_Overview_Dashboard</strong></td>
-<td>—</td>
-<td><span class='muted'>—</span></td>
+{% for d in reporting.dashboards %}<tr>
+<td><strong>{{ d.name }}</strong></td>
+<td>{{ d.components | length }} components: {{ d.components | map(attribute='title') | join(', ') }}</td>
 </tr>
-<tr>
-<td><strong>Maintenance_Cost_Dashboard</strong></td>
-<td>—</td>
-<td><span class='muted'>—</span></td>
-</tr>
-<tr>
-<td><strong>Finance_Dashboard</strong></td>
-<td>—</td>
-<td><span class='muted'>—</span></td>
-</tr>
-<tr>
-<td><strong>Claims_Insurance_Dashboard</strong></td>
-<td>—</td>
-<td><span class='muted'>—</span></td>
-</tr>
-<tr>
-<td><strong>Mobile_Operations_Dashboard</strong></td>
-<td>—</td>
-<td><span class='muted'>—</span></td>
-</tr>
-</tbody></table>
+{% endfor %}</tbody></table>
 <h2 id='sub-6-8' class='sec-h2'><span>6.8 Automation Design</span></h2>
-<h3 class='sec-h3'>Flows (27)</h3>
+<h3 class='sec-h3'>Flows ({{ automation_design.flows | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Flow name</strong></th>
 <th><strong>Type</strong></th>
+<th><strong>Object</strong></th>
 <th><strong>Trigger</strong></th>
-<th><strong>Purpose</strong></th>
+<th><strong>UC refs</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Vehicle_Status_Change_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
+{% for f in automation_design.flows %}<tr>
+<td><strong>{{ f.api_name }}</strong></td>
+<td>{{ f.type }}</td>
+<td>{{ f.trigger.object }}</td>
+<td><em>{{ f.trigger.event }}</em>{% if f.trigger.condition %} — {{ f.trigger.condition }}{% endif %}</td>
+<td>{% if f.uc_refs %}{{ f.uc_refs | join(', ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
 </tr>
-<tr>
-<td><strong>Rental_Contract_Status_Scheduler</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Client_Number_Auto_Generation</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Activity_Vehicle_Update</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Cost_Aggregation</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Recurring_Maintenance_Generator</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Inspection_Default_Interval</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Inspection_Alert_Generator</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Maintenance_Alert_Generator</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Alert_Reset</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Contract_Expiration_Alert</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Contract_Expiration_Alert_Reset</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Take_Contract_Action</strong></td>
-<td>Screen Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Sinistre_Status_Change_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Insurance_Policy_Status_Update</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Claims_Aggregation</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Monthly_Invoice_Generation</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Invoice_Payment_Auto_Amount</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Invoice_Overdue_Check</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Incident_Report_Submission_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Mileage_Reading_Vehicle_Update</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Problem_Report_Submission_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Problem_Report_Assignment_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Daily_Fleet_Metrics_Snapshot</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Alert_Acknowledge_Handler</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Policy_Renewal_Alert_Closer</strong></td>
-<td>Record-Triggered Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Overdue_Status_Update</strong></td>
-<td>Scheduled Flow</td>
-<td><span class='muted'>—</span></td>
-<td></td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Apex Triggers (3)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Apex Triggers ({{ automation_design.apex_triggers | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Trigger</strong></th>
 <th><strong>Object</strong></th>
-<th><strong>Purpose</strong></th>
+<th><strong>Events</strong></th>
+<th><strong>Handler class</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>DriverVehicleAssignmentTrigger</strong></td>
-<td>Driver_Vehicle_Assignment__c</td>
-<td></td>
+{% for t in automation_design.apex_triggers %}<tr>
+<td><strong>{{ t.name }}</strong></td>
+<td>{{ t.object }}</td>
+<td>{{ t.events | join(', ') }}</td>
+<td><code>{{ t.handler_class }}</code></td>
 </tr>
-<tr>
-<td><strong>MileageReadingTrigger</strong></td>
-<td>Mileage_Reading__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>InvoiceValidationTrigger</strong></td>
-<td>Invoice__c</td>
-<td></td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Scheduled Jobs (9)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Scheduled Jobs ({{ automation_design.scheduled_jobs | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Job</strong></th>
+<th><strong>Type</strong></th>
 <th><strong>Schedule</strong></th>
 <th><strong>Purpose</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>ContractStatusScheduler</strong></td>
-<td>Daily 1:00 AM</td>
-<td>Evaluate and update Rental_Contractc Statusc based on current date vs Start/End dates</td>
+{% for j in automation_design.scheduled_jobs %}<tr>
+<td><strong>{{ j.name }}</strong></td>
+<td>{{ j.type }}</td>
+<td>{{ j.schedule }}</td>
+<td>{{ j.purpose }}</td>
 </tr>
-<tr>
-<td><strong>InspectionAlertScheduler</strong></td>
-<td>Daily 6:00 AM</td>
-<td>Generate inspection alerts and tasks for vehicles with upcoming technical inspections</td>
-</tr>
-<tr>
-<td><strong>MaintenanceAlertScheduler</strong></td>
-<td>Daily 6:15 AM</td>
-<td>Generate maintenance alerts and tasks for upcoming scheduled maintenance activities</td>
-</tr>
-<tr>
-<td><strong>ContractExpirationAlertScheduler</strong></td>
-<td>Daily 6:30 AM</td>
-<td>Generate expiration alerts for active rental contracts approaching end date</td>
-</tr>
-<tr>
-<td><strong>InsurancePolicyStatusScheduler</strong></td>
-<td>Daily 6:45 AM</td>
-<td>Update insurance policy statuses and generate expiration alerts</td>
-</tr>
-<tr>
-<td><strong>FleetMetricsSnapshotScheduler</strong></td>
-<td>Daily 6:00 AM</td>
-<td>Aggregate fleet metrics and create daily Fleet_Metric__c snapshot</td>
-</tr>
-<tr>
-<td><strong>InvoiceOverdueScheduler</strong></td>
-<td>Daily 7:00 AM</td>
-<td>Flag unpaid/partially paid invoices past due date as Overdue</td>
-</tr>
-<tr>
-<td><strong>MaintenanceOverdueScheduler</strong></td>
-<td>Daily 7:15 AM</td>
-<td>Update planned maintenance activities past scheduled date to Overdue status</td>
-</tr>
-<tr>
-<td><strong>MonthlyInvoiceGenerationScheduler</strong></td>
-<td>Monthly on 1st at 2:00 AM</td>
-<td>Generate Invoice__c records for all active rental contracts</td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Platform Events (1)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Platform Events ({{ automation_design.platform_events | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Event</strong></th>
+<th><strong>Fields</strong></th>
 <th><strong>Purpose</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Fleet_Alert_Event__e</strong></td>
-<td>Real-time notification event for critical fleet alerts (vehicle breakdowns, urgent incidents) to update dashboards and notify stakeholders immediately</td>
+{% for e in automation_design.platform_events %}<tr>
+<td><strong>{{ e.api_name }}</strong></td>
+<td>{{ e.fields | length }} fields ({{ e.fields | map(attribute='api_name') | join(', ') }})</td>
+<td>{{ e.purpose }}</td>
 </tr>
-</tbody></table>
+{% endfor %}</tbody></table>
 <h2 id='sub-6-9' class='sec-h2'><span>6.9 Integration Points</span> <em class='brass'>(2)</em></h2>
 <p><strong>Salesforce Mobile App Integration</strong></p>
 <table class='tbl'>
@@ -671,192 +365,62 @@
 </tr>
 </tbody></table>
 <h2 id='sub-6-10' class='sec-h2'><span>6.10 UI Components</span></h2>
-<h3 class='sec-h3'>Lightning Apps (2)</h3>
+<h3 class='sec-h3'>Lightning Apps ({{ ui_components.lightning_apps | length }})</h3>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Name</strong></th>
-<th><strong>Type/Object</strong></th>
+<th><strong>App</strong></th>
+<th><strong>Tabs</strong></th>
+</tr></thead>
+<tbody>
+{% for a in ui_components.lightning_apps %}<tr>
+<td><strong>{{ a.name }}</strong></td>
+<td>{{ a.tabs | length }} tabs: {{ a.tabs | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Lightning Pages ({{ ui_components.lightning_pages | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Page</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Components</strong></th>
+</tr></thead>
+<tbody>
+{% for pg in ui_components.lightning_pages %}<tr>
+<td><strong>{{ pg.name }}</strong></td>
+<td>{{ pg.type }}</td>
+<td>{{ pg.object }}</td>
+<td>{{ pg.components | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>LWC Components ({{ ui_components.lwc_components | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>LWC</strong></th>
+<th><strong>Target</strong></th>
 <th><strong>Purpose</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>LogiFleet_Manager</strong></td>
-<td>Standard App</td>
-<td></td>
+{% for c in ui_components.lwc_components %}<tr>
+<td><strong>{{ c.name }}</strong></td>
+<td><code>{{ c.target }}</code></td>
+<td>{{ c.purpose }}</td>
 </tr>
-<tr>
-<td><strong>LogiFleet_Mobile</strong></td>
-<td>Standard App</td>
-<td></td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Lightning Pages (9)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Quick Actions ({{ ui_components.quick_actions | length }})</h3>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Name</strong></th>
-<th><strong>Type/Object</strong></th>
-<th><strong>Purpose</strong></th>
+<th><strong>Action</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Flow</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Vehicle_Record_Page</strong></td>
-<td>Vehicle__c</td>
-<td></td>
+{% for q in ui_components.quick_actions %}<tr>
+<td><strong>{{ q.name }}</strong></td>
+<td>{{ q.type }}</td>
+<td>{% if q.flow_name %}<code>{{ q.flow_name }}</code>{% else %}<span class='muted'>—</span>{% endif %}</td>
 </tr>
-<tr>
-<td><strong>Rental_Contract_Record_Page</strong></td>
-<td>Rental_Contract__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Maintenance_Activity_Record_Page</strong></td>
-<td>Maintenance_Activity__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Sinistre_Record_Page</strong></td>
-<td>Sinistre__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Insurance_Policy_Record_Page</strong></td>
-<td>Insurance_Policy__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Invoice_Record_Page</strong></td>
-<td>Invoice__c</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Fleet_Overview_Home_Page</strong></td>
-<td>App Page</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Account_Record_Page</strong></td>
-<td>Account</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Alert_Configuration_Page</strong></td>
-<td>App Page</td>
-<td></td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Lightning Web Components (13)</h3>
-<table class='tbl'>
-<thead><tr>
-<th><strong>Name</strong></th>
-<th><strong>Type/Object</strong></th>
-<th><strong>Purpose</strong></th>
-</tr></thead>
-<tbody>
-<tr>
-<td><strong>vehicleStatusBadge</strong></td>
-<td>—</td>
-<td>Displays the current vehicle condition status as a color-coded badge with last changed timestamp. Shows Available (green), Rented (blue), In Maintenance (orange), Out of Service (red).</td>
-</tr>
-<tr>
-<td><strong>vehicleMileageTrend</strong></td>
-<td>—</td>
-<td>Displays a line chart showing mileage readings over time for a vehicle, with anomaly markers highlighted in red.</td>
-</tr>
-<tr>
-<td><strong>contractStatusIndicator</strong></td>
-<td>—</td>
-<td>Displays contract status with visual progress bar showing contract timeline, days remaining, and expiration warning.</td>
-</tr>
-<tr>
-<td><strong>fleetOverviewDashboard</strong></td>
-<td>—</td>
-<td>Custom dashboard component showing real-time fleet KPIs: total vehicles by status, upcoming maintenance, expiring contracts, open claims, overdue invoices.</td>
-</tr>
-<tr>
-<td><strong>fleetMetricCard</strong></td>
-<td>—</td>
-<td>Reusable card component displaying a single fleet metric with icon, value, label, and trend indicator.</td>
-</tr>
-<tr>
-<td><strong>fleetAlertsSummary</strong></td>
-<td>—</td>
-<td>Displays a summary list of recent open alerts (inspection, maintenance, insurance, contract) with priority indicators and quick action links.</td>
-</tr>
-<tr>
-<td><strong>coverageUtilizationGauge</strong></td>
-<td>—</td>
-<td>Displays a gauge chart showing insurance coverage utilization (Total_Claimed_Amountc vs Coverage_Limitc) with warning threshold.</td>
-</tr>
-<tr>
-<td><strong>incidentTimeline</strong></td>
-<td>—</td>
-<td>Displays a visual timeline of incident/claim status changes with dates and user information.</td>
-</tr>
-<tr>
-<td><strong>paymentStatusBadge</strong></td>
-<td>—</td>
-<td>Displays invoice payment status as a color-coded badge with amount details.</td>
-</tr>
-<tr>
-<td><strong>mobileIncidentReportForm</strong></td>
-<td>—</td>
-<td>Mobile-optimized form for drivers to submit incident reports with photo upload capability.</td>
-</tr>
-<tr>
-<td><strong>mobileMileageSubmission</strong></td>
-<td>—</td>
-<td>Mobile-optimized screen for drivers to submit mileage readings with odometer photo upload.</td>
-</tr>
-<tr>
-<td><strong>mobileProblemReportForm</strong></td>
-<td>—</td>
-<td>Mobile-optimized form for drivers to submit problem reports with category selection and photo upload.</td>
-</tr>
-<tr>
-<td><strong>alertConfigurationManager</strong></td>
-<td>—</td>
-<td>Admin interface for managing Alert_Configurationmdt and Maintenance_Alert_Settingmdt custom metadata records.</td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Quick Actions (6)</h3>
-<table class='tbl'>
-<thead><tr>
-<th><strong>Name</strong></th>
-<th><strong>Type/Object</strong></th>
-<th><strong>Purpose</strong></th>
-</tr></thead>
-<tbody>
-<tr>
-<td><strong>Rental_Contract__c.Take_Contract_Action</strong></td>
-<td>Screen Flow</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Vehicle__c.Log_Maintenance</strong></td>
-<td>LWC</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Global.Report_Incident</strong></td>
-<td>Screen Flow</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Global.Submit_Mileage</strong></td>
-<td>Screen Flow</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Global.Report_Problem</strong></td>
-<td>Screen Flow</td>
-<td></td>
-</tr>
-<tr>
-<td><strong>Vehicle__c.Record_Mileage</strong></td>
-<td>Screen Flow</td>
-<td></td>
-</tr>
-</tbody></table>
+{% endfor %}</tbody></table>
 <h2 id='sub-6-11' class='sec-h2'><span>6.11 Use Case → Architecture Traceability</span> <em class='brass'>({{ uc_traceability | length }} UCs)</em></h2>
 <p>For each UC, the architecture elements that implement it. This is what Emma's coverage validator checks against.</p>
 <table class='tbl'>
