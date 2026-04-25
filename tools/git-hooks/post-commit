@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#
+# post-commit hook — rebuild + deploy auto de la doc refonte si les sources changent.
+#
+# Détecte les fichiers modifiés dans le dernier commit et déclenche
+# `tools/build_docs.py --deploy` quand ces fichiers touchent les sources de la doc.
+# No-op sur les machines qui ne sont pas le VPS (détection /var/www/digital-humans.fr).
+#
+# Pour activer dans ce repo :
+#   git config core.hooksPath tools/git-hooks
+#
+# Versionné dans le repo pour qu'il vive avec le code et soit auditable.
+
+set -e
+
+# 1. No-op si pas sur le VPS (deploy target inexistant)
+DEPLOY_DIR="/var/www/digital-humans.fr/docs/refonte"
+[ -d "$DEPLOY_DIR" ] || exit 0
+
+# 2. Pas de récursion : on ne déclenche que sur les commits "vrais"
+# (pas les commits faits par le hook lui-même via amend, etc.)
+if [ -n "$DH_HOOK_RUNNING" ]; then
+    exit 0
+fi
+export DH_HOOK_RUNNING=1
+
+# 3. Détection : est-ce qu'on a touché des sources de doc ?
+TOUCHED_DOC=0
+for pattern in \
+    "docs/refonte/sections/" \
+    "docs/refonte/templates/" \
+    "docs/refonte/sources/" \
+    "backend/config/llm_routing.yaml" \
+    "backend/config/agents_registry.yaml" \
+    "tools/lib/collect.py" \
+    "tools/build_docs.py"
+do
+    if git diff-tree --no-commit-id --name-only -r HEAD | grep -q "^$pattern"; then
+        TOUCHED_DOC=1
+        break
+    fi
+done
+
+[ "$TOUCHED_DOC" -eq 0 ] && exit 0
+
+# 4. Rebuild en arrière-plan, log dans /tmp pour ne pas bloquer le terminal
+# Le `&` détache, le `nohup` survit à la fermeture du shell.
+LOG=/tmp/dh_post_commit_build.log
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+echo "→ post-commit : sources de doc modifiées, rebuild & deploy lancé en arrière-plan"
+echo "  log : $LOG"
+
+(
+    cd "$REPO_ROOT"
+    {
+        echo "=== $(date -Iseconds) — post-commit rebuild ==="
+        echo "Commit : $(git rev-parse --short HEAD) — $(git log -1 --format='%s')"
+        source backend/venv/bin/activate
+        python3 tools/build_docs.py --deploy --strict 2>&1
+    } >> "$LOG"
+) &
+disown
+
+exit 0

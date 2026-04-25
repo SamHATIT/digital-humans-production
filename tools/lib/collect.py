@@ -114,16 +114,9 @@ def collect_agents() -> dict[str, Any]:
 # 2. LLM profiles — depuis backend/config/llm_routing.yaml
 # --------------------------------------------------------------------------
 
-# Prix par modèle (USD per M tokens, input/output) — miroir de budget_service.
-# Conservé ici plutôt que dans le YAML routing pour isoler la donnée "doc".
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    "anthropic/claude-opus":    {"in": 15.0, "out": 75.0, "display": "Claude Opus 4.6"},
-    "anthropic/claude-sonnet":  {"in":  3.0, "out": 15.0, "display": "Claude Sonnet 4.5"},
-    "anthropic/claude-haiku":   {"in":  1.0, "out":  5.0, "display": "Claude Haiku"},
-    "local/mixtral":            {"in":  0.0, "out":  0.0, "display": "Mixtral 8x7B (local)"},
-    "local/mistral":            {"in":  0.0, "out":  0.0, "display": "Mistral 7B (local)"},
-    "openai/gpt-4o-mini":       {"in":  0.15,"out":  0.60,"display": "GPT-4o mini"},
-}
+# Note : pricing et display_name viennent désormais directement de
+# llm_routing.yaml (sections "pricing" et providers.<p>.models.<m>.display_name).
+# Le dict MODEL_PRICING qui était ici dupliquait l'info et a divergé.
 
 
 def collect_llm_profiles() -> dict[str, Any]:
@@ -164,6 +157,19 @@ def collect_llm_profiles() -> dict[str, Any]:
     for agent_type, tier_name in tier_map.items():
         per_tier.setdefault(tier_name, []).append(agent_type)
 
+    # Pricing : section "pricing" du YAML (key = "<provider>/<model_alias>")
+    yaml_pricing = raw.get("pricing") or {}
+    # Providers : pour récupérer display_name de chaque modèle
+    providers = raw.get("providers") or {}
+
+    def _resolve_display(provider_alias: str) -> str:
+        """Résoud "anthropic/claude-opus" → display_name depuis le YAML."""
+        if "/" not in provider_alias:
+            return provider_alias
+        prov_name, m_alias = provider_alias.split("/", 1)
+        m = (providers.get(prov_name, {}).get("models") or {}).get(m_alias, {})
+        return m.get("display_name") or m.get("model_id") or m_alias
+
     tiers = []
     # Ordre stable : orchestrator, worker, puis tout le reste
     ordered = ["orchestrator", "worker"] + [
@@ -174,13 +180,13 @@ def collect_llm_profiles() -> dict[str, Any]:
         if not model_alias:
             # Tier présent dans agent_tier_map mais pas dans le profile → skip
             continue
-        pricing = MODEL_PRICING.get(model_alias, {})
+        pricing = yaml_pricing.get(model_alias, {})
         tiers.append({
             "name": tier_name,
             "model_alias": model_alias,
-            "model_display": pricing.get("display", model_alias),
-            "pricing_in": pricing.get("in"),
-            "pricing_out": pricing.get("out"),
+            "model_display": _resolve_display(model_alias),
+            "pricing_in": pricing.get("input"),
+            "pricing_out": pricing.get("output"),
             "agent_types": sorted(set(per_tier.get(tier_name, []))),
         })
 

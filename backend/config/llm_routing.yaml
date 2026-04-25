@@ -1,11 +1,12 @@
 # LLM Router Configuration — Digital Humans Platform
 # Multi-profile routing with 2 logical tiers (orchestrator / worker).
 #
-# Updated: 2026-04-25 — Migration Opus 4.6 → 4.7 + correction pricing Opus.
-#   - claude-opus.model_id: claude-opus-4-6 → claude-opus-4-7
+# Updated: 2026-04-25 — Migration Opus 4.6 → 4.7, Sonnet 4.5 → 4.6, pricing Opus.
+#   - claude-opus.model_id   : claude-opus-4-6 → claude-opus-4-7
+#   - claude-sonnet.model_id : claude-sonnet-4-5-20250929 → claude-sonnet-4-6
 #   - pricing/anthropic/claude-opus: $15/$75 → $5/$25 (était obsolète, vrai prix
 #     Anthropic 2026 pour Opus 4.x = $5/$25, vérifié sur docs.claude.com).
-#   - Pas de changement Sonnet/Haiku (déjà au tarif officiel).
+#   - Pas de changement pricing Sonnet/Haiku (Sonnet 4.6 reste à $3/$15).
 #
 # Updated: 2026-04-18 — Agent C (session3) :
 #   - Consolidation vers 2 tiers logiques : orchestrator (Opus-class) / worker (Sonnet-class).
@@ -113,10 +114,13 @@ providers:
     models:
       mistral:7b-instruct:
         context_length: 32768
+        display_name: "Mistral 7B (local)"
       mistral-nemo:
         context_length: 32768
+        display_name: "Mistral Nemo (local)"
       mixtral:
         context_length: 32768        # Mixtral-8x7B Instruct — orchestrator on-premise
+        display_name: "Mixtral 8x7B (local)"
 
   anthropic:
     enabled: true
@@ -125,10 +129,13 @@ providers:
     models:
       claude-haiku:
         model_id: "claude-haiku-4-5-20251001"
+        display_name: "Claude Haiku 4.5"
       claude-sonnet:
-        model_id: "claude-sonnet-4-5-20250929"
+        model_id: "claude-sonnet-4-6"
+        display_name: "Claude Sonnet 4.6"
       claude-opus:
         model_id: "claude-opus-4-7"
+        display_name: "Claude Opus 4.7"
 
   openai:
     enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.
@@ -137,8 +144,10 @@ providers:
     models:
       gpt-4o:
         model_id: "gpt-4o"
+        display_name: "GPT-4o"
       gpt-4o-mini:
         model_id: "gpt-4o-mini"
+        display_name: "GPT-4o mini"
 
 # =============================================================================
 # Pricing — par provider/model_alias, prix per 1M tokens.
