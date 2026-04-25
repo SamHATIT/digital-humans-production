@@ -1,6 +1,6 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 8 — bascule API + robustness multi-exec)
+**Dernière mise à jour** : 2026-04-25 (sessions Claude+Sam : SDS itération 8-9 + design site Mods 12-14)
 
 ## Phase courante
 **Itération 8 — Bascule API + robustness multi-exec close. 🎯 3 routes API live (live preview, snapshot freeze, view inline) + build_sds() valide sur 12/12 execs testees.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
@@ -331,6 +331,40 @@ On passe au fonctionnel quand le design SDS est valide. À ce moment-là, vérif
 ### 5. Iter 10 — Merge feat/sds-templating dans main
 - [ ] Tag `v2.0-sds-db-driven`
 - [ ] Note de release dans CHANGELOG.md (gain coût ~5-10\$ → 0\$ par exec, gain time 60-120s → ~0.5s, 12/12 sections + 30/30 sous-sections DB-driven)
+
+## Travail parallèle — Refonte site marketing
+
+En parallèle du SDS, le design du site marketing (preview à
+http://72.61.161.222/preview/) a été retravaillé pour s'aligner sur la même
+veine éditoriale que le SDS rendu. Le travail vit dans `docs/marketing-site/` :
+
+- `REPRISE_MEMO.md` — mémo vivant (où on en est, mapping photos, principes
+  techniques, prochaines étapes)
+- `scripts/dh-modN.py` — scripts d'injection itératifs (Mods 9 à 14)
+- `README.md` — workflow et conventions
+
+Sessions de travail :
+- **19 avril** : Mods 1-11 (hero compact, layout solo Act I, photos taille fixe,
+  cerclage agent color, Mod 11 alignement droit Sophie en bug)
+- **25 avril** : Mods 12-14 (injection batch des 10 photos restantes + rôles
+  bilingues enrichis avec taglines narratives + punchline sur sa propre ligne)
+
+Layout final post-Mod 14 :
+
+```
+[ photo 220×275 cerclée couleur agent ]
+
+Agent Name              ← serif 18px bone
+APEX DEVELOPER          ← mono 9.5px gris (label métier)
+The Pianist             ← serif italique 16.5px bone (signature)
+
+Diego writes Apex code… ← description hero-line
+```
+
+Le site preview est servi en static depuis `/var/www/dh-preview/` avec un bundle
+React custom (3 sections `__bundler/manifest`, `__bundler/ext_resources`,
+`__bundler/template`). Tous les backups `.pre-modN` sont conservés sur le VPS
+pour rollback en 1 commande.
 
 ## Workflow de référence
 
