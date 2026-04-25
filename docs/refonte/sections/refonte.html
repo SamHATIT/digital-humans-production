@@ -33,12 +33,18 @@ flowchart TB
         direction LR
         D1["Phases 0→4<br/>SSoT + collectors + charte"]
     end
-    V1 --> V2 --> V3 --> V4 --> V5
+    subgraph V6["Vague 6 — LLM bump + SDS templating (25 avril)"]
+        direction LR
+        L1["Migration<br/>Opus 4.7 + Sonnet 4.6"]
+        L2["SDS templating<br/>iter 1+2 (sec-6 13/13)"]
+    end
+    V1 --> V2 --> V3 --> V4 --> V5 --> V6
     style V1 fill:#141416,stroke:#7A9B76,stroke-width:2px
     style V2 fill:#141416,stroke:#6B7A8F,stroke-width:2px
     style V3 fill:#141416,stroke:#8E6B8E,stroke-width:2px
     style V4 fill:#141416,stroke:#B8954A,stroke-width:2px
     style V5 fill:#141416,stroke:#C8A97E,stroke-width:2px
+    style V6 fill:#141416,stroke:#B8745C,stroke-width:2px
       </pre>
     </div>
 
@@ -56,6 +62,7 @@ flowchart TB
       <tr><td>18 avr</td><td>Session 3 Refonte — 4 agents parallèles</td><td><strong>Agent A</strong> (runtime, P0 event loop, P7 budget, P11 RAG health) · <strong>Agent B</strong> (registry YAML unique, HITL contracts) · <strong>Agent C</strong> (LLM multi-profile, thin wrapper 752→212 LOC) · <strong>Agent D</strong> (P2 env paths, P5 logging, P8 secrets rotation, SDS V3 Mistral supprimé). 4 merges + ADR-001 + ADR-002.</td><td><span class="tag tag-done">Terminé</span></td></tr>
       <tr><td>23-24 avr</td><td>Ingestion RAG 2026</td><td>+21 615 écritures (10 795 chunks) : Winter/Spring/Summer '26 Release Notes, Shield Platform Encryption, AgentScript TDX 2026, Headless 360, Hyperforce/SFOA Chine. Passage 70 251 → 91 866 chunks.</td><td><span class="tag tag-done">Terminé</span></td></tr>
       <tr><td>24 avr</td><td>Refonte doc (Phases 0→4)</td><td>SSoT YAML (problems, timeline, stack, meta) + 6 collectors Python + partials Jinja2 + charte Studio (palette, fonts, scroll continu, TOC scroll-spy, tbl-expand, print inversé) + build auto atomique avec backup & smoke test HTTP</td><td><span class="tag tag-done">Terminé</span></td></tr>
+      <tr><td>25 avr</td><td>Migration LLM + SDS templating</td><td>Bump Opus 4.6→4.7 (pricing corrigé, drop temperature) et Sonnet 4.5→4.6, hook <code>post-commit</code> auto-rebuild. Démarrage chantier <strong>SDS templating</strong> sur <code>feat/sds-templating</code> : iter 1 (hero+TOC) + iter 2 (sec-6 13/13 sous-sections, macro <code>render_value</code>). Build ~1.2s, 0 coût LLM, ~30 corrections API names <code>__c</code> vs référence.</td><td><span class="tag tag-active">En cours</span></td></tr>
     </table>
 
     <h3>Bilan par problème</h3>
@@ -68,6 +75,7 @@ flowchart TB
     <h3>Prochaines étapes</h3>
     <table>
       <tr><th>Priorité</th><th>Chantier</th><th>Note</th></tr>
+      <tr><td><span class="tag tag-active">En cours</span></td><td>SDS templating — iter 3 + bascule</td><td>Templater sections 1-3 (Project Overview, BRs, UCs) puis 4-12. Endpoints <code>GET .../sds.html</code> et <code>POST .../sds-versions</code>. Voir <a href="#sds-templating">SDS templating</a>.</td></tr>
       <tr><td><span class="tag tag-active">Next</span></td><td>P10 — <code>BaseAgent</code> class + contrats <code>_call_llm</code> / <code>execution_id</code> / logging communs</td><td>Premier sprint post-Session 3. Ordre migration : Sophie → Lucas → Jordan → Olivia → Aisha → Elena → Zara → Diego → Raj → Marcus → Emma.</td></tr>
       <tr><td><span class="tag tag-pending">Planifié</span></td><td>Admin Hub centralisé</td><td>Monitoring tous services (backend/frontend, N8N, Ollama, Ghost, PostgreSQL, Nginx, RAG) sans SSH. Éviter le feel « script qui tourne en arrière-plan ».</td></tr>
       <tr><td><span class="tag tag-pending">Planifié</span></td><td>P4 — décomposer <code>pm_orchestrator_service_v2</code></td><td>Split par phase (SDS / BUILD) pour descendre sous les 2000 lignes par fichier.</td></tr>
