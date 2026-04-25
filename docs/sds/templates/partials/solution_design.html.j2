@@ -1425,7 +1425,7 @@
 <td>Role that should receive the maintenance alert. Defaults to record owner if blank.</td>
 </tr>
 </tbody></table>
-<h2 id='sub-6-4' class='sec-h2'><span>6.4 Relationships</span> <em class='brass'>(26)</em></h2>
+<h2 id='sub-6-4' class='sec-h2'><span>6.4 Relationships</span> <em class='brass'>({{ data_model.relationships | length }})</em></h2>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Parent</strong></th>
@@ -1434,165 +1434,15 @@
 <th><strong>Field</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>Vehicle_Status_History__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>MasterDetail</td>
-<td>Vehicle__c</td>
+{% for rel in data_model.relationships %}<tr>
+<td><strong>{{ rel.from }}</strong></td>
+<td><strong>{{ rel.to }}</strong></td>
+<td>{{ rel.type }}</td>
+<td>{{ rel.field }}</td>
 </tr>
-<tr>
-<td><strong>Rental_Contract__c</strong></td>
-<td><strong>Account</strong></td>
-<td>Lookup</td>
-<td>Client__c</td>
-</tr>
-<tr>
-<td><strong>Rental_Contract__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Rental_Contract__c</strong></td>
-<td><strong>User</strong></td>
-<td>Lookup</td>
-<td>Rental_Manager__c</td>
-</tr>
-<tr>
-<td><strong>Rental_Contract__c</strong></td>
-<td><strong>Contact</strong></td>
-<td>Lookup</td>
-<td>Tenant__c</td>
-</tr>
-<tr>
-<td><strong>Maintenance_Activity__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Maintenance_Activity__c</strong></td>
-<td><strong>User</strong></td>
-<td>Lookup</td>
-<td>Responsible_Party__c</td>
-</tr>
-<tr>
-<td><strong>Sinistre__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Sinistre__c</strong></td>
-<td><strong>Insurance_Policy__c</strong></td>
-<td>Lookup</td>
-<td>Insurance_Policy__c</td>
-</tr>
-<tr>
-<td><strong>Involved_Party__c</strong></td>
-<td><strong>Sinistre__c</strong></td>
-<td>MasterDetail</td>
-<td>Sinistre__c</td>
-</tr>
-<tr>
-<td><strong>Insurance_Policy__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Invoice__c</strong></td>
-<td><strong>Rental_Contract__c</strong></td>
-<td>Lookup</td>
-<td>Rental_Contract__c</td>
-</tr>
-<tr>
-<td><strong>Invoice__c</strong></td>
-<td><strong>Account</strong></td>
-<td>Lookup</td>
-<td>Account__c</td>
-</tr>
-<tr>
-<td><strong>Incident_Report__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Incident_Report__c</strong></td>
-<td><strong>Contact</strong></td>
-<td>Lookup</td>
-<td>Driver__c</td>
-</tr>
-<tr>
-<td><strong>Mileage_Reading__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Mileage_Reading__c</strong></td>
-<td><strong>Contact</strong></td>
-<td>Lookup</td>
-<td>Driver__c</td>
-</tr>
-<tr>
-<td><strong>Driver_Vehicle_Assignment__c</strong></td>
-<td><strong>Contact</strong></td>
-<td>Lookup</td>
-<td>Driver__c</td>
-</tr>
-<tr>
-<td><strong>Driver_Vehicle_Assignment__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Alert__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Alert__c</strong></td>
-<td><strong>Insurance_Policy__c</strong></td>
-<td>Lookup</td>
-<td>Insurance_Policy__c</td>
-</tr>
-<tr>
-<td><strong>Alert__c</strong></td>
-<td><strong>User</strong></td>
-<td>Lookup</td>
-<td>Assigned_To__c</td>
-</tr>
-<tr>
-<td><strong>Problem_Report__c</strong></td>
-<td><strong>Vehicle__c</strong></td>
-<td>Lookup</td>
-<td>Vehicle__c</td>
-</tr>
-<tr>
-<td><strong>Problem_Report__c</strong></td>
-<td><strong>Contact</strong></td>
-<td>Lookup</td>
-<td>Driver__c</td>
-</tr>
-<tr>
-<td><strong>Problem_Report__c</strong></td>
-<td><strong>User</strong></td>
-<td>Lookup</td>
-<td>Assigned_To__c</td>
-</tr>
-<tr>
-<td><strong>Problem_Report__c</strong></td>
-<td><strong>Problem_Report__c</strong></td>
-<td>Lookup</td>
-<td>Related_Report__c</td>
-</tr>
-</tbody></table>
+{% endfor %}</tbody></table>
 <h2 id='sub-6-5' class='sec-h2'><span>6.5 Security Model</span></h2>
-<h3 class='sec-h3'>Profiles (5)</h3>
+<h3 class='sec-h3'>Profiles ({{ security_model.profiles | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Profile</strong></th>
@@ -1600,152 +1450,58 @@
 <th><strong>Description</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>LogiFleet System Administrator</strong></td>
-<td>Salesforce</td>
-<td>Full system access for LogiFleet administrators. Can configure custom metadata, manage all objects, and access all data.</td>
+{% for prof in security_model.profiles %}<tr>
+<td><strong>{{ prof.name }}</strong></td>
+<td>{{ prof.license }}</td>
+<td>{{ prof.description }}</td>
 </tr>
-<tr>
-<td><strong>LogiFleet Fleet Manager</strong></td>
-<td>Salesforce</td>
-<td>Fleet managers who oversee vehicle operations, maintenance, contracts, and alerts. Full CRUD on fleet objects.</td>
-</tr>
-<tr>
-<td><strong>LogiFleet Finance User</strong></td>
-<td>Salesforce</td>
-<td>Finance team members responsible for invoicing and payment tracking. Access to invoices, contracts (read), and accounts.</td>
-</tr>
-<tr>
-<td><strong>LogiFleet Driver (Community)</strong></td>
-<td>Customer Community Plus</td>
-<td>External community profile for drivers using the mobile app to submit incident reports, mileage readings, and problem reports.</td>
-</tr>
-<tr>
-<td><strong>LogiFleet Standard User</strong></td>
-<td>Salesforce</td>
-<td>Standard internal user with read access to most fleet objects. Base profile for internal staff.</td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Permission Sets (6)</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Permission Sets ({{ security_model.permission_sets | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Permission Set</strong></th>
 <th><strong>Grants</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td><strong>PS_Fleet_Manager</strong></td>
-<td>Full CRUD access to all fleet management objects for fleet managers.</td>
+{% for ps in security_model.permission_sets %}<tr>
+<td><strong>{{ ps.api_name }}</strong></td>
+<td>{{ ps.description }}</td>
 </tr>
-<tr>
-<td><strong>PS_Finance_User</strong></td>
-<td>Access for finance team to manage invoices and view contracts.</td>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Sharing Rules ({{ security_model.sharing_rules | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Criteria</strong></th>
+<th><strong>Shared with</strong></th>
+<th><strong>Access</strong></th>
+</tr></thead>
+<tbody>
+{% for sr in security_model.sharing_rules %}<tr>
+<td><strong>{{ sr.name }}</strong></td>
+<td>{{ sr.object }}</td>
+<td>{{ sr.type }}</td>
+<td>{{ sr.criteria }}</td>
+<td>{{ sr.shared_with }}</td>
+<td>{{ sr.access }}</td>
 </tr>
-<tr>
-<td><strong>PS_Maintenance_Technician</strong></td>
-<td>Access for maintenance technicians to manage maintenance activities and view vehicle details.</td>
-</tr>
-<tr>
-<td><strong>PS_Driver_Mobile</strong></td>
-<td>Permission set for drivers using the mobile app. Limited to submitting reports and mileage readings.</td>
-</tr>
-<tr>
-<td><strong>PS_Insurance_Manager</strong></td>
-<td>Access for users managing insurance policies and claims.</td>
-</tr>
-<tr>
-<td><strong>PS_Contract_Manager</strong></td>
-<td>Access for users managing rental contracts and related operations.</td>
-</tr>
-</tbody></table>
-<h3 class='sec-h3'>Sharing Rules (7)</h3>
-<p>- {"name":"Share_Vehicles_With_All_Internal","object":"Vehicle__c","type":"Criteria-Based","criteria":"Registration_Number__c != null (all records)","shared_with":"All Internal Users","access":"Read Only"}</p>
-<p>- {"name":"Share_Alerts_With_Fleet_Managers","object":"Alert__c","type":"Criteria-Based","criteria":"Statusc = 'Open' OR Statusc = 'Acknowledged'","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
-<p>- {"name":"Share_Active_Contracts_With_Finance","object":"Rental_Contract__c","type":"Criteria-Based","criteria":"Status__c = 'Active'","shared_with":"Finance_Team_Group","access":"Read Only"}</p>
-<p>- {"name":"Share_Overdue_Invoices_With_Managers","object":"Invoice__c","type":"Criteria-Based","criteria":"Payment_Status__c = 'Overdue'","shared_with":"Fleet_Managers_Group","access":"Read Only"}</p>
-<p>- {"name":"Share_Incident_Reports_With_Fleet_Ops","object":"Incident_Report__c","type":"Owner-Based","criteria":"Owned by Fleet_Operations_Queue","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
-<p>- {"name":"Share_Problem_Reports_With_Fleet_Ops","object":"Problem_Report__c","type":"Owner-Based","criteria":"Owned by Fleet_Operations_Queue","shared_with":"Fleet_Managers_Group","access":"Read/Write"}</p>
-<p>- {"name":"Share_Driver_Assignments_With_Drivers","object":"Driver_Vehicle_Assignment__c","type":"Criteria-Based","criteria":"Status__c = 'Active'","shared_with":"All Customer Portal Users","access":"Read Only"}</p>
-<h3 class='sec-h3'>Org-Wide Defaults</h3>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Org-Wide Defaults ({{ security_model.owd | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Object</strong></th>
-<th><strong>OWD</strong></th>
+<th><strong>Internal</strong></th>
+<th><strong>External</strong></th>
 </tr></thead>
 <tbody>
-<tr>
-<td>Account</td>
-<td></td>
+{% for owd in security_model.owd %}<tr>
+<td>{{ owd.object }}</td>
+<td>{{ owd.internal }}</td>
+<td>{{ owd.external }}</td>
 </tr>
-<tr>
-<td>Contact</td>
-<td></td>
-</tr>
-<tr>
-<td>Task</td>
-<td></td>
-</tr>
-<tr>
-<td>Vehicle__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Vehicle_Status_History__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Rental_Contract__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Maintenance_Activity__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Sinistre__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Involved_Party__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Insurance_Policy__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Invoice__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Invoice_Generation_Log__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Incident_Report__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Mileage_Reading__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Driver_Vehicle_Assignment__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Alert__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Problem_Report__c</td>
-<td></td>
-</tr>
-<tr>
-<td>Fleet_Metric__c</td>
-<td></td>
-</tr>
-</tbody></table>
+{% endfor %}</tbody></table>
 <h2 id='sub-6-6' class='sec-h2'><span>6.6 Queues</span> <em class='brass'>({{ queues | length }})</em></h2>
 <table class='tbl'>
 <thead><tr>
