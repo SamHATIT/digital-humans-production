@@ -98,3 +98,7 @@ phase*_bundle*
 
 # Backups locaux de la refonte doc
 docs/refonte/index.html.pre_*
+
+# SDS templating outputs (générés par tools/build_sds.py)
+docs/sds/rendered.html
+docs/sds/rendered_*.html
