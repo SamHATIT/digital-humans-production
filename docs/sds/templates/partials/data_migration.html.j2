@@ -128,4 +128,47 @@
 {% endfor %}{% for ph in data_mig.migration_strategy.phases %}{% if not loop.last %}    P{{ ph.phase }} --> P{{ data_mig.migration_strategy.phases[loop.index].phase }}
 {% endif %}{% endfor %}</pre></div>
 </div>
+{% endif %}{% if data_mig.migration_timeline.phases %}<table class='tbl'>
+<thead><tr>
+<th><strong>Week</strong></th>
+<th><strong>Activities</strong></th>
+</tr></thead>
+<tbody>
+{% for ph in data_mig.migration_timeline.phases %}<tr>
+<td><strong>Week {{ ph.week }}</strong></td>
+<td>{% if ph.activities %}{{ ph.activities | join('; ') | etext }}{% else %}—{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% if data_mig.migration_timeline.total_duration %}<p class='note'>Total duration: {{ data_mig.migration_timeline.total_duration | etext }}</p>
+{% endif %}{% endif %}{% if data_mig.custom_migration_fields %}<h2 id='sub-9-9' class='sec-h2'><span>9.9 Custom Migration Fields</span> <em class='brass'>({{ data_mig.custom_migration_fields | length }})</em></h2>
+<p>Auxiliary fields added to target objects to support traceability, batch tagging, and rollback.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Field</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+{% for cmf in data_mig.custom_migration_fields %}{% for f in cmf.fields %}<tr>
+<td>{{ cmf.object }}</td>
+<td><strong>{{ f.api_name }}</strong></td>
+<td>{{ f.type }}</td>
+<td>{{ f.description | etext }}</td>
+</tr>
+{% endfor %}{% endfor %}</tbody></table>
+{% endif %}{% if data_mig.post_migration_tasks %}<h2 id='sub-9-10' class='sec-h2'><span>9.10 Post</span> <em class='brass'>Migration Tasks</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Task</strong></th>
+<th><strong>Description</strong></th>
+<th><strong>Timing / Owner</strong></th>
+</tr></thead>
+<tbody>
+{% for t in data_mig.post_migration_tasks %}<tr>
+<td><strong>{{ t.task | etext }}</strong></td>
+<td>{{ t.description | etext }}</td>
+<td>{{ t.timing | etext }} <em>{{ t.owner | etext }}</em></td>
+</tr>
+{% endfor %}</tbody></table>
 {% endif %}</section>

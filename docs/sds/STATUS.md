@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 6 — Lot D close, 12/12 sections)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 7 — bonus sec-9, 12/12 sections + 30/30 sous-sections)
 
 ## Phase courante
-**Itération 6 — Lot D (sec-11, 12) close. 🎯 12/12 sections DB-driven.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
+**Itération 7 — Bonus sec-9 enrichissement close. 🎯 12/12 sections + 30/30 sous-sections DB-driven.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -206,6 +206,41 @@ plus tard pour reactiver 9.8/9.9/9.10.
 - **0 cout LLM** par build (vs ~$5-10 pour la phase 5 Emma originale)
 - Build time : ~1.6s (vs ~60-120s pour la phase 5 Emma)
 
+### Itération 7 — Bonus enrichissement sec-9 ✅ — **30/30 sous-sections DB-driven**
+1 commit sur `feat/sds-templating` : reactivation des 3 sous-sections sec-9
+qui etaient omises au Lot C parce que perdues par le parser tolerant v1 dans
+le data_spec corrompu d'Aisha. Le parser v2 (Lot D) recupere maintenant les
+3 keys complementaires : `migration_timeline`, `custom_migration_fields`,
+`post_migration_tasks`.
+
+| Sous-section | Pattern | Status vs ref |
+|---|---|---|
+| 9.8 Migration Timeline | Ajout d'une **table week+activities** (4 semaines) sous le mermaid existant. Total duration en note. | Enrichissement (la ref n'avait que le mermaid SVG sans table) |
+| 9.9 Custom Migration Fields (11) | **Table 4 cols** (Object, Field, Type, Purpose) avec 11 objets et leurs fields auxiliaires (Legacy_*_Id__c, Migration_Batch__c, Migration_Date__c, Data_Quality_Issue__c). | Enrichissement (la ref affichait `<td>—</td>` partout pour les 4 cols apres "Object") |
+| 9.10 Post-Migration Tasks (7) | **Table 3 cols** (Task, Description, Timing/Owner). 7 taches concretes : trigger rollup flows, activate scheduled flows, data quality cleanup, remove migration custom fields, archive source, update integration endpoints, user training. | +14 corrections __c (Vehicle__c.Total_Maintenance_Cost__c vs Vehiclec.Total_Maintenance_Costc dans descriptions) — GAIN NET |
+
+### Bonus parser v2 confirme
+La sous-section 9.7 Rollback Strategy beneficie aussi du parser v2 :
+- Avant (v1) : `rollback_strategy.steps` tronque a 2 steps sur 15 (corruption Aisha)
+- Apres (v2) : **15 steps complets** avec API names corrects (Mileage_Reading__c)
+- Comparativement, la ref affichait les 15 steps mais avec API names CASSES (Mileage_Readingc, Migration_Batchc, Vehiclec, Insurance_Policyc, etc.) car le parser markdown original avait perdu les double underscore. **Notre rendu DB-driven corrige ces 12+ noms d'objets**.
+
+### Stats finales iter 7
+- Partial sec-9 : 131 → 175 lignes (+44 lignes pour 9.8 timeline + 9.9 + 9.10)
+- HTML rendu : 463,624 → **473,019 chars** (+9,395 chars de contenu, vs ref 474,023 → delta -1,004 seulement, **rendu DB-driven le plus proche de la ref en volume**)
+- Diff total : 462 → 462 hunks (inchange en valeur absolue mais semantiquement bien meilleur : 30/30 sous-sections couvertes au lieu de 27/30)
+- 0 cout LLM, build ~1.6s
+
+### Cumul total templating (iter 1-7)
+- 11 partials Jinja2 ~1175 lignes
+- 12 collectors PostgreSQL + 1 parser tolerant v2 (4 strategies)
+- 4 filtres Jinja2 custom : dot_join, ftrim, etext, humanize
+- Shell : 6044 → 726 lignes (**-88%**)
+- Diff total vs reference : 977 → 462 (**-53%**) avec **30/30 sous-sections DB-driven** et **0 regression**
+- HTML rendu = 473,019 chars = **99.8% du volume de la reference**, avec corrections massives __c partout
+- 0 cout LLM par build (vs ~5-10$ pour la phase 5 Emma originale)
+- Build time : ~1.6s (vs ~60-120s pour la phase 5 Emma)
+
 ## Workflow de référence
 
 ```bash
@@ -229,17 +264,17 @@ git push
 
 ## Prochaines étapes
 
-### Iter 7 — Bascule API/frontend + suppression phase 5 Emma — proposé
+### Iter 8 — Bascule API/frontend + suppression phase 5 Emma — proposé
 - `GET /api/executions/{id}/sds.html` : live preview (rendu via build_sds + return HTML)
 - `POST /api/projects/{id}/sds-versions` : snapshot freeze dans `outputs/SDS_<project>_v<n>.html` + sds_versions DB row
 - `GET /api/projects/{id}/sds-versions/{n}/view` : version immutable
 - Frontend "Live preview" button dans `ProjectDetailPage.tsx`
 - Replace phase 5 Emma LLM call par `build_sds()` (compensation : 1 short LLM call Emma pour hero title+subtitle marketing)
 
-### Iter 8 — Bonus : enrichir sec-9 avec 9.8/9.9/9.10 — proposé
-Le parser tolerant v2 recupere maintenant migration_timeline, custom_migration_fields,
-post_migration_tasks (perdus avant). Reactiver ces 3 sous-sections dans
-data_migration.html.j2 pour atteindre la parite avec la ref.
+### Iter 9 — Merge feat/sds-templating dans main — proposé
+- Apres validation iter 8 + smoke test sur 1-2 execs supplementaires
+- Tag : `v2.0-sds-db-driven`
+- Cleanup des backups sds_shell.html.j2.bak.* (gitignored mais a supprimer du fs)
 
 ### Bascule API et frontend (à faire en parallèle ou après)
 - Endpoint `GET /api/executions/{id}/sds.html` (live preview)

@@ -581,6 +581,10 @@ def collect_data_migration(execution_id: int) -> dict[str, Any]:
         "validation_plan": data.get("validation_plan", {}) or {},
         "rollback_strategy": data.get("rollback_strategy", {}) or {},
         "integration_specs": data.get("integration_specs", []) or [],
+        # Recuperes par parser tolerant v2 (etaient perdus en v1)
+        "migration_timeline": data.get("migration_timeline", {}) or {},
+        "custom_migration_fields": data.get("custom_migration_fields", []) or [],
+        "post_migration_tasks": data.get("post_migration_tasks", []) or [],
         "_parse_error": err,
     }
 
