@@ -2654,6 +2654,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     "organization_type": getattr(project, 'project_type', 'existing') or "existing",
                 },
                 progress_callback=_batch_progress,
+                execution_id=execution_id,
             )
             uc_section_3_content = section_3_result["content"]
             uc_section_3_tokens = section_3_result["tokens_used"]

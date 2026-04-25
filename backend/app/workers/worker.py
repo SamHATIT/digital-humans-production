@@ -5,7 +5,7 @@ Run with: python -m arq app.workers.worker.WorkerSettings
 import logging
 from arq.connections import ArqRedis
 from app.workers.arq_config import REDIS_SETTINGS
-from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
+from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task, generate_uc_batch_task
 
 logger = logging.getLogger("arq.worker")
 
@@ -56,10 +56,10 @@ async def shutdown(ctx: dict):
 class WorkerSettings:
     """ARQ worker settings."""
     redis_settings = REDIS_SETTINGS
-    functions = [execute_sds_task, resume_architecture_task, execute_build_task]
+    functions = [execute_sds_task, resume_architecture_task, execute_build_task, generate_uc_batch_task]
     on_startup = startup
     on_shutdown = shutdown
-    max_jobs = 3  # Max concurrent executions
+    max_jobs = 6  # Max concurrent jobs — raised from 3 for UC batch parallelization
     job_timeout = 3600  # 1 hour max per execution
     health_check_interval = 30
     queue_name = "digital-humans"
