@@ -13,7 +13,7 @@
 <th><strong>Missing elements</strong></th>
 </tr></thead>
 <tbody>
-{% for cat_name, cat_data in coverage.by_category.items() %}{% set missing = cat_data.get('missing', []) or [] %}<tr>
+{% for cat_name, cat_data in (coverage.by_category if 'by_category' in coverage else {}).items() %}{% set missing = cat_data.get('missing', []) or [] %}<tr>
 <td><strong>{{ cat_name }}</strong></td>
 <td><strong>{{ cat_data.score | int if cat_data.score == cat_data.score | int else cat_data.score }}%</strong></td>
 <td>{% if missing | length == 0 %}(none){% elif missing | length <= 8 %}{{ missing | join(', ') }}{% else %}{{ missing[:8] | join(', ') }}… (+{{ missing | length - 8 }}){% endif %}</td>

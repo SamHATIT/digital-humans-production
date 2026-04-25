@@ -24,7 +24,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from jinja2 import Environment, FileSystemLoader, StrictUndefined  # noqa: E402
+from jinja2 import Environment, FileSystemLoader, ChainableUndefined  # noqa: E402
 from markupsafe import Markup, escape  # noqa: E402
 from lib.collect_sds import build_render_context  # noqa: E402
 
@@ -71,15 +71,6 @@ def _text_escape(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def humanize(s):
-    """Transforme une key snake_case ou camelCase en libelle humain.
-    Ex: 'unit_test_coverage' -> 'unit test coverage', 'Client_Type__c' -> 'Client Type  c'.
-    Le shell reproduit le pattern du pipeline original (double espace pour __)."""
-    if not isinstance(s, str):
-        return s
-    return s.replace('_', ' ')
-
-
 def etext(s):
     """Escape minimaliste pour valeurs textuelles (& < > seulement, pas les
     apostrophes ni guillemets). Filtre l'equivalent ponctuel de dot_join pour
@@ -107,13 +98,19 @@ def ftrim(s):
     return s.strip() if isinstance(s, str) else s
 
 
-def render(execution_id: int) -> str:
-    """Charge le contexte depuis la DB, rend le shell, retourne le HTML."""
+def build_sds(execution_id: int) -> str:
+    """Charge le contexte depuis la DB, rend le shell, retourne le HTML.
+    
+    Cette fonction est l'API publique du module : utilisable depuis les routes
+    FastAPI pour le live preview et le snapshot freeze.
+    """
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
-        # StrictUndefined : lever une erreur si une variable n'existe pas
-        # (mieux que de laisser passer silencieusement un trou dans le rendu)
-        undefined=StrictUndefined,
+        # ChainableUndefined : tolere les chemins type 'a.b.c' meme si 'b' n'existe
+        # pas (rend un blank au final). Trade-off : moins strict en debug mais
+        # robuste multi-exec (les structures DB varient selon les versions d'agents).
+        # Pour debug strict, repasser temporairement en StrictUndefined.
+        undefined=ChainableUndefined,
         autoescape=False,  # on génère du HTML structuré, pas un site multi-utilisateurs
         trim_blocks=False,
         lstrip_blocks=False,
@@ -121,12 +118,15 @@ def render(execution_id: int) -> str:
     env.filters["humanize"] = humanize
     env.filters["dot_join"] = dot_join
     env.filters["etext"] = etext
-    env.filters["humanize"] = humanize
     env.filters["ftrim"] = ftrim
     template = env.get_template("sds_shell.html.j2")
     
     context = build_render_context(execution_id)
     return template.render(**context)
+
+
+# Alias pour compat eventuelle
+render = build_sds
 
 
 def main():
@@ -141,7 +141,7 @@ def main():
     print(f"→ Build SDS pour execution #{args.execution_id}")
     
     try:
-        html = render(args.execution_id)
+        html = build_sds(args.execution_id)
     except Exception as e:
         print(f"❌ Erreur de rendu : {type(e).__name__}: {e}")
         return 1

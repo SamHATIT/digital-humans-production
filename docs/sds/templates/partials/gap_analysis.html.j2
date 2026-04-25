@@ -1,9 +1,9 @@
 {# sec-7 : Gap Analysis (Marcus) - 99 gaps, summary tables, migration, risks.
    La sec-7.4 Risk Areas dans la ref a un bug (texte en col 1 strong, severity
    '—', description vide). On reproduit la structure visuelle pour rester aligne. #}
-{% set total_gaps = gap.summary.total_gaps or 0 %}{% set agent_total = gap.summary.by_agent.values() | sum %}<section id='sec-7' class='block'>
+{% set total_gaps = gap.summary.total_gaps if 'total_gaps' in gap.summary else 0 %}{% set agent_total = gap.summary.by_agent.values() | sum if 'by_agent' in gap.summary else 0 %}<section id='sec-7' class='block'>
 <div class='act'><span class='act-num'>— Scene VII</span><span class='act-sep'></span><span class='act-tag'>Artifact 07</span></div><h1 class='sec-h1'><span>Gap Analysis</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
-<p>This is a greenfield project — Marcus identified {{ total_gaps }} gaps to fill, totalling an estimated {{ gap.summary.total_effort_days }} effort-days.</p>
+<p>This is a greenfield project — Marcus identified {{ total_gaps }} gaps to fill, totalling an estimated {{ gap.summary.total_effort_days if 'total_effort_days' in gap.summary else '—' }} effort-days.</p>
 <h2 id='sub-7-1' class='sec-h2'><span>7.1 Summary</span></h2>
 <table class='tbl'>
 <thead><tr>
@@ -13,7 +13,7 @@
 <tbody>
 <tr>
 <td>Total effort (days)</td>
-<td><strong>{{ gap.summary.total_effort_days }}</strong></td>
+<td><strong>{{ gap.summary.total_effort_days if 'total_effort_days' in gap.summary else '—' }}</strong></td>
 </tr>
 </tbody></table>
 <h3 class='sec-h3'>Gaps by category</h3>
@@ -24,7 +24,7 @@
 <th><strong>% of total</strong></th>
 </tr></thead>
 <tbody>
-{% for cat, cnt in gap.summary.by_category.items() %}<tr>
+{% for cat, cnt in (gap.summary.by_category if 'by_category' in gap.summary else {}).items() %}<tr>
 <td><strong>{{ cat }}</strong></td>
 <td><strong>{{ cnt }}</strong></td>
 <td>{{ ((cnt / total_gaps * 100) | round(1)) if total_gaps > 0 else 0 }}%</td>
@@ -38,7 +38,7 @@
 <th><strong>% of total</strong></th>
 </tr></thead>
 <tbody>
-{% for cx, cnt in gap.summary.by_complexity.items() %}<tr>
+{% for cx, cnt in (gap.summary.by_complexity if 'by_complexity' in gap.summary else {}).items() %}<tr>
 <td><strong>{{ cx }}</strong></td>
 <td><strong>{{ cnt }}</strong></td>
 <td>{{ ((cnt / total_gaps * 100) | round(1)) if total_gaps > 0 else 0 }}%</td>
@@ -52,7 +52,7 @@
 <th><strong>% of total</strong></th>
 </tr></thead>
 <tbody>
-{% for ag, cnt in gap.summary.by_agent.items() %}<tr>
+{% for ag, cnt in (gap.summary.by_agent if 'by_agent' in gap.summary else {}).items() %}<tr>
 <td><strong>{{ ag }}</strong></td>
 <td><strong>{{ cnt }}</strong></td>
 <td>{{ ((cnt / agent_total * 100) | round(1)) if agent_total > 0 else 0 }}%</td>

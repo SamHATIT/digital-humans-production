@@ -25,13 +25,13 @@
 <th><strong>Used by</strong></th>
 </tr></thead>
 <tbody>
-{% for so in uc_digest.cross_cutting_concerns.shared_objects %}<tr>
+{% for so in (uc_digest.cross_cutting_concerns.shared_objects if 'shared_objects' in uc_digest.cross_cutting_concerns else []) %}<tr>
 <td><strong>{{ so.object }}</strong></td>
 <td>{{ so.usage }}</td>
 </tr>
 {% endfor %}</tbody></table>
 <h3 class='sec-h3'>Integration points</h3>
-{% for ip in uc_digest.cross_cutting_concerns.integration_points %}<p>- {{ ip.name }}</p>
+{% for ip in (uc_digest.cross_cutting_concerns.integration_points if 'integration_points' in uc_digest.cross_cutting_concerns else []) %}<p>- {{ ip.name }}</p>
 {% endfor %}<h3 class='sec-h3'>Security requirements</h3>
 {% for sr in uc_digest.cross_cutting_concerns.security_requirements %}<p>- {{ sr }}</p>
 {% endfor %}<h2 id='sub-4-3' class='sec-h2'><span>4.3 Recommendations to Architect</span></h2>

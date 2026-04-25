@@ -6,7 +6,7 @@
 <p>The target data model has {{ data_model.standard_objects | length }} standard objects extended, {{ data_model.custom_objects | length }} new custom objects, and {{ data_model.relationships | length }} relationships.</p>
 <div class='figure-block'><div class='figure-caption'>Figure 1 — Target ERD ({{ data_model.custom_objects | length }} custom objects, {{ data_model.relationships | length }} relationships) — generated from Marcus<strong>'</strong>s erd_mermaid block</div>
 <div class='mermaid-wrap'><pre class="mermaid">
-{{ data_model.erd_mermaid }}
+{{ data_model.erd_mermaid if 'erd_mermaid' in data_model else '' }}
 </pre></div>
 </div>
 <h2 id='sub-6-2' class='sec-h2'><span>6.2 Custom Objects</span> <em class='brass'>({{ data_model.custom_objects | length }})</em></h2>
@@ -20,13 +20,13 @@
 <tbody>
 {% for obj in data_model.custom_objects %}<tr>
 <td><strong>{{ obj.api_name }}</strong></td>
-<td>{{ obj.sharing_model }}</td>
+<td>{{ obj.sharing_model if 'sharing_model' in obj else '—' }}</td>
 <td>{{ obj.purpose }}</td>
 <td><strong>{{ obj.fields | length }}</strong></td>
 </tr>
 {% endfor %}</tbody></table>
 <h2 id='sub-6-3' class='sec-h2'><span>6.3 Custom Object</span> <em class='brass'>Field Details</em></h2>
-{% for obj in data_model.custom_objects %}<p><strong>{{ obj.api_name }}  </strong>({{ obj.label }}) — {{ obj.fields | length }} fields</p>
+{% for obj in data_model.custom_objects %}<p><strong>{{ obj.api_name if 'api_name' in obj else '?' }}  </strong>({{ obj.label if 'label' in obj else '?' }}) — {{ obj.fields | length if 'fields' in obj else 0 }} fields</p>
 <p class='note'>{{ obj.purpose }}</p>
 <table class='tbl'>
 <thead><tr>
@@ -66,7 +66,7 @@
 </tr>
 {% endfor %}</tbody></table>
 <h2 id='sub-6-5' class='sec-h2'><span>6.5 Security Model</span></h2>
-<h3 class='sec-h3'>Profiles ({{ security_model.profiles | length }})</h3>
+{% if 'profiles' in security_model and security_model.profiles %}<h3 class='sec-h3'>Profiles ({{ security_model.profiles | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Profile</strong></th>
@@ -80,7 +80,7 @@
 <td>{{ prof.description }}</td>
 </tr>
 {% endfor %}</tbody></table>
-<h3 class='sec-h3'>Permission Sets ({{ security_model.permission_sets | length }})</h3>
+{% endif %}<h3 class='sec-h3'>Permission Sets ({{ security_model.permission_sets | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Permission Set</strong></th>

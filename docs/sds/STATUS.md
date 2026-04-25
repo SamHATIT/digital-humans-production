@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 7 — bonus sec-9, 12/12 sections + 30/30 sous-sections)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 8 — bascule API + robustness multi-exec)
 
 ## Phase courante
-**Itération 7 — Bonus sec-9 enrichissement close. 🎯 12/12 sections + 30/30 sous-sections DB-driven.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
+**Itération 8 — Bascule API + robustness multi-exec close. 🎯 3 routes API live (live preview, snapshot freeze, view inline) + build_sds() valide sur 12/12 execs testees.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -241,6 +241,63 @@ La sous-section 9.7 Rollback Strategy beneficie aussi du parser v2 :
 - 0 cout LLM par build (vs ~5-10$ pour la phase 5 Emma originale)
 - Build time : ~1.6s (vs ~60-120s pour la phase 5 Emma)
 
+### Itération 8 — Bascule API + robustness multi-exec ✅ — **3 routes live, build_sds 12/12 execs**
+
+#### 3 routes API ajoutees
+| Route | Methode | Latence | Description |
+|---|---|---|---|
+| `/api/pm-orchestrator/execute/{id}/sds-html` | GET | ~510ms | **Live preview** : build_sds() en direct depuis la DB. HTMLResponse. Aucun fichier persiste. 0 cout LLM. |
+| `/api/projects/{project_id}/sds-versions` | POST | ~554ms | **Snapshot freeze** : prend execution_id en body, build_sds(), ecrit `outputs/SDS_<project>_v<n>.html`, cree row sds_versions immuable. Retourne SDSVersionResponse 201. |
+| `/api/projects/{project_id}/sds-versions/{n}/view` | GET | ~24ms | **View frozen inline** : lit le fichier disque + retourne HTMLResponse. Validation immuable garantie (md5 identique entre live preview et snapshot freeze a un instant T). |
+
+Tests effectues sur exec 146 (project 98) :
+- Live preview : HTTP 200, 475,060 bytes ✅
+- POST freeze : HTTP 201, version 2 creee, file 464KB ✅
+- GET view : HTTP 200, 475,059 bytes (md5 identique au live) ✅
+
+#### Robustesse multi-exec
+Le build_sds() initial echouait sur les execs autres que 146 (`UndefinedError: 'dict object' has no attribute 'edition'/'erd_mermaid'/'total_gaps'/etc.`). Les structures DB varient selon les versions d'agents et la richesse des inputs business.
+
+**Solution** : passage de `StrictUndefined` -> `ChainableUndefined` dans le Jinja2 environment. Permet `dict.attr.subattr` meme si `attr` n'existe pas (rend un blank au final). Trade-off : moins strict en debug, mais robuste pour toutes les structures existantes.
+
+**Patches partiels complementaires** (pour les `.items()` qui ne tolerent pas le Undefined) :
+- `gap_analysis.html.j2` : 3 patches (by_category, by_complexity, by_agent en `.items()` -> ternaire avec `if 'X' in dict`)
+- `coverage_report.html.j2` : 1 patch (by_category)
+- `as_is_analysis.html.j2` : refactor pour calculer `ordered_keys` dynamiquement (au lieu de prendre `ORG_ORDER[0]` aveuglement)
+- `solution_design.html.j2` : 4 patches (data_model.erd_mermaid, obj.label, obj.fields, security_model.profiles wrapper)
+- `uc_digest.html.j2` : 2 patches (cross_cutting_concerns.shared_objects, integration_points)
+- `gap_analysis.html.j2` : total_gaps + total_effort_days
+
+**Resultat smoke test sur 12 execs** (toutes execs avec un coverage_report) :
+
+| Exec | Status | HTML chars |
+|---|---|---|
+| 146 | ✅ | 473,020 |
+| 145 | ✅ | 487,795 |
+| 144 | ✅ | 389,628 |
+| 143 | ✅ | 298,577 |
+| 142 | ✅ | 357,493 |
+| 141 | ✅ | 302,975 |
+| 139 | ✅ | 271,484 |
+| 138 | ✅ | 302,480 |
+| 137 | ✅ | 369,591 |
+| 131 | ✅ | 200,044 |
+| 130 | ✅ | 207,946 |
+| 129 | ✅ | 98,438 |
+
+**12/12 OK, 0 echec**. Volumes 98K-488K selon la richesse des donnees (les execs anciennes ont moins de deliverables, builds plus courts).
+
+#### Cleanup `tools/build_sds.py`
+- Doublon de `humanize` supprime (la version simple ajoutee au Lot D ecrasait celle plus complete avec SPECIAL mapping)
+- Double registration `env.filters['humanize']` supprimee
+- Fonction renommee : `build_sds(execution_id) -> str` (publique) avec alias `render = build_sds` pour retro-compat avec scripts CLI existants
+
+#### Stats Iter 8
+- 5 fichiers backend modifies (2 routes, 5 partials)
+- 1 fichier tools (build_sds.py)
+- 0 nouveau cout LLM
+- 1ere version frozen creee : `outputs/SDS_LogiFleet__v2.html` (475KB)
+
 ## Workflow de référence
 
 ```bash
@@ -264,14 +321,13 @@ git push
 
 ## Prochaines étapes
 
-### Iter 8 — Bascule API/frontend + suppression phase 5 Emma — proposé
-- `GET /api/executions/{id}/sds.html` : live preview (rendu via build_sds + return HTML)
-- `POST /api/projects/{id}/sds-versions` : snapshot freeze dans `outputs/SDS_<project>_v<n>.html` + sds_versions DB row
-- `GET /api/projects/{id}/sds-versions/{n}/view` : version immutable
-- Frontend "Live preview" button dans `ProjectDetailPage.tsx`
-- Replace phase 5 Emma LLM call par `build_sds()` (compensation : 1 short LLM call Emma pour hero title+subtitle marketing)
+### Iter 9 — Frontend + suppression phase 5 Emma — proposé
+- Bouton "Live preview" dans `ProjectDetailPage.tsx` -> ouvre `/api/pm-orchestrator/execute/{id}/sds-html` dans iframe ou nouvel onglet
+- Bouton "Snapshot version" -> POST `/api/projects/{id}/sds-versions` avec execution_id du dernier run
+- Liste des versions existantes avec lien view inline + download (existait deja)
+- Replace phase 5 Emma `run_write_sds_mode` par wrapper `build_sds()` + 1 short LLM call Emma pour hero title+subtitle marketing (option C validee par Sam)
 
-### Iter 9 — Merge feat/sds-templating dans main — proposé
+### Iter 10 — Merge feat/sds-templating dans main — proposé
 - Apres validation iter 8 + smoke test sur 1-2 execs supplementaires
 - Tag : `v2.0-sds-db-driven`
 - Cleanup des backups sds_shell.html.j2.bak.* (gitignored mais a supprimer du fs)
