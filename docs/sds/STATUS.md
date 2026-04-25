@@ -1,9 +1,9 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 4 — Lot B close)
+**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, fin itération 5 — Lot C close)
 
 ## Phase courante
-**Itération 4 — Lot B (sec-5, 7, 8) close.** 3 sections supplémentaires DB-driven : As-Is Analysis (organization + 20 standard objects), Gap Analysis (99 gaps avec descriptions + agents enrichis là où la ref est vide, summary tables, migration considerations, risk areas), Coverage Report (score + by_category avec missing tronqués + 14 critical gaps). Combiné aux iter 2/3, **8/12 sections** sont maintenant DB-driven (sec-1, 2, 3, 4, 5, 6, 7, 8). Reste 4 sections en HTML "en dur" : sec-9, 10, 11, 12 (cf. Lots C/D).
+**Itération 5 — Lot C (sec-9, 10) close.** 2 sections supplémentaires DB-driven : Data Migration Strategy (3 source systems, 12 target objects, 11 field mappings, 14 cleansing rules, validation plan, rollback strategy + mermaid timeline reconstruit depuis les phases), Training & Change Management (6 personas, 11 modules curriculum, training approach, adoption plan, KPIs, timeline, 8 risks). **10/12 sections** maintenant DB-driven (sec-1 à sec-10). Reste 2 sections en HTML "en dur" : sec-11 Test Strategy + sec-12 CI/CD Deployment (Lot D).
 
 ## Décisions actées
 - **Stratégie** : suppression future de la phase 5 Emma SDS Final ($5-10, 10-15 min) au profit d'un assemblage direct depuis `agent_deliverables` via Jinja2.
@@ -121,6 +121,36 @@ Avant le chantier templating, migration des modèles LLM par défaut :
 - **Diffs residuelles dans les sections Lot B** : 0 regression. 201 diffs sec-7 = 100% enrichissements (gap_description + assigned_agent), 0 diff sec-5 et sec-8 (pixel-near).
 - Build time : ~1.2s (inchange), **0 cout LLM**
 
+### Itération 5 — Lot C (sec-9, 10) — 2/2 sections ✅
+1 commit sur `feat/sds-templating` :
+
+| # | Section | Pattern | Status vs ref |
+|---|---|---|---|
+| 9 | Data Migration | 9.1 source_systems en p+table 3 lignes ; 9.2 target_objects table 5 cols ; 9.3 migration_strategy tbl-kv + sous-table 6 phases ; 9.4 field_mapping 11 objets × N mappings ; 9.5 cleansing_rules 3 cols enrichies vs ref vide ; 9.6 pre+post migration en bullets ; 9.7 rollback tbl-kv ; **9.8 mermaid reconstruit** depuis phases (au lieu du SVG en dur) ; 9.9 et 9.10 omises (synthese Emma, pas en data) | +57 corrections (transforms complets vs tronques, `?→` parasite supprime, `<td>—</td>` enrichis) |
+| 10 | Training | 10.1 6 personas ; 10.2 curriculum 11 modules avec duration_hours ; 10.3 approach tbl-kv avec dot_join ; 10.4 adoption (champions inline + communication table + KPIs + success_criteria) ; 10.5 resources tbl-kv (materials = liste de types via dot_join, vs JSON brut serialise dans la ref) ; 10.6 timeline 4 cols avec duration_weeks ; 10.7 risks 3 cols | +15 corrections (durations h+w restaurees, materials_to_produce desserialise) |
+
+### Nouveaux collectors (`tools/lib/collect_sds.py`)
+- **`_parse_raw_markdown_json`** : parser tolerant pour les payloads wrappes en \`\`\`json...\`\`\`. Strategy : (1) strict, (2) strict=False (autorise control chars dans strings), (3) drop des lignes parasites \`\`\`...\`\`\` (LLM glitch), (4) tronque au point d'erreur et ferme les structures ouvertes en comptant les `{` `[`. Recupere 8/9 keys du data_spec corrompu d'exec 146 (payload Aisha avec un `\`\`\`json` parasite injecte par le LLM a la ligne 1334).
+- **`collect_data_migration`** : charge `data_data_specifications` via parser tolerant, retourne `data_assessment, migration_strategy, field_mapping, data_cleansing_rules, validation_plan, rollback_strategy, integration_specs, _parse_error`.
+- **`collect_training`** : charge `trainer_trainer_specifications` (structure JSON propre, pas de wrap markdown), retourne `audience_analysis, curriculum, training_approach, adoption_plan, resource_requirements, timeline, risks`.
+
+### Nouveau filtre Jinja2 (`tools/build_sds.py`)
+- **`etext`** : escape minimaliste pour valeurs textuelles dans `<td>` (& < > seulement). Necessaire car autoescape=False et certaines transformations contiennent `<`, `>`, `&` (ex. `Expiration_Date__c < TODAY`). Applique sur transformation, notes, logic, rule, validation_plan items, kpi.target, risk, mitigation, activities, success_criteria.
+
+### Pieges resolus
+- **Bug shell evite** : cette fois sec-9 et sec-10 sont consecutives (pas d'include intermediaire entre les sec-X HTML), le replacement par includes ne casse plus rien. Lecon Lot B retenue.
+- **`StrictUndefined` sur `c.audience` (communication_plan)** : la data Lucas n'a pas de champ audience dans communication_plan. Fix : remplacer `{{ c.audience or '—' }}` par `—` en dur (la ref affiche `—` aussi).
+- **`StrictUndefined` sur `kpi.audience` (adoption_plan.kpis)** : kpi est un dict `{metric, target, measurement}` (pas `{kpi, target, ...}`). Fix : afficher juste target en col 2, vide en col 1, `—` en col 3 et 4 (matche la structure ref).
+- **9.8/9.9/9.10 absentes du data brut Aisha** : decision DB-driven d'omettre ces sections (synthese Emma sans support data). 9.8 reconstruit en mermaid simple `flowchart LR` depuis migration_strategy.phases. 9.9 (Custom Migration Fields) et 9.10 (Post-Migration Tasks) omises.
+- **`materials_to_produce` rendu brut** : la ref serialise des dicts JSON dans une cellule (\`{"type":"...","pages":12,...}\`). Notre rendu fait `materials | map(attribute='type') | dot_join` → liste propre des noms de materiels. Correction massive vs bug ref.
+
+### Stats finales Lot C
+- Shell : 4008 → 2384 lignes (**-40%**, -1624 lignes en dur remplacees par 2 includes). 10 includes au total apres ce lot.
+- 2 partials : 131 + 136 = **267 lignes Jinja2** redigees
+- HTML rendu : 471,127 chars (vs 474,023 ref, delta -2,896 — gains de transforms complets compensent les sections 9.8/9.9/9.10 omises)
+- Diff total : 977 → 1,878 hunks. L'augmentation vient de l'enrichissement massif sec-7 (Lot B, 201 hunks de gap_description+agent), des corrections sec-9 (57), et de la non-reproduction des sections synthese 9.9/9.10. **Aucune regression**.
+- Build time : ~1.4s, **0 cout LLM**
+
 ## Workflow de référence
 
 ```bash
@@ -143,10 +173,6 @@ git push
 ```
 
 ## Prochaines étapes
-
-### Iter 5 — Lot C (sec-9, 10) — proposé
-- Section 9 Data Migration (Aisha, ~1207 lignes en dur — la plus structurée)
-- Section 10 Training (Lucas, ~419 lignes en dur)
 
 ### Iter 6 — Lot D (sec-11, 12) — proposé
 - Section 11 Test Strategy (Elena, ~1316 lignes en dur — la plus volumineuse)
@@ -197,6 +223,8 @@ git push
 - Partial sec-6 : `docs/sds/templates/partials/solution_design.html.j2`
 - Partial sec-7 : `docs/sds/templates/partials/gap_analysis.html.j2`
 - Partial sec-8 : `docs/sds/templates/partials/coverage_report.html.j2`
+- Partial sec-9 : `docs/sds/templates/partials/data_migration.html.j2`
+- Partial sec-10 : `docs/sds/templates/partials/training.html.j2`
 - Collector : `tools/lib/collect_sds.py`
 - Builder : `tools/build_sds.py`
 - Status sœur (refonte doc) : `../refonte/STATUS.md`

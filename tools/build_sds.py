@@ -71,6 +71,13 @@ def _text_escape(s):
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def etext(s):
+    """Escape minimaliste pour valeurs textuelles (& < > seulement, pas les
+    apostrophes ni guillemets). Filtre l'equivalent ponctuel de dot_join pour
+    les valeurs simples, necessaire car autoescape=False."""
+    return _text_escape(s)
+
+
 def dot_join(items):
     """Joint une liste avec ' <span class='dot'>·</span> ' en escapant chaque item.
     
@@ -104,6 +111,7 @@ def render(execution_id: int) -> str:
     )
     env.filters["humanize"] = humanize
     env.filters["dot_join"] = dot_join
+    env.filters["etext"] = etext
     env.filters["ftrim"] = ftrim
     template = env.get_template("sds_shell.html.j2")
     

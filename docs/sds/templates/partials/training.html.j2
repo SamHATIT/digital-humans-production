@@ -1,0 +1,136 @@
+{# sec-10 : Training & Change Management (Lucas) - 7 sous-sections completes.
+   Structure JSON propre (pas de corruption comme Aisha). #}
+<section id='sec-10' class='block'>
+<div class='act'><span class='act-num'>— Scene X</span><span class='act-sep'></span><span class='act-tag'>Artifact 10</span></div><h1 class='sec-h1'><span>Training &amp; Change Management</span> <em class='brass'>(Lucas — Trainer)</em></h1>
+<p>Lucas designed the user enablement plan: persona-based curriculum, adoption KPIs, and a multi-phase rollout aligned with the project WBS.</p>
+<h2 id='sub-10-1' class='sec-h2'><span>10.1 User Personas</span> <em class='brass'>({{ training.audience_analysis.user_personas | length }})</em></h2>
+{% if training.audience_analysis.total_users_estimate %}<p class='note'>Total users estimated: {{ training.audience_analysis.total_users_estimate }}</p>
+{% endif %}{% for persona in training.audience_analysis.user_personas %}<p><strong>{{ persona.role }}</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th>role</th>
+<th>{{ persona.role }}</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>training priority</td>
+<td>{{ persona.training_priority }}</td>
+</tr>
+</tbody></table>
+{% endfor %}<h2 id='sub-10-2' class='sec-h2'><span>10.2 Curriculum</span> <em class='brass'>({{ training.curriculum | length }} modules)</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>#</strong></th>
+<th><strong>Module</strong></th>
+<th><strong>Audience</strong></th>
+<th><strong>Duration</strong></th>
+<th><strong>Learning objectives</strong></th>
+</tr></thead>
+<tbody>
+{% for mod in training.curriculum %}<tr>
+<td><strong>{{ loop.index }}</strong></td>
+<td><strong>{{ mod.title }}</strong></td>
+<td>{{ mod.audience | join(', ') }}</td>
+<td>{{ mod.duration_hours }}h</td>
+<td>{{ mod.objectives | join(',') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-10-3' class='sec-h2'><span>10.3 Training Approach</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th>methodology</th>
+<th>{{ training.training_approach.methodology }}</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>delivery methods</td>
+<td>{% set methods = training.training_approach.delivery_methods or [] %}{% if methods %}• {{ methods | map(attribute='method') | list | dot_join }}{% endif %}</td>
+</tr>
+<tr>
+<td>phasing</td>
+<td>{% set phasing = training.training_approach.phasing or [] %}{% if phasing %}• {{ phasing | map(attribute='phase') | list | dot_join }}{% endif %}</td>
+</tr>
+</tbody></table>
+<h2 id='sub-10-4' class='sec-h2'><span>10.4 Adoption Plan</span></h2>
+{% set ap = training.adoption_plan %}{% if ap.champions_program %}<h3 class='sec-h3'>Champions program</h3>
+<p>{% for k, v in ap.champions_program.items() %}<strong>{{ k }}</strong>: {{ v if v is string else v | tojson }}{% if not loop.last %} {% endif %}{% endfor %}</p>
+{% endif %}{% if ap.communication_plan %}<h3 class='sec-h3'>Communication plan</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>When</strong></th>
+<th><strong>Audience</strong></th>
+<th><strong>Message / channel</strong></th>
+</tr></thead>
+<tbody>
+{% for c in ap.communication_plan %}<tr>
+<td>{{ c.timing }}</td>
+<td>—</td>
+<td>{{ c.channel }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}{% if ap.kpis %}<h3 class='sec-h3'>KPIs</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>KPI</strong></th>
+<th><strong>Target</strong></th>
+<th><strong>Frequency</strong></th>
+<th><strong>Measurement</strong></th>
+</tr></thead>
+<tbody>
+{% for kpi in ap.kpis %}<tr>
+<td></td>
+<td><strong>{{ (kpi.target if kpi is mapping else kpi) | etext }}</strong></td>
+<td>—</td>
+<td>—</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}{% if ap.success_criteria %}<h3 class='sec-h3'>Success criteria</h3>
+<p>- {{ (ap.success_criteria if ap.success_criteria is string else (ap.success_criteria | join(', '))) | etext }}</p>
+{% endif %}<h2 id='sub-10-5' class='sec-h2'><span>10.5 Resource Requirements</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>trainers</td>
+<td>{{ training.resource_requirements.trainers }}</td>
+</tr>
+<tr>
+<td>environments</td>
+<td>{{ training.resource_requirements.environments }}</td>
+</tr>
+<tr>
+<td>materials to produce</td>
+<td>{% set mats = training.resource_requirements.materials_to_produce or [] %}{% if mats %}• {{ mats | map(attribute='type') | list | dot_join }}{% endif %}</td>
+</tr>
+</tbody></table>
+<h2 id='sub-10-6' class='sec-h2'><span>10.6 Timeline</span></h2>
+{% if training.timeline.aligned_to_wbs %}<p class='note'>Training timeline is aligned with the project WBS.</p>
+{% endif %}{% if training.timeline.phases %}<table class='tbl'>
+<thead><tr>
+<th><strong>#</strong></th>
+<th><strong>Phase</strong></th>
+<th><strong>Activities</strong></th>
+<th><strong>Timing</strong></th>
+</tr></thead>
+<tbody>
+{% for ph in training.timeline.phases %}<tr>
+<td><strong>{{ loop.index }}</strong></td>
+<td><strong>{{ ph.phase }}</strong></td>
+<td>{{ (ph.activities | join('; ') if ph.activities else '') | etext }}</td>
+<td>{{ ph.duration_weeks ~ 'w' if ph.duration_weeks else '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}<h2 id='sub-10-7' class='sec-h2'><span>10.7 Training Risks</span></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Risk</strong></th>
+<th><strong>Severity</strong></th>
+<th><strong>Mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for r in training.risks %}<tr>
+<td>{{ r.risk | etext }}</td>
+<td><strong>{{ r.impact }}</strong></td>
+<td>{{ r.mitigation | etext }}</td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

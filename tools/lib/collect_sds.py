@@ -434,6 +434,138 @@ def collect_gap_analysis(execution_id: int) -> dict[str, Any]:
     }
 
 
+# ─── Parser JSON tolerant pour les deliverables wrapped en raw_markdown ───
+def _parse_raw_markdown_json(md: str) -> tuple[dict, str | None]:
+    """Parse un JSON entoure de fences ```json...``` avec recuperation tolerante.
+    
+    Strategy : (1) strip fences, (2) strict json, (3) strict=False (autorise
+    control chars), (4) drop des lignes parasites '```' (LLM glitch), (5) tronque
+    au point d'erreur et ferme les structures ouvertes.
+    
+    Retourne : (data_dict, error_message_or_None).
+    """
+    if not md:
+        return {}, "empty"
+    md = md.strip()
+    if md.startswith('```'):
+        nl = md.index('\n')
+        md = md[nl+1:]
+    if md.endswith('```'):
+        md = md[:-3].rstrip()
+    
+    # 1. Strict
+    try:
+        return json.loads(md), None
+    except json.JSONDecodeError:
+        pass
+    # 2. strict=False
+    try:
+        return json.loads(md, strict=False), None
+    except json.JSONDecodeError:
+        pass
+    # 3. Drop lignes ```...```
+    cleaned = '\n'.join(l for l in md.split('\n') if not l.strip().startswith('```'))
+    try:
+        return json.loads(cleaned, strict=False), None
+    except json.JSONDecodeError as e:
+        last_err = e
+    # 4. Tronque au point d'erreur + ferme les structures
+    try:
+        truncated = cleaned[:last_err.pos]
+        last_safe = max(truncated.rfind(','), truncated.rfind('}'), truncated.rfind(']'))
+        if last_safe > 0:
+            truncated = truncated[:last_safe]
+        # Compter struct ouvertes
+        opens_brace = opens_bracket = 0
+        in_str = False
+        esc = False
+        for c in truncated:
+            if esc:
+                esc = False; continue
+            if c == '\\':
+                esc = True; continue
+            if c == '"':
+                in_str = not in_str
+            elif not in_str:
+                if c == '[': opens_bracket += 1
+                elif c == ']': opens_bracket -= 1
+                elif c == '{': opens_brace += 1
+                elif c == '}': opens_brace -= 1
+        truncated = truncated.rstrip().rstrip(',')
+        # Heuristique : refermer brackets puis braces (assume nested order)
+        candidate = truncated + (']' * opens_bracket) + ('}' * opens_brace)
+        try:
+            return json.loads(candidate, strict=False), f"partial-recovery: truncated at pos {last_err.pos}"
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return {}, "unrecoverable"
+
+
+# ─── 9. Data Migration (sec-9) ─────────────────────────────────────────────
+def collect_data_migration(execution_id: int) -> dict[str, Any]:
+    """Recupere data_data_specifications (Aisha).
+    
+    Le payload Aisha est wrappe en {"raw_markdown": "```json\\n{...}\\n```"}.
+    Le JSON interne peut etre corrompu (LLM glitch a observe sur exec 146).
+    On utilise un parser tolerant.
+    
+    Retour:
+        {
+          "data_assessment": {source_systems[], target_objects[]},
+          "migration_strategy": {approach, phases, tool},
+          "field_mapping": [...],
+          "data_cleansing_rules": [...],
+          "validation_plan": {pre_migration, post_migration},
+          "rollback_strategy": {approach, steps, ...},
+          "integration_specs": [...],   # peut etre absent si parsing partiel
+          "_parse_error": str | None,
+        }
+    """
+    payload = _load_deliverable(execution_id, "data_data_specifications")
+    md = payload.get("raw_markdown", "") if isinstance(payload, dict) else ""
+    data, err = _parse_raw_markdown_json(md)
+    return {
+        "data_assessment": data.get("data_assessment", {}) or {},
+        "migration_strategy": data.get("migration_strategy", {}) or {},
+        "field_mapping": data.get("field_mapping", []) or [],
+        "data_cleansing_rules": data.get("data_cleansing_rules", []) or [],
+        "validation_plan": data.get("validation_plan", {}) or {},
+        "rollback_strategy": data.get("rollback_strategy", {}) or {},
+        "integration_specs": data.get("integration_specs", []) or [],
+        "_parse_error": err,
+    }
+
+
+# ─── 10. Training & Adoption (sec-10) ──────────────────────────────────────
+def collect_training(execution_id: int) -> dict[str, Any]:
+    """Recupere trainer_trainer_specifications (Lucas).
+    
+    Retour:
+        {
+          "audience_analysis": {total_users_estimate, user_personas[]},
+          "curriculum": [list[11] avec module_id, title, audience, duration_hours,
+                          objectives[], topics[], prerequisites[]],
+          "training_approach": {methodology, delivery_methods, phasing},
+          "adoption_plan": {champions_program, communication_plan, kpis, success_criteria},
+          "resource_requirements": {trainers, environments, materials_to_produce},
+          "timeline": {aligned_to_wbs, phases},
+          "risks": [list[8] avec risk, impact, mitigation],
+        }
+    """
+    content = _load_deliverable(execution_id, "trainer_trainer_specifications")
+    return {
+        "audience_analysis": content.get("audience_analysis", {}) or {},
+        "curriculum": content.get("curriculum", []) or [],
+        "training_approach": content.get("training_approach", {}) or {},
+        "adoption_plan": content.get("adoption_plan", {}) or {},
+        "resource_requirements": content.get("resource_requirements", {}) or {},
+        "timeline": content.get("timeline", {}) or {},
+        "risks": content.get("risks", []) or [],
+    }
+
+
 # ─── 5. Build context — assemble tout pour le rendu Jinja2 ─────────────────
 def build_render_context(execution_id: int) -> dict[str, Any]:
     """Assemble le dict complet à passer à Jinja2."""
@@ -456,6 +588,10 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
     as_is = collect_as_is(execution_id)
     gap = collect_gap_analysis(execution_id)
     # sec-8 utilise 'coverage' deja collecte ci-dessus
+    
+    # Lot C — sections 9, 10
+    data_mig = collect_data_migration(execution_id)
+    training = collect_training(execution_id)
     
     # Status mapping → label + CSS class. La couleur indique le degré de finition
     # (brass = approved/complete, sage = build done, ochre = in progress, terra = failed).
@@ -520,4 +656,9 @@ def build_render_context(execution_id: int) -> dict[str, Any]:
         "as_is": as_is,           # sec-5 : organization, standard_objects
         "gap": gap,               # sec-7 : summary, gaps, migration_considerations, risk_areas
         # sec-8 reuse 'coverage' (deja expose)
+        # Lot C — sections 9, 10
+        "data_mig": data_mig,     # sec-9 : data_assessment, migration_strategy, field_mapping,
+                                   #         data_cleansing_rules, validation_plan, rollback_strategy
+        "training": training,     # sec-10 : audience_analysis, curriculum, training_approach,
+                                   #          adoption_plan, resource_requirements, timeline, risks
     }
