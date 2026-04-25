@@ -298,6 +298,40 @@ Le build_sds() initial echouait sur les execs autres que 146 (`UndefinedError: '
 - 0 nouveau cout LLM
 - 1ere version frozen creee : `outputs/SDS_LogiFleet__v2.html` (475KB)
 
+## Tests fonctionnels à faire (phase post-design)
+
+On passe au fonctionnel quand le design SDS est valide. À ce moment-là, vérifier :
+
+### 1. Bascule Emma write_sds (commit `a24af51`)
+- [ ] Lancer 1 nouvelle exec complete (depuis ProjectWizard) → vérifier que phase 5 passe par `build_sds()` et non plus par le LLM
+  - Critère : `metadata.cost_usd = 0.0`, `metadata.model = 'build_sds (DB-driven, no LLM)'` dans le deliverable `sds_document`
+  - Critère : `metadata.execution_time_seconds < 2s` (vs ~60-120s avant)
+  - Critère : entrée dans `llm_interactions` avec `tokens_input=0, tokens_output=0, agent_mode='write_sds'`
+- [ ] Re-run phase 5 seule sur une exec existante via `phase5_write_sds` checkpoint → idem
+- [ ] Comparer le SDS généré avec un SDS LLM legacy (ex. exec 146 frozen v1) → vérifier que le contenu est aussi riche / mieux structuré
+- [ ] Vérifier que `pm_orchestrator_service_v2.py:2716-2723` qui append "Annexe A" en Markdown ne casse pas le HTML (cosmétique acceptable, à nettoyer en iter 10)
+
+### 2. Frontend live preview + snapshot (commit `6a6e62e`)
+- [ ] Bouton "Live preview (DB-driven)" sur ProjectDetailPage → ouvre le HTML dans nouvel onglet ✅ déjà testé via curl, à valider en navigateur
+- [ ] Bouton "Snapshot version" → crée v3, v4... → vérifier que la liste se rafraîchit auto
+- [ ] Bouton Eye inline sur chaque version frozen → ouvre /view dans nouvel onglet
+- [ ] Tester sur 2-3 projets différents (pas que LogiFleet)
+
+### 3. Robustesse multi-exec (commit `ff29ced`)
+- [ ] `build_sds()` testé sur 12 execs en CLI ✅ — re-tester les mêmes via API live preview pour vérifier le path complet (auth + import + render)
+- [ ] Tester sur des projets avec `data_spec` corrompu (LLM glitch `\`\`\`json` parasite) → vérifier que le parser tolérant v2 récupère bien
+
+### 4. Cleanup quand tests validés
+- [ ] Supprimer `_execute_write_sds_LEGACY_LLM` dans `salesforce_research_analyst.py` (grep `TODO REMOVE`)
+- [ ] Supprimer la section `write_sds:` dans `backend/agents/prompts/emma_research.yaml` (~500 lignes)
+- [ ] Supprimer les backups gitignored `docs/sds/templates/sds_shell.html.j2.bak.*`
+- [ ] Nettoyer `pm_orchestrator_service_v2.py:2716-2723` (skip Annexe A append si content commence par `<!DOCTYPE`)
+- [ ] Renommer `content.raw_markdown` → `content.raw_html` partout (avec migration douce)
+
+### 5. Iter 10 — Merge feat/sds-templating dans main
+- [ ] Tag `v2.0-sds-db-driven`
+- [ ] Note de release dans CHANGELOG.md (gain coût ~5-10\$ → 0\$ par exec, gain time 60-120s → ~0.5s, 12/12 sections + 30/30 sous-sections DB-driven)
+
 ## Workflow de référence
 
 ```bash
