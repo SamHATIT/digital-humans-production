@@ -238,132 +238,67 @@
 <td>{{ e.purpose }}</td>
 </tr>
 {% endfor %}</tbody></table>
-<h2 id='sub-6-9' class='sec-h2'><span>6.9 Integration Points</span> <em class='brass'>(2)</em></h2>
-<p><strong>Salesforce Mobile App Integration</strong></p>
+{# ═════════════════════════════════════════════════════════════════════
+   Macro render_value : rendu recursif d'une valeur JSON arbitraire en HTML
+   Utilise pour 6.9 Integration Points et toute future structure imbriquee.
+   ═════════════════════════════════════════════════════════════════════ #}
+{% macro render_value(v, key='') -%}
+{%- if key in ['uc_refs', 'UC refs'] -%}
+{{ v | join(', ') }}
+{%- elif v is mapping -%}
+<table class='tbl tbl-kv tbl-nested'><tbody>
+{%- for k, val in v.items() %}
+<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{{ render_value(val, k) }}</td></tr>
+{%- endfor %}
+</tbody></table>
+{%- elif v is sequence and v is not string -%}
+{%- if v | length == 0 -%}
+<span class='muted'>—</span>
+{%- else -%}
+<div class='chiprow'>{% for item in v %}<span class='chip'>{{ item }}</span>{% if not loop.last %} {% endif %}{% endfor %}</div>
+{%- endif -%}
+{%- elif v is number and v is not boolean -%}
+<code class='json-num'>{{ v }}</code>
+{%- else -%}
+{{ v }}
+{%- endif -%}
+{%- endmacro %}
+<h2 id='sub-6-9' class='sec-h2'><span>6.9 Integration Points</span> <em class='brass'>({{ integration_points | length }})</em></h2>
+{% for ip in integration_points %}<p><strong>{{ ip.name }}</strong></p>
 <table class='tbl'>
 <thead><tr>
 <th>system</th>
-<th>Salesforce Mobile App</th>
+<th>{{ ip.system }}</th>
 </tr></thead>
 <tbody>
+{%- set ordered_keys = ['direction', 'method', 'frequency', 'auth', 'rate_limits', 'named_credential', 'uc_refs', 'endpoint_spec', 'error_handling'] %}
+{%- for k in ordered_keys %}
+{%- if k in ip %}
 <tr>
-<td>direction</td>
-<td>Bidirectional</td>
+<td>{{ k | humanize }}</td>
+{%- if ip[k] is mapping %}
+<td class='td-json'>{{ render_value(ip[k], k) }}</td>
+{%- else %}
+<td>{{ render_value(ip[k], k) }}</td>
+{%- endif %}
 </tr>
+{%- endif %}
+{%- endfor %}
+{#- Cles inconnues : on les ajoute a la fin pour ne rien perdre #}
+{%- for k, v in ip.items() %}
+{%- if k not in ordered_keys and k not in ['name', 'system'] %}
 <tr>
-<td>method</td>
-<td>REST</td>
+<td>{{ k | humanize }}</td>
+{%- if v is mapping %}
+<td class='td-json'>{{ render_value(v, k) }}</td>
+{%- else %}
+<td>{{ render_value(v, k) }}</td>
+{%- endif %}
 </tr>
-<tr>
-<td>frequency</td>
-<td>Real-time</td>
-</tr>
-<tr>
-<td>auth</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>type</span></td><td>OAuth 2.0</td></tr>
-<tr><td><span class='key'>grant</span></td><td>Authorization Code</td></tr>
-<tr><td><span class='key'>scopes</span></td><td><div class='chiprow'><span class='chip'>api</span> <span class='chip'>full</span></div></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>rate limits</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>requests per day</span></td><td><code class='json-num'>10000</code></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>named credential</td>
-<td>N/A - Native Salesforce Mobile App uses standard session authentication</td>
-</tr>
-<tr>
-<td>UC refs</td>
-<td>UC-016-01, UC-016-02, UC-016-03, UC-017-01, UC-017-02, UC-023-01, UC-023-02, UC-023-03</td>
-</tr>
-<tr>
-<td>endpoint spec</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>url pattern</span></td><td>/services/data/vXX.0/sobjects/{ObjectName}</td></tr>
-<tr><td><span class='key'>payload format</span></td><td>JSON</td></tr>
-<tr><td><span class='key'>key fields</span></td><td><div class='chiprow'><span class='chip'>Id</span> <span class='chip'>Vehicle__c</span> <span class='chip'>Driver__c</span></div></td></tr>
-<tr><td><span class='key'>response codes</span></td><td><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>200</span></td><td>Success - Record retrieved</td></tr>
-<tr><td><span class='key'>201</span></td><td>Created - Record created successfully</td></tr>
-<tr><td><span class='key'>400</span></td><td>Bad Request - Validation error</td></tr>
-<tr><td><span class='key'>401</span></td><td>Unauthorized - Session expired</td></tr>
-<tr><td><span class='key'>403</span></td><td>Forbidden - Insufficient permissions</td></tr>
-</tbody></table></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>error handling</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>retry strategy</span></td><td>Automatic retry on network failure, max 3 attempts</td></tr>
-<tr><td><span class='key'>dead letter</span></td><td>Error displayed to user with option to retry</td></tr>
-</tbody></table></td>
-</tr>
+{%- endif %}
+{%- endfor %}
 </tbody></table>
-<p><strong>Email Notification Service</strong></p>
-<table class='tbl'>
-<thead><tr>
-<th>system</th>
-<th>Salesforce Email Service</th>
-</tr></thead>
-<tbody>
-<tr>
-<td>direction</td>
-<td>Outbound</td>
-</tr>
-<tr>
-<td>method</td>
-<td>Platform Event / Email Alert</td>
-</tr>
-<tr>
-<td>frequency</td>
-<td>Real-time and Scheduled</td>
-</tr>
-<tr>
-<td>auth</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>type</span></td><td>N/A</td></tr>
-<tr><td><span class='key'>grant</span></td><td>Internal Salesforce service</td></tr>
-<tr><td><span class='key'>scopes</span></td><td><span class='muted'>—</span></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>rate limits</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>requests per day</span></td><td><code class='json-num'>5000</code></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>named credential</td>
-<td>N/A</td>
-</tr>
-<tr>
-<td>UC refs</td>
-<td>UC-009-02, UC-010-01, UC-012-02, UC-016-02, UC-024-01</td>
-</tr>
-<tr>
-<td>endpoint spec</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>url pattern</span></td><td>Internal Salesforce Email Service</td></tr>
-<tr><td><span class='key'>payload format</span></td><td>Email Template (HTML/Text)</td></tr>
-<tr><td><span class='key'>key fields</span></td><td><div class='chiprow'><span class='chip'>RecipientId</span> <span class='chip'>TemplateId</span> <span class='chip'>WhatId</span></div></td></tr>
-<tr><td><span class='key'>response codes</span></td><td><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>200</span></td><td>Email queued successfully</td></tr>
-<tr><td><span class='key'>400</span></td><td>Invalid recipient or template</td></tr>
-</tbody></table></td></tr>
-</tbody></table></td>
-</tr>
-<tr>
-<td>error handling</td>
-<td class='td-json'><table class='tbl tbl-kv tbl-nested'><tbody>
-<tr><td><span class='key'>retry strategy</span></td><td>Salesforce handles email delivery retries internally</td></tr>
-<tr><td><span class='key'>dead letter</span></td><td>Failed emails logged in Email Log; Error_Log__c created for flow failures</td></tr>
-</tbody></table></td>
-</tr>
-</tbody></table>
+{% endfor %}
 <h2 id='sub-6-10' class='sec-h2'><span>6.10 UI Components</span></h2>
 <h3 class='sec-h3'>Lightning Apps ({{ ui_components.lightning_apps | length }})</h3>
 <table class='tbl'>

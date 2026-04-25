@@ -32,6 +32,33 @@ TEMPLATES_DIR = REPO_ROOT / "docs" / "sds" / "templates"
 DEFAULT_OUTPUT = REPO_ROOT / "docs" / "sds" / "rendered.html"
 
 
+def humanize(s):
+    """Convertit snake_case en 'espace separe', avec quelques cas speciaux.
+    
+    Utilise par le macro render_value du partial 6.9 Integration Points
+    pour transformer les cles JSON en libelles lisibles.
+    """
+    if not isinstance(s, str):
+        return s
+    SPECIAL = {
+        "uc_refs": "UC refs",
+        "url_pattern": "url pattern",
+        "payload_format": "payload format",
+        "key_fields": "key fields",
+        "response_codes": "response codes",
+        "rate_limits": "rate limits",
+        "named_credential": "named credential",
+        "endpoint_spec": "endpoint spec",
+        "error_handling": "error handling",
+        "retry_strategy": "retry strategy",
+        "dead_letter": "dead letter",
+        "requests_per_day": "requests per day",
+        "requests_per_hour": "requests per hour",
+        "requests_per_minute": "requests per minute",
+    }
+    return SPECIAL.get(s, s.replace("_", " "))
+
+
 def render(execution_id: int) -> str:
     """Charge le contexte depuis la DB, rend le shell, retourne le HTML."""
     env = Environment(
@@ -43,6 +70,7 @@ def render(execution_id: int) -> str:
         trim_blocks=False,
         lstrip_blocks=False,
     )
+    env.filters["humanize"] = humanize
     template = env.get_template("sds_shell.html.j2")
     
     context = build_render_context(execution_id)
