@@ -149,22 +149,40 @@ def patch_workflow(wf: dict) -> dict:
         "position": [gen_html_x + 660, gen_html_y + 220],
     })
 
-    # Body shared by create + update
-    archive_body_create = {
-        "posts": [{
-            "title":          "={{ $('Generate Newsletter HTML').first().json.subject }}",
-            "slug":           "={{ $('Generate Newsletter HTML').first().json.archive_slug }}",
-            "html":           "={{ $('Generate Newsletter HTML').first().json.archive_html }}",
-            "custom_excerpt": "={{ $('Generate Newsletter HTML').first().json.archive_excerpt }}",
-            "tags": [{"slug": "archive"}],
-            "status": "published",
-            "visibility": "public",
-            "feature_image": None,
-        }]
-    }
-    archive_body_update = copy.deepcopy(archive_body_create)
-    # Ghost requires the existing updated_at on PUT for collision detection.
-    archive_body_update["posts"][0]["updated_at"] = "={{ $json.posts[0].updated_at }}"
+    # Body shared by create + update.
+    # IMPORTANT: built as a single N8N expression that calls JSON.stringify({...})
+    # rather than embedding ={{ }} inside string values of a Python dict — N8N
+    # rejects nested expressions inside a stringified body. Verified live
+    # 2026-04-26 (see README-studio-patch.md section C.3).
+    archive_body_create = (
+        "={{ JSON.stringify({\n"
+        "  posts: [{\n"
+        "    title: $('Generate Newsletter HTML').first().json.subject,\n"
+        "    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n"
+        "    html: $('Generate Newsletter HTML').first().json.archive_html,\n"
+        "    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n"
+        "    tags: [{slug: 'archive'}],\n"
+        "    status: 'published',\n"
+        "    visibility: 'public',\n"
+        "    feature_image: null\n"
+        "  }]\n"
+        "}) }}"
+    )
+    archive_body_update = (
+        "={{ JSON.stringify({\n"
+        "  posts: [{\n"
+        "    title: $('Generate Newsletter HTML').first().json.subject,\n"
+        "    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n"
+        "    html: $('Generate Newsletter HTML').first().json.archive_html,\n"
+        "    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n"
+        "    tags: [{slug: 'archive'}],\n"
+        "    status: 'published',\n"
+        "    visibility: 'public',\n"
+        "    feature_image: null,\n"
+        "    updated_at: $('Lookup Archive Slug').first().json.posts[0].updated_at\n"
+        "  }]\n"
+        "}) }}"
+    )
 
     # 3d. Create Archive (POST)
     new_nodes.append({
@@ -186,7 +204,8 @@ def patch_workflow(wf: dict) -> dict:
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ " + json.dumps(archive_body_create) + " }}",
+            "jsonBody": archive_body_create,
+            "contentType": "json",
             "options": {},
         },
         "id": "ghost_create",
@@ -216,7 +235,8 @@ def patch_workflow(wf: dict) -> dict:
             },
             "sendBody": True,
             "specifyBody": "json",
-            "jsonBody": "={{ " + json.dumps(archive_body_update) + " }}",
+            "jsonBody": archive_body_update,
+            "contentType": "json",
             "options": {},
         },
         "id": "ghost_update",
@@ -253,6 +273,14 @@ def patch_workflow(wf: dict) -> dict:
         ]
     }
     # Update/Create are leaves — no downstream connections.
+
+
+    # ---- Disable scheduleTrigger 'Lundi 9h' (per Sam decision 2026-04-26) -
+    # Newsletter is triggered manually for now; auto-send Monday 9am can be
+    # re-enabled by removing the `disabled: true` on this node.
+    for n in wf["nodes"]:
+        if n.get("name") == "Lundi 9h" and n.get("type") == "n8n-nodes-base.scheduleTrigger":
+            n["disabled"] = True
 
     return wf
 

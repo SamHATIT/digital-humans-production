@@ -256,3 +256,80 @@ emits two distinct strings:
 - `archive_html` — `__UNSUBSCRIBE_URL__` already substituted with the
   generic `https://digital-humans.fr/journal/unsubscribe`, intended for the
   Ghost POST/PUT body.
+
+---
+
+## C. VPS runtime fixes appliqués (post-livraison sandbox)
+
+Lors du déploiement live le 26 avril 2026, 4 ajustements ont été nécessaires
+côté VPS pour faire fonctionner le workflow sur N8N v1+ (sandbox plus stricte
+que la version dev sandbox supposait) :
+
+### C.1 — env vars systemd N8N requises
+
+Trois variables d'environnement doivent être posées dans
+`/etc/systemd/system/n8n.service.d/override.conf` :
+
+```ini
+[Service]
+Environment="GHOST_ADMIN_KEY=<id>:<secret>"
+Environment="NODE_FUNCTION_ALLOW_BUILTIN=crypto"
+Environment="N8N_BLOCK_ENV_ACCESS_IN_NODE=false"
+```
+
+- **GHOST_ADMIN_KEY** : la clé Admin Ghost au format `id:secret` (récupérable dans Ghost Admin > Integrations > Digital Humans API). À reprendre dans Track A2/Doppler quand actif.
+- **NODE_FUNCTION_ALLOW_BUILTIN=crypto** : autorise `require('crypto')` dans les Code nodes (Generate Ghost JWT en a besoin pour signer le JWT HMAC-SHA256).
+- **N8N_BLOCK_ENV_ACCESS_IN_NODE=false** : autorise `$env.GHOST_ADMIN_KEY` dans les Code nodes (bloqué par défaut depuis N8N v1+).
+
+Permissions du fichier override : `chmod 600`, owner root.
+
+### C.2 — Code nodes : `$env` vs `process.env`
+
+Le node `Generate Ghost JWT` utilise `$env.GHOST_ADMIN_KEY` (API native N8N)
+et **non pas** `process.env.GHOST_ADMIN_KEY` (qui est filtré par la sandbox).
+Le fichier source `nodes/generate_ghost_jwt.studio.js` a été corrigé en
+conséquence — si tu re-bâtis le workflow via `scripts/build_studio_patch.py`,
+l'export reflète automatiquement la version corrigée.
+
+### C.3 — `Create Archive` / `Update Archive` : jsonBody syntax
+
+Les deux nodes HTTP qui POST/PUT vers Ghost Admin utilisent un `jsonBody`
+construit via une **seule** expression N8N qui fait `JSON.stringify({...})`,
+plutôt qu'un mélange invalide d'expressions imbriquées :
+
+```
+={{ JSON.stringify({
+  posts: [{
+    title: $('Generate Newsletter HTML').first().json.subject,
+    slug: $('Generate Newsletter HTML').first().json.archive_slug,
+    html: $('Generate Newsletter HTML').first().json.archive_html,
+    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,
+    tags: [{slug: 'archive'}],
+    status: 'published',
+    visibility: 'public',
+    feature_image: null
+    // (pour Update Archive seulement) updated_at: $('Lookup Archive Slug').first().json.posts[0].updated_at
+  }]
+}) }}
+```
+
+### C.4 — Trigger schedule désactivé (post-go-live test)
+
+Le node `Lundi 9h` (scheduleTrigger) a été désactivé via `disabled: true`
+après les tests E2E pour éviter un envoi automatique non-désiré le lundi
+suivant. Le workflow reste `active: true` globalement, le webhook
+`/webhook/send-newsletter` reste actif pour les triggers manuels et tests.
+
+Pour réactiver le schedule plus tard : remettre `disabled: false` sur le
+node, ou via UI N8N (toggle sur le node).
+
+### C.5 — Validation E2E live (26 avr 2026)
+
+- Exec 437 : success — article archive `week-17-2026` créé via POST (Create Archive branch)
+- Exec 438 : success — même slug, branche UPDATE prise (PUT), pas de doublon
+- Email Studio reçu à shatit@gmail.com (validé visuellement par Sam)
+- Article archive accessible à `https://digital-humans.fr/journal/archive/week-17-2026`
+
+---
+
+*Section C ajoutée par le maître d'œuvre lors du déploiement live (commit post-merge).*

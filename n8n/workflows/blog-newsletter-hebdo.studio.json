@@ -38,7 +38,8 @@
       "position": [
         220,
         480
-      ]
+      ],
+      "disabled": true
     },
     {
       "parameters": {
@@ -247,7 +248,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// =============================================================================\n// Node: Generate Ghost Admin JWT  (Track B5.2)\n// =============================================================================\n// Mints a 5-minute Ghost Admin API JWT from $env.GHOST_ADMIN_KEY.\n// Format expected for GHOST_ADMIN_KEY: \"<24-hex-id>:<64-hex-secret>\".\n//\n// Outputs:\n//   - token : Ghost Admin JWT (string, valid 5 min, audience \"/admin/\")\n//\n// Usage downstream:\n//   Authorization: Ghost {{ $('Generate Ghost JWT').first().json.token }}\n//\n// Notes:\n// - This Code node uses pure JS via Node crypto (no extra deps), since N8N\n//   Code nodes don't ship the `jsonwebtoken` module reliably across versions.\n// - Secret is hex-decoded before HMAC, per Ghost's spec.\n// =============================================================================\n\nconst crypto = require('crypto');\n\nconst raw = process.env.GHOST_ADMIN_KEY || '';\nif (!raw || !raw.includes(':')) {\n  throw new Error('GHOST_ADMIN_KEY env var missing or malformed (expected \"id:secret\")');\n}\nconst [keyId, secretHex] = raw.split(':');\nconst secret = Buffer.from(secretHex, 'hex');\n\nconst iat = Math.floor(Date.now() / 1000);\nconst header = { alg: 'HS256', typ: 'JWT', kid: keyId };\nconst payload = { iat, exp: iat + 5 * 60, aud: '/admin/' };\n\nfunction b64url(buf) {\n  return Buffer.from(buf)\n    .toString('base64')\n    .replace(/=+$/, '')\n    .replace(/\\+/g, '-')\n    .replace(/\\//g, '_');\n}\n\nconst signingInput =\n  b64url(JSON.stringify(header)) + '.' + b64url(JSON.stringify(payload));\nconst signature = b64url(\n  crypto.createHmac('sha256', secret).update(signingInput).digest()\n);\n\nreturn [{ json: { token: signingInput + '.' + signature } }];\n"
+        "jsCode": "// =============================================================================\n// Node: Generate Ghost Admin JWT  (Track B5.2)\n// =============================================================================\n// Mints a 5-minute Ghost Admin API JWT from $env.GHOST_ADMIN_KEY.\n// Format expected for GHOST_ADMIN_KEY: \"<24-hex-id>:<64-hex-secret>\".\n//\n// Outputs:\n//   - token : Ghost Admin JWT (string, valid 5 min, audience \"/admin/\")\n//\n// Usage downstream:\n//   Authorization: Ghost {{ $('Generate Ghost JWT').first().json.token }}\n//\n// Notes:\n// - This Code node uses pure JS via Node crypto (no extra deps), since N8N\n//   Code nodes don't ship the `jsonwebtoken` module reliably across versions.\n// - Secret is hex-decoded before HMAC, per Ghost's spec.\n// =============================================================================\n\nconst crypto = require('crypto');\n\nconst raw = $env.GHOST_ADMIN_KEY || '';\nif (!raw || !raw.includes(':')) {\n  throw new Error('GHOST_ADMIN_KEY env var missing or malformed (expected \"id:secret\")');\n}\nconst [keyId, secretHex] = raw.split(':');\nconst secret = Buffer.from(secretHex, 'hex');\n\nconst iat = Math.floor(Date.now() / 1000);\nconst header = { alg: 'HS256', typ: 'JWT', kid: keyId };\nconst payload = { iat, exp: iat + 5 * 60, aud: '/admin/' };\n\nfunction b64url(buf) {\n  return Buffer.from(buf)\n    .toString('base64')\n    .replace(/=+$/, '')\n    .replace(/\\+/g, '-')\n    .replace(/\\//g, '_');\n}\n\nconst signingInput =\n  b64url(JSON.stringify(header)) + '.' + b64url(JSON.stringify(payload));\nconst signature = b64url(\n  crypto.createHmac('sha256', secret).update(signingInput).digest()\n);\n\nreturn [{ json: { token: signingInput + '.' + signature } }];\n"
       },
       "id": "ghost_jwt",
       "name": "Generate Ghost JWT",
@@ -348,7 +349,8 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\"posts\": [{\"title\": \"={{ $('Generate Newsletter HTML').first().json.subject }}\", \"slug\": \"={{ $('Generate Newsletter HTML').first().json.archive_slug }}\", \"html\": \"={{ $('Generate Newsletter HTML').first().json.archive_html }}\", \"custom_excerpt\": \"={{ $('Generate Newsletter HTML').first().json.archive_excerpt }}\", \"tags\": [{\"slug\": \"archive\"}], \"status\": \"published\", \"visibility\": \"public\", \"feature_image\": null}]} }}",
+        "jsonBody": "={{ JSON.stringify({\n  posts: [{\n    title: $('Generate Newsletter HTML').first().json.subject,\n    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n    html: $('Generate Newsletter HTML').first().json.archive_html,\n    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n    tags: [{slug: 'archive'}],\n    status: 'published',\n    visibility: 'public',\n    feature_image: null\n  }]\n}) }}",
+        "contentType": "json",
         "options": {}
       },
       "id": "ghost_create",
@@ -379,7 +381,8 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ {\"posts\": [{\"title\": \"={{ $('Generate Newsletter HTML').first().json.subject }}\", \"slug\": \"={{ $('Generate Newsletter HTML').first().json.archive_slug }}\", \"html\": \"={{ $('Generate Newsletter HTML').first().json.archive_html }}\", \"custom_excerpt\": \"={{ $('Generate Newsletter HTML').first().json.archive_excerpt }}\", \"tags\": [{\"slug\": \"archive\"}], \"status\": \"published\", \"visibility\": \"public\", \"feature_image\": null, \"updated_at\": \"={{ $json.posts[0].updated_at }}\"}]} }}",
+        "jsonBody": "={{ JSON.stringify({\n  posts: [{\n    title: $('Generate Newsletter HTML').first().json.subject,\n    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n    html: $('Generate Newsletter HTML').first().json.archive_html,\n    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n    tags: [{slug: 'archive'}],\n    status: 'published',\n    visibility: 'public',\n    feature_image: null,\n    updated_at: $('Lookup Archive Slug').first().json.posts[0].updated_at\n  }]\n}) }}",
+        "contentType": "json",
         "options": {}
       },
       "id": "ghost_update",

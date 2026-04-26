@@ -18,7 +18,7 @@
 
 const crypto = require('crypto');
 
-const raw = process.env.GHOST_ADMIN_KEY || '';
+const raw = $env.GHOST_ADMIN_KEY || '';
 if (!raw || !raw.includes(':')) {
   throw new Error('GHOST_ADMIN_KEY env var missing or malformed (expected "id:secret")');
 }
