@@ -1,8 +1,11 @@
 # SDS templating depuis DB — État courant
 
-**Dernière mise à jour** : 2026-04-25 (sessions Claude+Sam : SDS itération 8-9 + design site Mods 12-14)
+**Dernière mise à jour** : 2026-04-26 (Track A1 — finalisation audit + cleanup legacy write_sds)
 
 ## Phase courante
+**✅ TEMPLATING CLOSED (sous réserve audit VPS)** — 12/12 sections + 30/30 sous-sections DB-driven, legacy `_execute_write_sds_LEGACY_LLM` supprimé, bloc YAML `write_sds:` supprimé (~99 + 103 lignes), test orphelin `test_emma_write_sds.py` supprimé. Branche `claude/sds-templating-final-audit-5qtf9` prête à merger après audit VPS (build exec 146 + smoke test E2E 3 routes — voir `AUDIT_146.md`).
+
+### Historique
 **Itération 8 — Bascule API + robustness multi-exec close. 🎯 3 routes API live (live preview, snapshot freeze, view inline) + build_sds() valide sur 12/12 execs testees.** 2 dernières sections templatées : Test Strategy & QA Approach (55 traceability entries, 83 test cases, test data strategy avec sous-tables imbriquées seed/bulk/negative, automation plan apex+flow tests, 12 risks), CI/CD & Deployment (4 environments + mermaid promotion path, 12 metadata components, 6 deployment phases + mermaid sequence, branching strategy, rollback plan, monitoring, testing strategy, release schedule). **L'intégralité du SDS est désormais générée depuis la base PostgreSQL via Jinja2 partials. Phase 5 Emma (LLM monolithique) peut être désactivée.**
 
 ## Décisions actées
@@ -298,6 +301,32 @@ Le build_sds() initial echouait sur les execs autres que 146 (`UndefinedError: '
 - 0 nouveau cout LLM
 - 1ere version frozen creee : `outputs/SDS_LogiFleet__v2.html` (475KB)
 
+## Itération 10 — Track A1 finalisation audit + legacy cleanup ✅
+
+Session 2026-04-26 (Claude autonome, branche `claude/sds-templating-final-audit-5qtf9`).
+
+### Cleanup legacy write_sds
+- Suppression de `_execute_write_sds_LEGACY_LLM` dans `salesforce_research_analyst.py` (~99 lignes)
+- Suppression du bloc YAML `write_sds:` dans `backend/prompts/agents/emma_research.yaml` (~103 lignes — passe de 470 à 367 lignes, 4 modes restants : `uc_digest`, `coverage_review`, `fix_instructions`)
+- Suppression du fichier orphelin `backend/tests/test_emma_write_sds.py` (déjà cassé pré-session, importait `WRITE_SDS_SYSTEM`/`run_write_sds_mode` disparus)
+- Méthode active `_execute_write_sds` (DB-driven, appelle `build_sds()`) intacte
+- Phase 5 dans l'orchestrator conservée (interprétation conservative — cf. AUDIT_146.md §4) : elle garde l'append Annexe A markdown, le save deliverable, le gate HITL, le checkpoint, l'export DOCX/PDF
+- AST Python + parse YAML re-vérifiés post-suppression : OK
+
+### Validation Jinja2 statique
+- 13/13 templates parsent sans erreur en `ChainableUndefined` (configuration réelle)
+- Cf. `docs/sds/AUDIT_146.md` §5
+
+### À exécuter sur VPS avant merge (🟡 VPS-required)
+- Build exec 146 + diff vs `_reference_logifleet_146.html`
+- Multi-exec robustness (4 exec_ids différents)
+- Smoke test 3 endpoints API (live preview / snapshot / view)
+- 1 lancement complet depuis ProjectWizard pour valider phase 5 DB-driven
+
+### Suite — merge sur main (Sam)
+- Cherry-pick préalable des commits marketing-site (`docs(marketing-site): ajouter scripts dh-mod9 a 14`) sur une branche dédiée
+- Tag `v2.0-sds-db-driven` post-merge
+
 ## Tests fonctionnels à faire (phase post-design)
 
 On passe au fonctionnel quand le design SDS est valide. À ce moment-là, vérifier :
@@ -322,11 +351,13 @@ On passe au fonctionnel quand le design SDS est valide. À ce moment-là, vérif
 - [ ] Tester sur des projets avec `data_spec` corrompu (LLM glitch `\`\`\`json` parasite) → vérifier que le parser tolérant v2 récupère bien
 
 ### 4. Cleanup quand tests validés
-- [ ] Supprimer `_execute_write_sds_LEGACY_LLM` dans `salesforce_research_analyst.py` (grep `TODO REMOVE`)
-- [ ] Supprimer la section `write_sds:` dans `backend/agents/prompts/emma_research.yaml` (~500 lignes)
-- [ ] Supprimer les backups gitignored `docs/sds/templates/sds_shell.html.j2.bak.*`
+- [x] Supprimer `_execute_write_sds_LEGACY_LLM` dans `salesforce_research_analyst.py` (grep `TODO REMOVE`) — fait Track A1 (2026-04-26)
+- [x] Supprimer la section `write_sds:` dans `backend/prompts/agents/emma_research.yaml` (~103 lignes) — fait Track A1
+- [x] Supprimer le test orphelin `backend/tests/test_emma_write_sds.py` (206 lignes) — fait Track A1
+- [ ] Supprimer les backups gitignored `docs/sds/templates/sds_shell.html.j2.bak.*` (à faire sur VPS, ils ne sont pas dans git)
 - [ ] Nettoyer `pm_orchestrator_service_v2.py:2716-2723` (skip Annexe A append si content commence par `<!DOCTYPE`)
 - [ ] Renommer `content.raw_markdown` → `content.raw_html` partout (avec migration douce)
+- [ ] Réécrire `backend/tests/e2e/test_sds_workflow_e2e.py:150-196` (`test_emma_write_sds_mode`) qui référence des symboles disparus pré-session
 
 ### 5. Iter 10 — Merge feat/sds-templating dans main
 - [ ] Tag `v2.0-sds-db-driven`
