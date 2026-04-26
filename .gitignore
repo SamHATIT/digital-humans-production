@@ -102,3 +102,8 @@ docs/refonte/index.html.pre_*
 # SDS templating outputs (générés par tools/build_sds.py)
 docs/sds/rendered.html
 docs/sds/rendered_*.html
+
+# Generated cover artefacts (regenerated via tools/generate_studio_covers.py)
+assets/covers/*.jpg
+assets/covers/*.png
+assets/covers/.generation.log
