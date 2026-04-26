@@ -4,6 +4,12 @@
 .env.production
 *.env
 
+# Secrets — never commit these (see docs/SECURITY.md)
+**/secrets.yml
+**/credentials.json
+.doppler/
+*.env.bak-*
+
 # Python
 __pycache__/
 *.py[cod]
