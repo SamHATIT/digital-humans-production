@@ -161,4 +161,27 @@ cd /tmp/agents-photos          # photos source des agents
 
 ---
 
+
+### Session 26 avril (soir, suite) — Mod 16 (correctif Mod 15)
+
+- **Mod 16** : refonte de la galerie en **slider horizontal flip 3D**, qui
+  **REMPLACE** le trombinoscope (`OurAgents` retiré de la composition Site).
+  - Numérotation revue : 01 Benefits → 02 Sequence → **03 The work (nouveau)** → 04 Correspondence (CTA)
+  - 6 slides projets, format slider horizontal scroll-snap (squelette HowItWorks)
+  - Slide : photo cover plein format avec titre + industrie en overlay sur gradient ink bottom 40%
+  - Hover desktop : flip 3D `rotateY(180deg)` (600ms) qui révèle au verso
+    industrie + 3 bullets scope Salesforce + punchline ital + CTA Read the SDS
+  - Fallback mobile : tap toggle `.flipped` (le hover ne marche pas tactile)
+  - **Bug Mod 15 fixé** : `COVER` accède directement à `R[key]` au lieu de
+    passer par `AV()` qui re-préfixait `'av'` → R['avCvLogifleet'] ne match
+    pas le slug `cvLogifleet` des ext_resources, d'où images cassées.
+  - Trombinoscope `OurAgents` toujours défini dans avatars.jsx (rollback rapide
+    possible) mais retiré de la composition Site.
+  - Tagline EN validée Sam : "Whatever theatre of work, one rim rule."
+  - Tagline FR : "Quel que soit le théâtre, une seule règle."
+  - **Validé par Sam** : [à valider sur http://72.61.161.222/preview/]
+
+### Backups disponibles
+État actuel = post-mod16. Backups : `pre-mod1` à `pre-mod16`.
+
 — fin du mémo, version 25 avril 2026 (post Mods 12-14) —
