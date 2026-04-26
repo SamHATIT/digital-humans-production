@@ -120,10 +120,16 @@ entries:
   - date: 2026-04-26
     label: "26 avril 2026"
     status: done
-    title: "🧹 SDS templating closed — Track A1 finalisation + cleanup legacy"
-    description: "Branche <code>claude/sds-templating-final-audit-5qtf9</code> (fast-forward de <code>feat/sds-templating</code>). 12/12 sections + 30/30 sous-sections DB-driven. Suppression du legacy <code>_execute_write_sds_LEGACY_LLM</code> (~99 lignes) + bloc YAML <code>write_sds:</code> dans <code>emma_research.yaml</code> (~103 lignes) + test orphelin <code>test_emma_write_sds.py</code>. Validation Jinja2 statique : 13/13 templates parsent OK. Audit complet dans <code>docs/sds/AUDIT_146.md</code> (avec checklist VPS-required pour le smoke test E2E pré-merge). Branche prête à merger sur main après cherry-pick préalable des commits marketing-site."
+    title: "🎯 SDS templating MERGED on main — Track A1 closed"
+    description: "Phase 1 du <strong>MASTER_PLAN_V4</strong> close. Merge tag <code>v2026.04-sds-templating-complete</code> (commit <code>b56a76b</code>). 12/12 sections + 30/30 sous-sections DB-driven via Jinja2. Suppression legacy Emma <code>write_sds</code> (méthode + YAML + test orphelin). Validation VPS par maître d'œuvre : build CLI exec 146 OK, multi-exec robustness 5/5 sans exception, 3 endpoints API tous HTTP 200/201 avec md5 identique sur les 3 (live preview, snapshot freeze, view immutable). Bug fix bénin <code>tools/build_sds.py</code> (relative_to outputs hors-repo). Constat: le commit marketing-site (<code>0259639</code>) ne touchait que <code>docs/marketing-site/</code> donc cherry-pick séparé inutile."
+
+  - date: 2026-04-26
+    label: "26 avril 2026"
+    status: active
+    title: "🚀 Lancement dispositif parallèle (MASTER_PLAN_V4)"
+    description: "Round 1 du dispositif Track A (Claude Code) + Track B (Claude Design) + Track C (Sam + maître d'œuvre). Briefs A1 (SDS templating final) ✅, A2 (audit secrets + Doppler) 🟦, B1 (atelier cinématique agents) ✅. Recommandation Design retenue : <strong>Casting → Théâtre</strong> (séquentiel : onboarding casting des 2 agents Free, puis bascule vers vue Théâtre 5 actes pour usage quotidien)."
 
   - label: "Prochain"
     status: planned
-    title: "Merge SDS templating sur main + P10 BaseAgent"
-    description: "Tag <code>v2.0-sds-db-driven</code> post-merge. En parallèle : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs)."
+    title: "Round 2 — Phase 2 site marketing + Phase 3 crédits Stripe"
+    description: "Phase 2 site (overlay urgence v1, galerie acte 3, FAQ, manifesto, tarifs 49€ Pro, footer, bandeau early access). Phase 3 schéma crédits + Stripe. Brief Phase 4 plateforme à partir de la spec Casting→Théâtre. À trancher en Track C : O1 planning d'ouverture, O2 palier Mid 299€."

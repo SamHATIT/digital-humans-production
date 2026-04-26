@@ -2346,7 +2346,7 @@ flowchart LR
   <div id="api" class="section">
     <h2>API Reference</h2>
     <p class="section-desc">API REST FastAPI. Préfixe par défaut <code>/api/v1</code>. Auth JWT sur tous les endpoints sauf <code>auth</code> et endpoints publics. Les endpoints ci-dessous sont extraits en direct du code (parsing AST des décorateurs <code>@router.method</code>).</p>
-    <p class="section-desc"><strong>177 endpoints</strong> répartis sur 28 modules.</p>
+    <p class="section-desc"><strong>180 endpoints</strong> répartis sur 28 modules.</p>
 
 
     <h3>Projets <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 6 endpoints · <code>backend/app/api/routes/projects.py</code></span></h3>
@@ -2591,7 +2591,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>Orchestrateur — exécutions SDS <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 10 endpoints · <code>backend/app/api/routes/orchestrator/execution_routes.py</code></span></h3>
+    <h3>Orchestrateur — exécutions SDS <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 11 endpoints · <code>backend/app/api/routes/orchestrator/execution_routes.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -2704,6 +2704,24 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>summary</dt>
                 <dd>Download the generated SDS document.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
+          <td><code>/execute/{execution_id}/sds-html</code></td>
+          <td><code>get_sds_live_preview</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Live preview du SDS genere depuis la base PostgreSQL via Jinja2 partials.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
               </dl>
@@ -3806,7 +3824,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>SDS — versioning <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 5 endpoints · <code>backend/app/api/routes/sds_versions.py</code></span></h3>
+    <h3>SDS — versioning <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 7 endpoints · <code>backend/app/api/routes/sds_versions.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -3820,7 +3838,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/projects/{project_id}/sds-versions</code></td>
+          <td><code>/{project_id}/sds-versions</code></td>
           <td><code>get_sds_versions</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3838,7 +3856,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/projects/{project_id}/sds-versions/current/download</code></td>
+          <td><code>/{project_id}/sds-versions/current/download</code></td>
           <td><code>download_current_sds</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3856,7 +3874,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/projects/{project_id}/sds-versions/{version_number}</code></td>
+          <td><code>/{project_id}/sds-versions/{version_number}</code></td>
           <td><code>get_sds_version</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3874,7 +3892,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/projects/{project_id}/sds-versions/{version_number}/download</code></td>
+          <td><code>/{project_id}/sds-versions/{version_number}/download</code></td>
           <td><code>download_sds_version</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3892,7 +3910,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/api/projects/{project_id}/approve-sds</code></td>
+          <td><code>/{project_id}/approve-sds</code></td>
           <td><code>approve_sds</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3901,6 +3919,42 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>summary</dt>
                 <dd>Approve SDS and move to BUILD_READY status.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/sds_versions.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/{project_id}/sds-versions</code></td>
+          <td><code>create_sds_version_from_execution</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Snapshot freeze d'un SDS depuis une execution.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/sds_versions.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
+          <td><code>/{project_id}/sds-versions/{version_number}/view</code></td>
+          <td><code>view_sds_version_inline</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Retourne le HTML d'une version frozen inline (vs /download qui force le DL).</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/sds_versions.py</code></dd>
               </dl>
@@ -6640,15 +6694,25 @@ flowchart TB
         <div class="timeline-title">⚙️ Migration LLM — Opus 4.6 → 4.7, Sonnet 4.5 → 4.6</div>
         <div class="timeline-desc">Bump des modèles par défaut : Opus 4.7 (pricing $5/$25 corrigé, drop <code>temperature</code> déprécié), Sonnet 4.6. SSoT <code>display_name</code> dans <code>llm_routing.yaml</code>. Hook <code>post-commit</code> auto-rebuild docs versionné dans <code>tools/git-hooks/</code>. ⚠️ Tokenizer Opus 4.7 utilise 1-1.35× plus de tokens que 4.6 — surveillance pour <code>MAX_TOTAL_LLM_CALLS=80</code>. Commits <code>bfc0c06</code> + <code>99d079b</code> + <code>fcb9a66</code>.</div>
       </div>
-      <div class="timeline-item active">
+      <div class="timeline-item done">
         <div class="timeline-date">25 avril 2026</div>
         <div class="timeline-title">📐 Chantier SDS templating — itérations 1+2 livrées</div>
         <div class="timeline-desc">Branche <code>feat/sds-templating</code>, 7 commits (non mergée). Objectif : remplacer la phase 5 Emma SDS Final ($5-10 / 10-15 min) par un assemblage Jinja2 depuis <code>agent_deliverables</code>. <strong>Iter 1</strong> : hero + TOC instrumentés (collectors PostgreSQL, filtre <code>humanize</code>, 14 lignes diff cosmétiques). <strong>Iter 2</strong> : 13/13 sous-sections de Solution Design instrumentées (sec-6.1 à 6.13) avec macro récursive <code>render_value</code>. Build ~1.2s, 0 coût LLM. Découverte : notre rendu DB-driven corrige ~30 API names <code>__c</code> et 5 sous-sections oubliées par le pipeline original. Voir <a href="#sds-templating">SDS templating</a>.</div>
       </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">26 avril 2026</div>
+        <div class="timeline-title">🎯 SDS templating MERGED on main — Track A1 closed</div>
+        <div class="timeline-desc">Phase 1 du <strong>MASTER_PLAN_V4</strong> close. Merge tag <code>v2026.04-sds-templating-complete</code> (commit <code>b56a76b</code>). 12/12 sections + 30/30 sous-sections DB-driven via Jinja2. Suppression legacy Emma <code>write_sds</code> (méthode + YAML + test orphelin). Validation VPS par maître d'œuvre : build CLI exec 146 OK, multi-exec robustness 5/5 sans exception, 3 endpoints API tous HTTP 200/201 avec md5 identique sur les 3 (live preview, snapshot freeze, view immutable). Bug fix bénin <code>tools/build_sds.py</code> (relative_to outputs hors-repo). Constat: le commit marketing-site (<code>0259639</code>) ne touchait que <code>docs/marketing-site/</code> donc cherry-pick séparé inutile.</div>
+      </div>
+      <div class="timeline-item active">
+        <div class="timeline-date">26 avril 2026</div>
+        <div class="timeline-title">🚀 Lancement dispositif parallèle (MASTER_PLAN_V4)</div>
+        <div class="timeline-desc">Round 1 du dispositif Track A (Claude Code) + Track B (Claude Design) + Track C (Sam + maître d'œuvre). Briefs A1 (SDS templating final) ✅, A2 (audit secrets + Doppler) 🟦, B1 (atelier cinématique agents) ✅. Recommandation Design retenue : <strong>Casting → Théâtre</strong> (séquentiel : onboarding casting des 2 agents Free, puis bascule vers vue Théâtre 5 actes pour usage quotidien).</div>
+      </div>
       <div class="timeline-item planned">
         <div class="timeline-date">Prochain</div>
-        <div class="timeline-title">Iter 3 templating SDS + P10 BaseAgent</div>
-        <div class="timeline-desc">Templating sections 1, 2, 3 (Project Overview + 25 BRs Sophie + 58 UCs Olivia) puis bascule API/frontend. En parallèle : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs).</div>
+        <div class="timeline-title">Round 2 — Phase 2 site marketing + Phase 3 crédits Stripe</div>
+        <div class="timeline-desc">Phase 2 site (overlay urgence v1, galerie acte 3, FAQ, manifesto, tarifs 49€ Pro, footer, bandeau early access). Phase 3 schéma crédits + Stripe. Brief Phase 4 plateforme à partir de la spec Casting→Théâtre. À trancher en Track C : O1 planning d'ouverture, O2 palier Mid 299€.</div>
       </div>
     </div>
   </div>
