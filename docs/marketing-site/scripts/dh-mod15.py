@@ -335,6 +335,17 @@ def _encode_module(text: str, mime: str) -> dict:
     return {"mime": mime, "compressed": True, "data": data}
 
 
+def _reencode_module(orig_entry: dict, new_text: str) -> dict:
+    """Ré-encode en respectant le flag compressed et le mime de l'entrée d'origine."""
+    new_entry = dict(orig_entry)
+    encoded = new_text.encode('utf-8')
+    if orig_entry.get('compressed'):
+        new_entry['data'] = base64.b64encode(gzip.compress(encoded)).decode('ascii')
+    else:
+        new_entry['data'] = base64.b64encode(encoded).decode('ascii')
+    return new_entry
+
+
 def _renumber_cta(av_raw: str) -> str:
     """№ 04 · Correspondence|Correspondance → № 05 · …."""
     pairs = [
@@ -381,18 +392,30 @@ def _expose_our_work_on_window(av_raw: str) -> str:
     return av_raw[:m.start()] + m.group(1) + new_body + m.group(3) + av_raw[m.end():]
 
 
-def _inject_composition(template_html: str) -> str:
-    """Insère ``<OurWork lang={lang}/>`` entre ``<OurAgents…/>`` et ``<CTA…/>``."""
+def _inject_composition_in_module(module_content: str) -> str:
+    """Insère ``<OurWork lang={lang}/>`` entre ``<OurAgents…/>`` et ``<CTA…/>``
+    dans le module JS du Site (UUID 0fbb2257-1e1f-4b29-9a76-…).
+    
+    Le composant Site est défini dans un module JS séparé du __bundler/template,
+    donc la composition est dans le content du module, pas dans le HTML.
+    """
+    if '<OurWork lang={lang}/>' in module_content:
+        return module_content  # idempotent
     pat = re.compile(
         r'(<OurAgents\s+lang=\{lang\}\s*/>)(\s*)(<CTA\s+lang=\{lang\}\s*/>)'
     )
-    new_template, n = pat.subn(
+    new_content, n = pat.subn(
         r'\1\2<OurWork lang={lang}/>\2\3',
-        template_html, count=1,
+        module_content, count=1,
     )
     if n != 1:
-        sys.exit("FATAL: composition <OurAgents…/><CTA…/> introuvable dans le template")
-    return new_template
+        sys.exit("FATAL: composition <OurAgents…/><CTA…/> introuvable dans le module Site")
+    return new_content
+
+
+def _inject_composition(template_html: str) -> str:
+    """No-op : composition is in a separate JS module, not the template HTML."""
+    return template_html
 
 
 def _inject_css(template_html: str) -> str:
@@ -484,7 +507,32 @@ def main() -> None:
 
     # 4) template : CSS + composition
     template_html = _inject_css(template_html)
-    template_html = _inject_composition(template_html)
+    template_html = _inject_composition(template_html)  # no-op désormais
+
+    # ---- Patch du module JS Site ----------------------------------------
+    # La composition <OurAgents/><CTA/> vit dans un module séparé (pas dans
+    # le template HTML), donc on doit le patcher dans le manifest.
+    site_uuid = None
+    for uuid_, entry_ in list(manifest.items()):
+        if 'application/javascript' in entry_.get('mime', '') or 'jsx' in entry_.get('mime', ''):
+            try:
+                content_ = _decode_module(entry_)
+                if '<OurAgents lang={lang}/>' in content_ and '<CTA lang={lang}/>' in content_:
+                    site_uuid = uuid_
+                    site_content_old = content_
+                    break
+            except Exception:
+                continue
+    if not site_uuid:
+        sys.exit("FATAL: module JS contenant <OurAgents lang={lang}/><CTA…/> introuvable dans le manifest")
+    
+    site_content_new = _inject_composition_in_module(site_content_old)
+    if site_content_new != site_content_old:
+        manifest[site_uuid] = _reencode_module(manifest[site_uuid], site_content_new)
+        print(f"[5b] Site module {site_uuid[:12]}... patché — <OurWork/> inséré")
+    else:
+        print(f"[5b] Site module {site_uuid[:12]}... déjà à jour (idempotent)")
+
     print("[4] template patché (CSS + <OurWork lang={lang}/>)")
 
     # 5) Réécriture des trois sections
