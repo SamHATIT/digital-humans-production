@@ -1,0 +1,373 @@
+{
+  "name": "Blog - Newsletter Hebdo (Lundi 9h)",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-newsletter",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "newsletter-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Lundi 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode test: true = envoie uniquement à shatit@gmail.com\n// Le body du webhook est dans $input.first().json.body pour responseMode\nconst inputData = $input.first().json;\nconst testMode = inputData.test_mode === true || inputData.body?.test_mode === true;\n\n// Calcul fenêtre semaine (7 jours en arrière)\nconst today = new Date();\nconst weekAgo = new Date(today);\nweekAgo.setDate(today.getDate() - 7);\nweekAgo.setHours(0, 0, 0, 0);\n\nreturn [{\n  json: {\n    week_start: weekAgo.toISOString(),\n    week_label: `Semaine du ${weekAgo.toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})}`,\n    test_mode: testMode\n  }\n}];"
+      },
+      "id": "init",
+      "name": "Init Week",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://blog-admin.digital-humans.fr/ghost/api/admin/posts/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Ghost {{ $('Get Ghost Token').first().json.token }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "status:published"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "include",
+              "value": "authors,tags"
+            },
+            {
+              "name": "order",
+              "value": "published_at desc"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get_posts",
+      "name": "Get Published Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        770,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrer les articles de cette semaine\nconst input = items[0].json;\nconst initData = $('Init Week').first().json;\nconst weekStart = new Date(initData.week_start);\nconst weekLabel = initData.week_label;\nconst testMode = initData.test_mode;\nconst posts = input.posts || [];\n\nconst thisWeekPosts = posts.filter(post => {\n  const pubDate = new Date(post.published_at);\n  return pubDate >= weekStart;\n});\n\nif (thisWeekPosts.length === 0) {\n  return [{ json: { skip: true, reason: 'Aucun article cette semaine' }}];\n}\n\n// Grouper par agent/auteur\nconst byAuthor = {};\nthisWeekPosts.forEach(post => {\n  const author = post.authors?.[0]?.name || 'Digital Humans';\n  if (!byAuthor[author]) byAuthor[author] = [];\n  byAuthor[author].push({\n    title: post.title,\n    excerpt: post.custom_excerpt || post.excerpt || '',\n    url: `https://digital-humans.fr/blog/${post.slug}`,\n    published_at: post.published_at\n  });\n});\n\nreturn [{\n  json: {\n    skip: false,\n    week_label: weekLabel,\n    total_articles: thisWeekPosts.length,\n    by_author: byAuthor,\n    posts: thisWeekPosts,\n    test_mode: testMode\n  }\n}];"
+      },
+      "id": "filter_week",
+      "name": "Filter This Week",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if_skip",
+      "name": "Has Articles?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1210,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Générer le HTML de la newsletter\nconst data = items[0].json;\n\nconst agents = {\n  'Sophie Chen': { color: '#8B5CF6', avatar: 'sophie-pm', role: 'Project Manager' },\n  'Olivia Parker': { color: '#3B82F6', avatar: 'olivia-ba', role: 'Business Analyst' },\n  'Marcus Johnson': { color: '#F97316', avatar: 'marcus-architect', role: 'Solution Architect' },\n  'Diego Martinez': { color: '#EF4444', avatar: 'diego-apex', role: 'Apex Developer' },\n  'Zara Thompson': { color: '#22C55E', avatar: 'zara-lwc', role: 'LWC Developer' },\n  'Raj Patel': { color: '#EAB308', avatar: 'raj-admin', role: 'Salesforce Admin' },\n  'Elena Vasquez': { color: '#6B7280', avatar: 'elena-qa', role: 'QA Engineer' },\n  'Jordan Blake': { color: '#1E40AF', avatar: 'jordan-devops', role: 'DevOps Engineer' },\n  'Aisha Okonkwo': { color: '#92400E', avatar: 'aisha-data', role: 'Data Specialist' },\n  'Lucas Fernandez': { color: '#D946EF', avatar: 'lucas-trainer', role: 'Training Lead' }\n};\n\nlet articlesHtml = '';\nfor (const post of data.posts) {\n  // L'agent est dans les TAGS, pas dans authors\n  const agentTag = post.tags?.find(t => agents[t.name]);\n  const agentName = agentTag?.name || 'Digital Humans';\n  const agent = agents[agentName] || { color: '#22d3ee', avatar: 'sophie-pm', role: 'Expert' };\n  const avatarUrl = `https://digital-humans.fr/avatars/${agent.avatar}.png`;\n  const postUrl = `https://digital-humans.fr/blog/${post.slug}`;\n  const excerpt = (post.custom_excerpt || post.excerpt || '').substring(0, 120);\n  \n  articlesHtml += `\n    <div style=\"background:rgba(30,41,59,0.8);border-radius:12px;margin-bottom:16px;border:1px solid #334155;padding:20px;\">\n      <div style=\"display:flex;align-items:center;gap:12px;margin-bottom:12px;\">\n        <img src=\"${avatarUrl}\" alt=\"${agentName}\" style=\"width:56px;height:56px;border-radius:50%;border:3px solid ${agent.color};object-fit:cover;\">\n        <div>\n          <span style=\"display:inline-block;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;color:white;background:${agent.color};\">${agentName}</span>\n          <div style=\"font-size:12px;color:#94a3b8;margin-top:4px;\">${agent.role}</div>\n        </div>\n      </div>\n      <a href=\"${postUrl}\" style=\"font-size:18px;font-weight:600;color:#f8fafc;text-decoration:none;display:block;margin-bottom:8px;\">${post.title}</a>\n      <p style=\"font-size:14px;color:#94a3b8;margin-bottom:16px;\">${excerpt}...</p>\n      <a href=\"${postUrl}\" style=\"font-size:14px;font-weight:500;color:#22d3ee;text-decoration:none;\">Lire l'article →</a>\n    </div>`;\n}\n\nconst testBanner = data.test_mode ? '<div style=\"background:#FEF3C7;color:#92400E;padding:12px;text-align:center;font-size:14px;font-weight:500;\">⚠️ MODE TEST - Email envoyé uniquement à shatit@gmail.com</div>' : '';\n\nconst html = `<!DOCTYPE html>\n<html lang=\"fr\">\n<head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1.0\"></head>\n<body style=\"margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;\">\n  <div style=\"max-width:640px;margin:0 auto;background:linear-gradient(180deg,#0f172a 0%,#1e293b 100%);\">\n    ${testBanner}\n    \n    <div style=\"padding:32px 24px;text-align:center;border-bottom:1px solid rgba(34,211,238,0.2);\">\n      <a href=\"https://digital-humans.fr\" style=\"font-size:24px;font-weight:700;color:#22d3ee;text-decoration:none;\">Digital-<span style=\"color:#f8fafc;\">Humans.fr</span></a>\n      <p style=\"margin-top:8px;font-size:14px;color:#94a3b8;\">L'IA au service du développement Salesforce</p>\n    </div>\n    \n    <div style=\"padding:40px 24px;text-align:center;\">\n      <h1 style=\"font-size:28px;font-weight:700;color:#f8fafc;margin:0 0 8px;\">📬 Newsletter</h1>\n      <p style=\"font-size:16px;color:#22d3ee;margin:0 0 16px;\">${data.week_label}</p>\n      <p style=\"font-size:16px;color:#cbd5e1;margin:0;\">Cette semaine, nos agents ont publié <strong style=\"color:#22d3ee;\">${data.total_articles} article${data.total_articles > 1 ? 's' : ''}</strong> pour vous aider à maîtriser Salesforce.</p>\n    </div>\n    \n    <div style=\"padding:0 24px 32px;\">\n      <div style=\"font-size:12px;text-transform:uppercase;letter-spacing:2px;color:#64748b;margin-bottom:24px;padding-bottom:8px;border-bottom:1px solid #334155;\">Les articles de la semaine</div>\n      ${articlesHtml}\n    </div>\n    \n    <div style=\"padding:32px 24px;text-align:center;background:rgba(34,211,238,0.05);border-top:1px solid rgba(34,211,238,0.2);border-bottom:1px solid rgba(34,211,238,0.2);\">\n      <a href=\"https://digital-humans.fr/blog\" style=\"display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#22d3ee 0%,#06b6d4 100%);color:#0f172a;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;\">Voir tous les articles</a>\n    </div>\n    \n    <div style=\"padding:32px 24px;text-align:center;\">\n      <div style=\"font-size:18px;font-weight:700;color:#22d3ee;margin-bottom:8px;\">Digital-<span style=\"color:#f8fafc;\">Humans.fr</span></div>\n      <p style=\"font-size:13px;color:#64748b;margin:0 0 16px;\">10 agents IA experts Salesforce à votre service</p>\n      <div style=\"margin-bottom:16px;\">\n        <a href=\"https://digital-humans.fr\" style=\"color:#94a3b8;text-decoration:none;font-size:13px;margin:0 12px;\">Site web</a>\n        <a href=\"https://digital-humans.fr/blog\" style=\"color:#94a3b8;text-decoration:none;font-size:13px;margin:0 12px;\">Blog</a>\n        <a href=\"https://linkedin.com/company/digital-humans-fr\" style=\"color:#94a3b8;text-decoration:none;font-size:13px;margin:0 12px;\">LinkedIn</a>\n      </div>\n      <p style=\"font-size:12px;color:#475569;margin:0;\">\n        <a href=\"#\" style=\"color:#64748b;\">Se désabonner</a> · <a href=\"#\" style=\"color:#64748b;\">Gérer mes préférences</a>\n      </p>\n    </div>\n  </div>\n</body>\n</html>`;\n\nreturn [{ json: { subject: `📬 Newsletter Digital Humans - ${data.week_label}`, html, total_articles: data.total_articles, test_mode: data.test_mode }}];"
+      },
+      "id": "gen_html",
+      "name": "Generate Newsletter HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1430,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.test_mode ? \"SELECT email, name FROM leads WHERE email = 'shatit@gmail.com'\" : \"SELECT email, name FROM leads WHERE verified = true AND subscribed_newsletter = true\" }}",
+        "options": {}
+      },
+      "id": "get_subscribers",
+      "name": "Get Subscribers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1650,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $('Generate Newsletter HTML').first().json.subject }}",
+        "emailType": "html",
+        "html": "={{ $('Generate Newsletter HTML').first().json.html }}",
+        "options": {
+          "replyTo": "contact@digital-humans.fr"
+        }
+      },
+      "id": "send_email",
+      "name": "Send Newsletter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1870,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: $json.reason || 'Newsletter skipped - no articles' }) }}"
+      },
+      "id": "resp_skip",
+      "name": "Response Skip",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1430,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, articles: $('Generate Newsletter HTML').first().json.total_articles, recipients: $input.all().length, test_mode: $('Generate Newsletter HTML').first().json.test_mode }) }}"
+      },
+      "id": "resp_ok",
+      "name": "Response OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2090,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8765/ghost-token",
+        "options": {}
+      },
+      "id": "get_ghost_token",
+      "name": "Get Ghost Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        550,
+        390
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Init Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lundi 9h": {
+      "main": [
+        [
+          {
+            "node": "Init Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Published Posts": {
+      "main": [
+        [
+          {
+            "node": "Filter This Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter This Week": {
+      "main": [
+        [
+          {
+            "node": "Has Articles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Articles?": {
+      "main": [
+        [
+          {
+            "node": "Response Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Newsletter HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Newsletter HTML": {
+      "main": [
+        [
+          {
+            "node": "Get Subscribers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Newsletter": {
+      "main": [
+        [
+          {
+            "node": "Response OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Week": {
+      "main": [
+        [
+          {
+            "node": "Get Ghost Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ghost Token": {
+      "main": [
+        [
+          {
+            "node": "Get Published Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
