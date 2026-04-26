@@ -1,0 +1,33 @@
+; Example systemd unit — Doppler-wrapped frontend (Vite preview).
+; Copy to /etc/systemd/system/digital-humans-frontend.service (without the
+; .example suffix). Adjust `npm` path / build mode if your install differs.
+;
+; The frontend itself doesn't read application secrets — only the build-time
+; VITE_API_URL — but we still wrap it in `doppler run` so all three units share
+; the same lifecycle / token rotation surface. If you'd rather keep the
+; frontend Doppler-free, drop the `doppler run` prefix and inline the env vars.
+
+[Unit]
+Description=Digital Humans frontend (Vite preview) — Doppler-wrapped
+After=network-online.target digital-humans-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/digital-humans/frontend
+EnvironmentFile=/etc/digital-humans/doppler.env
+ExecStart=/usr/local/bin/doppler run \
+    --project digital-humans --config prod \
+    --token "${DOPPLER_TOKEN}" \
+    -- /usr/bin/npm run preview -- --host 0.0.0.0 --port 3000
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+; Example systemd unit — Doppler-wrapped ARQ worker.
+; Copy to /etc/systemd/system/digital-humans-worker.service (without the
+; .example suffix). Adjust the worker entry point if it differs from the
+; codebase convention `app.workers.arq_settings:WorkerSettings`.
+;
+; Pre-requisites: see digital-humans-backend.service.example.
+
+[Unit]
+Description=Digital Humans ARQ worker — Doppler-wrapped
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/digital-humans/backend
+EnvironmentFile=/etc/digital-humans/doppler.env
+ExecStart=/usr/local/bin/doppler run \
+    --project digital-humans --config prod \
+    --token "${DOPPLER_TOKEN}" \
+    -- /opt/digital-humans/backend/venv/bin/arq app.workers.arq_settings.WorkerSettings
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/digital-humans
+
+[Install]
+WantedBy=multi-user.target

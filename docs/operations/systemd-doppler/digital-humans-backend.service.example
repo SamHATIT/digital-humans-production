@@ -1,0 +1,47 @@
+; Example systemd unit — Doppler-wrapped backend.
+; Copy to /etc/systemd/system/digital-humans-backend.service (without the
+; .example suffix). Adjust paths if your install layout differs from
+; docs/deployment.md.
+;
+; Pre-requisites (see ../../SECURITY.md §3):
+;   - /usr/local/bin/doppler installed
+;   - /etc/digital-humans/doppler.env contains DOPPLER_TOKEN=… (mode 0600)
+;   - Doppler project digital-humans / config prod populated
+;
+; To apply:
+;   sudo cp digital-humans-backend.service.example /etc/systemd/system/digital-humans-backend.service
+;   sudo systemctl daemon-reload
+;   sudo systemctl restart digital-humans-backend
+
+[Unit]
+Description=Digital Humans backend (FastAPI + uvicorn) — Doppler-wrapped
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/digital-humans/backend
+EnvironmentFile=/etc/digital-humans/doppler.env
+; All other secrets (DATABASE_URL, SECRET_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY,
+; CREDENTIALS_ENCRYPTION_KEY, …) are injected by `doppler run` — they MUST NOT
+; be set here or in any other EnvironmentFile.
+ExecStart=/usr/local/bin/doppler run \
+    --project digital-humans --config prod \
+    --token "${DOPPLER_TOKEN}" \
+    -- /opt/digital-humans/backend/venv/bin/python -m uvicorn app.main:app \
+       --host 0.0.0.0 --port 8002
+
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+; Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/digital-humans
+
+[Install]
+WantedBy=multi-user.target
