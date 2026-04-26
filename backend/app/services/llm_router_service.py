@@ -81,6 +81,7 @@ class LLMRequest:
     agent_type: Optional[str] = None                # Preferred : routing via agent_tier_map
     project_id: Optional[int] = None
     execution_id: Optional[int] = None
+    user_id: Optional[int] = None                   # Phase 3.1 : credit owner. None = skip credit hook.
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -520,6 +521,11 @@ class LLMRouterService:
             request.agent_type, self.profile, provider_str,
         )
 
+        # Phase 3.1 : credit pre-flight (no-op if request.user_id is None).
+        preflight_error = self._credit_preflight(request, provider_str)
+        if preflight_error is not None:
+            return preflight_error
+
         response = await self._call_provider(request, provider_str)
 
         # Fallback chain scoped to profile
@@ -527,6 +533,10 @@ class LLMRouterService:
             fallback = self._fallback_for(provider_str)
             if fallback and fallback != provider_str:
                 logger.warning("Falling back from %s to %s (profile=%s)", provider_str, fallback, self.profile)
+                # Re-check credits for the fallback model in case it changes tier.
+                preflight_error = self._credit_preflight(request, fallback)
+                if preflight_error is not None:
+                    return preflight_error
                 response = await self._call_provider(request, fallback)
             elif fallback == provider_str:
                 logger.info("No-op fallback for %s in profile %s", provider_str, self.profile)
@@ -536,8 +546,99 @@ class LLMRouterService:
                     provider_str, self.profile,
                 )
 
+        # Phase 3.1 : debit credits ONLY on success (failures cost nothing).
+        if response.success:
+            self._credit_post_charge(request, response)
+
         self._track_usage(request, response)
         return response
+
+    # ------------------------------------------------------------------
+    # Phase 3.1 — Credit hooks
+    # ------------------------------------------------------------------
+
+    def _credit_preflight(
+        self, request: LLMRequest, provider_str: str
+    ) -> Optional[LLMResponse]:
+        """
+        Run credit pre-flight for ``request``. Returns an error LLMResponse
+        if the user cannot afford or is not authorized for the model, ``None``
+        otherwise. No-op when ``request.user_id`` is None.
+        """
+        if request.user_id is None:
+            return None
+        try:
+            from app.database import SessionLocal
+            from app.services.credit_service import (
+                CreditError,
+                CreditService,
+                InsufficientCreditsError,
+                ModelNotAllowedError,
+            )
+        except Exception as exc:
+            logger.error("Credit module unavailable, skipping pre-flight: %s", exc)
+            return None
+
+        model_id = self._get_model_id(provider_str)
+        db = SessionLocal()
+        try:
+            service = CreditService(db)
+            service.preflight(request.user_id, model_id, request.max_tokens)
+        except ModelNotAllowedError as exc:
+            logger.warning("Credit pre-flight blocked: %s", exc)
+            return LLMResponse(
+                content="", provider=provider_str, model_id=model_id,
+                tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=0,
+                success=False, error=f"model_not_allowed: {exc}",
+            )
+        except InsufficientCreditsError as exc:
+            logger.warning("Credit pre-flight blocked: %s", exc)
+            return LLMResponse(
+                content="", provider=provider_str, model_id=model_id,
+                tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=0,
+                success=False, error=f"insufficient_credits: {exc}",
+            )
+        except CreditError as exc:
+            logger.error("Credit pre-flight error (skipping): %s", exc)
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.error("Unexpected credit pre-flight failure: %s", exc, exc_info=True)
+        finally:
+            db.close()
+        return None
+
+    def _credit_post_charge(
+        self, request: LLMRequest, response: LLMResponse
+    ) -> None:
+        """Debit credits after a successful LLM call. Errors are logged, never raised."""
+        if request.user_id is None:
+            return
+        if not response.success:
+            return
+        try:
+            from app.database import SessionLocal
+            from app.services.credit_service import CreditService
+        except Exception as exc:
+            logger.error("Credit module unavailable, skipping post-charge: %s", exc)
+            return
+
+        db = SessionLocal()
+        try:
+            CreditService(db).charge(
+                user_id=request.user_id,
+                model=response.model_id or response.provider,
+                tokens_in=response.tokens_in or 0,
+                tokens_out=response.tokens_out or 0,
+                execution_id=request.execution_id,
+                project_id=request.project_id,
+            )
+        except Exception as exc:
+            # Don't fail the user response just because the ledger choked.
+            logger.error(
+                "Credit post-charge failed for user=%s model=%s: %s",
+                request.user_id, response.model_id, exc,
+            )
+        finally:
+            db.close()
 
     async def _call_provider(self, request: LLMRequest, provider_str: str) -> LLMResponse:
         provider_name, model_name = provider_str.split("/", 1)
@@ -634,6 +735,7 @@ class LLMRouterService:
             max_tokens=max_tokens, temperature=temperature,
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
+            user_id=kwargs.get("user_id"),
         )
         response = self.complete_sync(request)
         return _response_to_dict(response)
@@ -653,6 +755,7 @@ class LLMRouterService:
             max_tokens=max_tokens, temperature=temperature,
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
+            user_id=kwargs.get("user_id"),
         )
         response = await self.complete(request)
         return _response_to_dict(response)
