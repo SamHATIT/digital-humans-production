@@ -11,7 +11,7 @@
 # L'ordre du fichier = ordre d'affichage (chronologique ascendant).
 
 version: 1
-last_reviewed: 2026-04-24
+last_reviewed: 2026-04-26
 
 entries:
 
@@ -105,7 +105,25 @@ entries:
     title: "📚 Ingestion RAG — Salesforce 2026 (7 sources, +21 615 écritures)"
     description: "Ajout de 10 795 chunks dans le RAG (70 251 → 91 866). Sources : Winter/Spring/Summer '26 Release Notes (PDFs officiels), Shield Platform Encryption, AgentScript spec (TDX 2026, open-sourced 15 avr), Headless 360 consolidé (10 sources), Hyperforce/SFOA Chine (8 sources). Nouvelle collection <code>china_collection</code> (isolation <code>region=cn</code>). Coût OpenAI : ~$0.35. Modèle bi-tier : OpenAI 3-large pour docs (3072 dim), Nomic pour code (768 dim)."
 
+  - date: 2026-04-25
+    label: "25 avril 2026"
+    status: done
+    title: "⚙️ Migration LLM — Opus 4.6 → 4.7, Sonnet 4.5 → 4.6"
+    description: "Bump des modèles par défaut : Opus 4.7 (pricing $5/$25 corrigé, drop <code>temperature</code> déprécié), Sonnet 4.6. SSoT <code>display_name</code> dans <code>llm_routing.yaml</code>. Hook <code>post-commit</code> auto-rebuild docs versionné dans <code>tools/git-hooks/</code>. ⚠️ Tokenizer Opus 4.7 utilise 1-1.35× plus de tokens que 4.6 — surveillance pour <code>MAX_TOTAL_LLM_CALLS=80</code>. Commits <code>bfc0c06</code> + <code>99d079b</code> + <code>fcb9a66</code>."
+
+  - date: 2026-04-25
+    label: "25 avril 2026"
+    status: done
+    title: "📐 Chantier SDS templating — itérations 1+2 livrées"
+    description: "Branche <code>feat/sds-templating</code>, 7 commits (non mergée). Objectif : remplacer la phase 5 Emma SDS Final ($5-10 / 10-15 min) par un assemblage Jinja2 depuis <code>agent_deliverables</code>. <strong>Iter 1</strong> : hero + TOC instrumentés (collectors PostgreSQL, filtre <code>humanize</code>, 14 lignes diff cosmétiques). <strong>Iter 2</strong> : 13/13 sous-sections de Solution Design instrumentées (sec-6.1 à 6.13) avec macro récursive <code>render_value</code>. Build ~1.2s, 0 coût LLM. Découverte : notre rendu DB-driven corrige ~30 API names <code>__c</code> et 5 sous-sections oubliées par le pipeline original. Voir <a href=\"#sds-templating\">SDS templating</a>."
+
+  - date: 2026-04-26
+    label: "26 avril 2026"
+    status: done
+    title: "🧹 SDS templating closed — Track A1 finalisation + cleanup legacy"
+    description: "Branche <code>claude/sds-templating-final-audit-5qtf9</code> (fast-forward de <code>feat/sds-templating</code>). 12/12 sections + 30/30 sous-sections DB-driven. Suppression du legacy <code>_execute_write_sds_LEGACY_LLM</code> (~99 lignes) + bloc YAML <code>write_sds:</code> dans <code>emma_research.yaml</code> (~103 lignes) + test orphelin <code>test_emma_write_sds.py</code>. Validation Jinja2 statique : 13/13 templates parsent OK. Audit complet dans <code>docs/sds/AUDIT_146.md</code> (avec checklist VPS-required pour le smoke test E2E pré-merge). Branche prête à merger sur main après cherry-pick préalable des commits marketing-site."
+
   - label: "Prochain"
-    status: active
-    title: "P10 consolidation + E2E post-Session 3"
-    description: "Prochaine étape : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs) et lancer un E2E complet validant les fixes Session 3."
+    status: planned
+    title: "Merge SDS templating sur main + P10 BaseAgent"
+    description: "Tag <code>v2.0-sds-db-driven</code> post-merge. En parallèle : consolider P10 (BaseAgent class, contrats <code>_call_llm</code>/<code>execution_id</code> communs)."

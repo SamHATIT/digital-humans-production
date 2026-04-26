@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, FileText, GitBranch, CheckCircle, Download, Plus,
   Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp, Play,
-  Settings, Cloud
+  Settings, Cloud, Eye, Camera
 } from 'lucide-react';
 import api from '../services/api';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
@@ -227,6 +227,45 @@ export default function ProjectDetailPage() {
     window.open(`/api/projects/${projectId}/sds-versions/${versionNumber}/download?token=${token}`, '_blank');
   };
 
+  // Iter 8 — Live preview du SDS DB-driven (sans cout LLM, ~510ms)
+  const livePreviewSDS = () => {
+    if (!latestExecutionId) {
+      alert('Aucune execution disponible pour ce projet');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    window.open(`/api/pm-orchestrator/execute/${latestExecutionId}/sds-html?token=${token}`, '_blank');
+  };
+
+  // Iter 8 — Snapshot freeze (cree une version DB-driven immuable)
+  const [snapshotting, setSnapshotting] = useState(false);
+  const snapshotSDS = async () => {
+    if (!latestExecutionId) {
+      alert('Aucune execution disponible pour ce projet');
+      return;
+    }
+    setSnapshotting(true);
+    try {
+      await api.post(`/api/projects/${projectId}/sds-versions`, {
+        execution_id: latestExecutionId,
+        notes: `Snapshot DB-driven from execution #${latestExecutionId}`,
+      });
+      // Refresh la liste des versions
+      const versionsRes = await api.get(`/api/projects/${projectId}/sds-versions`);
+      setSdsVersions(versionsRes.versions || []);
+    } catch (error: any) {
+      alert(error.response?.data?.detail || 'Snapshot failed');
+    } finally {
+      setSnapshotting(false);
+    }
+  };
+
+  // Iter 8 — View inline d'une version frozen
+  const viewVersion = (versionNumber: number) => {
+    const token = localStorage.getItem('token');
+    window.open(`/api/projects/${projectId}/sds-versions/${versionNumber}/view?token=${token}`, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
@@ -276,6 +315,29 @@ export default function ProjectDetailPage() {
               <h2 className="font-semibold">SDS Documents</h2>
             </div>
             
+            {/* Iter 8 — Boutons Live Preview + Snapshot DB-driven */}
+            {latestExecutionId && (
+              <div className="mb-4 flex flex-col gap-2">
+                <button
+                  onClick={livePreviewSDS}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm font-medium transition"
+                  title="Generate SDS preview live from PostgreSQL (no LLM cost)"
+                >
+                  <Eye className="w-4 h-4" />
+                  Live preview (DB-driven)
+                </button>
+                <button
+                  onClick={snapshotSDS}
+                  disabled={snapshotting}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-lg text-sm font-medium transition"
+                  title="Freeze a new immutable version from current DB state"
+                >
+                  {snapshotting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                  {snapshotting ? 'Snapshotting...' : 'Snapshot version'}
+                </button>
+              </div>
+            )}
+            
             {sdsVersions.length === 0 ? (
               <p className="text-gray-500 text-sm">No SDS versions yet</p>
             ) : (
@@ -291,12 +353,22 @@ export default function ProjectDetailPage() {
                         {new Date(version.generated_at).toLocaleDateString()}
                       </p>
                     </div>
-                    <button
-                      onClick={() => downloadSDS(version.version_number)}
-                      className="p-2 hover:bg-[#2a3f5f] rounded"
-                    >
-                      <Download className="w-4 h-4 text-cyan-400" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => viewVersion(version.version_number)}
+                        className="p-2 hover:bg-[#2a3f5f] rounded"
+                        title="View inline"
+                      >
+                        <Eye className="w-4 h-4 text-cyan-400" />
+                      </button>
+                      <button
+                        onClick={() => downloadSDS(version.version_number)}
+                        className="p-2 hover:bg-[#2a3f5f] rounded"
+                        title="Download"
+                      >
+                        <Download className="w-4 h-4 text-cyan-400" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -4,7 +4,7 @@ Execution management routes for PM Orchestrator.
 P4: Extracted from pm_orchestrator.py — SDS execution lifecycle.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, PlainTextResponse
 from sqlalchemy.orm import Session
 from typing import List
 import asyncio
@@ -403,6 +403,43 @@ def download_sds_document(
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     )
+
+
+@router.get("/execute/{execution_id}/sds-html", response_class=HTMLResponse)
+def get_sds_live_preview(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header),
+):
+    """Live preview du SDS genere depuis la base PostgreSQL via Jinja2 partials.
+    
+    Aucun cout LLM. Build ~1.6s. Affiche en temps reel l'etat de la DB pour
+    cette execution, meme si elle est en cours.
+    
+    Iter 8 — bascule du SDS DB-driven (vs ancien pipeline phase 5 Emma LLM).
+    """
+    execution = verify_execution_access(execution_id, current_user.id, db)
+    
+    # Importer build_sds (extracted en fonction publique au lot D iter 7)
+    import sys
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[5]
+    tools_path = str(repo_root / "tools")
+    if tools_path not in sys.path:
+        sys.path.insert(0, tools_path)
+    
+    try:
+        from build_sds import build_sds
+        html = build_sds(execution_id)
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"build_sds failed for execution {execution_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"SDS rendering failed: {type(e).__name__}: {e}"
+        )
+    
+    return HTMLResponse(content=html, status_code=200)
 
 
 @router.get("/executions", response_model=List[ExecutionSchema])

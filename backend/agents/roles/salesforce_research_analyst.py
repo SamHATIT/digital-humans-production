@@ -722,58 +722,55 @@ class ResearchAnalystAgent:
         execution_id: int,
         project_id: int,
     ) -> Dict[str, Any]:
-        """Assemble all deliverables into final SDS document."""
-        start_time = time.time()
+        """Generate the final SDS document.
 
-        project_name = input_data.get('project_name', 'Salesforce Project')
+        Iter 8 (2026-04-25) — Bascule DB-driven : appelle build_sds(execution_id)
+        qui rend le HTML directement depuis PostgreSQL via Jinja2 partials. Plus
+        besoin d'un LLM call massif (etait ~5-10$ par run avec Sonnet 4.5,
+        max_tokens=32000). Build time ~1.6s, 0 cout LLM.
+
+        Le rendu utilise les 12 partials/ + le shell sds_shell.html.j2. Toutes
+        les sections (1 a 12) + les 30 sous-sections sont DB-driven via les
+        12 collectors dans tools/lib/collect_sds.py.
+
+        Le retour conserve la cle content.raw_markdown pour compat avec
+        pm_orchestrator_service_v2.py (qui consomme ce champ ligne ~2715), mais
+        son contenu est desormais du HTML rendu. Le champ content.raw_html est
+        ajoute pour clarification semantique. Tant que pm_orchestrator append
+        toujours "Annexe A" en markdown, ce sera redondant (les UCs sont deja
+        inclus dans le HTML via les sections 3 et 4) — a nettoyer dans iter 10.
+        """
+        start_time = time.time()
         timestamp = datetime.now().isoformat()
 
-        # Extract deliverables — generous limits to preserve expert content
-        # Sonnet 4.5 context = 200K tokens (~800K chars), so total ~200K chars is safe
-        def safe_content(key: str, max_len: int = 30000) -> str:
-            val = input_data.get(key, '')
-            if isinstance(val, dict):
-                val = json.dumps(val, indent=2, ensure_ascii=False)
-            elif isinstance(val, list):
-                val = json.dumps(val, indent=2, ensure_ascii=False)
-            return str(val)[:max_len] if val else "Not provided"
+        # ──────────────────────────────────────────────────────────────────
+        # Build SDS depuis la DB via build_sds (tools/build_sds.py)
+        # ──────────────────────────────────────────────────────────────────
+        import sys
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parents[3]
+        tools_path = str(repo_root / "tools")
+        if tools_path not in sys.path:
+            sys.path.insert(0, tools_path)
 
-        # Render prompt from YAML — no fallback
-        prompt = PROMPT_SERVICE.render("emma_research", "write_sds", {
-            "project_name": project_name,
-            "timestamp": timestamp,
-            "br_content": safe_content('business_requirements', 20000),
-            "uc_content": safe_content('use_cases', 15000),
-            "uc_digest_content": safe_content('uc_digest', 15000),
-            "solution_design_content": safe_content('solution_design', 60000),
-            "gap_analysis_content": safe_content('gap_analysis', 20000),
-            "wbs_content": safe_content('wbs', 30000),
-            "qa_content": safe_content('qa_plan', 15000),
-            "devops_content": safe_content('devops_plan', 10000),
-            "training_content": safe_content('training_plan', 10000),
-            "data_migration_content": safe_content('data_migration_plan', 10000),
-        })
-
-        system_prompt = "You are Emma, a Research Analyst. Write the complete SDS document. Output ONLY Markdown."
-
-        logger.info(f"WRITE_SDS mode: prompt size: {len(prompt)} chars")
-
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, system_prompt, max_tokens=32000, temperature=0.4,
-            execution_id=execution_id
-        )
+        try:
+            from build_sds import build_sds
+            content = build_sds(execution_id)
+            logger.info(f"WRITE_SDS via build_sds(): {len(content):,} chars rendered")
+        except Exception as e:
+            logger.error(f"build_sds failed for execution {execution_id}: {e}", exc_info=True)
+            raise
 
         execution_time = time.time() - start_time
 
-        # Log interaction
+        # Log interaction (cosmetique, plus de tokens consommes)
         self._log_interaction(
-            mode="write_sds", prompt=prompt, content=content,
-            execution_id=execution_id, input_tokens=input_tokens,
-            tokens_used=tokens_used, model_used=model_used,
-            provider_used=provider_used, execution_time=execution_time,
+            mode="write_sds", prompt="[DB-driven, no LLM prompt]", content=content[:5000] + "...",
+            execution_id=execution_id, input_tokens=0,
+            tokens_used=0, model_used="build_sds (no LLM)",
+            provider_used="local", execution_time=execution_time,
         )
 
-        # For write_sds, content is Markdown, not JSON
         return {
             "success": True,
             "agent_id": "research_analyst",
@@ -784,18 +781,20 @@ class ResearchAnalystAgent:
             "deliverable_type": "sds_document",
             "artifact_id": "SDS-001",
             "content": {
-                "raw_markdown": content,
+                "raw_markdown": content,  # NOTE iter 8: contient du HTML, pas du Markdown
+                "raw_html": content,       # alias semantique correct
                 "word_count": len(content.split()),
-                "sections_count": content.count('\n# ') + content.count('\n## ')
+                "sections_count": 12,      # 12 sections DB-driven
             },
             "metadata": {
-                "tokens_used": tokens_used,
-                "cost_usd": getattr(self, '_total_cost', 0.0),
-                "model": model_used,
-                "provider": provider_used,
+                "tokens_used": 0,
+                "cost_usd": 0.0,
+                "model": "build_sds (DB-driven, no LLM)",
+                "provider": "local",
                 "execution_time_seconds": round(execution_time, 2),
                 "content_length": len(content),
-                "generated_at": timestamp
+                "generated_at": timestamp,
+                "rendering_engine": "jinja2_partials_v1",
             }
         }
 

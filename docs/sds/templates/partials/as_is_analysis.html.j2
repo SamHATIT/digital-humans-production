@@ -1,0 +1,41 @@
+{# sec-5 : As-Is Analysis (Marcus) - organization + standard objects.
+   L'organization est rendue en table key-value avec chips pour les listes
+   (permission_sets_standard, profiles_standard). Cles humanisees via le filtre
+   'humanize' (snake_case -> espaces). L'ordre des cles dans organization n'est
+   pas garanti par PostgreSQL JSONB, on definit l'ordre canonique du rendu de
+   reference ci-dessous. #}
+{% set ORG_ORDER = ['edition', 'api_version', 'release', 'custom_objects',
+                    'apex_classes', 'apex_triggers', 'flows', 'lightning_pages',
+                    'permission_sets_custom', 'permission_sets_standard',
+                    'profiles_standard'] %}<section id='sec-5' class='block'>
+<div class='act'><span class='act-num'>— Scene V</span><span class='act-sep'></span><span class='act-tag'>Artifact 05</span></div><h1 class='sec-h1'><span>As-Is Analysis</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
+<p>Marcus inspected the existing Salesforce org to baseline what is already in place before designing the target architecture.</p>
+<h2 id='sub-5-1' class='sec-h2'><span>5.1 Organization</span></h2>
+{% set ordered_keys = [] %}{% for k in ORG_ORDER %}{% if k in as_is.organization %}{% set _ = ordered_keys.append(k) %}{% endif %}{% endfor %}{% if ordered_keys %}<table class='tbl'>
+{% set first_key = ordered_keys[0] %}<thead><tr>
+<th><strong>{{ first_key | humanize }}</strong></th>
+<th>{{ as_is.organization[first_key] }}</th>
+</tr></thead>
+<tbody>
+{% for key in ordered_keys[1:] %}{% set val = as_is.organization[key] %}<tr>
+<td><strong>{{ key | humanize }}</strong></td>
+{% if val is iterable and val is not string %}<td class='td-json'><div class='chiprow'>{% for item in val %}<span class='chip'>{{ item }}</span>{% if not loop.last %} {% endif %}{% endfor %}</div></td>
+{% else %}<td>{{ val }}</td>
+{% endif %}</tr>
+{% endfor %}</tbody></table>
+{% endif %}
+<h2 id='sub-5-2' class='sec-h2'><span>5.2 Standard Objects in Org</span> <em class='brass'>({{ as_is.standard_objects | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Custom fields</strong></th>
+<th><strong>Notes</strong></th>
+</tr></thead>
+<tbody>
+{% for obj in as_is.standard_objects %}<tr>
+<td><strong>{{ obj.name if 'name' in obj else '—' }}</strong></td>
+<td>{{ obj.custom_fields_count if 'custom_fields_count' in obj else '—' }}</td>
+<td>{{ obj.description if 'description' in obj else '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

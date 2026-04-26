@@ -1,0 +1,34 @@
+{% set uc_total = uc_data.use_cases | length %}{% set br_with_ucs_count = uc_data.by_br | length %}{% set br_total = br_data.business_requirements | length %}{% set avg_ucs = (uc_total / br_with_ucs_count) | round(1) if br_with_ucs_count > 0 else 0 %}<section id='sec-3' class='block'>
+<div class='act'><span class='act-num'>— Scene III</span><span class='act-sep'></span><span class='act-tag'>Artifact 03</span></div><h1 class='sec-h1'><span>Use Cases</span> <em class='brass'>(Olivia — BA)</em></h1>
+<p class='note'>Olivia produced {{ uc_total }} use cases from the {{ br_total }} BRs — an average of {{ avg_ucs }} UCs per requirement. Each UC has an actor, a trigger, and a step-by-step main flow.</p>
+<h2 id='sub-3-1' class='sec-h2'><span>3.1 Use Case Index</span> <em class='brass'>by Business Requirement</em></h2>
+<table class='tbl tbl-expand tbl-uc_index'>
+<thead><tr>
+<th class='tbl-toggle-col' aria-hidden='true'></th>
+<th><strong>BR</strong></th>
+<th><strong># UCs</strong></th>
+<th><strong>UC IDs</strong></th>
+<th><strong>Actor(s)</strong></th>
+</tr></thead>
+<tbody>
+{% for br_id, ucs in uc_data.by_br | dictsort %}{% set actors = ucs | map(attribute='actor') | reject('none') | unique | list %}<tr class='tbl-row-summary' data-id='{{ br_id }}' tabindex='0' role='button' aria-expanded='false' aria-controls='detail-uc_index-{{ br_id }}'>
+<td class='tbl-toggle'><span class='tbl-caret'></span></td>
+<td><strong>{{ br_id }}</strong></td>
+<td><strong>{{ ucs | length }}</strong></td>
+<td>{{ ucs | map(attribute='id') | join(', ') }}</td>
+<td>{{ actors | join(', ') }}</td>
+</tr>
+<tr class='tbl-row-detail' id='detail-uc_index-{{ br_id }}'><td colspan='5'><div class='tbl-detail-body uc-cards'>
+{% for uc in ucs %}<div class='uc-card'>
+<div class='uc-card-head'>
+<span class='req-code uc'>{{ uc.id }}</span>
+<span class='uc-card-title'>{{ uc.title }}</span>
+</div>
+<dl class='detail-kv'>
+<dt>Actor</dt><dd>{{ uc.actor }}</dd>
+<dt>Trigger</dt><dd>{{ uc.trigger }}</dd>
+{% if uc.main_flow %}<dt>Main Flow</dt><dd>• {{ uc.main_flow | dot_join }}</dd>
+{% endif %}</dl></div>
+{% endfor %}</div></td></tr>
+{% endfor %}</tbody></table>
+</section>

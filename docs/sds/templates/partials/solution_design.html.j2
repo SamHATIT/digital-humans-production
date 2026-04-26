@@ -1,0 +1,402 @@
+<section id='sec-6' class='block'>
+<div class='act'><span class='act-num'>— Scene VI</span><span class='act-sep'></span><span class='act-tag'>Artifact 06</span></div><h1 class='sec-h1'><span>Solution Design</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
+<p>The target architecture: data model, security, automation, integrations, UI. This is the longest section of the SDS — Marcus must produce this in enough detail for BUILD agents (Diego/Zara) to implement without inventing missing pieces.</p>
+<p class='note'>This section is the primary input to all BUILD-phase agents. Every gap or vagueness here translates into improvisation by Diego (Apex), Zara (LWC), Raj (Admin) and Jordan (DevOps).</p>
+<h2 id='sub-6-1' class='sec-h2'><span>6.1 Data Model</span> <em class='brass'>Entity Relationship Diagram</em></h2>
+<p>The target data model has {{ data_model.standard_objects | length }} standard objects extended, {{ data_model.custom_objects | length }} new custom objects, and {{ data_model.relationships | length }} relationships.</p>
+<div class='figure-block'><div class='figure-caption'>Figure 1 — Target ERD ({{ data_model.custom_objects | length }} custom objects, {{ data_model.relationships | length }} relationships) — generated from Marcus<strong>'</strong>s erd_mermaid block</div>
+<div class='mermaid-wrap'><pre class="mermaid">
+{{ data_model.erd_mermaid if 'erd_mermaid' in data_model else '' }}
+</pre></div>
+</div>
+<h2 id='sub-6-2' class='sec-h2'><span>6.2 Custom Objects</span> <em class='brass'>({{ data_model.custom_objects | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Sharing</strong></th>
+<th><strong>Purpose</strong></th>
+<th><strong># Fields</strong></th>
+</tr></thead>
+<tbody>
+{% for obj in data_model.custom_objects %}<tr>
+<td><strong>{{ obj.api_name }}</strong></td>
+<td>{{ obj.sharing_model if 'sharing_model' in obj else '—' }}</td>
+<td>{{ obj.purpose }}</td>
+<td><strong>{{ obj.fields | length }}</strong></td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-3' class='sec-h2'><span>6.3 Custom Object</span> <em class='brass'>Field Details</em></h2>
+{% for obj in data_model.custom_objects %}<p><strong>{{ obj.api_name if 'api_name' in obj else '?' }}  </strong>({{ obj.label if 'label' in obj else '?' }}) — {{ obj.fields | length if 'fields' in obj else 0 }} fields</p>
+<p class='note'>{{ obj.purpose }}</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Req?</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+{% for field in obj.fields %}<tr>
+<td><strong>{{ field.api_name }}</strong></td>
+<td>{{ field.type }}</td>
+<td>{% if field.required %}<strong>✓</strong>{% endif %}</td>
+<td>{{ field.description }}</td>
+</tr>
+{% if 'values' in field %}<tr>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>Picklist values: </strong><em>{{ field['values'] | join(', ') }}</em></td>
+</tr>
+{% endif %}{% endfor %}</tbody></table>
+{% endfor %}<h2 id='sub-6-4' class='sec-h2'><span>6.4 Relationships</span> <em class='brass'>({{ data_model.relationships | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Parent</strong></th>
+<th><strong>Child</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Field</strong></th>
+</tr></thead>
+<tbody>
+{% for rel in data_model.relationships %}<tr>
+<td><strong>{{ rel.from }}</strong></td>
+<td><strong>{{ rel.to }}</strong></td>
+<td>{{ rel.type }}</td>
+<td>{{ rel.field }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-5' class='sec-h2'><span>6.5 Security Model</span></h2>
+{% if 'profiles' in security_model and security_model.profiles %}<h3 class='sec-h3'>Profiles ({{ security_model.profiles | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Profile</strong></th>
+<th><strong>License</strong></th>
+<th><strong>Description</strong></th>
+</tr></thead>
+<tbody>
+{% for prof in security_model.profiles %}<tr>
+<td><strong>{{ prof.name }}</strong></td>
+<td>{{ prof.license }}</td>
+<td>{{ prof.description }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}<h3 class='sec-h3'>Permission Sets ({{ security_model.permission_sets | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Permission Set</strong></th>
+<th><strong>Grants</strong></th>
+</tr></thead>
+<tbody>
+{% for ps in security_model.permission_sets %}<tr>
+<td><strong>{{ ps.api_name }}</strong></td>
+<td>{{ ps.description }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Sharing Rules ({{ security_model.sharing_rules | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Criteria</strong></th>
+<th><strong>Shared with</strong></th>
+<th><strong>Access</strong></th>
+</tr></thead>
+<tbody>
+{% for sr in security_model.sharing_rules %}<tr>
+<td><strong>{{ sr.name }}</strong></td>
+<td>{{ sr.object }}</td>
+<td>{{ sr.type }}</td>
+<td>{{ sr.criteria }}</td>
+<td>{{ sr.shared_with }}</td>
+<td>{{ sr.access }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Org-Wide Defaults ({{ security_model.owd | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Internal</strong></th>
+<th><strong>External</strong></th>
+</tr></thead>
+<tbody>
+{% for owd in security_model.owd %}<tr>
+<td>{{ owd.object }}</td>
+<td>{{ owd.internal }}</td>
+<td>{{ owd.external }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-6' class='sec-h2'><span>6.6 Queues</span> <em class='brass'>({{ queues | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Queue</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Members type</strong></th>
+<th><strong>Members</strong></th>
+</tr></thead>
+<tbody>
+{% for q in queues %}<tr>
+<td><strong>{{ q.name }}</strong></td>
+<td>{{ q.object }}</td>
+<td>{{ q.members_type }}</td>
+<td>{{ q.members | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-7' class='sec-h2'><span>6.7 Reporting</span></h2>
+<h3 class='sec-h3'>Reports ({{ reporting.reports | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Name</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Filters</strong></th>
+<th><strong>Grouping</strong></th>
+</tr></thead>
+<tbody>
+{% for r in reporting.reports %}<tr>
+<td><strong>{{ r.name }}</strong></td>
+<td>{{ r.object }}</td>
+<td>{{ r.type }}</td>
+<td>{% if r.filters %}{{ r.filters | join(' · ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
+<td>{% if r.grouping %}{{ r.grouping | join(', ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Dashboards ({{ reporting.dashboards | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Dashboard</strong></th>
+<th><strong>Components ({{ reporting.dashboards | map(attribute='components') | map('length') | sum }} total)</strong></th>
+</tr></thead>
+<tbody>
+{% for d in reporting.dashboards %}<tr>
+<td><strong>{{ d.name }}</strong></td>
+<td>{{ d.components | length }} components: {{ d.components | map(attribute='title') | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-8' class='sec-h2'><span>6.8 Automation Design</span></h2>
+<h3 class='sec-h3'>Flows ({{ automation_design.flows | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Flow name</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Trigger</strong></th>
+<th><strong>UC refs</strong></th>
+</tr></thead>
+<tbody>
+{% for f in automation_design.flows %}<tr>
+<td><strong>{{ f.api_name }}</strong></td>
+<td>{{ f.type }}</td>
+<td>{{ f.trigger.object }}</td>
+<td><em>{{ f.trigger.event }}</em>{% if f.trigger.condition %} — {{ f.trigger.condition }}{% endif %}</td>
+<td>{% if f.uc_refs %}{{ f.uc_refs | join(', ') }}{% else %}<span class='muted'>—</span>{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Apex Triggers ({{ automation_design.apex_triggers | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Trigger</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Events</strong></th>
+<th><strong>Handler class</strong></th>
+</tr></thead>
+<tbody>
+{% for t in automation_design.apex_triggers %}<tr>
+<td><strong>{{ t.name }}</strong></td>
+<td>{{ t.object }}</td>
+<td>{{ t.events | join(', ') }}</td>
+<td><code>{{ t.handler_class }}</code></td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Scheduled Jobs ({{ automation_design.scheduled_jobs | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Job</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Schedule</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+{% for j in automation_design.scheduled_jobs %}<tr>
+<td><strong>{{ j.name }}</strong></td>
+<td>{{ j.type }}</td>
+<td>{{ j.schedule }}</td>
+<td>{{ j.purpose }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Platform Events ({{ automation_design.platform_events | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Event</strong></th>
+<th><strong>Fields</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+{% for e in automation_design.platform_events %}<tr>
+<td><strong>{{ e.api_name }}</strong></td>
+<td>{{ e.fields | length }} fields ({{ e.fields | map(attribute='api_name') | join(', ') }})</td>
+<td>{{ e.purpose }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{# ═════════════════════════════════════════════════════════════════════
+   Macro render_value : rendu recursif d'une valeur JSON arbitraire en HTML
+   Utilise pour 6.9 Integration Points et toute future structure imbriquee.
+   ═════════════════════════════════════════════════════════════════════ #}
+{% macro render_value(v, key='') -%}
+{%- if key in ['uc_refs', 'UC refs'] -%}
+{{ v | join(', ') }}
+{%- elif v is mapping -%}
+<table class='tbl tbl-kv tbl-nested'><tbody>
+{%- for k, val in v.items() %}
+<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{{ render_value(val, k) }}</td></tr>
+{%- endfor %}
+</tbody></table>
+{%- elif v is sequence and v is not string -%}
+{%- if v | length == 0 -%}
+<span class='muted'>—</span>
+{%- else -%}
+<div class='chiprow'>{% for item in v %}<span class='chip'>{{ item }}</span>{% if not loop.last %} {% endif %}{% endfor %}</div>
+{%- endif -%}
+{%- elif v is number and v is not boolean -%}
+<code class='json-num'>{{ v }}</code>
+{%- else -%}
+{{ v }}
+{%- endif -%}
+{%- endmacro %}
+<h2 id='sub-6-9' class='sec-h2'><span>6.9 Integration Points</span> <em class='brass'>({{ integration_points | length }})</em></h2>
+{% for ip in integration_points %}<p><strong>{{ ip.name }}</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th>system</th>
+<th>{{ ip.system }}</th>
+</tr></thead>
+<tbody>
+{%- set ordered_keys = ['direction', 'method', 'frequency', 'auth', 'rate_limits', 'named_credential', 'uc_refs', 'endpoint_spec', 'error_handling'] %}
+{%- for k in ordered_keys %}
+{%- if k in ip %}
+<tr>
+<td>{{ k | humanize }}</td>
+{%- if ip[k] is mapping %}
+<td class='td-json'>{{ render_value(ip[k], k) }}</td>
+{%- else %}
+<td>{{ render_value(ip[k], k) }}</td>
+{%- endif %}
+</tr>
+{%- endif %}
+{%- endfor %}
+{#- Cles inconnues : on les ajoute a la fin pour ne rien perdre #}
+{%- for k, v in ip.items() %}
+{%- if k not in ordered_keys and k not in ['name', 'system'] %}
+<tr>
+<td>{{ k | humanize }}</td>
+{%- if v is mapping %}
+<td class='td-json'>{{ render_value(v, k) }}</td>
+{%- else %}
+<td>{{ render_value(v, k) }}</td>
+{%- endif %}
+</tr>
+{%- endif %}
+{%- endfor %}
+</tbody></table>
+{% endfor %}
+<h2 id='sub-6-10' class='sec-h2'><span>6.10 UI Components</span></h2>
+<h3 class='sec-h3'>Lightning Apps ({{ ui_components.lightning_apps | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>App</strong></th>
+<th><strong>Tabs</strong></th>
+</tr></thead>
+<tbody>
+{% for a in ui_components.lightning_apps %}<tr>
+<td><strong>{{ a.name }}</strong></td>
+<td>{{ a.tabs | length }} tabs: {{ a.tabs | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Lightning Pages ({{ ui_components.lightning_pages | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Page</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Object</strong></th>
+<th><strong>Components</strong></th>
+</tr></thead>
+<tbody>
+{% for pg in ui_components.lightning_pages %}<tr>
+<td><strong>{{ pg.name }}</strong></td>
+<td>{{ pg.type }}</td>
+<td>{{ pg.object }}</td>
+<td>{{ pg.components | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>LWC Components ({{ ui_components.lwc_components | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>LWC</strong></th>
+<th><strong>Target</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+{% for c in ui_components.lwc_components %}<tr>
+<td><strong>{{ c.name }}</strong></td>
+<td><code>{{ c.target }}</code></td>
+<td>{{ c.purpose }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h3 class='sec-h3'>Quick Actions ({{ ui_components.quick_actions | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Action</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Flow</strong></th>
+</tr></thead>
+<tbody>
+{% for q in ui_components.quick_actions %}<tr>
+<td><strong>{{ q.name }}</strong></td>
+<td>{{ q.type }}</td>
+<td>{% if q.flow_name %}<code>{{ q.flow_name }}</code>{% else %}<span class='muted'>—</span>{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-11' class='sec-h2'><span>6.11 Use Case → Architecture Traceability</span> <em class='brass'>({{ uc_traceability | length }} UCs)</em></h2>
+<p>For each UC, the architecture elements that implement it. This is what Emma's coverage validator checks against.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>UC ID</strong></th>
+<th><strong>Architecture references</strong></th>
+</tr></thead>
+<tbody>
+{% for uc_id, refs in uc_traceability | dictsort %}<tr>
+<td><strong>{{ uc_id }}</strong></td>
+<td>{{ refs | join(', ') }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-12' class='sec-h2'><span>6.12 Technical Considerations</span> <em class='brass'>({{ technical_considerations | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Topic</strong></th>
+<th><strong>Consideration</strong></th>
+<th><strong>Mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for tc in technical_considerations %}<tr>
+<td><strong>{{ tc.topic }}</strong></td>
+<td>{{ tc.consideration }}</td>
+<td>{{ tc.mitigation }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-6-13' class='sec-h2'><span>6.13 Risks</span> <em class='brass'>({{ risks | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Risk</strong></th>
+<th><strong>Probability</strong></th>
+<th><strong>Impact</strong></th>
+<th><strong>Mitigation</strong></th>
+</tr></thead>
+<tbody>
+{% for risk in risks %}<tr>
+<td>{{ risk.risk }}</td>
+<td><strong>{{ risk.probability }}</strong></td>
+<td><strong>{{ risk.impact }}</strong></td>
+<td>{{ risk.mitigation }}</td>
+</tr>
+{% endfor %}</tbody></table>
+</section>

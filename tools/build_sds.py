@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""build_sds.py — Génère un SDS HTML depuis la DB pour une execution donnée.
+
+Itération 1 : juste hero + TOC instrumentés. Les 12 sections de contenu
+restent identiques au HTML de référence pour le moment. Au fil des
+itérations on les transformera en partials Jinja2 paramétrés.
+
+Usage :
+    python3 tools/build_sds.py --execution-id 146
+    python3 tools/build_sds.py --execution-id 146 --output /tmp/sds.html
+    python3 tools/build_sds.py --execution-id 146 --check  # valide sans écrire
+
+Modes futurs (pas encore implémentés) :
+    --snapshot --project-id N --version N  # crée une row sds_versions
+    --serve                                # mode endpoint pour live preview
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+# Ajouter tools/ au path pour importer lib.collect_sds
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "tools"))
+
+from jinja2 import Environment, FileSystemLoader, ChainableUndefined  # noqa: E402
+from markupsafe import Markup, escape  # noqa: E402
+from lib.collect_sds import build_render_context  # noqa: E402
+
+
+TEMPLATES_DIR = REPO_ROOT / "docs" / "sds" / "templates"
+DEFAULT_OUTPUT = REPO_ROOT / "docs" / "sds" / "rendered.html"
+
+
+def humanize(s):
+    """Convertit snake_case en 'espace separe', avec quelques cas speciaux.
+    
+    Utilise par le macro render_value du partial 6.9 Integration Points
+    pour transformer les cles JSON en libelles lisibles.
+    """
+    if not isinstance(s, str):
+        return s
+    SPECIAL = {
+        "uc_refs": "UC refs",
+        "url_pattern": "url pattern",
+        "payload_format": "payload format",
+        "key_fields": "key fields",
+        "response_codes": "response codes",
+        "rate_limits": "rate limits",
+        "named_credential": "named credential",
+        "endpoint_spec": "endpoint spec",
+        "error_handling": "error handling",
+        "retry_strategy": "retry strategy",
+        "dead_letter": "dead letter",
+        "requests_per_day": "requests per day",
+        "requests_per_hour": "requests per hour",
+        "requests_per_minute": "requests per minute",
+    }
+    return SPECIAL.get(s, s.replace("_", " "))
+
+
+def _text_escape(s):
+    """Escape minimaliste pour contenu textuel HTML : & < > seulement.
+    
+    Apostrophes et guillemets sont laisses bruts (pas necessaires en contenu
+    textuel hors-attribut). Reproduit le comportement du rendu de reference.
+    """
+    if not isinstance(s, str):
+        s = str(s)
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def etext(s):
+    """Escape minimaliste pour valeurs textuelles (& < > seulement, pas les
+    apostrophes ni guillemets). Filtre l'equivalent ponctuel de dot_join pour
+    les valeurs simples, necessaire car autoescape=False."""
+    return _text_escape(s)
+
+
+def dot_join(items):
+    """Joint une liste avec ' <span class='dot'>·</span> ' en escapant chaque item.
+    
+    Necessaire car autoescape=False : sans ce filtre, les '>' '<' '&' contenus
+    dans les data ne seraient pas convertis en entites HTML.
+    Utilise un escape minimaliste pour ne pas convertir les apostrophes en
+    &#39; (la ref les garde brutes).
+    """
+    if not items:
+        return Markup("")
+    parts = [_text_escape(it) for it in items]
+    return Markup(" <span class='dot'>·</span> ".join(parts))
+
+
+def ftrim(s):
+    """Strip whitespace pour les valeurs venant de la DB qui peuvent avoir
+    des espaces parasites (saisie utilisateur dans projects.name)."""
+    return s.strip() if isinstance(s, str) else s
+
+
+def build_sds(execution_id: int) -> str:
+    """Charge le contexte depuis la DB, rend le shell, retourne le HTML.
+    
+    Cette fonction est l'API publique du module : utilisable depuis les routes
+    FastAPI pour le live preview et le snapshot freeze.
+    """
+    env = Environment(
+        loader=FileSystemLoader(str(TEMPLATES_DIR)),
+        # ChainableUndefined : tolere les chemins type 'a.b.c' meme si 'b' n'existe
+        # pas (rend un blank au final). Trade-off : moins strict en debug mais
+        # robuste multi-exec (les structures DB varient selon les versions d'agents).
+        # Pour debug strict, repasser temporairement en StrictUndefined.
+        undefined=ChainableUndefined,
+        autoescape=False,  # on génère du HTML structuré, pas un site multi-utilisateurs
+        trim_blocks=False,
+        lstrip_blocks=False,
+    )
+    env.filters["humanize"] = humanize
+    env.filters["dot_join"] = dot_join
+    env.filters["etext"] = etext
+    env.filters["ftrim"] = ftrim
+    template = env.get_template("sds_shell.html.j2")
+    
+    context = build_render_context(execution_id)
+    return template.render(**context)
+
+
+# Alias pour compat eventuelle
+render = build_sds
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--execution-id", type=int, required=True, help="ID de l'execution dans la DB")
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help=f"Chemin de sortie (défaut: {DEFAULT_OUTPUT.relative_to(REPO_ROOT)})")
+    parser.add_argument("--check", action="store_true", help="Rendre en mémoire seulement, ne pas écrire")
+    parser.add_argument("--diff-reference", action="store_true",
+                        help="Comparer avec _reference_logifleet_146.html (utile pour exec 146)")
+    args = parser.parse_args()
+    
+    print(f"→ Build SDS pour execution #{args.execution_id}")
+    
+    try:
+        html = build_sds(args.execution_id)
+    except Exception as e:
+        print(f"❌ Erreur de rendu : {type(e).__name__}: {e}")
+        return 1
+    
+    print(f"  · HTML rendu : {len(html):,} chars")
+    
+    if args.check:
+        print("✅ Rendu OK (mode --check, pas d'écriture)")
+        return 0
+    
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(html)
+    try:
+        display_path = args.output.relative_to(REPO_ROOT)
+    except ValueError:
+        display_path = args.output  # output outside repo (e.g. /tmp/), show absolute
+    print(f"  · Écrit dans : {display_path}")
+    
+    if args.diff_reference:
+        ref = TEMPLATES_DIR / "_reference_logifleet_146.html"
+        if ref.exists():
+            ref_html = ref.read_text()
+            print()
+            print(f"=== Diff vs référence ({ref.name}) ===")
+            print(f"  référence : {len(ref_html):,} chars")
+            print(f"  rendu     : {len(html):,} chars")
+            print(f"  delta     : {len(html) - len(ref_html):+,} chars")
+            
+            # Diff structurel grossier
+            import difflib
+            ref_lines = ref_html.splitlines()
+            new_lines = html.splitlines()
+            print(f"  lignes    : {len(ref_lines)} vs {len(new_lines)}")
+            
+            diff = list(difflib.unified_diff(ref_lines, new_lines, lineterm="", n=0))
+            change_lines = [l for l in diff if l.startswith(("+", "-")) and not l.startswith(("+++", "---"))]
+            print(f"  diff lines: {len(change_lines)} lignes modifiées")
+        else:
+            print(f"⚠️  Référence introuvable : {ref}")
+    
+    print("\n✅ Build SDS terminé.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,171 @@
+{# sec-12 : Deployment & CI/CD (Jordan) — 8 sous-sections completes.
+   Le payload Jordan est wrappe en raw_markdown mais structure propre
+   (pas de corruption observee, _parse_error=None). #}
+<section id='sec-12' class='block'>
+<div class='act'><span class='act-num'>— Scene XII</span><span class='act-sep'></span><span class='act-tag'>Artifact 12</span></div><h1 class='sec-h1'><span>Deployment &amp; CI/CD</span> <em class='brass'>(Jordan — DevOps Engineer)</em></h1>
+<p>Jordan defined the deployment strategy: {{ devops.environment_strategy.environments | length }} environments, {{ devops.metadata_inventory | length }} metadata components, {{ devops.deployment_sequence | length }} deployment phases.</p>
+<h2 id='sub-12-1' class='sec-h2'><span>12.1 Environments</span> <em class='brass'>({{ devops.environment_strategy.environments | length }})</em></h2>
+<div class='figure-block'><div class='figure-caption'>Figure 3 — Environment promotion path</div>
+<div class='mermaid-wrap'><pre class="mermaid">flowchart LR
+{% for env in devops.environment_strategy.environments %}    {{ env.name }}["{{ env.name }} — {{ env.type }}"]
+{% endfor %}{% set envs_list = devops.environment_strategy.environments %}{% for env in envs_list %}{% if not loop.last %}    {{ env.name }} --> {{ envs_list[loop.index].name }}
+{% endif %}{% endfor %}</pre></div>
+</div>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Env</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Purpose</strong></th>
+<th><strong>Data strategy</strong></th>
+<th><strong>Refresh</strong></th>
+</tr></thead>
+<tbody>
+{% for env in devops.environment_strategy.environments %}<tr>
+<td><strong>{{ env.name }}</strong></td>
+<td>{{ env.type }}</td>
+<td>{{ env.purpose | etext }}</td>
+<td>{{ env.data_strategy | etext }}</td>
+<td>{{ env.refresh_frequency if 'refresh_frequency' in env else '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-12-2' class='sec-h2'><span>12.2 Metadata Inventory</span> <em class='brass'>({{ devops.metadata_inventory | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Component type</strong></th>
+<th><strong>Components</strong></th>
+<th><strong>Order</strong></th>
+<th><strong>Notes</strong></th>
+</tr></thead>
+<tbody>
+{% for mi in devops.metadata_inventory %}<tr>
+<td><strong>{{ mi.component_type }}</strong></td>
+<td>{% if mi.components %}<div class='chiprow'>{% for c in mi.components %}<span class='chip'>{{ c | etext }}</span> {% endfor %}</div>{% else %}<span class='muted'>—</span>{% endif %}</td>
+<td><strong>{{ mi.deploy_order }}</strong></td>
+<td>{{ (mi.notes | etext) if 'notes' in mi and mi.notes else '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-12-3' class='sec-h2'><span>12.3 Deployment Sequence</span> <em class='brass'>({{ devops.deployment_sequence | length }} phases)</em></h2>
+<div class='figure-block'><div class='figure-caption'>Figure 4 — Phased deployment sequence (top to bottom)</div>
+<div class='mermaid-wrap'><pre class="mermaid">flowchart TB
+{% for ds in devops.deployment_sequence %}    P{{ ds.phase }}["Phase {{ ds.phase }} — {{ ds.name }}"]
+{% endfor %}{% for ds in devops.deployment_sequence %}{% if not loop.last %}    P{{ ds.phase }} --> P{{ devops.deployment_sequence[loop.index].phase }}
+{% endif %}{% endfor %}</pre></div>
+</div>
+<table class='tbl'>
+<thead><tr>
+<th><strong>#</strong></th>
+<th><strong>Name</strong></th>
+<th><strong>Components</strong></th>
+<th><strong>Validation</strong></th>
+<th><strong>Rollback</strong></th>
+</tr></thead>
+<tbody>
+{% for ds in devops.deployment_sequence %}<tr>
+<td><strong>{{ ds.phase }}</strong></td>
+<td><strong>{{ ds.name | etext }}</strong></td>
+<td>{% if ds.components %}<div class='chiprow'>{% for c in ds.components %}<span class='chip'>{{ c | etext }}</span> {% endfor %}</div>{% else %}<span class='muted'>—</span>{% endif %}</td>
+<td>{{ (ds.validation | etext) if 'validation' in ds and ds.validation else '—' }}</td>
+<td>{{ (ds.rollback | etext) if 'rollback' in ds and ds.rollback else '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-12-4' class='sec-h2'><span>12.4 CI/CD Pipeline</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>tool</td>
+<td>{{ devops.ci_cd_pipeline.tool | etext }}</td>
+</tr>
+{% if devops.ci_cd_pipeline.branching_strategy %}<tr>
+<td>branching strategy</td>
+<td><table class='tbl tbl-kv tbl-nested'><tbody>
+{% for k, v in devops.ci_cd_pipeline.branching_strategy.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is mapping %}<table class='tbl tbl-kv tbl-nested'><tbody>{% for k2, v2 in v.items() %}<tr><td><span class='key'>{{ k2 | humanize }}</span></td><td>{{ v2 | etext }}</td></tr>{% endfor %}</tbody></table>{% elif v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>
+{% endfor %}</tbody></table></td>
+</tr>
+{% endif %}{% if devops.ci_cd_pipeline.workflows %}<tr>
+<td>workflows</td>
+<td class='td-json'><table class='tbl tbl-nested'><thead><tr>
+<th><span class='key'>name</span></th>
+<th><span class='key'>trigger</span></th>
+<th><span class='key'>steps</span></th>
+</tr></thead><tbody>
+{% for wf in devops.ci_cd_pipeline.workflows %}<tr>
+<td><strong>{{ wf.name }}</strong></td>
+<td>{{ wf.trigger | etext }}</td>
+<td>{% if wf.steps %}{{ wf.steps | join(' → ') | etext }}{% else %}—{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table></td>
+</tr>
+{% endif %}</tbody></table>
+<h2 id='sub-12-5' class='sec-h2'><span>12.5 Rollback Plan</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>strategy</td>
+<td>{{ devops.rollback_plan.strategy | etext }}</td>
+</tr>
+{% if devops.rollback_plan.steps %}<tr>
+<td>steps</td>
+<td>• {{ devops.rollback_plan.steps | dot_join }}</td>
+</tr>
+{% endif %}{% if devops.rollback_plan.prevention %}<tr>
+<td>prevention</td>
+<td>• {{ devops.rollback_plan.prevention | dot_join }}</td>
+</tr>
+{% endif %}{% if devops.rollback_plan.data_recovery %}<tr>
+<td>data recovery</td>
+<td><table class='tbl tbl-kv tbl-nested'><tbody>
+{% for k, v in devops.rollback_plan.data_recovery.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>
+{% endfor %}</tbody></table></td>
+</tr>
+{% endif %}</tbody></table>
+<h2 id='sub-12-6' class='sec-h2'><span>12.6 Monitoring</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+{% if devops.monitoring.post_deployment_checks %}<tr>
+<td>post deployment checks</td>
+<td>• {{ devops.monitoring.post_deployment_checks | dot_join }}</td>
+</tr>
+{% endif %}{% if devops.monitoring.ongoing_monitoring %}<tr>
+<td>ongoing monitoring</td>
+<td>• {{ devops.monitoring.ongoing_monitoring | dot_join }}</td>
+</tr>
+{% endif %}{% if devops.monitoring.alerting %}<tr>
+<td>alerting</td>
+<td><table class='tbl tbl-kv tbl-nested'><tbody>
+{% for k, v in devops.monitoring.alerting.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>
+{% endfor %}</tbody></table></td>
+</tr>
+{% endif %}</tbody></table>
+<h2 id='sub-12-7' class='sec-h2'><span>12.7 Testing Strategy</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+{% for k, v in devops.testing_strategy.items() %}<tr>
+<td>{{ k | humanize }}</td>
+<td>{% if v is mapping %}<table class='tbl tbl-kv tbl-nested'><tbody>{% for k2, v2 in v.items() %}<tr><td><span class='key'>{{ k2 | humanize }}</span></td><td>{% if v2 is iterable and v2 is not string and v2 is not mapping %}{{ v2 | join(', ') | etext }}{% elif v2 is mapping %}{{ v2 | tojson | etext }}{% else %}{{ v2 | etext }}{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}{{ v | etext }}{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-12-8' class='sec-h2'><span>12.8 Release Schedule</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>cadence</td>
+<td>{{ devops.release_schedule.cadence | etext }}</td>
+</tr>
+<tr>
+<td>maintenance window</td>
+<td>{{ devops.release_schedule.maintenance_window | etext }}</td>
+</tr>
+{% if devops.release_schedule.release_phases %}<tr>
+<td>release phases</td>
+<td class='td-json'><table class='tbl tbl-nested'><tbody>
+{% for rp in devops.release_schedule.release_phases %}<tr>
+<td>{% if rp is mapping %}<table class='tbl tbl-kv tbl-nested'><tbody>{% for k, v in rp.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>{% endfor %}</tbody></table>{% else %}{{ rp | etext }}{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table></td>
+</tr>
+{% endif %}<tr>
+<td>hotfix process</td>
+<td>{{ devops.release_schedule.hotfix_process | etext }}</td>
+</tr>
+</tbody></table>
+</section>

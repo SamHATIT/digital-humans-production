@@ -1,0 +1,174 @@
+{# sec-9 : Data Migration Strategy (Aisha) - 7 sous-sections principales (9.1-9.7).
+   Les sous-sections 9.8 (Migration Timeline mermaid), 9.9 (Custom Migration Fields)
+   et 9.10 (Post-Migration Tasks) sont absentes du data brut Aisha — elles etaient
+   synthetisees par Emma dans l'ancien pipeline. On les omet en mode DB-driven.
+   9.8 est reconstruit via mermaid a partir de migration_strategy.phases.
+   
+   Note : data_data_specifications est wrappe en raw_markdown ```json...``` et peut
+   etre partiellement parse en cas de corruption LLM (cf. _parse_error sur exec 146).
+   Le partial gere gracefully les sous-sections vides via {% if %} guards. #}
+<section id='sec-9' class='block'>
+<div class='act'><span class='act-num'>— Scene IX</span><span class='act-sep'></span><span class='act-tag'>Artifact 09</span></div><h1 class='sec-h1'><span>Data Migration Strategy</span> <em class='brass'>(Aisha — Data Specialist)</em></h1>
+<p>Aisha designed the data migration from legacy systems to the new Salesforce org. {{ data_mig.data_assessment.source_systems | length }} source systems, {{ data_mig.data_assessment.target_objects | length }} target objects.</p>
+<h2 id='sub-9-1' class='sec-h2'><span>9.1 Source Systems</span></h2>
+{% for src in data_mig.data_assessment.source_systems %}<p><strong>{{ src.name }}</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th>Format</th>
+<th>{{ src.data_format }}</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>Estimated volume</td>
+<td>{{ src.estimated_volume }}</td>
+</tr>
+<tr>
+<td>Quality concerns</td>
+<td>{% if src.quality_concerns %}• {{ src.quality_concerns | dot_join }}{% endif %}</td>
+</tr>
+</tbody></table>
+{% endfor %}<h2 id='sub-9-2' class='sec-h2'><span>9.2 Target Objects</span> <em class='brass'>({{ data_mig.data_assessment.target_objects | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>API name</strong></th>
+<th><strong>Records</strong></th>
+<th><strong>Key fields</strong></th>
+<th><strong>Order</strong></th>
+<th><strong>External ID</strong></th>
+</tr></thead>
+<tbody>
+{% for obj in data_mig.data_assessment.target_objects %}<tr>
+<td><strong>{{ obj.api_name }}</strong></td>
+<td>{{ obj.estimated_records }}</td>
+<td>{{ obj.key_fields | join(', ') }}</td>
+<td><strong>{{ obj.load_order }}</strong></td>
+<td>{{ obj.external_id_field }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-9-3' class='sec-h2'><span>9.3 Migration Strategy</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>Approach</td>
+<td>{{ data_mig.migration_strategy.approach }}</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td>{{ data_mig.migration_strategy.tool }}</td>
+</tr>
+</tbody></table>
+{% if data_mig.migration_strategy.phases %}<h3 class='sec-h3'>Migration Phases ({{ data_mig.migration_strategy.phases | length }})</h3>
+<table class='tbl'>
+<thead><tr>
+<th><strong>#</strong></th>
+<th><strong>Phase</strong></th>
+<th><strong>Description</strong></th>
+<th><strong>Duration</strong></th>
+</tr></thead>
+<tbody>
+{% for ph in data_mig.migration_strategy.phases %}<tr>
+<td><strong>{{ ph.phase }}</strong></td>
+<td><strong>{{ ph.name }}</strong></td>
+<td>{{ ph.load_order_rationale or '' }}</td>
+<td>{{ ph.estimated_duration or '—' }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}<h2 id='sub-9-4' class='sec-h2'><span>9.4 Field Mapping</span> <em class='brass'>({{ data_mig.field_mapping | length }} object mappings)</em></h2>
+{% for fm in data_mig.field_mapping %}<p><strong>→ {{ fm.target_object }}</strong></p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Source field</strong></th>
+<th><strong>Target field</strong></th>
+<th><strong>Transform</strong></th>
+<th><strong>Notes</strong></th>
+</tr></thead>
+<tbody>
+{% for m in fm.mappings %}<tr>
+<td>{{ m.source_field }}</td>
+<td><strong>{{ m.target_field }}</strong></td>
+<td>{{ m.transformation | etext }}</td>
+<td>{{ m.notes | etext }}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endfor %}<h2 id='sub-9-5' class='sec-h2'><span>9.5 Data Cleansing Rules</span> <em class='brass'>({{ data_mig.data_cleansing_rules | length }})</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Field / Topic</strong></th>
+<th><strong>Rule</strong></th>
+<th><strong>Action / treatment</strong></th>
+</tr></thead>
+<tbody>
+{% for r in data_mig.data_cleansing_rules %}<tr>
+<td>{{ r.affects_objects | join(', ') if r.affects_objects else '—' }}</td>
+<td>{{ r.rule | etext }}</td>
+<td>{{ (r.logic or '—') | etext }}</td>
+</tr>
+{% endfor %}</tbody></table>
+<h2 id='sub-9-6' class='sec-h2'><span>9.6 Validation Plan</span></h2>
+{% if data_mig.validation_plan.pre_migration %}<h3 class='sec-h3'>Pre-migration</h3>
+{% for v in data_mig.validation_plan.pre_migration %}<p>- {{ v | etext }}</p>
+{% endfor %}{% endif %}{% if data_mig.validation_plan.post_migration %}<h3 class='sec-h3'>Post-migration</h3>
+{% for v in data_mig.validation_plan.post_migration %}<p>- {{ v | etext }}</p>
+{% endfor %}{% endif %}<h2 id='sub-9-7' class='sec-h2'><span>9.7 Rollback Strategy</span></h2>
+<table class='tbl tbl-kv'>
+<tbody>
+<tr>
+<td>Approach</td>
+<td>{{ data_mig.rollback_strategy.approach }}</td>
+</tr>
+{% if data_mig.rollback_strategy.steps %}<tr>
+<td>Steps</td>
+<td>• {{ data_mig.rollback_strategy.steps | dot_join }}</td>
+</tr>
+{% endif %}</tbody></table>
+{% if data_mig.migration_strategy.phases %}<h2 id='sub-9-8' class='sec-h2'><span>9.8 Migration Timeline</span></h2>
+<div class='figure-block'><div class='figure-caption'>Figure 2 — Migration phases timeline</div>
+<div class='mermaid-wrap'><pre class="mermaid">flowchart LR
+{% for ph in data_mig.migration_strategy.phases %}    P{{ ph.phase }}["Phase {{ ph.phase }} — {{ ph.name | replace(' - ', ' / ') }}"]
+{% endfor %}{% for ph in data_mig.migration_strategy.phases %}{% if not loop.last %}    P{{ ph.phase }} --> P{{ data_mig.migration_strategy.phases[loop.index].phase }}
+{% endif %}{% endfor %}</pre></div>
+</div>
+{% endif %}{% if data_mig.migration_timeline.phases %}<table class='tbl'>
+<thead><tr>
+<th><strong>Week</strong></th>
+<th><strong>Activities</strong></th>
+</tr></thead>
+<tbody>
+{% for ph in data_mig.migration_timeline.phases %}<tr>
+<td><strong>Week {{ ph.week }}</strong></td>
+<td>{% if ph.activities %}{{ ph.activities | join('; ') | etext }}{% else %}—{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% if data_mig.migration_timeline.total_duration %}<p class='note'>Total duration: {{ data_mig.migration_timeline.total_duration | etext }}</p>
+{% endif %}{% endif %}{% if data_mig.custom_migration_fields %}<h2 id='sub-9-9' class='sec-h2'><span>9.9 Custom Migration Fields</span> <em class='brass'>({{ data_mig.custom_migration_fields | length }})</em></h2>
+<p>Auxiliary fields added to target objects to support traceability, batch tagging, and rollback.</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Object</strong></th>
+<th><strong>Field</strong></th>
+<th><strong>Type</strong></th>
+<th><strong>Purpose</strong></th>
+</tr></thead>
+<tbody>
+{% for cmf in data_mig.custom_migration_fields %}{% for f in cmf.fields %}<tr>
+<td>{{ cmf.object }}</td>
+<td><strong>{{ f.api_name }}</strong></td>
+<td>{{ f.type }}</td>
+<td>{{ f.description | etext }}</td>
+</tr>
+{% endfor %}{% endfor %}</tbody></table>
+{% endif %}{% if data_mig.post_migration_tasks %}<h2 id='sub-9-10' class='sec-h2'><span>9.10 Post</span> <em class='brass'>Migration Tasks</em></h2>
+<table class='tbl'>
+<thead><tr>
+<th><strong>Task</strong></th>
+<th><strong>Description</strong></th>
+<th><strong>Timing / Owner</strong></th>
+</tr></thead>
+<tbody>
+{% for t in data_mig.post_migration_tasks %}<tr>
+<td><strong>{{ t.task | etext }}</strong></td>
+<td>{{ t.description | etext }}</td>
+<td>{{ t.timing | etext }} <em>{{ t.owner | etext }}</em></td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}</section>
