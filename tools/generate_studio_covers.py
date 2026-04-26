@@ -57,7 +57,7 @@ GEMINI_ENDPOINT = (
     f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 )
 
-MIN_DIMENSIONS = (1280, 800)
+MIN_DIMENSIONS = (1280, 720)
 MAX_ATTEMPTS = 3
 RETRY_BACKOFF_SEC = (2, 4, 8)
 
