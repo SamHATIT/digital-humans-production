@@ -90,6 +90,16 @@ Briefs à produire pour ce round :
 
 ---
 
+
+## Décisions Track C actées
+
+| # | Sujet | Décision | Date |
+|---|---|---|---|
+| **O1** | Planning d'ouverture (date Free/Pro/Team) | **On finit tous les travaux et on décide.** Pas de date figée maintenant. Wording "early access" générique sur le site. | 2026-04-26 |
+| **O2** | Palier Mid 299-399 € au lancement ? | **Non, 3 paliers au lancement** (Free / Pro 49€ / Team 1490€ + Enterprise sur devis). Mid sera ajouté plus tard comme "réponse à demande grandissante" si les agences le demandent. Page tarifs = 3 colonnes. | 2026-04-26 |
+
+---
+
 ## Journal des transitions
 
 | Date | Événement |
