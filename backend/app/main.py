@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, config as config_routes
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, billing, config as config_routes
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware, BuildEnabledMiddleware, ExecutionContextMiddleware  # CORE-001 + C-4 + D-2
 from app.database import Base, engine
@@ -109,6 +109,9 @@ app.include_router(wizard.router, prefix=settings.API_V1_PREFIX)
 
 # Subscription routes (Section 9)
 app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscription", tags=["subscription"])
+
+# Phase 3.1: Billing (credits balance + usage)
+app.include_router(billing.router, prefix=settings.API_V1_PREFIX)
 
 # Leads capture
 from app.api.routes import leads, blog
