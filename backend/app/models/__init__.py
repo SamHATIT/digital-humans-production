@@ -161,6 +161,14 @@ from app.models.project_git_config import (
 # P3: Project Documents for RAG isolation
 from app.models.project_document import ProjectDocument
 
+# Phase 3.1: Credits ledger
+from app.models.credit import (
+    CreditBalance,
+    CreditTransaction,
+    ModelPricing,
+    TierConfig,
+)
+
 # Section 6.4: SDS Templates
 from app.models.sds_template import (
     SDSTemplate,
@@ -189,6 +197,11 @@ __all__.extend([
     "GitConnectionStatus",
     # P3: Project Documents
     "ProjectDocument",
+    # Phase 3.1: Credits
+    "CreditBalance",
+    "CreditTransaction",
+    "ModelPricing",
+    "TierConfig",
     # SDS Templates
     "SDSTemplate",
     "DEFAULT_SDS_TEMPLATE",
