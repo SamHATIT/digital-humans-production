@@ -6,6 +6,23 @@
 
 ---
 
+
+## ⚠️ Règle d'or — production vs preview
+
+**Le site live `digital-humans.fr` (React/Tailwind actuel, blog inclus) ne doit pas être modifié.**
+
+Tout le travail de refonte Studio se fait sur :
+- `/var/www/dh-preview/` (basic auth `preview:a88PtPREkPe9`) — version visuelle qu'on construit module par module (`dh-mod1` → `dh-modN`)
+- Le repo `digital-humans-website` actuel reste figé jusqu'à la bascule de Phase 2 site.
+
+La bascule prod = remplacement complet du bundle au moment où la version Studio est validée bout-en-bout, pas un patch progressif.
+
+Conséquence pour les briefs :
+- Tout brief Track A qui touche au frontend public **doit cibler le preview**, pas `digital-humans-website` en prod
+- Les composants prod servent de **référence fonctionnelle** (architecture, intégrations API, etc.) mais sont en lecture seule
+
+---
+
 ## Vue d'ensemble
 
 Trois tracks tournent en parallèle pour exécuter le MASTER_PLAN_V4 plus rapidement :
