@@ -35,15 +35,43 @@ Trois tracks tournent en parallèle pour exécuter le MASTER_PLAN_V4 plus rapide
 
 ## Statut des tracks
 
-Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged · 🔴 blocked
+Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 🔴 blocked
 
-| Track | Mission | Owner | Brief | Branche | Statut | Notes |
-|---|---|---|---|---|---|---|
-| **A1** | Finalisation SDS templating | Claude Code | `BRIEF_A1_SDS_TEMPLATING_FINAL.md` | `claude/sds-templating-final-audit-5qtf9` | 🟣 **MERGED** (`b56a76b`, tag `v2026.04-sds-templating-complete`) | Phase 1 du MASTER_PLAN_V4 close |
-| **A2** | Audit secrets + Doppler | Claude Code | `BRIEF_A2_SECURITY_AUDIT.md` | `claude/security-secrets-manager` | 🟦 queued | Toujours pertinent. À lancer quand tu veux |
-| **B1** | Atelier cinématique agents | Claude Design | `BRIEF_B1_AGENTS_CINEMATIC.md` | n/a (mockups) | 🟣 **VALIDÉ** | Direction retenue : **Casting → Théâtre** (séquentiel) |
+### Round 1 — closed
+
+| Track | Mission | Statut |
+|---|---|---|
+| A1 | Finalisation SDS templating | 🟣 merged (tag `v2026.04-sds-templating-complete`) |
+| B1 | Atelier cinématique agents | 🟣 validé (Casting → Théâtre) |
+
+### Round 2 — en cours
+
+| Track | Mission | Owner | Statut |
+|---|---|---|---|
+| A2 | Audit secrets + Doppler | Claude Code | 🟦 queued (à initier par Sam) |
+| A4 | DB crédits + CreditService | Claude Code | 🟡 review (1 bug Free + 1 fixture infra) → A4-bis lancé |
+| B2 | Galerie acte 3 site | Claude Design | 🟣 validé sans arbitrage |
+| B3 | Casting + transitions | Claude Design | 🟣 validé sans arbitrage |
+| B4 | Blog Studio | Claude Design | 🟣 validé avec ajustements Sam (cf. décisions) |
+| C1 | O1 + O2 (planning + Mid tier) | Sam + maître d'œuvre | 🟣 actés (3 paliers, pas de date figée) |
+
+### Round 2 bis — produits
+
+| Track | Mission | Owner | Statut |
+|---|---|---|---|
+| A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟦 brief produit, prêt à coller |
+| B5 | Newsletter Studio + couvertures nanobanana2 | Mixte Design + Code | 🟦 brief produit, prêt à coller |
+
+### Round 3 — à venir
+
+| Track | Mission | Pré-requis |
+|---|---|---|
+| A5 | Phase 4 plateforme UI complète (Casting + Théâtre + transitions) | B3 acquis ✅, A4 mergé |
+| A_phase2_site | Implémentation site marketing complet (galerie + blog + tarifs + footer + early access) | B2 acquis ✅, B4 acquis ✅, B5 newsletter acquis |
+| B6 | Studio map slide finale slider acte 2 site (à produire avec Phase 2 site) | B1 acquis (carte d'ensemble) |
 
 ---
+
 
 ## Round 1 — bilan
 

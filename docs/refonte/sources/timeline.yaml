@@ -135,6 +135,12 @@ entries:
     title: "✅ Track C — décisions O1 + O2 actées"
     description: "Planning d'ouverture (O1) : on finit les travaux d'abord, pas de date figée. Tarification (O2) : <strong>3 paliers au lancement</strong> (Free / Pro 49€ / Team 1490€ + Enterprise). Pas de palier Mid 299€ initial — sera ajouté plus tard si la demande émerge des agences (positionnement \"demande grandissante\")."
 
+  - date: 2026-04-26
+    label: "26 avril 2026"
+    status: done
+    title: "🎨 Round 2 livrables design + Round 2 bis lancé"
+    description: "<strong>B2 Galerie</strong> ✅ validé sans arbitrage (grille 3×2, hover panneau slide-up, placeholders monogrammes hairline). <strong>B3 Casting + transitions</strong> ✅ validé sans arbitrage (storyboards Free→Pro 2.5s + Curtain rises 1.0s). <strong>B4 Blog Studio</strong> ✅ validé avec décisions Sam : <em>(1)</em> renommage \"Blog\" → <strong>The Journal</strong>, <em>(2)</em> 4 rubriques numérotées Manifesto/Craft/Dispatches/Archive, <em>(3)</em> retour aux <strong>vraies photos</strong> via nanobanana2 (Gemini 3 Pro Image), <em>(4)</em> cadence inchangée 1 article + 1 newsletter par semaine via N8N existant. <strong>A4 Crédits</strong> 🟡 review : 18/19 tests passent, 1 bug logique tier Free identifié + 1 fixture infra à fixer (brief A4-bis produit). <strong>Round 2 bis lancé</strong> : briefs A4-bis (fixes crédits) et B5 (newsletter Studio + couvertures Gemini)."
+
   - label: "Prochain"
     status: planned
     title: "Round 2 — Phase 2 site marketing + Phase 3 crédits Stripe"
