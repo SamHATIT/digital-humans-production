@@ -49,7 +49,7 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 | Track | Mission | Owner | Statut |
 |---|---|---|---|
 | A2 | Audit secrets + Doppler | Claude Code | 🟦 queued (à initier par Sam) |
-| A4 | DB crédits + CreditService | Claude Code | 🟡 review (1 bug Free + 1 fixture infra) → A4-bis lancé |
+| A4 | DB crédits + CreditService | Claude Code | 🟣 **MERGED** + tag `v2026.04-credits-phase3.1-3.2` |
 | B2 | Galerie acte 3 site | Claude Design | 🟣 validé sans arbitrage |
 | B3 | Casting + transitions | Claude Design | 🟣 validé sans arbitrage |
 | B4 | Blog Studio | Claude Design | 🟣 validé avec ajustements Sam (cf. décisions) |
@@ -59,9 +59,10 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 
 | Track | Mission | Owner | Statut |
 |---|---|---|---|
-| A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟦 brief produit, prêt à coller |
-| B5 sous-tâche 1 | Mockup newsletter Studio (HTML) | Claude Design | 🟣 livré 26 avr — `newsletter-studio-mockup.html` + synthesis |
-| B5 sous-tâches 2+3 | Patch N8N + génération covers nanobanana2 | Claude Code | 🟦 prêt à lancer |
+| A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟣 **MERGED** dans A4 (19/19 tests, endpoints API live OK) |
+| B5 sous-tâche 1 | Mockup newsletter Studio | Claude Design | 🟡 **review** — Sam demande logo bicolore + newsletters archivées dans Archive (à itérer) |
+| B5 sous-tâche 3 | Pipeline génération covers nanobanana2 | Claude Code | 🟣 **livré** branche `claude/newsletter-studio-covers-Emso5` (script + briefs YAML + runbook + .gitignore) |
+| B5 sous-tâche 2 | Patch N8N | Claude Code | 🟦 attend itération mockup B5.1 |
 
 ### Round 3 — à venir
 
