@@ -60,7 +60,8 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 | Track | Mission | Owner | Statut |
 |---|---|---|---|
 | A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟦 brief produit, prêt à coller |
-| B5 | Newsletter Studio + couvertures nanobanana2 | Mixte Design + Code | 🟦 brief produit, prêt à coller |
+| B5 sous-tâche 1 | Mockup newsletter Studio (HTML) | Claude Design | 🟣 livré 26 avr — `newsletter-studio-mockup.html` + synthesis |
+| B5 sous-tâches 2+3 | Patch N8N + génération covers nanobanana2 | Claude Code | 🟦 prêt à lancer |
 
 ### Round 3 — à venir
 
