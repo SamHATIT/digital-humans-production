@@ -1,7 +1,7 @@
 # 🗂️ Mémo de reprise — Digital Humans refonte site
 
-**Dernière session : 25 avril 2026 (Mods 12-13-14 — photos + punchlines)**
-**Statut : pause, design satisfaisant, reprise quand on bossera sur les sections suivantes**
+**Dernière session : 26 avril 2026 (Mod 15 — galerie projets « № 04 · The work »)**
+**Statut : 6 covers Studio en place, à juger en contexte ; reprise après validation Sam**
 
 ---
 
@@ -17,6 +17,25 @@
 - **Mod 12** : injection batch des **10 photos restantes** (Olivia, Emma, Marcus, Diego, Zara, Raj, Aisha, Elena, Jordan, Lucas) + enrichissement bilingue des rôles avec taglines narratives + ajout `ac:'#hex'` couleur agent sur chaque entrée. 20/20 patches OK. Bug rencontré : apostrophe ASCII dans `L'Interprete` qui cassait la string JS — fixé en utilisant l'apostrophe typographique `'` (cohérent avec le reste du fichier où il y a 367 occurrences typo).
 - **Mod 13** : split du rôle en 2 spans stylisés (label métier en mono petit gris, séparateur `·` en brass, punchline en serif italique). Bug rencontré : `\u00b7` rendu littéralement comme texte JSX au lieu d'être interprété — fixé en utilisant le caractère `·` UTF-8 directement avec `json.dumps(ensure_ascii=False)`.
 - **Mod 14** : punchline en bloc séparé (sa propre ligne) au lieu d'inline. **Validé par Sam** : "non, c'est bon. merci."
+
+### Session 26 avril (soir) — Mod 15
+
+- **Mod 15** : ajout de la **galerie projets `№ 04 · The work`** entre `OurAgents` et `CTA`.
+  - 6 cards projets en grille 3×2 (logifleet, pharma, telecom, b2b-distribution, energy, retail)
+  - Covers Studio générées en B5.3 (Gemini 3 Pro Image, palette papier crème + ink + brass)
+  - Hover panneau slide-up : industrie + 3 bullets Salesforce scope + CTA Read the SDS (280ms ease-out)
+  - LogiFleet linké vers `/sds-preview/146.html` ; les 5 autres en "SDS · coming soon"
+  - CTA renumérotée `№ 05 · Correspondence` / `№ 05 · Correspondance`
+  - Composant `OurWork` exposé sur `window` à la fin de `avatars.jsx` (Object.assign)
+  - Couvertures inlinées dans le bundle via 6 entrées `manifest` (mime image/jpeg, compressed:false) + 6 entrées `ext_resources` (`cvLogifleet`, `cvPharma`, `cvTelecom`, `cvB2bDistribution`, `cvEnergy`, `cvRetail`)
+  - Patch script : `docs/marketing-site/scripts/dh-mod15.py`
+  - **Validé par Sam** : [à valider]
+
+#### Validation des covers Studio en contexte (objectif Mod 15)
+
+Les 6 covers de B5.3 sortent en palette papier crème + ink + brass (interprétation Gemini de "1920s lithograph"). Le rendu en série dans la galerie sur fond ink #0A0A0B est à juger : effet "œuvres encadrées en galerie sombre" attendu. Si pas satisfaisant après ce Mod, options :
+- Régénérer les covers avec un STYLE_TEMPLATE explicitant `dark charcoal background`
+- Ou ajuster côté React (filet brass + ombre intérieure pour renforcer l'effet "encadré")
 
 ### Layout actuel des cartes agents (post Mod 14)
 
@@ -65,7 +84,7 @@ ls -la /var/www/dh-preview/index.html.pre-mod*
 cp /var/www/dh-preview/index.html.pre-modN /var/www/dh-preview/index.html
 ```
 
-État actuel = post-mod14. Backups disponibles : `pre-mod1` à `pre-mod14`.
+État actuel = post-mod15. Backups disponibles : `pre-mod1` à `pre-mod15` (le backup `pre-mod15` est créé par l'opérateur juste avant `python3 docs/marketing-site/scripts/dh-mod15.py`).
 
 ---
 
@@ -101,13 +120,14 @@ cp /var/www/dh-preview/index.html.pre-modN /var/www/dh-preview/index.html
 
 ## 📋 Prochaines étapes (par ordre probable)
 
-1. **Debug Mod 11** (alignement droit Sophie) — basse priorité, à reprendre quand on aura un pic de motivation pour DevTools
-2. **Traitement "dossier CIA"** des slides — N&B + photo grand format + cercle couleur autour + nom + tagline en légende (à préciser en séance — variante stylistique de la section actuelle ?)
-3. **Section prix** — 4 tiers (Free / Pro 49€ / Team 1490€ / Enterprise)
-4. **Galerie projets** — SDS LogiFleet (card 8_47PM déjà disponible) + autres industries à produire
-5. **Overlay urgence d'entrée** — 5-7s, skip, localStorage une fois par session
-6. **Manifesto + FAQ** adaptés ton studio
-7. **Passerelle "entrer dans le studio"** vers la plateforme (`/login` → dashboard React)
+1. **Validation visuelle Mod 15** — Sam juge le rendu des 6 covers en série en contexte galerie. Itérer sur palette/encadré si besoin
+2. **Produire 5 SDS manquants** (pharma, telecom, b2b-distribution, energy, retail) pour passer les 5 cards "SDS · coming soon" en liens réels
+3. **Debug Mod 11** (alignement droit Sophie) — basse priorité, à reprendre quand on aura un pic de motivation pour DevTools
+4. **Traitement "dossier CIA"** des slides — N&B + photo grand format + cercle couleur autour + nom + tagline en légende (à préciser en séance — variante stylistique de la section actuelle ?)
+5. **Section prix** — 4 tiers (Free / Pro 49€ / Team 1490€ / Enterprise)
+6. **Overlay urgence d'entrée** — 5-7s, skip, localStorage une fois par session
+7. **Manifesto + FAQ** adaptés ton studio
+8. **Passerelle "entrer dans le studio"** vers la plateforme (`/login` → dashboard React)
 
 ---
 
