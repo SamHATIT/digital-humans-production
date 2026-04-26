@@ -1,0 +1,122 @@
+# Cover briefs — Studio editorial illustrations via nanobanana2 (Gemini 3 Pro Image)
+#
+# Each entry produces ONE cover image saved at assets/covers/<id>.jpg
+# The script tools/generate_studio_covers.py reads this file, renders each
+# prompt against the Gemini API, and saves the result.
+#
+# === Conventions ===
+# - id : kebab-case, becomes the filename. Stable identifier (referenced from Ghost
+#        feature_image, from React gallery slides, etc.).
+# - subject : the ONE thing that should be visible. Keep concrete and singular.
+#             Avoid "and"/"with multiple" — stack composition gets noisy.
+# - rubric : optional. If set, fed to the prompt template for tonal nuance.
+#            Values: manifesto | craft | dispatch | archive | gallery
+# - aspect_ratio : "16:9" (default) or "16:10". The model accepts a few preset
+#                  ratios; we crop client-side if needed.
+# - tags : free-form. Used for grouping in logs ("gallery", "article-cover", etc.)
+#
+# === Style template (applied automatically by the script) ===
+#   Editorial illustration, monochromatic palette of charcoal black (#0A0A0B),
+#   warm bone (#F5F2EC), and brass gold accent (#C8A97E). Style: refined 1920s
+#   technical lithograph crossed with a modern engineering blueprint. Single
+#   subject [SUBJECT], composed off-center on the lower-right third, hairline
+#   geometric details, one brass-toned focal element. NO people, NO text,
+#   NO photorealism. Print-quality, austere, calm, contemplative.
+#
+# The script appends the per-entry `subject` and `rubric` directives to this
+# template. Override with `prompt_override:` (full string) if a brief needs a
+# wholly different framing.
+
+# ============================================================
+# GALERIE ACTE 3 — 6 covers (1 par projet client / vertical)
+# ============================================================
+
+- id: logifleet
+  subject: a fleet of long-haul trucks viewed from directly overhead, arranged on a geometric road grid, with one truck cell highlighted in brass
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, logistics, b2b]
+
+- id: pharma
+  subject: a stylized molecular chain drawn in single-line hairlines, suspended over a calm laboratory grid, one node rendered in brass
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, healthcare, regulated]
+
+- id: telecom
+  subject: a single tall telecom relay tower rendered as a technical elevation drawing, with concentric brass signal circles radiating from its summit
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, telecom, infrastructure]
+
+- id: b2b-distribution
+  subject: an abstract distribution map showing trade routes converging on a hub, drawn in fine charcoal hairlines with one brass thread crossing the composition
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, distribution, b2b]
+
+- id: energy
+  subject: a high-voltage transmission pylon shown as a 1920s technical elevation, with a single brass conductor line tracing through it
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, energy, utilities]
+
+- id: retail
+  subject: an austere grid of retail product silhouettes drawn in pure hairlines, with one cell of the grid filled solid brass
+  rubric: gallery
+  aspect_ratio: "16:9"
+  tags: [gallery, retail, b2c]
+
+# ============================================================
+# COVERS ARTICLES — 8 covers pour les articles existants Ghost
+# ============================================================
+# Note : les ids ici sont indicatifs. Sam confirmera la liste des slugs Ghost
+# à régénérer après le go (cf. README dans docs/COVERS_GENERATION.md, étape 3).
+
+- id: manifesto-trust-apex
+  subject: a single fountain pen poised over a blueprint sheet showing a partial Apex class architecture in hairlines, with one bracketed line picked out in brass
+  rubric: manifesto
+  aspect_ratio: "16:9"
+  tags: [article, manifesto]
+
+- id: craft-triggers-flows
+  subject: a fork in a single hairline path, one branch leading to a small geared mechanism (trigger), the other to a flowing ribbon (flow), the junction marked by a brass dot
+  rubric: craft
+  aspect_ratio: "16:9"
+  tags: [article, craft]
+
+- id: dispatch-logifleet
+  subject: an aerial blueprint of a logistics depot at dawn, fine grid of bays and lanes, one bay highlighted in brass with a single truck silhouette
+  rubric: dispatch
+  aspect_ratio: "16:9"
+  tags: [article, dispatch]
+
+- id: craft-bulk-api
+  subject: a stylized industrial pipeline of data containers drawn as 1920s technical sketches, three containers in line with the middle one rendered in brass
+  rubric: craft
+  aspect_ratio: "16:9"
+  tags: [article, craft, data]
+
+- id: archive-no-code-myth
+  subject: a single empty drafting board with hairline geometric tools laid out in symmetric arrangement, one ruler marked in brass gradations
+  rubric: archive
+  aspect_ratio: "16:9"
+  tags: [article, archive]
+
+- id: dispatch-pharma-validation
+  subject: a single laboratory beaker in technical cross-section drawing, hairline measurement marks, one measurement line picked out in brass
+  rubric: dispatch
+  aspect_ratio: "16:9"
+  tags: [article, dispatch, healthcare]
+
+- id: manifesto-eleven-agents
+  subject: an austere grid of eleven small framed niches, each empty except hairline frames, the central niche filled with a soft brass glow
+  rubric: manifesto
+  aspect_ratio: "16:9"
+  tags: [article, manifesto]
+
+- id: craft-lwc-without-react
+  subject: a single web component shown as a technical exploded diagram, hairline brackets and connectors, one connector traced in brass
+  rubric: craft
+  aspect_ratio: "16:9"
+  tags: [article, craft, frontend]
