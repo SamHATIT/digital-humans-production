@@ -137,6 +137,19 @@ def _credits_for_tokens(
     return max(rounded, 1)
 
 
+def _is_daily_cap_quota_tier(tier_cfg: Optional[TierConfig]) -> bool:
+    """
+    True when the tier's spendable quota is the daily cap itself, with no
+    monthly allotment (Free today). For such tiers ``balance.available`` is
+    structurally 0 and must be ignored — the daily cap is the quota.
+    """
+    return (
+        tier_cfg is not None
+        and tier_cfg.daily_credits_cap is not None
+        and (tier_cfg.monthly_credits or 0) == 0
+    )
+
+
 def _start_of_day_utc(now: Optional[datetime] = None) -> datetime:
     now = now or datetime.now(timezone.utc)
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -194,13 +207,20 @@ class CreditService:
         daily_used = self._daily_used_credits(user_id)
         next_reset = _next_month_start(balance.last_reset_at)
 
+        # For daily-cap quota tiers (Free), the spendable balance is what's
+        # left of today's cap, not the (always 0) included balance.
+        if _is_daily_cap_quota_tier(tier):
+            available = max(0, tier.daily_credits_cap - daily_used)
+        else:
+            available = balance.available
+
         return {
             "user_id": user_id,
             "tier": tier_name,
             "included_credits": balance.included_credits,
             "used_credits": balance.used_credits,
             "overage_credits": balance.overage_credits,
-            "available": balance.available,
+            "available": available,
             "daily_cap": tier.daily_credits_cap if tier else None,
             "daily_used": daily_used,
             "last_reset_at": balance.last_reset_at,
@@ -251,8 +271,9 @@ class CreditService:
                     available=max(0, daily_cap - daily_used),
                 )
 
-        # Available balance check.
-        if credits > balance.available:
+        # Available balance check — skipped for daily-cap quota tiers (Free)
+        # where the daily cap above IS the spendable quota and included=0.
+        if not _is_daily_cap_quota_tier(tier_cfg) and credits > balance.available:
             raise InsufficientCreditsError(
                 user_id=user_id, requested=credits, available=balance.available
             )
@@ -347,7 +368,22 @@ class CreditService:
         # Rough estimate — caller pays exact cost in charge() afterwards.
         estimate = _credits_for_tokens(pricing, max_tokens, max_tokens)
         balance = self._ensure_balance(user_id)
-        if estimate > balance.available:
+        tier_cfg = self._get_tier_config(tier_name)
+
+        # Daily cap pre-check — mirrors charge() so that pre-flight rejects
+        # what charge() would reject (and accepts what charge() accepts).
+        daily_cap = tier_cfg.daily_credits_cap if tier_cfg else None
+        if daily_cap is not None and estimate > 0:
+            daily_used = self._daily_used_credits(user_id)
+            if daily_used + estimate > daily_cap:
+                raise InsufficientCreditsError(
+                    user_id=user_id,
+                    requested=estimate,
+                    available=max(0, daily_cap - daily_used),
+                )
+
+        # Available balance check — skipped for daily-cap quota tiers (Free).
+        if not _is_daily_cap_quota_tier(tier_cfg) and estimate > balance.available:
             raise InsufficientCreditsError(
                 user_id=user_id, requested=estimate, available=balance.available
             )
