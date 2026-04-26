@@ -60,7 +60,8 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 | Track | Mission | Owner | Statut |
 |---|---|---|---|
 | A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟣 **MERGED** dans A4 (19/19 tests, endpoints API live OK) |
-| B5 sous-tâche 1 | Mockup newsletter Studio | Claude Design | 🟡 **review** — Sam demande logo bicolore + newsletters archivées dans Archive (à itérer) |
+| B5 sous-tâche 1 | Mockup newsletter Studio | Claude Design | 🟢 itération B5.1-bis en cours (logo bicolore + archive) |
+| B5 sous-tâche 1b | Transposition email-safe HTML par Claude Code | Claude Code | 🟣 livré branche `claude/newsletter-studio-mockup-nr0hp` — base technique (logo bicolore brass/bone déjà appliqué, variables N8N en place). À réconcilier avec v2 Design quand livrée. |
 | B5 sous-tâche 3 | Pipeline génération covers nanobanana2 | Claude Code | 🟣 **livré** branche `claude/newsletter-studio-covers-Emso5` (script + briefs YAML + runbook + .gitignore) |
 | B5 sous-tâche 2 | Patch N8N | Claude Code | 🟦 attend itération mockup B5.1 |
 
