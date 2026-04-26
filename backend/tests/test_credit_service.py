@@ -1,15 +1,21 @@
 """
 Unit tests for CreditService — Phase 3.1.
 
-Uses the SQLite test fixtures from conftest.py. Pricing & tier_config rows
-are seeded here (the seed lives in the Alembic migration, but tests run on a
-freshly-created schema without migrations).
+These tests deliberately bypass the global ``conftest.py`` ``db_session``
+fixture: that fixture runs ``Base.metadata.create_all`` on SQLite and fails
+to compile pre-existing JSONB columns from unrelated models (pm_orchestration,
+change_request, sds_version, …). Pre-existing issue, not introduced by A4.
+
+We build our own SQLite in-memory engine and create only the 5 tables the
+credits service needs (User + 4 credit tables).
 """
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.models.credit import (
     CreditBalance,
@@ -108,10 +114,29 @@ def _create_user(db, email: str, tier: str = "free") -> User:
 
 
 @pytest.fixture
-def seeded_db(db_session):
-    _seed_tiers(db_session)
-    _seed_pricing(db_session)
-    return db_session
+def seeded_db():
+    """
+    Isolated fixture for credits tests — builds a dedicated in-memory SQLite
+    engine and creates only the 5 tables the credits service needs (User + 4
+    credit tables). Bypasses the global conftest fixture which fails on
+    pre-existing JSONB columns in other models. Pre-existing issue.
+    """
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+    )
+    for cls in (User, TierConfig, ModelPricing, CreditBalance, CreditTransaction):
+        cls.__table__.create(bind=engine, checkfirst=True)
+
+    Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    db = Session()
+    try:
+        _seed_tiers(db)
+        _seed_pricing(db)
+        yield db
+    finally:
+        db.close()
+        engine.dispose()
 
 
 # ---------------------------------------------------------------------------
