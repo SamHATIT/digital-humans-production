@@ -61,8 +61,8 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 |---|---|---|---|
 | A4-bis | Fixes A4 (bug Free + fixture isolée) | Claude Code | 🟣 **MERGED** dans A4 (19/19 tests, endpoints API live OK) |
 | B5.1 mockup retenu | Newsletter HTML email-safe | Claude Code | 🟣 retenu : branche `mockup-nr0hp` (logo bicolore brass/bone, 14 tables, 4 conditional MSO). Branche `covers-Emso5` abandonnée pour le mockup. |
-| B5.2 patch N8N + archive Ghost | Generate HTML + Publish to Ghost as Archive | Claude Code | 🟦 brief unifié `BRIEF_B5_2_NEWSLETTER_UNIFIED.md` produit. Décision Sam : option α — newsletter = article Ghost taggé `archive`, URL archive = `view_in_browser_url`. |
-| B5.3 covers pipeline | Génération via Gemini 3 Pro Image | Claude Code | 🟣 livré branche `claude/newsletter-studio-covers-Emso5` (tools/ + briefs YAML + runbook). Prêt à exécuter avec clé Gemini éphémère. |
+| B5.2 patch N8N + archive Ghost | Generate HTML + Publish to Ghost as Archive | Claude Code + maître d'œuvre | 🟢 **DÉPLOYÉ EN LIVE** (workflow N8N actif, 4 fixes runtime appliqués pour sandbox N8N v1+, idempotence validée exec 437/438). 🟡 Branche à synchroniser avec les fixes runtime avant merge propre sur main. |
+| B5.3 covers pipeline | 14 covers Studio générées via Gemini | Claude Code | 🟣 **MERGED** + tag `v2026.04-covers-studio` (~$0.64, fond crème assumé, jugement final après intégration en contexte) |
 
 ### Round 3 — à venir
 
