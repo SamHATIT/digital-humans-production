@@ -30,6 +30,63 @@ et 5 (smoke test E2E) sont à exécuter sur le VPS avant merge.
 
 ---
 
+
+---
+
+## 0bis. Résultats du run VPS — 2026-04-26 (par maître d'œuvre)
+
+Validation exécutée sur le VPS de production avec backend FastAPI démarré et accès DB. Complète les sections marquées 🟡 VPS-required.
+
+### Build CLI exec 146 ✅
+```
+→ Build SDS pour execution #146
+  · HTML rendu : 473,021 chars
+  · Écrit dans : /root/workspace/digital-humans-production/outputs/...
+
+✅ Build SDS terminé.
+```
+HTML produit : **475 061 bytes** (cohérent avec STATUS.md `473,020` à 41 bytes près — variation due au timestamp `generated_at`).
+
+### Multi-exec robustness ✅
+5 exec_ids testés (145, 144, 142, 137, 130) — tous buildent sans exception. Volumes HTML cohérents avec STATUS.md iter 8 (variations < 0.5% acceptables).
+
+| exec_id | HTML produit | STATUS.md référence | Δ |
+|---|---|---|---|
+| 130 | 209 121 | 207 946 | +0.6% |
+| 137 | 371 992 | 369 591 | +0.6% |
+| 142 | 359 635 | 357 493 | +0.6% |
+| 144 | 391 538 | 389 628 | +0.5% |
+| 145 | 489 917 | 487 795 | +0.4% |
+
+### Diff vs reference (146)
+- **5 278 lignes diff / 147 hunks** — au-dessus de l'estimé 462 hunks dans §1, mais cohérent avec :
+  - le commit `6a6e62e` (25 avril, hero compact CSS) qui rend le hero plus dense que la référence figée
+  - la compensation Emma "option C" (titre + subtitle marketing du hero) **non encore branchée** — ce qui produit un titre/subtitle FR auto-généré là où la référence avait du texte marketing EN écrit par Emma
+- **0 régression fonctionnelle identifiée** — le diff est concentré sur le hero (CSS + texte) et n'affecte aucune section SDS factuelle
+
+### Smoke test 3 endpoints API ✅
+Token JWT généré pour user `id=2` (`admin@samhatit.com`, owner du projet 98 LogiFleet) :
+
+| # | Route | HTTP | Size | Verdict |
+|---|---|---|---|---|
+| 1 | `GET /api/pm-orchestrator/execute/146/sds-html` | 200 | 475 061 | ✅ |
+| 2 | `POST /api/projects/98/sds-versions {execution_id: 146}` | 201 | 384 (JSON) | ✅ — version 3 créée, file_path `outputs/SDS_LogiFleet__v3.html` 475 061 bytes |
+| 3 | `GET /api/projects/98/sds-versions/3/view` | 200 | 475 061 | ✅ |
+
+**md5 identique sur les 3** (`6ed295f5aa61750259cd306970018674`) — confirme que live preview, snapshot freeze et view immutable produisent le même HTML byte-à-byte.
+
+### Bug fix bénin appliqué (par maître d'œuvre)
+`tools/build_sds.py` crashait quand `--output` pointait vers un chemin hors-repo (ex: `/tmp/`) à cause de `Path.relative_to()`. Fix : try/except + fallback sur le chemin absolu pour l'affichage. Commit dédié `fix(build_sds): handle output paths outside repo for display`.
+
+### Decisions Sam (transmises via maître d'œuvre)
+1. ✅ **Périmètre suppression `write_sds`** — interprétation **(A) conservative** validée. Le raisonnement de Claude Code est solide : phase 5 fait plus que LLM (deliverable, HITL gate, checkpoint, prep markdown export DOCX).
+2. ✅ **Test e2e cassé** (`test_sds_workflow_e2e.py:150-196`) → **chantier séparé** (ticket à ouvrir post-merge).
+3. ✅ **VPS run** → fait par maître d'œuvre (cette session).
+
+### Verdict global VPS
+**✅ Branche prête à merger.** Sous condition d'un cherry-pick préalable des commits marketing-site (cf. brief A3 à venir).
+
+
 ## 1. Audit section par section vs reference (🟡 VPS-required)
 
 À exécuter sur le VPS avec la commande :

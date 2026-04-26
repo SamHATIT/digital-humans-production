@@ -154,7 +154,11 @@ def main():
     
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(html)
-    print(f"  · Écrit dans : {args.output.relative_to(REPO_ROOT)}")
+    try:
+        display_path = args.output.relative_to(REPO_ROOT)
+    except ValueError:
+        display_path = args.output  # output outside repo (e.g. /tmp/), show absolute
+    print(f"  · Écrit dans : {display_path}")
     
     if args.diff_reference:
         ref = TEMPLATES_DIR / "_reference_logifleet_146.html"
