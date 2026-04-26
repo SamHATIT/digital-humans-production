@@ -48,7 +48,7 @@ Légende : 🟦 queued · 🟢 running · 🟡 review · 🟣 merged/validé · 
 
 | Track | Mission | Owner | Statut |
 |---|---|---|---|
-| A2 | Audit secrets + Doppler | Claude Code | 🟦 queued (à initier par Sam) |
+| A2 | Audit secrets + Doppler | Claude Code | 🟦 **parqué** — trigger : à faire avant go-live public (premier de : ouverture tier Free public OU mise en prod Stripe). Brief existant `BRIEF_A2_SECURITY_AUDIT.md` réutilisable. |
 | A4 | DB crédits + CreditService | Claude Code | 🟣 **MERGED** + tag `v2026.04-credits-phase3.1-3.2` |
 | B2 | Galerie acte 3 site | Claude Design | 🟣 validé sans arbitrage |
 | B3 | Casting + transitions | Claude Design | 🟣 validé sans arbitrage |
