@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+/**
+ * Projects — listing Studio (A5.4).
+ * № 02 · THE WORKS — your productions to date.
+ * Réutilise les patterns de cards du Dashboard (A5.1).
+ */
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, AlertCircle, Clock, Zap, Trash2, ArrowRight, FolderOpen, Plus, Wand2 } from 'lucide-react';
+import { useLang } from '../contexts/LangContext';
 import { projects } from '../services/api';
-import Navbar from '../components/Navbar';
-import RedesignedBanner from '../components/RedesignedBanner';
+import StudioPlaceholderCover from '../components/layout/StudioPlaceholderCover';
 
 interface Project {
   id: number;
@@ -13,170 +17,253 @@ interface Project {
   created_at: string;
 }
 
+type Filter = 'all' | 'casting' | 'live' | 'archived';
+
+const SDS_REVIEW_STATUSES = ['sds_generated', 'sds_in_review', 'sds_approved', 'build_ready'];
+
+function classifyStatus(status: string): Filter {
+  const s = status.toLowerCase();
+  if (s === 'completed') return 'live';
+  if (s === 'archived' || s === 'failed') return 'archived';
+  if (SDS_REVIEW_STATUSES.includes(s) || s === 'in_progress' || s === 'ready') return 'live';
+  return 'casting';
+}
+
+function statusEyebrow(status: string, t: <T>(en: T, fr: T) => T): string {
+  const map: Record<string, { en: string; fr: string }> = {
+    draft:          { en: 'In casting',     fr: 'En casting' },
+    in_progress:    { en: 'In progress',    fr: 'En cours' },
+    ready:          { en: 'Ready',          fr: 'Prêt' },
+    sds_generated:  { en: 'SDS phase',      fr: 'Phase SDS' },
+    sds_in_review:  { en: 'SDS review',     fr: 'SDS en revue' },
+    sds_approved:   { en: 'SDS approved',   fr: 'SDS approuvé' },
+    build_ready:    { en: 'Build phase',    fr: 'Phase BUILD' },
+    completed:      { en: 'Live',           fr: 'En production' },
+    failed:         { en: 'Failed',         fr: 'Échoué' },
+    archived:       { en: 'Archived',       fr: 'Archivé' },
+  };
+  const entry = map[status.toLowerCase()];
+  if (!entry) return status.toUpperCase();
+  return t(entry.en, entry.fr).toUpperCase();
+}
+
 export default function Projects() {
   const navigate = useNavigate();
-  const [projectList, setProjectList] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { t, lang } = useLang();
+  const [list, setList] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
 
   useEffect(() => {
-    const fetchProjects = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        const data = await projects.list(0, 50);
-        setProjectList(data.projects || data || []);
+        const data: any = await projects.list(0, 100);
+        if (cancelled) return;
+        const items: Project[] = (data?.projects || data || []) as Project[];
+        setList(items);
       } catch (err: any) {
-        console.error('Failed to fetch projects:', err);
-        setError(err.message || 'Failed to load projects');
+        if (!cancelled) setError(err?.message ?? 'Failed to load projects');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
-
-    fetchProjects();
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  const handleDelete = async (projectId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this project?')) return;
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { all: list.length, casting: 0, live: 0, archived: 0 };
+    for (const p of list) c[classifyStatus(p.status)]++;
+    return c;
+  }, [list]);
 
-    try {
-      await projects.delete(projectId);
-      setProjectList((prev) => prev.filter((p) => p.id !== projectId));
-    } catch (err: any) {
-      console.error('Failed to delete project:', err);
-      alert('Failed to delete project');
+  const visible = useMemo(() => {
+    if (filter === 'all') return list;
+    return list.filter((p) => classifyStatus(p.status) === filter);
+  }, [list, filter]);
+
+  const handleOpen = (p: Project) => {
+    if (SDS_REVIEW_STATUSES.includes(p.status.toLowerCase())) {
+      navigate(`/project/${p.id}`);
+    } else {
+      navigate(`/execution/${p.id}`);
     }
   };
 
-  const getStatusConfig = (status: string) => {
-    const configs: Record<string, { color: string; icon: typeof CheckCircle }> = {
-      completed: { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle },
-      in_progress: { color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', icon: Zap },
-      ready: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Clock },
-      failed: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: AlertCircle },
-      draft: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: Clock },
-      sds_generated: { color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: CheckCircle },
-      sds_in_review: { color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: Clock },
-      sds_approved: { color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: CheckCircle },
-      build_ready: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Zap },
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const sure = window.confirm(
+      t('Delete this production? This cannot be undone.', 'Supprimer cette production ? Action irréversible.'),
+    );
+    if (!sure) return;
+    try {
+      await projects.delete(id);
+      setList((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      window.alert(t('Could not delete.', 'Suppression impossible.'));
+    }
+  };
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return iso;
+    }
+  };
+
+  const filterLabel = (id: Filter): string => {
+    const labels: Record<Filter, { en: string; fr: string }> = {
+      all:      { en: 'All',         fr: 'Toutes' },
+      casting:  { en: 'In casting',  fr: 'En casting' },
+      live:     { en: 'Live',        fr: 'Actives' },
+      archived: { en: 'Archived',    fr: 'Archivées' },
     };
-    return configs[status] || configs.draft;
+    return t(labels[id].en, labels[id].fr);
   };
 
   return (
-    <div className="min-h-screen bg-[#0B1120]">
-      <RedesignedBanner pageKey="projects" sprint="A5.2 (Casting)" />
-      <Navbar />
-
-      {/* Background Effects */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-6 mb-12">
+        <div>
+          <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-3">
+            № 02 · {t('The works', 'Les œuvres')}
+          </p>
+          <h1 className="font-serif italic text-4xl md:text-5xl text-bone leading-[1.05]">
+            {t('Your productions to date.', 'Vos productions à ce jour.')}
+          </h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/projects/new')}
+          className="inline-flex items-center gap-2 px-5 py-3 bg-brass text-ink font-mono text-[11px] tracking-cta uppercase hover:bg-brass-2 transition-colors self-start md:self-auto"
+        >
+          + {t('Begin a new production', 'Démarrer une production')}
+        </button>
       </div>
 
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Header with Create Buttons */}
-        <div className="mb-10 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold text-white">All Projects</h1>
-            <p className="text-slate-400 mt-1">Manage and monitor your Salesforce implementations</p>
-          </div>
-          <div className="flex gap-3">
+      {/* Filters */}
+      <div className="flex items-center gap-1 border-b border-bone/10 mb-8 overflow-x-auto">
+        {(['all', 'casting', 'live', 'archived'] as Filter[]).map((f) => {
+          const active = f === filter;
+          return (
             <button
-              onClick={() => navigate('/wizard')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl hover:opacity-90 transition-all"
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`relative px-4 py-3 font-mono text-[11px] tracking-eyebrow uppercase whitespace-nowrap transition-colors ${
+                active ? 'text-brass' : 'text-bone-3 hover:text-bone'
+              }`}
             >
-              <Wand2 className="w-5 h-5" />
-              Nouveau Projet
+              <span className="inline-flex items-center gap-2">
+                {filterLabel(f)}
+                <span
+                  className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] tabular-nums ${
+                    active ? 'bg-brass/20 text-brass' : 'bg-ink-3 text-bone-4'
+                  }`}
+                >
+                  {counts[f]}
+                </span>
+              </span>
+              {active && (
+                <span aria-hidden="true" className="absolute left-0 right-0 -bottom-px h-px bg-brass" />
+              )}
             </button>
-            <button
-              onClick={() => navigate('/wizard')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition-all"
-            >
-              <Plus className="w-5 h-5" />
-              Quick Create
-            </button>
-          </div>
+          );
+        })}
+      </div>
+
+      {/* States */}
+      {loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-ink-2 border border-bone/10 h-72 animate-pulse" />
+          ))}
         </div>
+      )}
 
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
-            {error}
-          </div>
-        )}
+      {!loading && error && (
+        <div className="bg-ink-2 border border-error/30 p-6">
+          <p className="font-mono text-[11px] tracking-eyebrow uppercase text-error mb-2">
+            {t('Error', 'Erreur')}
+          </p>
+          <p className="font-mono text-[12px] text-bone-2">{error}</p>
+        </div>
+      )}
 
-        {isLoading ? (
-          <div className="text-center py-20">
-            <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mx-auto" />
-            <p className="text-slate-400 mt-4">Loading projects...</p>
-          </div>
-        ) : projectList.length === 0 ? (
-          <div className="text-center py-20 bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl">
-            <FolderOpen className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-            <p className="text-slate-400 mb-4">No projects found</p>
-            <button
-              onClick={() => navigate('/wizard')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl"
+      {!loading && !error && visible.length === 0 && (
+        <div className="bg-ink-2 border border-bone/10 p-16 text-center">
+          <p className="font-serif italic text-2xl text-bone-2 mb-3">
+            {t('No productions yet.', 'Aucune production pour le moment.')}
+          </p>
+          <p className="font-mono text-[12px] text-bone-3 mb-8">
+            {t('Cast your first ensemble.', 'Lancez votre premier casting.')}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/projects/new')}
+            className="inline-flex items-center gap-2 px-5 py-3 bg-brass text-ink font-mono text-[11px] tracking-cta uppercase hover:bg-brass-2 transition-colors"
+          >
+            + {t('Begin a new production', 'Démarrer une production')}
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && visible.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {visible.map((p) => (
+            <article
+              key={p.id}
+              onClick={() => handleOpen(p)}
+              className="group relative cursor-pointer bg-ink-2 border border-bone/10 hover:border-brass/40 transition-colors overflow-hidden"
             >
-              Create Your First Project
-            </button>
-          </div>
-        ) : (
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl overflow-hidden">
-            <div className="divide-y divide-slate-700">
-              {projectList.map((project) => {
-                const config = getStatusConfig(project.status);
-                const StatusIcon = config.icon;
+              {/* Cover */}
+              <div className="aspect-[5/3] bg-ink-3 border-b border-bone/10 overflow-hidden">
+                <StudioPlaceholderCover monogram={p.name.split(/\s+/).slice(0,2).map(w=>w[0]?.toUpperCase()??"").join("")||"DH"} className="w-full h-full" />
+              </div>
 
-                return (
-                  <div
-                    key={project.id}
-                    onClick={() => {
-                      const sdsStatuses = ['sds_generated', 'sds_in_review', 'sds_approved', 'build_ready'];
-                      if (sdsStatuses.includes(project.status)) {
-                        navigate(`/project/${project.id}`);
-                      } else {
-                        navigate(`/execution/${project.id}`);
-                      }
-                    }}
-                    className="p-5 hover:bg-slate-700/30 cursor-pointer transition-all flex items-center justify-between group"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-white group-hover:text-cyan-400 transition-colors truncate">
-                        {project.name}
-                      </h3>
-                      {project.description && (
-                        <p className="text-sm text-slate-500 truncate mt-1">{project.description}</p>
-                      )}
-                      <p className="text-xs text-slate-600 mt-1">
-                        Created {new Date(project.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
+              {/* Body */}
+              <div className="p-5">
+                <p className="font-mono text-[10px] tracking-eyebrow uppercase text-brass mb-2">
+                  {statusEyebrow(p.status, t)}
+                </p>
+                <h2 className="font-serif italic text-xl text-bone leading-tight mb-2 line-clamp-2">
+                  {p.name}
+                </h2>
+                {p.description && (
+                  <p className="font-mono text-[11px] text-bone-3 line-clamp-2 mb-3">
+                    {p.description}
+                  </p>
+                )}
+                <p className="font-mono text-[10px] text-bone-4">
+                  {t('Created', 'Créé le')} · {formatDate(p.created_at)}
+                </p>
+              </div>
 
-                    <div className="flex items-center gap-4 ml-4">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.color}`}
-                      >
-                        <StatusIcon className="w-3 h-3" />
-                        {project.status}
-                      </span>
-
-                      <button
-                        onClick={(e) => handleDelete(project.id, e)}
-                        className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-
-                      <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-cyan-400 transition-colors" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+              {/* Hover panel — actions */}
+              <div className="absolute inset-x-0 bottom-0 translate-y-full group-hover:translate-y-0 transition-transform duration-300 bg-ink-3/95 backdrop-blur-sm border-t border-brass/30 px-5 py-3 flex items-center justify-between">
+                <span className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+                  {t('Open', 'Ouvrir')} →
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => handleDelete(p.id, e)}
+                  className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 hover:text-error transition-colors"
+                  aria-label={t('Delete', 'Supprimer')}
+                >
+                  {t('Delete', 'Supprimer')}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

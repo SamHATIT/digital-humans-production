@@ -18,12 +18,18 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* ─── Public Routes ─── */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/pricing" element={<Pricing />} />
+        <Route
+          path="/pricing"
+          element={
+            <AppShell variant="public">
+              <Pricing />
+            </AppShell>
+          }
+        />
 
-        {/* Protected Routes — A5.1 : seul Dashboard porte le AppShell Studio.
-            Les autres pages restent en charte legacy (avec bandeau "redesigned"). */}
+        {/* ─── Protected Routes (toutes en charte Studio après A5.4) ─── */}
         <Route
           path="/"
           element={
@@ -34,14 +40,39 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* A5.4 — pages connexes en charte Studio */}
         <Route
           path="/projects"
           element={
             <ProtectedRoute>
-              <Projects />
+              <AppShell>
+                <Projects />
+              </AppShell>
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/project/:projectId"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <ProjectDetailPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/agent-tester"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <AgentTesterPage />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+
         {/* A5.2 — Casting tunnel : NewProject + Wizard + BR validation */}
         <Route
           path="/projects/new"
@@ -83,14 +114,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/project/:projectId"
-          element={
-            <ProtectedRoute>
-              <ProjectDetailPage />
-            </ProtectedRoute>
-          }
-        />
+
         {/* A5.3 — Theatre tunnel : ExecutionPage + Monitor + BUILD */}
         <Route
           path="/execution/:projectId"
@@ -119,14 +143,6 @@ function App() {
               <AppShell>
                 <BuildMonitoringPage />
               </AppShell>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/agent-tester"
-          element={
-            <ProtectedRoute>
-              <AgentTesterPage />
             </ProtectedRoute>
           }
         />
