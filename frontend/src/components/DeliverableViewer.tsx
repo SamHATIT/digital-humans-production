@@ -117,18 +117,18 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
   };
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-8">
+    <div className="bg-ink-2 border border-bone/10 rounded-2xl p-6 mb-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-cyan-400" />
-          <h3 className="text-lg font-semibold text-white">
+          <FileText className="w-5 h-5 text-brass" />
+          <h3 className="text-lg font-semibold text-bone">
             Phase {phaseNumber}: {PHASE_LABELS[phaseNumber]} — Deliverables
           </h3>
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
+          className="p-1.5 rounded-lg hover:bg-ink-3 transition-colors text-bone-4 hover:text-bone"
         >
           <X className="w-5 h-5" />
         </button>
@@ -137,19 +137,19 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
       {/* Content */}
       {loading && (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
-          <span className="text-slate-400 ml-3">Loading deliverables...</span>
+          <Loader2 className="w-6 h-6 text-brass animate-spin" />
+          <span className="text-bone-4 ml-3">Loading deliverables...</span>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+        <div className="bg-error/10 border border-error/30 rounded-xl p-4 text-error">
           {error}
         </div>
       )}
 
       {!loading && !error && deliverables.length === 0 && (
-        <p className="text-slate-500 text-center py-6">No deliverables found for this phase.</p>
+        <p className="text-bone-4 text-center py-6">No deliverables found for this phase.</p>
       )}
 
       {!loading && !error && deliverables.length > 0 && (
@@ -161,23 +161,23 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
             return (
               <div
                 key={d.id}
-                className="bg-slate-900/50 border border-slate-600 rounded-xl overflow-hidden"
+                className="bg-ink border border-bone/15 rounded-xl overflow-hidden"
               >
                 {/* Deliverable header */}
                 <div className="p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-white font-medium">
+                      <h4 className="text-bone font-medium">
                         {formatDeliverableType(d.deliverable_type)}
                       </h4>
-                      <p className="text-xs text-slate-500 mt-1">
+                      <p className="text-xs text-bone-4 mt-1">
                         {d.agent_name} &middot; {formatSize(d.content_size)} &middot;{' '}
                         {new Date(d.created_at).toLocaleString()}
                       </p>
                     </div>
                     <button
                       onClick={() => handleExpand(d.id)}
-                      className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+                      className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brass/10 text-brass hover:bg-brass/20 transition-colors"
                     >
                       {isExpanded ? (
                         <>
@@ -195,7 +195,7 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
 
                   {/* Preview (always visible) */}
                   {!isExpanded && d.content_preview && (
-                    <p className="mt-3 text-sm text-slate-400 line-clamp-3 whitespace-pre-wrap">
+                    <p className="mt-3 text-sm text-bone-4 line-clamp-3 whitespace-pre-wrap">
                       {d.content_preview}
                     </p>
                   )}
@@ -203,11 +203,11 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
 
                 {/* Full content (expanded) */}
                 {isExpanded && (
-                  <div className="border-t border-slate-700 p-4">
+                  <div className="border-t border-bone/10 p-4">
                     {isLoadingThis ? (
                       <div className="flex items-center gap-2 py-4">
-                        <Loader2 className="w-4 h-4 text-cyan-400 animate-spin" />
-                        <span className="text-slate-400 text-sm">Loading full content...</span>
+                        <Loader2 className="w-4 h-4 text-brass animate-spin" />
+                        <span className="text-bone-4 text-sm">Loading full content...</span>
                       </div>
                     ) : (() => {
                       const text = fullContents[d.id] || d.content_preview;
@@ -230,14 +230,14 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                       // Mermaid content
                       if (hasMermaid) {
                         return (
-                          <div className="max-h-[600px] overflow-y-auto bg-slate-950/50 rounded-lg p-4">
+                          <div className="max-h-[600px] overflow-y-auto bg-ink rounded-lg p-4">
                             <MermaidRenderer content={text} />
                           </div>
                         );
                       }
                       // Plain text fallback
                       return (
-                        <pre className="text-sm text-slate-300 whitespace-pre-wrap break-words max-h-96 overflow-y-auto font-mono bg-slate-950/50 rounded-lg p-4">
+                        <pre className="text-sm text-bone-3 whitespace-pre-wrap break-words max-h-96 overflow-y-auto font-mono bg-ink rounded-lg p-4">
                           {text}
                         </pre>
                       );
