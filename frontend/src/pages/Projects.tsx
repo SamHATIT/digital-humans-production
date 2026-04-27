@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, CheckCircle, AlertCircle, Clock, Zap, Trash2, ArrowRight, FolderOpen, Plus, Wand2 } from 'lucide-react';
 import { projects } from '../services/api';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 
 interface Project {
   id: number;
@@ -64,6 +65,7 @@ export default function Projects() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="projects" sprint="A5.2 (Casting)" />
       <Navbar />
 
       {/* Background Effects */}

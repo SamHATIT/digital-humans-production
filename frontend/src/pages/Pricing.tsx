@@ -4,6 +4,7 @@
  */
 import React from 'react';
 import { Check, X, Crown, Sparkles, Building2 } from 'lucide-react';
+import RedesignedBanner from '../components/RedesignedBanner';
 
 interface TierFeature {
   name: string;
@@ -47,7 +48,9 @@ const FeatureValue: React.FC<{ value: boolean | string }> = ({ value }) => {
 
 const Pricing: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50">
+      <RedesignedBanner pageKey="pricing" sprint="A5.4 (Régie)" />
+    <div className="py-12 px-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
@@ -243,6 +246,7 @@ const Pricing: React.FC = () => {
           </a>
         </div>
       </div>
+    </div>
     </div>
   );
 };

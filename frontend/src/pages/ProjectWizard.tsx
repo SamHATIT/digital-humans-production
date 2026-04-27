@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { wizard, documents } from '../services/api';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 
 // Types
 type ProjectType = 'greenfield' | 'existing';
@@ -307,6 +308,7 @@ export default function ProjectWizard() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="wizard" sprint="A5.2 (Casting)" />
       <Navbar />
 
       {/* Background */}

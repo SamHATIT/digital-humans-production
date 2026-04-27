@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Terminal, CheckCircle, XCircle, Loader2, Database, RefreshCw, User, Zap, Cloud, FolderOpen } from 'lucide-react';
+import { Play, Terminal, CheckCircle, XCircle, Loader2, RefreshCw, Zap, Cloud, FolderOpen } from 'lucide-react';
+import RedesignedBanner from '../components/RedesignedBanner';
 
 interface Agent {
   name: string;
@@ -141,6 +142,7 @@ const AgentTesterPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      <RedesignedBanner pageKey="agent-tester" sprint="A5.4 (Régie)" />
       {/* Header */}
       <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">

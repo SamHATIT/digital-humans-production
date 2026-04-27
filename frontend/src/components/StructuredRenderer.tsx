@@ -3,7 +3,7 @@
  * Used by DeliverableViewer for non-Markdown content (architect, expert specs, BRs, etc.)
  */
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
 interface StructuredRendererProps {
   deliverableType: string;
@@ -56,7 +56,6 @@ function BRTable({ data }: { data: any }) {
 function CoverageReport({ data }: { data: any }) {
   const score = data?.overall_coverage_score;
   const gaps = data?.critical_gaps || [];
-  const uncovered = data?.uncovered_use_cases || [];
   const byCategory = data?.by_category || {};
 
   return (

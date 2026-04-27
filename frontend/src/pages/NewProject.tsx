@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Rocket, FileText, Users } from 'lucide-react';
 import { projects } from '../services/api';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 import WorkflowEditor from '../components/WorkflowEditor';
 import { MANDATORY_AGENTS } from '../constants';
 
@@ -66,6 +67,7 @@ export default function NewProject() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="new-project" sprint="A5.2 (Casting)" />
       <Navbar />
 
       {/* Background Effects */}

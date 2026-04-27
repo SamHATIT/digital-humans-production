@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Loader2, MessageCircle, User, Bot, ChevronDown } from 'lucide-react';
+import { X, Send, Loader2, User, Bot, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 import DiffViewer from './DiffViewer';
 

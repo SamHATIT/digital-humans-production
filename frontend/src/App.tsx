@@ -12,6 +12,7 @@ import BRValidationPage from './pages/BRValidationPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import Pricing from './pages/Pricing';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppShell from './components/layout/AppShell';
 
 function App() {
   return (
@@ -21,12 +22,15 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/pricing" element={<Pricing />} />
 
-        {/* Protected Routes */}
+        {/* Protected Routes — A5.1 : seul Dashboard porte le AppShell Studio.
+            Les autres pages restent en charte legacy (avec bandeau "redesigned"). */}
         <Route
           path="/"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <AppShell>
+                <Dashboard />
+              </AppShell>
             </ProtectedRoute>
           }
         />

@@ -1,11 +1,10 @@
 import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Home, FolderPlus, History, LogOut, Sparkles } from 'lucide-react';
 import { auth } from '../services/api';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
 
   const handleLogout = () => {
     auth.logout();

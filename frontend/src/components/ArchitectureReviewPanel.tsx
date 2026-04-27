@@ -98,7 +98,6 @@ interface WBSTask {
 function generateERDMermaid(dm: DataModel): string {
   const lines: string[] = ['erDiagram'];
   const allObjects = [...(dm.custom_objects || []), ...(dm.standard_objects || []).slice(0, 8)];
-  const objectNames = new Set(allObjects.map(o => o.api_name));
 
   for (const obj of allObjects) {
     const safeName = obj.api_name.replace(/__c$/, '').replace(/_/g, '-');

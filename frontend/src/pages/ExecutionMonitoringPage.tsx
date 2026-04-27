@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, RefreshCcw, ClipboardList, RotateCcw, ShieldCheck, ChevronDown, ChevronUp, MessageCircle, BarChart3 } from 'lucide-react';
+import { Download, Loader2, CheckCircle, AlertCircle, Clock, Zap, RefreshCw, ClipboardList, RotateCcw, ChevronDown, ChevronUp, MessageCircle, BarChart3 } from 'lucide-react';
 import { executions } from '../services/api';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 import Avatar from '../components/ui/Avatar';
 import AgentThoughtModal from '../components/AgentThoughtModal';
 import TimelineStepper from '../components/TimelineStepper';
@@ -556,6 +557,7 @@ export default function ExecutionMonitoringPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="execution-monitoring" sprint="A5.3 (Théâtre)" />
       <Navbar />
 
       {/* Background Effects */}

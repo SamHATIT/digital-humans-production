@@ -1,163 +1,289 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FolderPlus, Clock, CheckCircle, AlertCircle, Zap, ArrowRight } from 'lucide-react';
-import { projects } from '../services/api';
-import Navbar from '../components/Navbar';
+import { ArrowRight, AlertTriangle, Loader2, Activity } from 'lucide-react';
+import { api, projects } from '../services/api';
+import { useLang } from '../contexts/LangContext';
+import StudioPlaceholderCover from '../components/layout/StudioPlaceholderCover';
 
-interface DashboardStats {
-  total_projects: number;
-  active_executions: number;
-  completed_projects: number;
-}
-
-interface Project {
+interface ProjectRow {
   id: number;
   name: string;
+  description?: string;
   status: string;
+  industry?: string;
+  client_name?: string;
+  cover_image?: string;
   created_at: string;
+  updated_at?: string;
+}
+
+interface CurrentUser {
+  email?: string;
+  name?: string;
+  first_name?: string;
+}
+
+interface ExecutionRow {
+  id: number;
+  project_id?: number;
+  project_name?: string;
+  status: string;
+  current_agent?: string;
+  progress_percent?: number;
+  started_at?: string;
+}
+
+interface EmptyCard {
+  index: string;
+  title: { en: string; fr: string };
+  body: { en: string; fr: string };
+  cta: { en: string; fr: string };
+  href: string;
+  external?: boolean;
+}
+
+const EMPTY_CARDS: EmptyCard[] = [
+  {
+    index: '№ 01',
+    title: { en: 'Cast your first ensemble', fr: 'Distribuez votre premier ensemble' },
+    body: {
+      en: 'Pick a brief, summon eleven agents and let the studio begin.',
+      fr: 'Choisissez un brief, convoquez les onze agents, laissez le studio jouer.',
+    },
+    cta: { en: 'Open the wizard →', fr: 'Ouvrir le wizard →' },
+    href: '/wizard',
+  },
+  {
+    index: '№ 02',
+    title: { en: 'Browse the gallery', fr: 'Parcourir la galerie' },
+    body: {
+      en: 'Six exhibition pieces, six finished plays — see what the agents have already shipped.',
+      fr: 'Six pièces d’exposition, six pièces achevées — découvrez ce que les agents ont déjà livré.',
+    },
+    cta: { en: 'Visit the gallery →', fr: 'Visiter la galerie →' },
+    href: '/preview',
+    external: true,
+  },
+  {
+    index: '№ 03',
+    title: { en: 'Read the manifesto', fr: 'Lire le manifeste' },
+    body: {
+      en: 'Eleven agents, one studio, no slop. Our founding text in twelve minutes.',
+      fr: 'Onze agents, un studio, aucune complaisance. Le texte fondateur en douze minutes.',
+    },
+    cta: { en: 'Read the manifesto →', fr: 'Lire le manifeste →' },
+    href: 'https://digital-humans.fr/journal/manifesto',
+    external: true,
+  },
+];
+
+function deriveFirstName(user: CurrentUser | null): string {
+  if (!user) return '';
+  if (user.first_name) return user.first_name;
+  if (user.name) return user.name.split(/\s+/)[0] ?? user.name;
+  if (user.email) return user.email.split('@')[0] ?? '';
+  return '';
+}
+
+function formatRelative(iso: string | undefined, lang: 'en' | 'fr'): string {
+  if (!iso) return lang === 'fr' ? 'date inconnue' : 'unknown date';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return iso;
+  const seconds = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  const minutes = Math.round(seconds / 60);
+  const hours = Math.round(minutes / 60);
+  const days = Math.round(hours / 24);
+  if (lang === 'fr') {
+    if (seconds < 60) return `il y a ${seconds}s`;
+    if (minutes < 60) return `il y a ${minutes} min`;
+    if (hours < 24) return `il y a ${hours} h`;
+    if (days < 30) return `il y a ${days} j`;
+    return new Date(ts).toLocaleDateString('fr-FR');
+  }
+  if (seconds < 60) return `${seconds}s ago`;
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours < 24) return `${hours} h ago`;
+  if (days < 30) return `${days} d ago`;
+  return new Date(ts).toLocaleDateString('en-US');
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [stats, setStats] = useState<DashboardStats>({
-    total_projects: 0,
-    active_executions: 0,
-    completed_projects: 0,
-  });
-  const [recentProjects, setRecentProjects] = useState<Project[]>([]);
+  const { lang, t } = useLang();
+
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [projectList, setProjectList] = useState<ProjectRow[]>([]);
+  const [activeExecutions, setActiveExecutions] = useState<ExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      // 1. Profil utilisateur (best-effort)
       try {
-        const [statsData, projectsData] = await Promise.all([
-          projects.getDashboardStats(),
-          projects.list(0, 5),
-        ]);
-        setStats(statsData);
-        setRecentProjects(projectsData.projects || projectsData || []);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
+        const me = await api.get('/api/auth/me');
+        if (!cancelled) setUser({
+          email: me?.email,
+          name: me?.name,
+          first_name: me?.first_name,
+        });
+      } catch {
+        if (!cancelled) setUser(null);
       }
+
+      // 2. Projets (source : pm-orchestrator/projects)
+      try {
+        const data = await projects.list(0, 50);
+        const rows: ProjectRow[] = (data?.projects ?? data ?? []) as ProjectRow[];
+        if (!cancelled) setProjectList(Array.isArray(rows) ? rows : []);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unable to load projects.';
+        if (!cancelled) setError(msg);
+      }
+
+      // 3. Exécutions actives — endpoint optionnel, fallback silencieux
+      try {
+        const data = await api.get('/api/executions?status=running');
+        const rows: ExecutionRow[] = (data?.executions ?? data ?? []) as ExecutionRow[];
+        if (!cancelled) setActiveExecutions(Array.isArray(rows) ? rows : []);
+      } catch {
+        if (!cancelled) setActiveExecutions([]);
+      }
+
+      if (!cancelled) setLoading(false);
     };
 
-    fetchData();
+    load();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const getStatusBadge = (status: string) => {
-    const configs: Record<string, { color: string; icon: typeof CheckCircle }> = {
-      completed: { color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: CheckCircle },
-      in_progress: { color: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30', icon: Zap },
-      ready: { color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: Clock },
-      failed: { color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: AlertCircle },
-      draft: { color: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: Clock },
-    };
-    const normalizedStatus = status?.toLowerCase() || 'draft';
-    const config = configs[normalizedStatus] || configs.draft;
-    const Icon = config.icon;
-
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${config.color}`}>
-        <Icon className="w-3 h-3" />
-        {normalizedStatus.replace('_', ' ')}
-      </span>
-    );
-  };
+  const firstName = deriveFirstName(user);
+  const hasProjects = projectList.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0B1120]">
-      <Navbar />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Hero */}
+      <section className="mb-16">
+        <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+          № 01 · Studio
+        </p>
+        <h1 className="mt-4 font-serif italic text-4xl md:text-5xl text-bone leading-tight">
+          {firstName
+            ? t(`Welcome back, ${firstName}.`, `Bon retour, ${firstName}.`)
+            : t('Welcome back.', 'Bon retour.')}
+        </h1>
+        <p className="mt-4 max-w-xl font-mono text-[12px] tracking-[0.04em] text-bone-3 leading-relaxed">
+          {t(
+            'Eleven agents stand by. Cast a project, brief them, and watch the studio at work.',
+            'Onze agents en coulisses. Distribuez un projet, briefez-les, et regardez le studio à l’œuvre.',
+          )}
+        </p>
+      </section>
 
-      {/* Background Effects */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
-      </div>
-
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Welcome Section */}
-        <div className="mb-10 text-center">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
-            Welcome to Digital Humans
-          </h1>
-          <p className="mt-2 text-slate-400 max-w-2xl mx-auto">
-            Your AI-powered Salesforce automation system. Create projects and let your digital workforce handle the rest.
-          </p>
+      {/* Loading */}
+      {loading && (
+        <div className="border border-bone/5 bg-ink-2 px-6 py-16 flex items-center justify-center gap-3">
+          <Loader2 className="w-4 h-4 animate-spin text-brass" />
+          <span className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+            {t('Loading the studio…', 'Chargement du studio…')}
+          </span>
         </div>
+      )}
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 hover:border-cyan-500/30 transition-all">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm font-medium">Total Projects</p>
-                <p className="text-3xl font-bold text-white mt-1">{stats.total_projects}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-                <FolderPlus className="w-6 h-6 text-cyan-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 hover:border-green-500/30 transition-all">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm font-medium">Active</p>
-                <p className="text-3xl font-bold text-green-400 mt-1">{stats.active_executions}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-green-400" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 hover:border-purple-500/30 transition-all">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-400 text-sm font-medium">Completed</p>
-                <p className="text-3xl font-bold text-purple-400 mt-1">{stats.completed_projects}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-purple-400" />
-              </div>
-            </div>
+      {/* Error */}
+      {!loading && error && (
+        <div className="border border-error/40 bg-ink-2 px-6 py-6 flex items-start gap-3">
+          <AlertTriangle className="w-4 h-4 text-error mt-[2px] shrink-0" />
+          <div>
+            <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-2">
+              {t('Could not load projects', 'Impossible de charger les projets')}
+            </p>
+            <p className="mt-1 font-mono text-[11px] text-bone-4">{error}</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 font-mono text-[11px] tracking-cta uppercase text-brass hover:text-brass-2"
+            >
+              {t('Retry', 'Réessayer')} →
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Quick Actions */}
-        <div className="mb-10">
-          <Link
-            to="/wizard"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 text-white font-medium rounded-xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40"
-          >
-            <FolderPlus className="w-5 h-5" />
-            Create New Project
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+      {/* Empty state */}
+      {!loading && !error && !hasProjects && (
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {EMPTY_CARDS.map((card) => {
+            const cardInner = (
+              <article className="group border border-bone/5 bg-ink-2 p-8 h-full flex flex-col transition-colors hover:border-brass/40">
+                <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+                  {card.index} · Studio
+                </p>
+                <h2 className="mt-4 font-serif italic text-2xl text-bone leading-snug">
+                  {t(card.title.en, card.title.fr)}
+                </h2>
+                <p className="mt-3 font-mono text-[11px] tracking-[0.04em] text-bone-3 leading-relaxed flex-1">
+                  {t(card.body.en, card.body.fr)}
+                </p>
+                <span className="mt-6 inline-flex items-center gap-2 font-mono text-[11px] tracking-cta uppercase text-brass group-hover:text-brass-2">
+                  {t(card.cta.en, card.cta.fr)}
+                </span>
+              </article>
+            );
+            return card.external ? (
+              <a key={card.index} href={card.href} target="_blank" rel="noreferrer" className="block">
+                {cardInner}
+              </a>
+            ) : (
+              <Link key={card.index} to={card.href} className="block">
+                {cardInner}
+              </Link>
+            );
+          })}
+        </section>
+      )}
 
-        {/* Recent Projects */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-slate-700">
-            <h2 className="text-xl font-bold text-white">Recent Projects</h2>
-          </div>
-
-          {loading ? (
-            <div className="p-10 text-center">
-              <div className="animate-spin w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto" />
-              <p className="text-slate-400 mt-4">Loading projects...</p>
+      {/* Projects grid */}
+      {!loading && !error && hasProjects && (
+        <section>
+          <header className="flex items-end justify-between mb-6 border-b border-bone/5 pb-4">
+            <div>
+              <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+                № 02 · Repertoire
+              </p>
+              <h2 className="mt-2 font-serif italic text-2xl text-bone">
+                {t('Your productions', 'Vos productions')}
+              </h2>
             </div>
-          ) : recentProjects.length === 0 ? (
-            <div className="p-10 text-center">
-              <p className="text-slate-400">No projects yet. Create your first one!</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-700">
-              {recentProjects.map((project) => (
-                <div
+            <Link
+              to="/wizard"
+              className="font-mono text-[11px] tracking-cta uppercase text-brass hover:text-brass-2"
+            >
+              {t('+ New production', '+ Nouvelle production')}
+            </Link>
+          </header>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {projectList.map((project) => {
+              const monogram = project.name
+                ?.split(/\s+/)
+                .map((w) => w[0])
+                .filter(Boolean)
+                .slice(0, 2)
+                .join('')
+                .toUpperCase() || 'DH';
+
+              return (
+                <button
                   key={project.id}
+                  type="button"
                   onClick={() => {
                     const sdsStatuses = ['sds_generated', 'sds_in_review', 'sds_approved', 'build_ready'];
                     if (sdsStatuses.includes(project.status)) {
@@ -166,26 +292,88 @@ export default function Dashboard() {
                       navigate(`/execution/${project.id}`);
                     }
                   }}
-                  className="p-4 hover:bg-slate-700/30 cursor-pointer transition-all flex items-center justify-between group"
+                  className="text-left group border border-bone/5 bg-ink-2 hover:border-brass/40 transition-colors flex flex-col"
                 >
-                  <div>
-                    <h3 className="font-medium text-white group-hover:text-cyan-400 transition-colors">
+                  <div className="aspect-[16/10] overflow-hidden bg-ink-3 border-b border-bone/5">
+                    {project.cover_image ? (
+                      <img
+                        src={project.cover_image}
+                        alt=""
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
+                      />
+                    ) : (
+                      <StudioPlaceholderCover monogram={monogram} className="w-full h-full" />
+                    )}
+                  </div>
+                  <div className="p-5 flex flex-col gap-2 flex-1">
+                    <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                      {project.industry ?? project.client_name ?? t('Studio', 'Studio')}
+                    </p>
+                    <h3 className="font-serif italic text-xl text-bone leading-snug">
                       {project.name}
                     </h3>
-                    <p className="text-sm text-slate-500">
-                      Created {new Date(project.created_at).toLocaleDateString()}
+                    <p className="mt-auto font-mono text-[11px] text-bone-3 flex items-center justify-between">
+                      <span>
+                        {t('Last activity', 'Dernière activité')} ·{' '}
+                        {formatRelative(project.updated_at ?? project.created_at, lang)}
+                      </span>
+                      <ArrowRight className="w-3.5 h-3.5 text-brass opacity-0 group-hover:opacity-100 transition-opacity" />
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {getStatusBadge(project.status)}
-                    <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 transition-colors" />
-                  </div>
-                </div>
-              ))}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Work in progress */}
+      {!loading && !error && (
+        <section className="mt-20">
+          <header className="mb-6 border-b border-bone/5 pb-4">
+            <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+              № 03 · Backstage
+            </p>
+            <h2 className="mt-2 font-serif italic text-2xl text-bone">
+              {t('The work in progress', 'L’ouvrage en cours')}
+            </h2>
+          </header>
+
+          {activeExecutions.length === 0 ? (
+            <div className="border border-bone/5 bg-ink-2 px-6 py-10 text-center">
+              <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+                {t('No active performance right now.', 'Aucune représentation en cours.')}
+              </p>
             </div>
+          ) : (
+            <ol className="relative border-l border-brass/20 pl-6 space-y-6">
+              {activeExecutions.slice(0, 6).map((exec) => (
+                <li key={exec.id} className="relative">
+                  <span className="absolute -left-[31px] top-1.5 w-2 h-2 bg-brass animate-pulse-dot" />
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                      Exec № {exec.id}
+                    </span>
+                    <h3 className="font-serif italic text-lg text-bone">
+                      {exec.project_name ?? `Project #${exec.project_id ?? '—'}`}
+                    </h3>
+                  </div>
+                  <p className="mt-1 font-mono text-[11px] text-bone-3 flex items-center gap-2">
+                    <Activity className="w-3 h-3 text-brass" />
+                    {exec.current_agent ?? t('on stage', 'en scène')}
+                    {typeof exec.progress_percent === 'number' && (
+                      <span className="text-bone-4">· {Math.round(exec.progress_percent)}%</span>
+                    )}
+                    <span className="text-bone-4">
+                      · {formatRelative(exec.started_at, lang)}
+                    </span>
+                  </p>
+                </li>
+              ))}
+            </ol>
           )}
-        </div>
-      </main>
+        </section>
+      )}
     </div>
   );
 }

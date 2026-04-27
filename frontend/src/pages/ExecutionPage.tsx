@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Play, Loader2, Users, FileText, ArrowRight, CheckCircle } from 'lucide-react';
 import { projects, executions } from '../services/api';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 import Avatar from '../components/ui/Avatar';
 import { AGENTS, MANDATORY_AGENTS } from '../constants';
 
@@ -95,6 +96,7 @@ export default function ExecutionPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="execution" sprint="A5.3 (Théâtre)" />
       <Navbar />
 
       {/* Background Effects */}

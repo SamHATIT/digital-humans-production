@@ -6,7 +6,7 @@ import {
   RefreshCw, ChevronDown, ChevronUp, Terminal, GitCommit
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
-import Avatar from '../components/ui/Avatar';
+import RedesignedBanner from '../components/RedesignedBanner';
 import { api } from '../services/api';
 import BuildPhasesPanel, { type PhaseExecution } from '../components/BuildPhasesPanel';
 
@@ -191,6 +191,7 @@ export default function BuildMonitoringPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="build-monitoring" sprint="A5.3 (Théâtre)" />
       <Navbar />
 
       {/* Background Effects */}
@@ -295,7 +296,6 @@ export default function BuildMonitoringPage() {
         <div className="space-y-4">
           {Object.entries(tasksByAgent).map(([agentId, tasks]) => {
             const agentInfo = AGENT_INFO[agentId] || { name: agentId, role: 'Agent', icon: Code, color: 'from-slate-500 to-slate-600' };
-            const IconComponent = agentInfo.icon;
             const isExpanded = expandedAgents.has(agentId);
             const completedCount = tasks.filter(t => t.status === 'completed' || t.status === 'passed').length;
             const runningCount = tasks.filter(t => t.status === 'running').length;

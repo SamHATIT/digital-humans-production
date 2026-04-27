@@ -5,6 +5,7 @@ import {
   Edit2, Trash2, X, Save, Filter
 } from 'lucide-react';
 import Navbar from '../components/Navbar';
+import RedesignedBanner from '../components/RedesignedBanner';
 import { api } from '../services/api';
 
 interface BusinessRequirement {
@@ -226,6 +227,7 @@ export default function BRValidationPage() {
 
   return (
     <div className="min-h-screen bg-[#0B1120]">
+      <RedesignedBanner pageKey="br-validation" sprint="A5.3 (Théâtre)" />
       <Navbar />
 
       {/* Background Effects */}

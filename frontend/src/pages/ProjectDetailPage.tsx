@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
+import RedesignedBanner from '../components/RedesignedBanner';
 
 interface Project {
   id: number;
@@ -286,7 +287,9 @@ export default function ProjectDetailPage() {
   const canApproveSDS = pendingCRs.length === 0 && sdsVersions.length > 0;
 
   return (
-    <div className="min-h-screen bg-[#0a1628] text-white p-6">
+    <div className="min-h-screen bg-[#0a1628] text-white">
+      <RedesignedBanner pageKey="project-detail" sprint="A5.3 (Théâtre)" />
+      <div className="p-6">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-cyan-400">{project.name}</h1>
@@ -747,6 +750,7 @@ export default function ProjectDetailPage() {
           loadProjectData();
         }}
       />
+      </div>
     </div>
   );
 }
