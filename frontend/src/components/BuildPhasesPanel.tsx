@@ -21,16 +21,16 @@ const PHASE_CONFIG = [
 
 // Status configuration
 const STATUS_CONFIG: Record<string, { color: string; bgColor: string; icon: typeof CheckCircle }> = {
-  pending: { color: 'text-slate-400', bgColor: 'bg-slate-600', icon: Clock },
-  generating: { color: 'text-blue-400', bgColor: 'bg-blue-500', icon: Loader2 },
-  aggregating: { color: 'text-cyan-400', bgColor: 'bg-cyan-500', icon: Loader2 },
-  reviewing: { color: 'text-purple-400', bgColor: 'bg-purple-500', icon: Loader2 },
-  pr_created: { color: 'text-yellow-400', bgColor: 'bg-yellow-500', icon: GitMerge },
-  deploying: { color: 'text-orange-400', bgColor: 'bg-orange-500', icon: Play },
-  retrieving: { color: 'text-teal-400', bgColor: 'bg-teal-500', icon: Loader2 },
-  completed: { color: 'text-green-400', bgColor: 'bg-green-600', icon: CheckCircle },
-  failed: { color: 'text-red-400', bgColor: 'bg-red-500', icon: AlertCircle },
-  retry: { color: 'text-amber-400', bgColor: 'bg-amber-500', icon: AlertCircle },
+  pending: { color: 'text-bone-4', bgColor: 'bg-ink-3', icon: Clock },
+  generating: { color: 'text-indigo', bgColor: 'bg-indigo', icon: Loader2 },
+  aggregating: { color: 'text-brass', bgColor: 'bg-brass', icon: Loader2 },
+  reviewing: { color: 'text-plum', bgColor: 'bg-plum', icon: Loader2 },
+  pr_created: { color: 'text-ochre', bgColor: 'bg-warning', icon: GitMerge },
+  deploying: { color: 'text-ochre', bgColor: 'bg-ochre', icon: Play },
+  retrieving: { color: 'text-sage', bgColor: 'bg-sage', icon: Loader2 },
+  completed: { color: 'text-sage', bgColor: 'bg-sage', icon: CheckCircle },
+  failed: { color: 'text-error', bgColor: 'bg-error', icon: AlertCircle },
+  retry: { color: 'text-warning', bgColor: 'bg-warning', icon: AlertCircle },
 };
 
 export interface PhaseExecution {
@@ -77,9 +77,9 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
   };
 
   return (
-    <div className="bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-700">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-        <Play className="w-5 h-5 text-cyan-400" />
+    <div className="bg-ink-2 rounded-xl p-6 shadow-lg border border-bone/10">
+      <h3 className="text-lg font-semibold text-bone mb-4 flex items-center gap-2">
+        <Play className="w-5 h-5 text-brass" />
         BUILD Phases (v2)
       </h3>
 
@@ -98,7 +98,7 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
               key={config.phase}
               className={`
                 rounded-lg border transition-all
-                ${isCurrent ? 'border-cyan-500 bg-slate-700/50' : 'border-slate-600 bg-slate-750'}
+                ${isCurrent ? 'border-brass bg-ink-3/60' : 'border-bone/15 bg-ink-3'}
                 ${status === 'completed' ? 'opacity-80' : ''}
               `}
             >
@@ -110,23 +110,23 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
                 <div className="flex items-center gap-3">
                   {/* Status Icon */}
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center ${statusConfig.bgColor}`}>
-                    <StatusIcon className={`w-4 h-4 text-white ${status.includes('ing') ? 'animate-spin' : ''}`} />
+                    <StatusIcon className={`w-4 h-4 text-bone ${status.includes('ing') ? 'animate-spin' : ''}`} />
                   </div>
                   
                   {/* Phase Info */}
                   <div>
                     <div className="flex items-center gap-2">
-                      <PhaseIcon className="w-4 h-4 text-slate-400" />
-                      <span className="font-medium text-white">
+                      <PhaseIcon className="w-4 h-4 text-bone-4" />
+                      <span className="font-medium text-bone">
                         Phase {config.phase}: {config.name}
                       </span>
                       {isCurrent && (
-                        <span className="text-xs px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full">
+                        <span className="text-xs px-2 py-0.5 bg-brass/20 text-brass-2 rounded-full">
                           Current
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400 mt-0.5">
+                    <div className="text-xs text-bone-4 mt-0.5">
                       {config.description} • Agent: {config.agent}
                     </div>
                   </div>
@@ -135,48 +135,48 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
                 <div className="flex items-center gap-3">
                   {/* Progress */}
                   {phaseData && phaseData.total_batches > 0 && (
-                    <div className="text-xs text-slate-400">
+                    <div className="text-xs text-bone-4">
                       {phaseData.completed_batches}/{phaseData.total_batches} batches
                     </div>
                   )}
                   
                   {/* Duration */}
                   {phaseData?.started_at && (
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-bone-4">
                       {formatDuration(phaseData.started_at, phaseData.completed_at)}
                     </div>
                   )}
                   
                   {/* Status Badge */}
-                  <span className={`text-xs px-2 py-1 rounded-full ${statusConfig.bgColor} text-white`}>
+                  <span className={`text-xs px-2 py-1 rounded-full ${statusConfig.bgColor} text-bone`}>
                     {status.replace('_', ' ')}
                   </span>
                   
                   {/* Expand Arrow */}
                   {isExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                    <ChevronUp className="w-4 h-4 text-bone-4" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                    <ChevronDown className="w-4 h-4 text-bone-4" />
                   )}
                 </div>
               </div>
 
               {/* Expanded Details */}
               {isExpanded && phaseData && (
-                <div className="px-4 pb-4 pt-2 border-t border-slate-600 text-sm">
+                <div className="px-4 pb-4 pt-2 border-t border-bone/15 text-sm">
                   <div className="grid grid-cols-2 gap-4">
                     {/* Elena Review */}
                     {phaseData.elena_verdict && (
                       <div>
-                        <div className="text-slate-400 text-xs mb-1">Elena Review</div>
+                        <div className="text-bone-4 text-xs mb-1">Elena Review</div>
                         <div className={`
-                          ${phaseData.elena_verdict === 'PASS' ? 'text-green-400' : 'text-red-400'}
+                          ${phaseData.elena_verdict === 'PASS' ? 'text-sage' : 'text-error'}
                         `}>
                           {phaseData.elena_verdict} 
                           {phaseData.elena_review_count > 1 && ` (${phaseData.elena_review_count} reviews)`}
                         </div>
                         {phaseData.elena_feedback && (
-                          <div className="text-xs text-slate-500 mt-1 line-clamp-2">
+                          <div className="text-xs text-bone-4 mt-1 line-clamp-2">
                             {phaseData.elena_feedback}
                           </div>
                         )}
@@ -186,20 +186,20 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
                     {/* Deploy Info */}
                     {phaseData.deploy_method && (
                       <div>
-                        <div className="text-slate-400 text-xs mb-1">Deploy Method</div>
-                        <div className="text-white">{phaseData.deploy_method}</div>
+                        <div className="text-bone-4 text-xs mb-1">Deploy Method</div>
+                        <div className="text-bone">{phaseData.deploy_method}</div>
                       </div>
                     )}
 
                     {/* Git Info */}
                     {phaseData.pr_url && (
                       <div>
-                        <div className="text-slate-400 text-xs mb-1">Pull Request</div>
+                        <div className="text-bone-4 text-xs mb-1">Pull Request</div>
                         <a 
                           href={phaseData.pr_url} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-cyan-400 hover:underline"
+                          className="text-brass hover:underline"
                         >
                           PR #{phaseData.pr_number}
                         </a>
@@ -208,8 +208,8 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
 
                     {phaseData.merge_sha && (
                       <div>
-                        <div className="text-slate-400 text-xs mb-1">Merge SHA</div>
-                        <code className="text-xs text-slate-300 bg-slate-700 px-2 py-0.5 rounded">
+                        <div className="text-bone-4 text-xs mb-1">Merge SHA</div>
+                        <code className="text-xs text-bone-3 bg-ink-3 px-2 py-0.5 rounded">
                           {phaseData.merge_sha.substring(0, 8)}
                         </code>
                       </div>
@@ -218,8 +218,8 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
                     {/* Error */}
                     {phaseData.last_error && (
                       <div className="col-span-2">
-                        <div className="text-red-400 text-xs mb-1">Last Error</div>
-                        <div className="text-xs text-red-300 bg-red-900/30 p-2 rounded">
+                        <div className="text-error text-xs mb-1">Last Error</div>
+                        <div className="text-xs text-error bg-error/15 p-2 rounded">
                           {phaseData.last_error}
                         </div>
                       </div>
@@ -233,11 +233,11 @@ export default function BuildPhasesPanel({ phases, currentPhase }: BuildPhasesPa
       </div>
 
       {/* Summary */}
-      <div className="mt-4 pt-4 border-t border-slate-700 flex justify-between text-sm">
-        <div className="text-slate-400">
+      <div className="mt-4 pt-4 border-t border-bone/10 flex justify-between text-sm">
+        <div className="text-bone-4">
           Completed: {phases.filter(p => p.status === 'completed').length}/6 phases
         </div>
-        <div className="text-slate-400">
+        <div className="text-bone-4">
           Current: Phase {currentPhase || '-'}
         </div>
       </div>

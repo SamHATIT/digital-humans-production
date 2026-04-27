@@ -118,41 +118,41 @@ export default function ExecutionMetrics({
     totalCost ?? agents.reduce((sum, a) => sum + (a.cost || 0), 0);
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-5">
+    <div className="bg-ink-2 border border-bone/10 rounded-2xl p-5">
       <div className="flex items-center gap-2 mb-4">
-        <Activity className="w-5 h-5 text-purple-400" />
-        <h3 className="text-lg font-semibold text-white">Execution Metrics</h3>
+        <Activity className="w-5 h-5 text-plum" />
+        <h3 className="text-lg font-semibold text-bone">Execution Metrics</h3>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3 mb-5">
-        <div className="bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3">
+        <div className="bg-ink border border-bone/10 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
-            <Zap className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-xs text-slate-500">Total Tokens</span>
+            <Zap className="w-3.5 h-3.5 text-brass" />
+            <span className="text-xs text-bone-4">Total Tokens</span>
           </div>
-          <p className="text-lg font-bold text-white">{formatTokens(totalTokens)}</p>
+          <p className="text-lg font-bold text-bone">{formatTokens(totalTokens)}</p>
         </div>
-        <div className="bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3">
+        <div className="bg-ink border border-bone/10 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
-            <DollarSign className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-xs text-slate-500">Total Cost</span>
+            <DollarSign className="w-3.5 h-3.5 text-sage" />
+            <span className="text-xs text-bone-4">Total Cost</span>
           </div>
-          <p className="text-lg font-bold text-white">${effectiveTotalCost.toFixed(2)}</p>
+          <p className="text-lg font-bold text-bone">${effectiveTotalCost.toFixed(2)}</p>
         </div>
-        <div className="bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3">
+        <div className="bg-ink border border-bone/10 rounded-xl px-4 py-3">
           <div className="flex items-center gap-2 mb-1">
-            <Clock className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs text-slate-500">Total Time</span>
+            <Clock className="w-3.5 h-3.5 text-warning" />
+            <span className="text-xs text-bone-4">Total Time</span>
           </div>
-          <p className="text-lg font-bold text-white">{formatDuration(totalDuration)}</p>
+          <p className="text-lg font-bold text-bone">{formatDuration(totalDuration)}</p>
         </div>
       </div>
 
       {/* Tokens per agent (bar chart) */}
       {tokenData.length > 0 && (
         <div className="mb-5">
-          <p className="text-xs text-slate-400 font-medium mb-2">Tokens by Agent</p>
+          <p className="text-xs text-bone-4 font-medium mb-2">Tokens by Agent</p>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={tokenData} layout="vertical" margin={{ left: 0, right: 16 }}>
@@ -196,7 +196,7 @@ export default function ExecutionMetrics({
       {/* Cumulative cost (line chart) */}
       {costData.length > 1 && (
         <div className="mb-5">
-          <p className="text-xs text-slate-400 font-medium mb-2">Cumulative Cost</p>
+          <p className="text-xs text-bone-4 font-medium mb-2">Cumulative Cost</p>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={costData} margin={{ left: 0, right: 16 }}>
@@ -239,7 +239,7 @@ export default function ExecutionMetrics({
       {/* Duration per phase (bar chart) */}
       {phaseData.length > 0 && (
         <div>
-          <p className="text-xs text-slate-400 font-medium mb-2">Duration by Phase</p>
+          <p className="text-xs text-bone-4 font-medium mb-2">Duration by Phase</p>
           <div className="h-40">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={phaseData} margin={{ left: 0, right: 16 }}>

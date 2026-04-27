@@ -91,11 +91,14 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* A5.3 — Theatre tunnel : ExecutionPage + Monitor + BUILD */}
         <Route
           path="/execution/:projectId"
           element={
             <ProtectedRoute>
-              <ExecutionPage />
+              <AppShell>
+                <ExecutionPage />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -103,16 +106,19 @@ function App() {
           path="/execution/:executionId/monitor"
           element={
             <ProtectedRoute>
-              <ExecutionMonitoringPage />
+              <AppShell>
+                <ExecutionMonitoringPage />
+              </AppShell>
             </ProtectedRoute>
           }
         />
-        {/* FRNT-05: BUILD Phase Monitoring */}
         <Route
           path="/execution/:executionId/build"
           element={
             <ProtectedRoute>
-              <BuildMonitoringPage />
+              <AppShell>
+                <BuildMonitoringPage />
+              </AppShell>
             </ProtectedRoute>
           }
         />

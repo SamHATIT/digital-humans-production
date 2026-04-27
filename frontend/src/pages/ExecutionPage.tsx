@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Play, Loader2, Users, FileText, ArrowRight, CheckCircle } from 'lucide-react';
-import { projects, executions } from '../services/api';
-import Navbar from '../components/Navbar';
-import RedesignedBanner from '../components/RedesignedBanner';
-import Avatar from '../components/ui/Avatar';
-import { AGENTS, MANDATORY_AGENTS } from '../constants';
+import { useNavigate, useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { ArrowRight, Loader2 } from 'lucide-react';
+import { executions, projects } from '../services/api';
+import { useLang } from '../contexts/LangContext';
+import WizardActHeader from '../components/studio/WizardActHeader';
+import { ACCENT_BORDER, ACCENT_TEXT, type AccentToken } from '../lib/agents';
 
 interface Project {
   id: number;
@@ -18,56 +18,161 @@ interface Project {
   selected_agents?: string[];
 }
 
+interface PhaseCardProps {
+  index: '01' | '02';
+  eyebrow: { en: string; fr: string };
+  title: { en: string; fr: string };
+  lede: { en: string; fr: string };
+  estimate: { en: string; fr: string };
+  accent: AccentToken;
+  ready: boolean;
+  ctaLabel?: { en: string; fr: string };
+  onCta?: () => void;
+  loading?: boolean;
+  hint?: { en: string; fr: string };
+}
+
+function PhaseCard({
+  index,
+  eyebrow,
+  title,
+  lede,
+  estimate,
+  accent,
+  ready,
+  ctaLabel,
+  onCta,
+  loading,
+  hint,
+}: PhaseCardProps) {
+  const { t } = useLang();
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className={[
+        'relative bg-ink-2 border p-7 md:p-9 flex flex-col',
+        ACCENT_BORDER[accent],
+        ready ? 'opacity-100' : 'opacity-60',
+      ].join(' ')}
+    >
+      <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+        № {index}
+      </p>
+      <p className={`mt-2 font-mono text-[10px] tracking-eyebrow uppercase ${ACCENT_TEXT[accent]}`}>
+        {t(eyebrow.en, eyebrow.fr)}
+      </p>
+      <h3 className="mt-3 font-serif italic text-3xl text-bone leading-tight">
+        {t(title.en, title.fr)}
+      </h3>
+      <p className="mt-4 font-mono text-[12px] text-bone-3 leading-relaxed">
+        {t(lede.en, lede.fr)}
+      </p>
+
+      <div className="mt-6 flex items-center justify-between border-t border-bone/10 pt-4">
+        <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+          {t(estimate.en, estimate.fr)}
+        </span>
+        <span
+          className={[
+            'font-mono text-[10px] tracking-eyebrow uppercase',
+            ready ? ACCENT_TEXT[accent] : 'text-bone-4',
+          ].join(' ')}
+        >
+          {ready
+            ? t('Ready', 'Prêt')
+            : t('Pending SDS', 'En attente du SDS')}
+        </span>
+      </div>
+
+      {ctaLabel && onCta && (
+        <button
+          type="button"
+          onClick={onCta}
+          disabled={!ready || !!loading}
+          className={[
+            'mt-6 self-start inline-flex items-center gap-3 px-6 py-3 font-mono text-[11px] tracking-cta uppercase transition-colors',
+            ready
+              ? 'bg-brass text-ink hover:bg-brass-2 disabled:opacity-50'
+              : 'bg-ink-3 text-bone-4 cursor-not-allowed',
+          ].join(' ')}
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          {loading ? t('Curtain rising…', 'Le rideau se lève…') : t(ctaLabel.en, ctaLabel.fr)}
+          {!loading && <ArrowRight className="w-3.5 h-3.5" />}
+        </button>
+      )}
+
+      {hint && (
+        <p className="mt-4 font-mono text-[10px] text-bone-4 leading-relaxed">
+          {t(hint.en, hint.fr)}
+        </p>
+      )}
+    </motion.article>
+  );
+}
+
 export default function ExecutionPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { t, lang } = useLang();
+
   const [project, setProject] = useState<Project | null>(null);
-  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const fetchProject = async () => {
-      try {
-        const data = await projects.get(Number(projectId));
-        setProject(data);
-        // Use agents from project or default to all agents
-        if (data.selected_agents && data.selected_agents.length > 0) {
-          setSelectedAgents(data.selected_agents);
-        } else {
-          // Default: all agents
-          setSelectedAgents(AGENTS.map(a => a.id));
-        }
-      } catch (err) {
+    if (!projectId) return;
+    let cancelled = false;
+    projects
+      .get(Number(projectId))
+      .then((data) => {
+        if (!cancelled) setProject(data);
+      })
+      .catch((err) => {
         console.error('Failed to fetch project:', err);
-        setError('Failed to load project');
-      } finally {
-        setIsLoading(false);
-      }
+        if (!cancelled) setError(err?.message || 'Failed to load project');
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
-
-    if (projectId) {
-      fetchProject();
-    }
   }, [projectId]);
 
-  const handleStartExecution = async () => {
+  const handleBegin = async () => {
     if (!project) return;
-
     setIsStarting(true);
     setError('');
-
     try {
-      const result = await executions.start(project.id, selectedAgents);
+      const agents = project.selected_agents && project.selected_agents.length > 0
+        ? project.selected_agents
+        : [
+            'pm',
+            'ba',
+            'research_analyst',
+            'architect',
+            'apex',
+            'lwc',
+            'admin',
+            'qa',
+            'devops',
+            'data',
+            'trainer',
+          ];
+      const result = await executions.start(project.id, agents);
       navigate(`/execution/${result.execution_id}/monitor`);
     } catch (err: any) {
-      console.error('Failed to start execution:', err);
-      if (err.detail) {
-        setError(typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail));
-      } else {
-        setError(err.message || 'Failed to start execution');
-      }
+      setError(
+        err?.detail
+          ? typeof err.detail === 'string'
+            ? err.detail
+            : JSON.stringify(err.detail)
+          : err?.message || 'Failed to start execution',
+      );
     } finally {
       setIsStarting(false);
     }
@@ -75,147 +180,107 @@ export default function ExecutionPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mx-auto" />
-          <p className="text-slate-400 mt-4">Loading project...</p>
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-brass animate-spin" />
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400">Project not found</p>
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <p className="font-serif italic text-bone-3">
+          {t('Project not found.', 'Projet introuvable.')}
+        </p>
       </div>
     );
   }
 
+  const projectName = project.name || 'Untitled';
+
   return (
-    <div className="min-h-screen bg-[#0B1120]">
-      <RedesignedBanner pageKey="execution" sprint="A5.3 (Théâtre)" />
-      <Navbar />
-
-      {/* Background Effects */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
-      </div>
-
-      <main className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Header */}
-        <div className="mb-10 text-center">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
-            Ready to Launch
-          </h1>
-          <p className="mt-2 text-slate-400">Review your project and start the AI execution</p>
-        </div>
+    <div className="bg-ink min-h-[calc(100vh-4rem)]">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+        <WizardActHeader
+          eyebrow={t('No 04 · Curtain Up', 'Nº 04 · Le rideau se lève')}
+          title={t('The ensemble takes the stage', 'L’ensemble entre en scène')}
+          lede={
+            lang === 'fr' ? (
+              <>
+                Le brief est validé. <span className="text-bone">{projectName}</span> est sur la
+                scène. Choisissez l’acte qui s’ouvre&nbsp;: l’écriture du SDS, ou plus tard le BUILD.
+              </>
+            ) : (
+              <>
+                The brief is approved. <span className="text-bone">{projectName}</span> stands at the
+                edge of the stage. Open the curtain on the SDS now — BUILD waits in the wings.
+              </>
+            )
+          }
+        />
 
         {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
+          <div className="mb-8 border border-error/40 bg-error/10 px-4 py-3 font-mono text-[12px] text-error">
             {error}
           </div>
         )}
 
-        {/* Project Summary */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center">
-              <FileText className="w-5 h-5 text-cyan-400" />
-            </div>
-            <h2 className="text-xl font-bold text-white">Project Summary</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <p className="text-sm text-slate-400">Project Name</p>
-              <p className="text-white font-medium">{project.name}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-400">Salesforce Product</p>
-              <p className="text-white font-medium">{project.salesforce_product || 'Not specified'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-400">Organization Type</p>
-              <p className="text-white font-medium">{project.organization_type || 'Not specified'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-slate-400">Status</p>
-              <p className="text-cyan-400 font-medium capitalize">{project.status}</p>
-            </div>
-          </div>
-
-          {project.business_requirements && (
-            <div className="mt-4 pt-4 border-t border-slate-700">
-              <p className="text-sm text-slate-400 mb-2">Business Requirements</p>
-              <p className="text-slate-300 text-sm max-h-32 overflow-y-auto">
-                {project.business_requirements}
-              </p>
-            </div>
-          )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <PhaseCard
+            index="01"
+            accent="plum"
+            ready
+            eyebrow={{ en: 'Act II · Visionaries', fr: 'Acte II · Visionnaires' }}
+            title={{
+              en: 'Specifications · The SDS',
+              fr: 'Spécifications · Le SDS',
+            }}
+            lede={{
+              en: 'Sophie, Olivia, Emma and Marcus rehearse the brief, draw the architecture and write the SDS document.',
+              fr: 'Sophie, Olivia, Emma et Marcus relisent le brief, dessinent l’architecture et rédigent le SDS.',
+            }}
+            estimate={{
+              en: '≈ $0.11 · 3 to 5 minutes',
+              fr: '≈ 0,11 $ · 3 à 5 minutes',
+            }}
+            ctaLabel={{ en: 'Begin SDS', fr: 'Lancer le SDS' }}
+            onCta={handleBegin}
+            loading={isStarting}
+          />
+          <PhaseCard
+            index="02"
+            accent="terra"
+            ready={false}
+            eyebrow={{ en: 'Act III · Builders', fr: 'Acte III · Bâtisseurs' }}
+            title={{
+              en: 'Construction · The BUILD',
+              fr: 'Construction · Le BUILD',
+            }}
+            lede={{
+              en: 'Diego, Zara and Raj turn the SDS into Apex, LWC and admin configuration ready for deployment.',
+              fr: 'Diego, Zara et Raj transforment le SDS en Apex, LWC et configuration prêts au déploiement.',
+            }}
+            estimate={{
+              en: '≈ $0.40 · 6 to 12 minutes',
+              fr: '≈ 0,40 $ · 6 à 12 minutes',
+            }}
+            hint={{
+              en: 'BUILD opens after the SDS has been approved.',
+              fr: 'Le BUILD s’ouvre après validation du SDS.',
+            }}
+          />
         </div>
 
-        {/* Selected Agents */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6 mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-              <Users className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">AI Team ({selectedAgents.length} agents)</h2>
-              <p className="text-sm text-slate-400">These agents will work on your project</p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            {selectedAgents.map((agentId) => {
-              const agent = AGENTS.find(a => a.id === agentId);
-              if (!agent) return null;
-              const isMandatory = MANDATORY_AGENTS.includes(agentId);
-
-              return (
-                <div
-                  key={agentId}
-                  className="flex items-center gap-2 px-3 py-2 bg-slate-700/50 rounded-xl border border-slate-600"
-                >
-                  <Avatar src={agent.avatar} alt={agent.name} size="sm" />
-                  <div>
-                    <p className="text-sm text-white font-medium">{agent.name}</p>
-                    <p className="text-xs text-slate-400">{agent.role}</p>
-                  </div>
-                  {isMandatory && (
-                    <CheckCircle className="w-4 h-4 text-green-400" />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Launch Button */}
-        <div className="flex justify-center">
-          <button
-            onClick={handleStartExecution}
-            disabled={isStarting || selectedAgents.length === 0}
-            className="inline-flex items-center gap-3 px-12 py-5 bg-gradient-to-r from-cyan-500 to-purple-600 text-white text-xl font-semibold rounded-2xl hover:from-cyan-600 hover:to-purple-700 transition-all shadow-xl shadow-cyan-500/30 hover:shadow-cyan-500/50 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
-          >
-            {isStarting ? (
-              <>
-                <Loader2 className="w-7 h-7 animate-spin" />
-                Launching AI Agents...
-              </>
-            ) : (
-              <>
-                <Play className="w-7 h-7" />
-                Launch Execution
-                <ArrowRight className="w-6 h-6" />
-              </>
-            )}
-          </button>
-        </div>
+        {project.business_requirements && (
+          <section className="mt-12">
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+              {t('Notes from the brief', 'Notes du brief')}
+            </p>
+            <p className="mt-3 font-serif italic text-bone-3 text-[15px] leading-relaxed max-h-40 overflow-y-auto border-l-2 border-bone/15 pl-4">
+              {project.business_requirements}
+            </p>
+          </section>
+        )}
       </main>
     </div>
   );
