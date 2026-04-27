@@ -1,20 +1,36 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { 
-  FileText, Download, Plus, Check, Loader2, ArrowRight, 
-  Edit2, Trash2, X, Save, Filter
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import {
+  ArrowRight,
+  Check,
+  Download,
+  Edit2,
+  Filter,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  X,
 } from 'lucide-react';
-import Navbar from '../components/Navbar';
-import RedesignedBanner from '../components/RedesignedBanner';
 import { api } from '../services/api';
+import { useLang } from '../contexts/LangContext';
+import StudioInput from '../components/studio/StudioInput';
+import StudioTextarea from '../components/studio/StudioTextarea';
+import StudioSelect from '../components/studio/StudioSelect';
+import StudioRadioGroup from '../components/studio/StudioRadioGroup';
+import { getAgentAvatar } from '../lib/agents';
+
+type BRPriority = 'must' | 'should' | 'could' | 'wont';
+type BRStatus = 'pending' | 'validated' | 'modified' | 'deleted';
 
 interface BusinessRequirement {
   id: number;
   br_id: string;
   category: string | null;
   requirement: string;
-  priority: 'must' | 'should' | 'could' | 'wont';
-  status: 'pending' | 'validated' | 'modified' | 'deleted';
+  priority: BRPriority;
+  status: BRStatus;
   source: 'extracted' | 'manual';
   original_text: string | null;
   client_notes: string | null;
@@ -29,23 +45,9 @@ interface BRStats {
   deleted: number;
 }
 
-const PRIORITY_COLORS = {
-  must: 'bg-red-500/20 text-red-400 border-red-500/30',
-  should: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  could: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  wont: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
-};
-
-const STATUS_ICONS = {
-  pending: '○',
-  validated: '✓',
-  modified: '⚠️',
-  deleted: '🗑️',
-};
-
 const CATEGORIES = [
   'Lead Management',
-  'Opportunity Management', 
+  'Opportunity Management',
   'Account Management',
   'Contact Management',
   'Case Management',
@@ -59,58 +61,87 @@ const CATEGORIES = [
   'User Management',
   'Workflow & Automation',
   'Custom Development',
-  'Other'
+  'Other',
 ];
+
+const PRIORITY_ACCENT: Record<BRPriority, string> = {
+  must: 'border-error/40 text-error',
+  should: 'border-ochre/40 text-ochre',
+  could: 'border-indigo/40 text-indigo',
+  wont: 'border-bone/15 text-bone-4',
+};
+
+const STATUS_GLYPH: Record<BRStatus, string> = {
+  pending: '○',
+  validated: '✓',
+  modified: '◑',
+  deleted: '✗',
+};
 
 export default function BRValidationPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [searchParams] = useSearchParams();
   const executionId = searchParams.get('executionId');
   const navigate = useNavigate();
-  
+  const { t } = useLang();
+
   const [brs, setBrs] = useState<BusinessRequirement[]>([]);
-  const [stats, setStats] = useState<BRStats>({ total: 0, pending: 0, validated: 0, modified: 0, deleted: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
-  
-  // Modal states
+  const [stats, setStats] = useState<BRStats>({
+    total: 0,
+    pending: 0,
+    validated: 0,
+    modified: 0,
+    deleted: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [validating, setValidating] = useState(false);
+
   const [editingBR, setEditingBR] = useState<BusinessRequirement | null>(null);
   const [inlineEditId, setInlineEditId] = useState<number | null>(null);
   const [inlineEditData, setInlineEditData] = useState<Partial<BusinessRequirement>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newBR, setNewBR] = useState({ category: '', requirement: '', priority: 'should' as 'must' | 'should' | 'could' | 'wont', client_notes: '' });
-  
-  // Filter state
+  const [newBR, setNewBR] = useState<{
+    category: string;
+    requirement: string;
+    priority: BRPriority;
+    client_notes: string;
+  }>({ category: '', requirement: '', priority: 'should', client_notes: '' });
+
   const [filterCategory, setFilterCategory] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
   useEffect(() => {
-    fetchBRs();
+    if (projectId) fetchBRs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const fetchBRs = async () => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       const data = await api.get(`/api/br/${projectId}`);
-      setBrs(data.brs);
+      setBrs(data.brs ?? []);
       setStats({
-        total: data.total,
-        pending: data.pending,
-        validated: data.validated,
-        modified: data.modified,
-        deleted: data.deleted,
+        total: data.total ?? 0,
+        pending: data.pending ?? 0,
+        validated: data.validated ?? 0,
+        modified: data.modified ?? 0,
+        deleted: data.deleted ?? 0,
       });
-    } catch (err: any) {
-      setError(err.message || 'Failed to load requirements');
+      setError(null);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to load requirements.', 'Échec du chargement des exigences.'),
+      );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const handleUpdateBR = async () => {
     if (!editingBR) return;
-    
     try {
       await api.put(`/api/br/item/${editingBR.id}`, {
         category: editingBR.category,
@@ -120,53 +151,69 @@ export default function BRValidationPage() {
       });
       setEditingBR(null);
       fetchBRs();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update requirement');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to update requirement.', "Échec de la mise à jour de l'exigence."),
+      );
     }
   };
 
-  const handleDeleteBR = async (brId: number) => {
-    if (!confirm('Are you sure you want to delete this requirement?')) return;
-    
+  const handleDeleteBR = async (id: number) => {
+    const ok = window.confirm(
+      t(
+        'Are you sure you want to delete this requirement?',
+        'Voulez-vous vraiment supprimer cette exigence ?',
+      ),
+    );
+    if (!ok) return;
     try {
-      await api.delete(`/api/br/item/${brId}`);
+      await api.delete(`/api/br/item/${id}`);
       fetchBRs();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete requirement');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to delete requirement.', 'Échec de la suppression.'),
+      );
     }
   };
 
   const handleAddBR = async () => {
     if (!newBR.requirement.trim()) return;
-    
     try {
       await api.post(`/api/br/${projectId}`, newBR);
       setIsAddModalOpen(false);
       setNewBR({ category: '', requirement: '', priority: 'should', client_notes: '' });
       fetchBRs();
-    } catch (err: any) {
-      setError(err.message || 'Failed to add requirement');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to add requirement.', "Échec de l'ajout."),
+      );
     }
   };
 
   const handleValidateAll = async () => {
-    setIsValidating(true);
+    setValidating(true);
     try {
-      // Step 1: Validate all BRs
       await api.post(`/api/br/${projectId}/validate-all`);
-      
-      // Step 2: If coming from execution, resume it
       if (executionId) {
         await api.post(`/api/pm-orchestrator/execute/${executionId}/resume`);
         navigate(`/execution/${executionId}/monitor`);
       } else {
-        // New project flow - go to execution page to start
         navigate(`/execution/${projectId}`);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to validate requirements');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to validate requirements.', 'Échec de la validation.'),
+      );
     } finally {
-      setIsValidating(false);
+      setValidating(false);
     }
   };
 
@@ -197,8 +244,12 @@ export default function BRValidationPage() {
       setInlineEditId(null);
       setInlineEditData({});
       fetchBRs();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save changes');
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : t('Failed to save changes.', 'Échec de l’enregistrement.'),
+      );
     }
   };
 
@@ -207,484 +258,511 @@ export default function BRValidationPage() {
     setInlineEditData({});
   };
 
-  // Filter BRs
-  const filteredBRs = brs.filter(br => {
-    if (filterCategory && br.category !== filterCategory) return false;
-    if (filterStatus && br.status !== filterStatus) return false;
-    return true;
-  });
+  const filteredBRs = useMemo(
+    () =>
+      brs.filter((br) => {
+        if (filterCategory && br.category !== filterCategory) return false;
+        if (filterStatus && br.status !== filterStatus) return false;
+        return true;
+      }),
+    [brs, filterCategory, filterStatus],
+  );
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B1120] flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mx-auto" />
-          <p className="text-slate-400 mt-4">Loading requirements...</p>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
+        <Loader2 className="w-5 h-5 animate-spin text-brass mx-auto" />
+        <p className="mt-4 font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+          {t('Reading the brief…', 'Lecture du brief…')}
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1120]">
-      <RedesignedBanner pageKey="br-validation" sprint="A5.3 (Théâtre)" />
-      <Navbar />
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+        className="mb-12"
+      >
+        <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+          {t('№ 03 · Intermission', '№ 03 · Entracte')}
+        </p>
+        <h1 className="mt-4 font-serif italic text-[44px] md:text-[56px] leading-[1.05] text-bone max-w-3xl">
+          {t('Sophie has read your brief.', 'Sophie a lu votre brief.')}
+        </h1>
 
-      {/* Background Effects */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
+        <div className="mt-6 flex items-start gap-5 max-w-3xl">
+          <img
+            src={getAgentAvatar('pm', 'small')}
+            alt="Sophie"
+            className="w-14 h-14 object-cover border border-indigo/40 shrink-0"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+          <p className="font-mono text-[12px] tracking-[0.04em] text-bone-3 leading-relaxed">
+            {t(
+              `Here is what I understood — ${stats.total} business requirements drafted from your brief. Tell me what is right, what is missing, what to refine.`,
+              `Voici ce que j'ai compris — ${stats.total} business requirements rédigées d'après votre brief. Dites-moi ce qui est juste, ce qui manque, ce qu'il faut affiner.`,
+            )}
+          </p>
+        </div>
+      </motion.section>
+
+      {error && (
+        <div className="mb-6 border border-error/40 bg-ink-2 px-5 py-3 flex items-start gap-3">
+          <p className="flex-1 font-mono text-[11px] text-error">{error}</p>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="font-mono text-[11px] tracking-cta uppercase text-bone-4 hover:text-bone"
+          >
+            {t('Dismiss', 'Ignorer')}
+          </button>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4 border-y border-bone/5 py-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-2 px-3 py-2 border border-bone/15 hover:border-brass/40 transition-colors font-mono text-[11px] tracking-cta uppercase text-bone-3 hover:text-bone"
+          >
+            <Download className="w-3.5 h-3.5" />
+            {t('Export CSV', 'Export CSV')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 border border-brass bg-brass/10 hover:bg-brass/20 transition-colors font-mono text-[11px] tracking-cta uppercase text-brass"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {t('Add requirement', 'Ajouter une exigence')}
+          </button>
+
+          <div className="flex items-center gap-2 ml-2">
+            <Filter className="w-3.5 h-3.5 text-bone-4" />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="bg-ink-2 border border-bone/10 px-3 py-1.5 font-mono text-[11px] text-bone-3 focus:border-brass outline-none"
+            >
+              <option value="">{t('All categories', 'Toutes catégories')}</option>
+              {CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="bg-ink-2 border border-bone/10 px-3 py-1.5 font-mono text-[11px] text-bone-3 focus:border-brass outline-none"
+            >
+              <option value="">{t('All statuses', 'Tous statuts')}</option>
+              <option value="pending">{t('Pending', 'En attente')}</option>
+              <option value="validated">{t('Validated', 'Validé')}</option>
+              <option value="modified">{t('Modified', 'Modifié')}</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 font-mono text-[11px]">
+          <span className="text-success">
+            {stats.validated} {t('validated', 'validé(s)')}
+          </span>
+          <span className="text-ochre">
+            {stats.modified} {t('modified', 'modifié(s)')}
+          </span>
+          <span className="text-bone-4">
+            {stats.pending} {t('pending', 'en attente')}
+          </span>
+        </div>
       </div>
 
-      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center">
-              <FileText className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Business Requirements Review</h1>
-              <p className="text-slate-400">Sophie has extracted {stats.total} requirements from your document</p>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400">
-            {error}
-            <button onClick={() => setError('')} className="ml-4 underline">Dismiss</button>
-          </div>
-        )}
-
-        {/* Toolbar */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-4 mb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
-              >
-                <Download className="w-4 h-4" />
-                Export CSV
-              </button>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add BR
-              </button>
-              
-              {/* Filters */}
-              <div className="flex items-center gap-2 ml-4">
-                <Filter className="w-4 h-4 text-slate-400" />
-                <select
-                  value={filterCategory}
-                  onChange={(e) => setFilterCategory(e.target.value)}
-                  className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">All Categories</option>
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="validated">Validated</option>
-                  <option value="modified">Modified</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-slate-400">
-                <span className="text-green-400">{stats.validated}</span> validated · 
-                <span className="text-yellow-400 ml-1">{stats.modified}</span> modified · 
-                <span className="text-slate-400 ml-1">{stats.pending}</span> pending
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-          {filteredBRs.map((br) => {
-            const isEditing = inlineEditId === br.id;
-
-            return (
-              <div
-                key={br.id}
-                className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-all group"
-              >
-                {/* Card header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-mono text-cyan-400">{br.br_id}</span>
-                    <span className="text-lg">{STATUS_ICONS[br.status]}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {!isEditing && (
-                      <>
-                        <button
-                          onClick={() => startInlineEdit(br)}
-                          className="p-1.5 text-slate-500 hover:text-cyan-400 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-all"
-                          title="Edit inline"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBR(br.id)}
-                          className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-slate-700 rounded opacity-0 group-hover:opacity-100 transition-all"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </>
-                    )}
-                  </div>
+      {/* BR list */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-12">
+        {filteredBRs.map((br, idx) => {
+          const isEditing = inlineEditId === br.id;
+          return (
+            <motion.article
+              key={br.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.28, delay: Math.min(idx, 8) * 0.03 }}
+              className="border border-bone/10 bg-ink-2 hover:border-brass/30 transition-colors p-5 group flex flex-col"
+            >
+              <header className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[11px] tracking-eyebrow uppercase text-brass">
+                    {br.br_id}
+                  </span>
+                  <span
+                    aria-hidden
+                    className="font-mono text-[14px] text-bone-3"
+                    title={br.status}
+                  >
+                    {STATUS_GLYPH[br.status]}
+                  </span>
                 </div>
+                {!isEditing && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      onClick={() => startInlineEdit(br)}
+                      aria-label={t('Edit', 'Éditer')}
+                      className="p-1.5 text-bone-4 hover:text-brass transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBR(br.id)}
+                      aria-label={t('Delete', 'Supprimer')}
+                      className="p-1.5 text-bone-4 hover:text-error transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+              </header>
 
-                {/* Priority + Category badges */}
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  {isEditing ? (
-                    <>
-                      <select
-                        value={inlineEditData.priority || 'should'}
-                        onChange={(e) => setInlineEditData({ ...inlineEditData, priority: e.target.value as any })}
-                        className="bg-slate-700 border border-slate-600 text-white rounded px-2 py-1 text-xs"
-                      >
-                        {(['must', 'should', 'could', 'wont'] as const).map(p => (
-                          <option key={p} value={p}>{p.toUpperCase()}</option>
-                        ))}
-                      </select>
-                      <select
-                        value={inlineEditData.category || ''}
-                        onChange={(e) => setInlineEditData({ ...inlineEditData, category: e.target.value })}
-                        className="bg-slate-700 border border-slate-600 text-white rounded px-2 py-1 text-xs"
-                      >
-                        <option value="">No Category</option>
-                        {CATEGORIES.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </select>
-                    </>
-                  ) : (
-                    <>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium border ${PRIORITY_COLORS[br.priority]}`}>
-                        {br.priority.toUpperCase()}
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                {isEditing ? (
+                  <>
+                    <select
+                      value={inlineEditData.priority || 'should'}
+                      onChange={(e) =>
+                        setInlineEditData({
+                          ...inlineEditData,
+                          priority: e.target.value as BRPriority,
+                        })
+                      }
+                      className="bg-ink-3 border border-bone/15 px-2 py-1 font-mono text-[11px] text-bone"
+                    >
+                      {(['must', 'should', 'could', 'wont'] as const).map((p) => (
+                        <option key={p} value={p}>
+                          {p.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={inlineEditData.category || ''}
+                      onChange={(e) =>
+                        setInlineEditData({ ...inlineEditData, category: e.target.value })
+                      }
+                      className="bg-ink-3 border border-bone/15 px-2 py-1 font-mono text-[11px] text-bone"
+                    >
+                      <option value="">{t('No category', 'Sans catégorie')}</option>
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className={`px-2 py-0.5 border font-mono text-[10px] tracking-eyebrow uppercase ${PRIORITY_ACCENT[br.priority]}`}
+                    >
+                      {br.priority}
+                    </span>
+                    {br.category && (
+                      <span className="px-2 py-0.5 border border-bone/10 font-mono text-[10px] tracking-eyebrow uppercase text-bone-3">
+                        {br.category}
                       </span>
-                      {br.category && (
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-700/50 text-slate-300 border border-slate-600">
-                          {br.category}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {/* Requirement text */}
-                {isEditing ? (
-                  <textarea
-                    value={inlineEditData.requirement || ''}
-                    onChange={(e) => setInlineEditData({ ...inlineEditData, requirement: e.target.value })}
-                    rows={3}
-                    className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm mb-2 resize-y"
-                  />
-                ) : (
-                  <p className="text-sm text-white mb-2 leading-relaxed">{br.requirement}</p>
-                )}
-
-                {/* Notes */}
-                {isEditing ? (
-                  <textarea
-                    value={inlineEditData.client_notes || ''}
-                    onChange={(e) => setInlineEditData({ ...inlineEditData, client_notes: e.target.value })}
-                    rows={1}
-                    placeholder="Notes (optional)..."
-                    className="w-full bg-slate-700 border border-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs mb-2 resize-y"
-                  />
-                ) : (
-                  br.client_notes && (
-                    <p className="text-xs text-slate-500 mb-2">Note: {br.client_notes}</p>
-                  )
-                )}
-
-                {/* Inline edit actions */}
-                {isEditing && (
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-slate-700">
-                    <button
-                      onClick={saveInlineEdit}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs rounded-lg transition-colors"
-                    >
-                      <Save className="w-3 h-3" />
-                      Save
-                    </button>
-                    <button
-                      onClick={cancelInlineEdit}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs rounded-lg transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                      Cancel
-                    </button>
-                  </div>
-                )}
-
-                {/* Source indicator */}
-                {br.source === 'extracted' && (
-                  <div className="mt-2 pt-2 border-t border-slate-700/50">
-                    <span className="text-[10px] text-slate-600">Extracted by Sophie</span>
-                  </div>
+                    )}
+                  </>
                 )}
               </div>
-            );
-          })}
-        </div>
 
-        {filteredBRs.length === 0 && (
-          <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-8 mb-8 text-center text-slate-400">
-            No requirements found. {filterCategory || filterStatus ? 'Try adjusting filters.' : ''}
-          </div>
-        )}
+              {isEditing ? (
+                <textarea
+                  value={inlineEditData.requirement || ''}
+                  onChange={(e) =>
+                    setInlineEditData({ ...inlineEditData, requirement: e.target.value })
+                  }
+                  rows={3}
+                  className="w-full bg-ink-3 border border-bone/15 focus:border-brass outline-none px-3 py-2 font-sans text-[13px] text-bone resize-y mb-2"
+                />
+              ) : (
+                <p className="font-sans text-[14px] text-bone leading-relaxed mb-2">
+                  {br.requirement}
+                </p>
+              )}
 
-        {/* Add BR Card */}
-        <div className="mb-8">
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="w-full bg-slate-800/30 border-2 border-dashed border-slate-700 hover:border-cyan-500/50 rounded-xl p-6 text-center transition-colors group"
-          >
-            <Plus className="w-6 h-6 text-slate-500 group-hover:text-cyan-400 mx-auto mb-2 transition-colors" />
-            <span className="text-sm text-slate-500 group-hover:text-slate-300 transition-colors">
-              Add a new Business Requirement
-            </span>
-          </button>
-        </div>
+              {isEditing ? (
+                <textarea
+                  value={inlineEditData.client_notes || ''}
+                  onChange={(e) =>
+                    setInlineEditData({
+                      ...inlineEditData,
+                      client_notes: e.target.value,
+                    })
+                  }
+                  rows={1}
+                  placeholder={t('Notes (optional)…', 'Notes (optionnel)…')}
+                  className="w-full bg-ink-3 border border-bone/15 focus:border-brass outline-none px-3 py-1.5 font-mono text-[11px] text-bone-3 resize-y mb-2"
+                />
+              ) : (
+                br.client_notes && (
+                  <p className="font-mono text-[11px] text-bone-4 mb-2">
+                    {t('Note', 'Note')}: {br.client_notes}
+                  </p>
+                )
+              )}
 
-        {/* Action Buttons */}
-        <div className="flex justify-between items-center">
-          <button
-            onClick={() => navigate('/projects')}
-            className="px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-colors"
-          >
-            Cancel
-          </button>
-          
-          <button
-            onClick={handleValidateAll}
-            disabled={isValidating || stats.total === 0}
-            className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isValidating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Validating...
-              </>
-            ) : (
-              <>
-                <Check className="w-5 h-5" />
-                Validate All & Continue to Analysis
-                <ArrowRight className="w-5 h-5" />
-              </>
-            )}
-          </button>
+              {isEditing && (
+                <div className="flex gap-2 mt-2 pt-3 border-t border-bone/5">
+                  <button
+                    type="button"
+                    onClick={saveInlineEdit}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 border border-brass bg-brass/10 hover:bg-brass/20 font-mono text-[11px] tracking-cta uppercase text-brass"
+                  >
+                    <Save className="w-3 h-3" />
+                    {t('Save', 'Enregistrer')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelInlineEdit}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 border border-bone/15 hover:border-bone/30 font-mono text-[11px] tracking-cta uppercase text-bone-3"
+                  >
+                    <X className="w-3 h-3" />
+                    {t('Cancel', 'Annuler')}
+                  </button>
+                </div>
+              )}
+
+              {br.source === 'extracted' && (
+                <p className="mt-auto pt-3 border-t border-bone/5 font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                  {t('Extracted by Sophie', 'Extrait par Sophie')}
+                </p>
+              )}
+            </motion.article>
+          );
+        })}
+      </div>
+
+      {filteredBRs.length === 0 && (
+        <div className="border border-bone/10 bg-ink-2 px-6 py-12 mb-8 text-center">
+          <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
+            {filterCategory || filterStatus
+              ? t('No requirement matches the filters.', 'Aucune exigence ne correspond aux filtres.')
+              : t('No requirement yet.', 'Aucune exigence pour le moment.')}
+          </p>
         </div>
-      </main>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex flex-wrap justify-between items-center gap-4 border-t border-bone/5 pt-6">
+        <button
+          type="button"
+          onClick={() => navigate('/projects')}
+          className="font-mono text-[11px] tracking-cta uppercase text-bone-3 hover:text-bone transition-colors"
+        >
+          {t('← Decline · Cast someone else', '← Refuser · Distribuer autrement')}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleValidateAll}
+          disabled={validating || stats.total === 0}
+          className="inline-flex items-center gap-3 px-6 py-3 border border-brass bg-brass text-ink hover:bg-brass-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-mono text-[11px] tracking-cta uppercase"
+        >
+          {validating ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              {t('Validating…', 'Validation…')}
+            </>
+          ) : (
+            <>
+              <Check className="w-3.5 h-3.5" />
+              {t('Approve and continue → SDS phase', 'Approuver et continuer → SDS')}
+              <ArrowRight className="w-3.5 h-3.5" />
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Edit Modal */}
       {editingBR && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-cyan-400" />
-                Edit {editingBR.br_id}
-              </h2>
-              <button onClick={() => setEditingBR(null)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
+        <Modal onClose={() => setEditingBR(null)} title={`${t('Edit', 'Éditer')} ${editingBR.br_id}`}>
+          <div className="space-y-5">
+            <StudioSelect
+              name="category"
+              label={t('Category', 'Catégorie')}
+              value={editingBR.category ?? ''}
+              onChange={(e) =>
+                setEditingBR({ ...editingBR, category: e.target.value })
+              }
+              placeholder={t('Select a category…', 'Choisir une catégorie…')}
+              options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+            />
+            <StudioTextarea
+              name="requirement"
+              label={t('Requirement', 'Exigence')}
+              value={editingBR.requirement}
+              onChange={(e) =>
+                setEditingBR({ ...editingBR, requirement: e.target.value })
+              }
+              rows={4}
+            />
+            <StudioRadioGroup
+              name="priority"
+              label={t('Priority', 'Priorité')}
+              value={editingBR.priority}
+              onChange={(v) =>
+                setEditingBR({ ...editingBR, priority: v as BRPriority })
+              }
+              options={(['must', 'should', 'could', 'wont'] as const).map((p) => ({
+                value: p,
+                label: p.toUpperCase(),
+              }))}
+            />
+            <StudioTextarea
+              name="client_notes"
+              label={t('Notes (optional)', 'Notes (optionnel)')}
+              value={editingBR.client_notes ?? ''}
+              onChange={(e) =>
+                setEditingBR({ ...editingBR, client_notes: e.target.value })
+              }
+              rows={2}
+            />
+            {editingBR.original_text && editingBR.source === 'extracted' && (
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Category</label>
-                <select
-                  value={editingBR.category || ''}
-                  onChange={(e) => setEditingBR({ ...editingBR, category: e.target.value })}
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                >
-                  <option value="">Select category...</option>
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-3 mb-2">
+                  {t('Original (from Sophie)', 'Original (par Sophie)')}
+                </p>
+                <p className="border border-bone/10 bg-ink-3 px-4 py-3 font-mono text-[12px] text-bone-3 leading-relaxed">
+                  {editingBR.original_text}
+                </p>
               </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Requirement</label>
-                <textarea
-                  value={editingBR.requirement}
-                  onChange={(e) => setEditingBR({ ...editingBR, requirement: e.target.value })}
-                  rows={4}
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Priority</label>
-                <div className="flex gap-3">
-                  {(['must', 'should', 'could', 'wont'] as const).map(p => (
-                    <label key={p} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="priority"
-                        checked={editingBR.priority === p}
-                        onChange={() => setEditingBR({ ...editingBR, priority: p })}
-                        className="text-cyan-500"
-                      />
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[p]}`}>
-                        {p.toUpperCase()}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Notes (optional)</label>
-                <textarea
-                  value={editingBR.client_notes || ''}
-                  onChange={(e) => setEditingBR({ ...editingBR, client_notes: e.target.value })}
-                  rows={2}
-                  placeholder="Add any notes about this requirement..."
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                />
-              </div>
-              
-              {editingBR.original_text && editingBR.source === 'extracted' && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-400 mb-2">Original (from Sophie)</label>
-                  <div className="bg-slate-900/50 border border-slate-600 rounded-lg p-3 text-sm text-slate-400">
-                    {editingBR.original_text}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
-              <button
-                onClick={() => setEditingBR(null)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleUpdateBR}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg"
-              >
-                <Save className="w-4 h-4" />
-                Save Changes
-              </button>
-            </div>
+            )}
           </div>
-        </div>
+          <div className="mt-8 flex justify-end gap-3 border-t border-bone/5 pt-5">
+            <button
+              type="button"
+              onClick={() => setEditingBR(null)}
+              className="px-4 py-2 border border-bone/15 hover:border-bone/30 font-mono text-[11px] tracking-cta uppercase text-bone-3"
+            >
+              {t('Cancel', 'Annuler')}
+            </button>
+            <button
+              type="button"
+              onClick={handleUpdateBR}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-brass bg-brass/10 hover:bg-brass/20 font-mono text-[11px] tracking-cta uppercase text-brass"
+            >
+              <Save className="w-3.5 h-3.5" />
+              {t('Save', 'Enregistrer')}
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* Add Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl w-full max-w-2xl">
-            <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <Plus className="w-5 h-5 text-green-400" />
-                Add New Requirement
-              </h2>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Category</label>
-                <select
-                  value={newBR.category}
-                  onChange={(e) => setNewBR({ ...newBR, category: e.target.value })}
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                >
-                  <option value="">Select category...</option>
-                  {CATEGORIES.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Requirement *</label>
-                <textarea
-                  value={newBR.requirement}
-                  onChange={(e) => setNewBR({ ...newBR, requirement: e.target.value })}
-                  rows={4}
-                  placeholder="Describe the business requirement..."
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Priority</label>
-                <div className="flex gap-3">
-                  {(['must', 'should', 'could', 'wont'] as const).map(p => (
-                    <label key={p} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="newPriority"
-                        checked={newBR.priority === p}
-                        onChange={() => setNewBR({ ...newBR, priority: p })}
-                        className="text-cyan-500"
-                      />
-                      <span className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[p]}`}>
-                        {p.toUpperCase()}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Notes (optional)</label>
-                <textarea
-                  value={newBR.client_notes}
-                  onChange={(e) => setNewBR({ ...newBR, client_notes: e.target.value })}
-                  rows={2}
-                  placeholder="Add any notes..."
-                  className="w-full bg-slate-700 border border-slate-600 text-white rounded-lg px-4 py-2"
-                />
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-slate-700 flex justify-end gap-3">
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddBR}
-                disabled={!newBR.requirement.trim()}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-                Add Requirement
-              </button>
-            </div>
+        <Modal
+          onClose={() => setIsAddModalOpen(false)}
+          title={t('New requirement', 'Nouvelle exigence')}
+        >
+          <div className="space-y-5">
+            <StudioSelect
+              name="category"
+              label={t('Category', 'Catégorie')}
+              value={newBR.category}
+              onChange={(e) => setNewBR({ ...newBR, category: e.target.value })}
+              placeholder={t('Select a category…', 'Choisir une catégorie…')}
+              options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+            />
+            <StudioTextarea
+              name="requirement"
+              label={t('Requirement *', 'Exigence *')}
+              value={newBR.requirement}
+              onChange={(e) => setNewBR({ ...newBR, requirement: e.target.value })}
+              rows={4}
+              placeholder={t(
+                'Describe the business requirement…',
+                "Décrivez l'exigence métier…",
+              )}
+            />
+            <StudioRadioGroup
+              name="newPriority"
+              label={t('Priority', 'Priorité')}
+              value={newBR.priority}
+              onChange={(v) =>
+                setNewBR({ ...newBR, priority: v as BRPriority })
+              }
+              options={(['must', 'should', 'could', 'wont'] as const).map((p) => ({
+                value: p,
+                label: p.toUpperCase(),
+              }))}
+            />
+            <StudioInput
+              name="client_notes"
+              label={t('Notes (optional)', 'Notes (optionnel)')}
+              value={newBR.client_notes}
+              onChange={(e) => setNewBR({ ...newBR, client_notes: e.target.value })}
+            />
           </div>
-        </div>
+          <div className="mt-8 flex justify-end gap-3 border-t border-bone/5 pt-5">
+            <button
+              type="button"
+              onClick={() => setIsAddModalOpen(false)}
+              className="px-4 py-2 border border-bone/15 hover:border-bone/30 font-mono text-[11px] tracking-cta uppercase text-bone-3"
+            >
+              {t('Cancel', 'Annuler')}
+            </button>
+            <button
+              type="button"
+              onClick={handleAddBR}
+              disabled={!newBR.requirement.trim()}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-brass bg-brass/10 hover:bg-brass/20 disabled:opacity-40 disabled:cursor-not-allowed font-mono text-[11px] tracking-cta uppercase text-brass"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              {t('Add', 'Ajouter')}
+            </button>
+          </div>
+        </Modal>
       )}
+    </div>
+  );
+}
+
+interface ModalProps {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function Modal({ title, onClose, children }: ModalProps) {
+  return (
+    <div className="fixed inset-0 bg-ink/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+        className="bg-ink-2 border border-bone/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+      >
+        <div className="p-6 border-b border-bone/5 flex items-center justify-between">
+          <h2 className="font-serif italic text-2xl text-bone">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-bone-4 hover:text-bone transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-6">{children}</div>
+      </motion.div>
     </div>
   );
 }

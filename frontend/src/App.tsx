@@ -42,21 +42,24 @@ function App() {
             </ProtectedRoute>
           }
         />
-        {/* Legacy new project route */}
+        {/* A5.2 — Casting tunnel : NewProject + Wizard + BR validation */}
         <Route
           path="/projects/new"
           element={
             <ProtectedRoute>
-              <NewProject />
+              <AppShell>
+                <NewProject />
+              </AppShell>
             </ProtectedRoute>
           }
         />
-        {/* Phase 5: Project Configuration Wizard */}
         <Route
           path="/wizard"
           element={
             <ProtectedRoute>
-              <ProjectWizard />
+              <AppShell>
+                <ProjectWizard />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -64,7 +67,9 @@ function App() {
           path="/wizard/:projectId"
           element={
             <ProtectedRoute>
-              <ProjectWizard />
+              <AppShell>
+                <ProjectWizard />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -72,7 +77,9 @@ function App() {
           path="/br-validation/:projectId"
           element={
             <ProtectedRoute>
-              <BRValidationPage />
+              <AppShell>
+                <BRValidationPage />
+              </AppShell>
             </ProtectedRoute>
           }
         />

@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from '../../lib/motion';
+import { motion } from 'framer-motion';
 import pmService from '../../services/pmService';
 import type { Roadmap } from '../../services/pmService';
 

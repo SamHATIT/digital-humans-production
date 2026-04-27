@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from '../../lib/motion';
+import { motion } from 'framer-motion';
 import pmService from '../../services/pmService';
 
 interface ChatMessage {

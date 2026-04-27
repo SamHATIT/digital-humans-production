@@ -3,19 +3,30 @@ import { Star } from 'lucide-react';
 import { api } from '../../services/api';
 import { useLang } from '../../contexts/LangContext';
 
+/**
+ * Backend `/api/billing/balance` shape (CreditService.get_balance) :
+ *   - tier              : str
+ *   - included_credits  : int (monthly allowance)
+ *   - used_credits      : int
+ *   - overage_credits   : int
+ *   - available         : int (current spendable balance)
+ *   - daily_cap         : int | null
+ *   - daily_used        : int
+ *   - last_reset_at, next_reset_at
+ *
+ * Le précédent `CreditCounter` lisait `credits_remaining` / `monthly_quota`,
+ * qui n'existent pas — d'où le silent fallback "hors-ligne".
+ */
 interface BillingBalance {
-  credits_remaining: number;
-  monthly_quota: number;
-  tier?: string;
+  available: number;
+  included_credits: number;
+  used_credits: number;
+  daily_cap: number | null;
+  daily_used: number;
+  tier: string;
 }
 
 const REFRESH_MS = 60_000;
-
-const FALLBACK: BillingBalance = {
-  credits_remaining: 0,
-  monthly_quota: 0,
-  tier: 'free',
-};
 
 export default function CreditCounter() {
   const { t } = useLang();
@@ -31,15 +42,17 @@ export default function CreditCounter() {
         const data = await api.get('/api/billing/balance');
         if (!mounted) return;
         setBalance({
-          credits_remaining: Number(data?.credits_remaining ?? 0),
-          monthly_quota: Number(data?.monthly_quota ?? 0),
-          tier: data?.tier ?? 'free',
+          available: Number(data?.available ?? 0),
+          included_credits: Number(data?.included_credits ?? 0),
+          used_credits: Number(data?.used_credits ?? 0),
+          daily_cap: data?.daily_cap == null ? null : Number(data.daily_cap),
+          daily_used: Number(data?.daily_used ?? 0),
+          tier: typeof data?.tier === 'string' ? data.tier : 'free',
         });
         setError(false);
       } catch {
         if (!mounted) return;
-        // Endpoint absent → on garde un placeholder discret, pas un crash.
-        setBalance(FALLBACK);
+        setBalance(null);
         setError(true);
       } finally {
         if (mounted) setLoading(false);
@@ -54,8 +67,15 @@ export default function CreditCounter() {
     };
   }, []);
 
-  const remaining = balance?.credits_remaining ?? 0;
-  const quota = balance?.monthly_quota ?? 0;
+  // Free tier : daily cap is the meaningful "quota" (included_credits = 0).
+  // Paid tier : monthly included_credits is the quota.
+  const isFreeTier = balance ? balance.daily_cap != null && balance.included_credits === 0 : false;
+  const remaining = balance?.available ?? 0;
+  const quota = balance
+    ? isFreeTier
+      ? balance.daily_cap ?? 0
+      : balance.included_credits
+    : 0;
   const ratio = quota > 0 ? Math.min(1, Math.max(0, remaining / quota)) : 0;
 
   return (

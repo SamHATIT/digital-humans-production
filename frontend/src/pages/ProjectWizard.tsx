@@ -1,984 +1,820 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Loader2, ChevronRight, ChevronLeft, Check,
-  Building2, Target, Cloud, GitBranch, FileText, Rocket,
-  AlertCircle, CheckCircle2, Upload, Trash2, File as FileIcon
-} from 'lucide-react';
-import { wizard, documents } from '../services/api';
-import Navbar from '../components/Navbar';
-import RedesignedBanner from '../components/RedesignedBanner';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Loader2, Upload, X, FileText } from 'lucide-react';
+import { useLang } from '../contexts/LangContext';
+import { auth, projects } from '../services/api';
+import StudioInput from '../components/studio/StudioInput';
+import StudioTextarea from '../components/studio/StudioTextarea';
+import StudioSelect from '../components/studio/StudioSelect';
+import StudioRadioGroup from '../components/studio/StudioRadioGroup';
+import StudioStepper from '../components/studio/StudioStepper';
+import WizardActHeader from '../components/studio/WizardActHeader';
+import EnsembleDisplay from '../components/studio/EnsembleDisplay';
+import { STUDIO_ENSEMBLE } from '../lib/agents';
 
-// Types
-type ProjectType = 'greenfield' | 'existing';
-type TargetObjective = 'sds_only' | 'sds_and_build';
+type Priority = 'standard' | 'express';
 
 interface WizardData {
-  // Step 1: Basic Info
+  // Act I — The opening
   name: string;
+  industry: string;
+  salesforce_edition: 'enterprise' | 'unlimited' | 'other';
+  user_role: 'admin' | 'consultant' | 'project_lead' | 'other';
+  // Act II — The brief
   description: string;
-  project_code: string;
-  client_name: string;
-  client_contact_name: string;
-  client_contact_email: string;
-  client_contact_phone: string;
-  start_date: string;
-  end_date: string;
-  // Step 2: Project Type
-  project_type: ProjectType;
-  salesforce_product: string;
-  // Step 3: Objective
-  target_objective: TargetObjective;
-  // Step 4: Salesforce
-  sf_instance_url: string;
-  sf_username: string;
-  sf_access_token: string;
-  // Step 5: Git
-  git_repo_url: string;
-  git_branch: string;
-  git_token: string;
-  // Step 6: Requirements
-  business_requirements: string;
-  selected_sds_agents: string[];
-  existing_systems: string;
-  compliance_requirements: string;
-  expected_users: string;
-  expected_data_volume: string;
+  business_goals: string;
+  constraints: string;
+  uploaded_file_name: string;
+  // Act IV — The schedule
+  priority: Priority;
+  // Act V — Curtain up
+  agreed_terms: boolean;
 }
 
-const STEPS = [
-  { id: 1, title: 'Informations', icon: Building2 },
-  { id: 2, title: 'Type', icon: Target },
-  { id: 3, title: 'Objectif', icon: Rocket },
-  { id: 4, title: 'Salesforce', icon: Cloud },
-  { id: 5, title: 'Git', icon: GitBranch },
-  { id: 6, title: 'Exigences', icon: FileText },
+const EMPTY_DATA: WizardData = {
+  name: '',
+  industry: '',
+  salesforce_edition: 'enterprise',
+  user_role: 'consultant',
+  description: '',
+  business_goals: '',
+  constraints: '',
+  uploaded_file_name: '',
+  priority: 'standard',
+  agreed_terms: false,
+};
+
+const SDS_CREDIT_COST = 800;
+const BUILD_CREDIT_COST = 3500;
+const EXPRESS_MULTIPLIER = 1.2;
+
+const DRAFT_KEY = (userId: string | number) => `wizard-draft-${userId}`;
+
+interface IndustryOption {
+  en: string;
+  fr: string;
+  value: string;
+}
+
+const INDUSTRY_OPTIONS: IndustryOption[] = [
+  { en: 'Logistics', fr: 'Logistique', value: 'logistics' },
+  { en: 'Pharma', fr: 'Pharma', value: 'pharma' },
+  { en: 'Telecom', fr: 'Télécom', value: 'telecom' },
+  { en: 'B2B', fr: 'B2B', value: 'b2b' },
+  { en: 'Energy', fr: 'Énergie', value: 'energy' },
+  { en: 'Retail', fr: 'Retail', value: 'retail' },
+  { en: 'Other', fr: 'Autre', value: 'other' },
 ];
 
-const SF_PRODUCTS = [
-  'Sales Cloud', 'Service Cloud', 'Marketing Cloud', 
-  'Commerce Cloud', 'Experience Cloud', 'Platform'
-];
-
-const DEFAULT_AGENTS = ['qa', 'devops', 'data', 'trainer'];
+interface BillingTier {
+  tier: string;
+  available: number;
+  included: number;
+}
 
 export default function ProjectWizard() {
   const navigate = useNavigate();
-  const { projectId } = useParams();
-  
-  const [currentStep, setCurrentStep] = useState(1);
-  const [projectIdState, setProjectIdState] = useState<number | null>(projectId ? parseInt(projectId) : null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { projectId } = useParams<{ projectId?: string }>();
+  const { t, lang } = useLang();
 
-  // Helper to format date for API (converts YYYY-MM-DD to ISO datetime)
-  const formatDateForApi = (dateStr: string | undefined): string | undefined => {
-    if (!dateStr) return undefined;
-    if (dateStr.includes('T')) return dateStr;
-    return `${dateStr}T00:00:00`;
-  };
-  const [error, setError] = useState('');
-  const [sfTestResult, setSfTestResult] = useState<{success: boolean; message: string} | null>(null);
-  const [gitTestResult, setGitTestResult] = useState<{success: boolean; message: string} | null>(null);
-  
-  const [data, setData] = useState<WizardData>({
-    name: '',
-    description: '',
-    project_code: '',
-    client_name: '',
-    client_contact_name: '',
-    client_contact_email: '',
-    client_contact_phone: '',
-    start_date: '',
-    end_date: '',
-    project_type: 'greenfield',
-    salesforce_product: 'Sales Cloud',
-    target_objective: 'sds_only',
-    sf_instance_url: '',
-    sf_username: '',
-    sf_access_token: '',
-    git_repo_url: '',
-    git_branch: 'main',
-    git_token: '',
-    business_requirements: '',
-    selected_sds_agents: DEFAULT_AGENTS,
-    existing_systems: '',
-    compliance_requirements: '',
-    expected_users: '',
-    expected_data_volume: '',
-  });
+  const [userKey, setUserKey] = useState<string>('anon');
+  const [actIndex, setActIndex] = useState(0);
+  const [completed, setCompleted] = useState<Set<number>>(new Set());
+  const [data, setData] = useState<WizardData>(EMPTY_DATA);
+  const [direction, setDirection] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tier, setTier] = useState<BillingTier | null>(null);
 
-  // Load existing project data if editing
+  // Identifier l'utilisateur pour la clé de draft localStorage
   useEffect(() => {
-    if (projectId) {
-      loadProjectProgress();
-    }
-  }, [projectId]);
+    let cancelled = false;
+    auth
+      .getCurrentUser()
+      .then((u) => {
+        if (cancelled) return;
+        setUserKey(String(u?.id ?? u?.email ?? 'anon'));
+      })
+      .catch(() => {
+        if (!cancelled) setUserKey('anon');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const loadProjectProgress = async () => {
-    try {
-      const progress = await wizard.getProgress(parseInt(projectId!));
-      setCurrentStep(progress.wizard_step || 1);
-      setProjectIdState(progress.project_id);
-    } catch (err) {
-      console.error('Failed to load progress:', err);
-    }
-  };
-
-  const updateField = (field: keyof WizardData, value: any) => {
-    setData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const validateStep = (): boolean => {
-    setError('');
-    
-    switch (currentStep) {
-      case 1:
-        if (!data.name.trim()) {
-          setError('Le nom du projet est requis');
-          return false;
+  // 1) projet existant via :projectId, 2) draft localStorage, 3) defaults.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (projectId) {
+        try {
+          const p = await projects.get(parseInt(projectId, 10));
+          if (cancelled) return;
+          setData((prev) => ({
+            ...prev,
+            name: p?.name ?? prev.name,
+            description: p?.description ?? prev.description,
+            industry: p?.industry ?? prev.industry,
+          }));
+          return;
+        } catch {
+          // continue with localStorage
         }
-        break;
-      case 6:
-        if (!data.business_requirements.trim() || data.business_requirements.length < 20) {
-          setError('Les exigences métier doivent contenir au moins 20 caractères');
-          return false;
+      }
+      try {
+        const raw = window.localStorage.getItem(DRAFT_KEY(userKey));
+        if (raw && !cancelled) {
+          const parsed = JSON.parse(raw) as Partial<WizardData>;
+          setData((prev) => ({ ...prev, ...parsed }));
         }
-        break;
-    }
-    return true;
-  };
+      } catch {
+        // ignore corrupt draft
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, userKey]);
 
-  const handleNext = async () => {
-    if (!validateStep()) return;
-    
-    setIsLoading(true);
-    setError('');
-    
-    try {
-      if (currentStep === 1 && !projectIdState) {
-        // Create project
-        const result = await wizard.create({
-          name: data.name,
-          description: data.description,
-          project_code: data.project_code,
-          client_name: data.client_name,
-          client_contact_name: data.client_contact_name,
-          client_contact_email: data.client_contact_email,
-          client_contact_phone: data.client_contact_phone,
-          start_date: formatDateForApi(data.start_date),
-          end_date: formatDateForApi(data.end_date),
+  // /api/billing/balance — pour Acte IV
+  useEffect(() => {
+    let cancelled = false;
+    const base = import.meta.env.VITE_API_URL || '';
+    fetch(`${base}/api/billing/balance`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b: Record<string, unknown> | null) => {
+        if (cancelled || !b) return;
+        setTier({
+          tier: typeof b.tier === 'string' ? b.tier : 'free',
+          available: Number(b.available ?? 0),
+          included: Number(b.included_credits ?? 0),
         });
-        setProjectIdState(result.project_id);
-        setCurrentStep(2);
-      } else if (projectIdState) {
-        // Update step
-        const stepData = getStepData(currentStep);
-        await wizard.updateStep(projectIdState, currentStep, stepData);
-        
-        if (currentStep < 6) {
-          // Skip step 4 if greenfield, skip step 5 if SDS only
-          let nextStep = currentStep + 1;
-          if (nextStep === 4 && data.project_type === 'greenfield') {
-            nextStep = 5;
-          }
-          if (nextStep === 5 && data.target_objective === 'sds_only') {
-            nextStep = 6;
-          }
-          setCurrentStep(nextStep);
-        } else {
-          // Wizard complete - redirect to execution
-          navigate(`/execution/${projectIdState}`);
-        }
-      }
-    } catch (err: any) {
-      setError(err.message || 'Une erreur est survenue');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleBack = () => {
-    if (currentStep > 1) {
-      let prevStep = currentStep - 1;
-      // Skip step 5 if SDS only
-      if (prevStep === 5 && data.target_objective === 'sds_only') {
-        prevStep = 4;
-      }
-      // Skip step 4 if greenfield
-      if (prevStep === 4 && data.project_type === 'greenfield') {
-        prevStep = 3;
-      }
-      setCurrentStep(prevStep);
-    }
-  };
-
-  const getStepData = (step: number) => {
-    switch (step) {
-      case 1:
-        return {
-          name: data.name,
-          description: data.description,
-          project_code: data.project_code,
-          client_name: data.client_name,
-          client_contact_name: data.client_contact_name,
-          client_contact_email: data.client_contact_email,
-          client_contact_phone: data.client_contact_phone,
-          start_date: formatDateForApi(data.start_date),
-          end_date: formatDateForApi(data.end_date),
-        };
-      case 2:
-        return {
-          project_type: data.project_type,
-          salesforce_product: data.salesforce_product,
-        };
-      case 3:
-        return { target_objective: data.target_objective };
-      case 4:
-        return {
-          sf_instance_url: data.sf_instance_url,
-          sf_username: data.sf_username,
-          sf_access_token: data.sf_access_token,
-        };
-      case 5:
-        return {
-          git_repo_url: data.git_repo_url,
-          git_branch: data.git_branch,
-          git_token: data.git_token,
-        };
-      case 6:
-        return {
-          business_requirements: data.business_requirements,
-          selected_sds_agents: data.selected_sds_agents,
-          existing_systems: data.existing_systems,
-          compliance_requirements: data.compliance_requirements,
-          expected_users: parseInt(data.expected_users) || null,
-          expected_data_volume: data.expected_data_volume,
-        };
-      default:
-        return {};
-    }
-  };
-
-  const testSalesforce = async () => {
-    if (!projectIdState) return;
-    setIsLoading(true);
-    try {
-      // First save current SF data
-      await wizard.updateStep(projectIdState, 4, {
-        sf_instance_url: data.sf_instance_url,
-        sf_username: data.sf_username,
-        sf_access_token: data.sf_access_token,
+      })
+      .catch(() => {
+        /* silent fallback */
       });
-      // Then test
-      const result = await wizard.testSalesforce(projectIdState);
-      setSfTestResult(result);
-    } catch (err: any) {
-      setSfTestResult({ success: false, message: err.message });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const testGit = async () => {
-    if (!projectIdState) return;
-    setIsLoading(true);
-    try {
-      // First save current Git data
-      await wizard.updateStep(projectIdState, 5, {
-        git_repo_url: data.git_repo_url,
-        git_branch: data.git_branch,
-        git_token: data.git_token,
-      });
-      // Then test
-      const result = await wizard.testGit(projectIdState);
-      setGitTestResult(result);
-    } catch (err: any) {
-      setGitTestResult({ success: false, message: err.message });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Determine which steps to show
-  const visibleSteps = STEPS.filter(step => {
-    if (step.id === 4 && data.project_type === 'greenfield') return false;
-    if (step.id === 5 && data.target_objective === 'sds_only') return false;
-    return true;
-  });
-
-  return (
-    <div className="min-h-screen bg-[#0B1120]">
-      <RedesignedBanner pageKey="wizard" sprint="A5.2 (Casting)" />
-      <Navbar />
-
-      {/* Background */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-900/20 rounded-full blur-[150px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-cyan-900/15 rounded-full blur-[150px]" />
-      </div>
-
-      <main className="relative max-w-4xl mx-auto px-4 py-10">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">
-            Nouveau Projet
-          </h1>
-          <p className="mt-2 text-slate-400">
-            Configurez votre projet en quelques étapes
-          </p>
-        </div>
-
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center">
-            {visibleSteps.map((step, index) => {
-              const Icon = step.icon;
-              const isActive = step.id === currentStep;
-              const isCompleted = step.id < currentStep;
-              
-              return (
-                <div key={step.id} className="flex items-center">
-                  <div className={`flex flex-col items-center ${index > 0 ? 'ml-4' : ''}`}>
-                    <div className={`
-                      w-12 h-12 rounded-full flex items-center justify-center transition-all
-                      ${isActive ? 'bg-cyan-500 text-white' : 
-                        isCompleted ? 'bg-green-500 text-white' : 
-                        'bg-slate-700 text-slate-400'}
-                    `}>
-                      {isCompleted ? <Check className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
-                    </div>
-                    <span className={`mt-2 text-xs ${isActive ? 'text-cyan-400' : 'text-slate-500'}`}>
-                      {step.title}
-                    </span>
-                  </div>
-                  {index < visibleSteps.length - 1 && (
-                    <div className={`h-0.5 w-12 mx-2 ${isCompleted ? 'bg-green-500' : 'bg-slate-700'}`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-400 flex items-center gap-2">
-            <AlertCircle className="w-5 h-5" />
-            {error}
-          </div>
-        )}
-
-        {/* Step Content */}
-        <div className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-2xl p-6">
-          {currentStep === 1 && (
-            <Step1BasicInfo data={data} updateField={updateField} />
-          )}
-          {currentStep === 2 && (
-            <Step2ProjectType data={data} updateField={updateField} products={SF_PRODUCTS} />
-          )}
-          {currentStep === 3 && (
-            <Step3Objective data={data} updateField={updateField} />
-          )}
-          {currentStep === 4 && (
-            <Step4Salesforce 
-              data={data} 
-              updateField={updateField} 
-              onTest={testSalesforce}
-              testResult={sfTestResult}
-              isLoading={isLoading}
-            />
-          )}
-          {currentStep === 5 && (
-            <Step5Git 
-              data={data} 
-              updateField={updateField}
-              onTest={testGit}
-              testResult={gitTestResult}
-              isLoading={isLoading}
-            />
-          )}
-          {currentStep === 6 && (
-            <Step6Requirements data={data} updateField={updateField} projectId={projectIdState} />
-          )}
-        </div>
-
-        {/* Navigation */}
-        <div className="mt-6 flex justify-between">
-          <button
-            onClick={handleBack}
-            disabled={currentStep === 1 || isLoading}
-            className={`
-              flex items-center gap-2 px-6 py-3 rounded-xl transition-all
-              ${currentStep === 1 ? 'opacity-50 cursor-not-allowed bg-slate-700' : 
-                'bg-slate-700 hover:bg-slate-600 text-white'}
-            `}
-          >
-            <ChevronLeft className="w-5 h-5" />
-            Précédent
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 text-white font-medium hover:opacity-90 transition-all disabled:opacity-50"
-          >
-            {isLoading && <Loader2 className="w-5 h-5 animate-spin" />}
-            {currentStep === 6 ? 'Créer le projet' : 'Suivant'}
-            {currentStep < 6 && <ChevronRight className="w-5 h-5" />}
-          </button>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-// Step Components
-function Step1BasicInfo({ data, updateField }: { data: WizardData; updateField: (f: keyof WizardData, v: any) => void }) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <Building2 className="w-6 h-6 text-cyan-400" />
-        Informations du projet
-      </h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="md:col-span-2">
-          <label className="block text-sm text-slate-400 mb-2">Nom du projet *</label>
-          <input
-            type="text"
-            value={data.name}
-            onChange={(e) => updateField('name', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="Ex: CRM Modernization"
-          />
-        </div>
-        
-        <div className="md:col-span-2">
-          <label className="block text-sm text-slate-400 mb-2">Description</label>
-          <textarea
-            value={data.description}
-            onChange={(e) => updateField('description', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            rows={2}
-            placeholder="Brève description du projet"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Code projet <span className="text-slate-500">(auto-généré si vide)</span></label>
-          <input
-            type="text"
-            value={data.project_code}
-            onChange={(e) => updateField('project_code', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="Auto-généré (ex: PRJ-2026-093)"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Nom du client</label>
-          <input
-            type="text"
-            value={data.client_name}
-            onChange={(e) => updateField('client_name', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="Acme Corp"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Contact client</label>
-          <input
-            type="text"
-            value={data.client_contact_name}
-            onChange={(e) => updateField('client_contact_name', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="Jean Dupont"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Email contact</label>
-          <input
-            type="email"
-            value={data.client_contact_email}
-            onChange={(e) => updateField('client_contact_email', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="jean@acme.com"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Date de début</label>
-          <input
-            type="date"
-            value={data.start_date}
-            onChange={(e) => updateField('start_date', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Date de fin prévue</label>
-          <input
-            type="date"
-            value={data.end_date}
-            onChange={(e) => updateField('end_date', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Step2ProjectType({ data, updateField, products }: { data: WizardData; updateField: (f: keyof WizardData, v: any) => void; products: string[] }) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <Target className="w-6 h-6 text-cyan-400" />
-        Type de projet
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          onClick={() => updateField('project_type', 'greenfield')}
-          className={`p-6 rounded-xl border-2 transition-all text-left ${
-            data.project_type === 'greenfield' 
-              ? 'border-cyan-500 bg-cyan-500/10' 
-              : 'border-slate-600 bg-slate-900/50 hover:border-slate-500'
-          }`}
-        >
-          <div className="text-2xl mb-2">🌱</div>
-          <h3 className="text-lg font-medium text-white">Greenfield</h3>
-          <p className="text-sm text-slate-400 mt-1">
-            Nouvelle implémentation Salesforce sans org existant
-          </p>
-        </button>
-
-        <button
-          onClick={() => updateField('project_type', 'existing')}
-          className={`p-6 rounded-xl border-2 transition-all text-left ${
-            data.project_type === 'existing' 
-              ? 'border-cyan-500 bg-cyan-500/10' 
-              : 'border-slate-600 bg-slate-900/50 hover:border-slate-500'
-          }`}
-        >
-          <div className="text-2xl mb-2">🔄</div>
-          <h3 className="text-lg font-medium text-white">Existant</h3>
-          <p className="text-sm text-slate-400 mt-1">
-            Évolution d'un org Salesforce existant
-          </p>
-        </button>
-      </div>
-
-      <div>
-        <label className="block text-sm text-slate-400 mb-2">Produit Salesforce</label>
-        <select
-          value={data.salesforce_product}
-          onChange={(e) => updateField('salesforce_product', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-        >
-          {products.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
-}
-
-function Step3Objective({ data, updateField }: { data: WizardData; updateField: (f: keyof WizardData, v: any) => void }) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <Rocket className="w-6 h-6 text-cyan-400" />
-        Objectif du projet
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <button
-          onClick={() => updateField('target_objective', 'sds_only')}
-          className={`p-6 rounded-xl border-2 transition-all text-left ${
-            data.target_objective === 'sds_only' 
-              ? 'border-cyan-500 bg-cyan-500/10' 
-              : 'border-slate-600 bg-slate-900/50 hover:border-slate-500'
-          }`}
-        >
-          <div className="text-2xl mb-2">📄</div>
-          <h3 className="text-lg font-medium text-white">SDS uniquement</h3>
-          <p className="text-sm text-slate-400 mt-1">
-            Générer le document de spécifications (gratuit)
-          </p>
-          <span className="inline-block mt-3 px-3 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
-            Gratuit
-          </span>
-        </button>
-
-        <button
-          onClick={() => updateField('target_objective', 'sds_and_build')}
-          className={`p-6 rounded-xl border-2 transition-all text-left ${
-            data.target_objective === 'sds_and_build' 
-              ? 'border-purple-500 bg-purple-500/10' 
-              : 'border-slate-600 bg-slate-900/50 hover:border-slate-500'
-          }`}
-        >
-          <div className="text-2xl mb-2">🚀</div>
-          <h3 className="text-lg font-medium text-white">SDS + BUILD</h3>
-          <p className="text-sm text-slate-400 mt-1">
-            Générer le SDS et déployer automatiquement
-          </p>
-          <span className="inline-block mt-3 px-3 py-1 bg-purple-500/20 text-purple-400 text-xs rounded-full">
-            Premium
-          </span>
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function Step4Salesforce({ data, updateField, onTest, testResult, isLoading }: { 
-  data: WizardData; 
-  updateField: (f: keyof WizardData, v: any) => void;
-  onTest: () => void;
-  testResult: {success: boolean; message: string} | null;
-  isLoading: boolean;
-}) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <Cloud className="w-6 h-6 text-cyan-400" />
-        Connexion Salesforce
-      </h2>
-      <p className="text-slate-400 text-sm">
-        Connectez votre org Salesforce pour analyser la configuration existante
-      </p>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">URL de l'instance</label>
-          <input
-            type="url"
-            value={data.sf_instance_url}
-            onChange={(e) => updateField('sf_instance_url', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="https://mycompany.my.salesforce.com"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Nom d'utilisateur</label>
-          <input
-            type="text"
-            value={data.sf_username}
-            onChange={(e) => updateField('sf_username', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="admin@mycompany.com"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Access Token</label>
-          <input
-            type="password"
-            value={data.sf_access_token}
-            onChange={(e) => updateField('sf_access_token', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="••••••••••••"
-          />
-        </div>
-
-        <button
-          onClick={onTest}
-          disabled={isLoading || !data.sf_instance_url}
-          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all disabled:opacity-50 flex items-center gap-2"
-        >
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cloud className="w-4 h-4" />}
-          Tester la connexion
-        </button>
-
-        {testResult && (
-          <div className={`p-4 rounded-xl flex items-center gap-2 ${
-            testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-          }`}>
-            {testResult.success ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-            {testResult.message}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Step5Git({ data, updateField, onTest, testResult, isLoading }: { 
-  data: WizardData; 
-  updateField: (f: keyof WizardData, v: any) => void;
-  onTest: () => void;
-  testResult: {success: boolean; message: string} | null;
-  isLoading: boolean;
-}) {
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <GitBranch className="w-6 h-6 text-cyan-400" />
-        Repository Git
-      </h2>
-      <p className="text-slate-400 text-sm">
-        Configurez le repository pour le déploiement du code généré
-      </p>
-
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">URL du repository</label>
-          <input
-            type="url"
-            value={data.git_repo_url}
-            onChange={(e) => updateField('git_repo_url', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="https://github.com/org/repo"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Branche</label>
-          <input
-            type="text"
-            value={data.git_branch}
-            onChange={(e) => updateField('git_branch', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="main"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Personal Access Token</label>
-          <input
-            type="password"
-            value={data.git_token}
-            onChange={(e) => updateField('git_token', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="ghp_••••••••••••"
-          />
-        </div>
-
-        <button
-          onClick={onTest}
-          disabled={isLoading || !data.git_repo_url}
-          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all disabled:opacity-50 flex items-center gap-2"
-        >
-          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitBranch className="w-4 h-4" />}
-          Tester la connexion
-        </button>
-
-        {testResult && (
-          <div className={`p-4 rounded-xl flex items-center gap-2 ${
-            testResult.success ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-          }`}>
-            {testResult.success ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-            {testResult.message}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Step6Requirements({ data, updateField, projectId }: {
-  data: WizardData;
-  updateField: (f: keyof WizardData, v: any) => void;
-  projectId: number | null;
-}) {
-  const [uploadedDocs, setUploadedDocs] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [dragOver, setDragOver] = useState(false);
-
-  // Load existing documents
+  // Persist draft (uniquement les inputs utilisateur).
   useEffect(() => {
-    if (projectId) {
-      documents.list(projectId).then(setUploadedDocs).catch(() => {});
-    }
-  }, [projectId]);
-
-  const handleFileUpload = async (files: FileList | null) => {
-    if (!files || !projectId) return;
-    setUploading(true);
+    if (userKey === 'anon') return;
     try {
-      for (const file of Array.from(files)) {
-        const result = await documents.upload(projectId, file);
-        setUploadedDocs(prev => [result, ...prev]);
+      window.localStorage.setItem(DRAFT_KEY(userKey), JSON.stringify(data));
+    } catch {
+      /* quota or disabled storage */
+    }
+  }, [data, userKey]);
+
+  const update = <K extends keyof WizardData>(key: K, value: WizardData[K]) =>
+    setData((prev) => ({ ...prev, [key]: value }));
+
+  // ── Validation par acte ─────────────────────────────────────────────
+  const validateAct = (index: number): string | null => {
+    if (index === 0) {
+      if (!data.name.trim())
+        return t('Project name is required.', 'Le nom du projet est requis.');
+      if (data.name.trim().length < 3)
+        return t('Project name is too short.', 'Le nom du projet est trop court.');
+      if (!data.industry) return t('Pick an industry.', 'Sélectionnez un secteur.');
+    }
+    if (index === 1) {
+      if (data.description.trim().length < 20)
+        return t(
+          'A 20-character description at minimum, please.',
+          "Description de 20 caractères minimum, s'il vous plaît.",
+        );
+      if (data.business_goals.trim().length < 10)
+        return t(
+          'Tell us at least one outcome you want.',
+          'Décrivez au moins un résultat attendu.',
+        );
+    }
+    if (index === 4) {
+      if (!data.agreed_terms)
+        return t(
+          'Agreement to the terms is required to raise the curtain.',
+          "L'accord aux conditions est requis pour lever le rideau.",
+        );
+    }
+    return null;
+  };
+
+  const goNext = () => {
+    const err = validateAct(actIndex);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setError(null);
+    setCompleted((prev) => {
+      const next = new Set(prev);
+      next.add(actIndex);
+      return next;
+    });
+    setDirection(1);
+    setActIndex((i) => Math.min(4, i + 1));
+  };
+
+  const goBack = () => {
+    setError(null);
+    setDirection(-1);
+    setActIndex((i) => Math.max(0, i - 1));
+  };
+
+  const jumpTo = (idx: number) => {
+    if (idx === actIndex) return;
+    if (idx < actIndex || completed.has(idx)) {
+      setError(null);
+      setDirection(idx > actIndex ? 1 : -1);
+      setActIndex(idx);
+    }
+  };
+
+  const handleSubmit = async () => {
+    const err = validateAct(4);
+    if (err) {
+      setError(err);
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const businessRequirements = [
+        data.description.trim(),
+        '\n## Business Goals\n' + data.business_goals.trim(),
+        data.constraints.trim()
+          ? '\n## Constraints / Non-goals\n' + data.constraints.trim()
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      const result = await projects.create({
+        name: data.name.trim(),
+        description: data.description.trim(),
+        salesforce_product:
+          data.salesforce_edition === 'enterprise'
+            ? 'Sales Cloud'
+            : data.salesforce_edition === 'unlimited'
+              ? 'Service Cloud'
+              : 'Platform',
+        organization_type: 'New Implementation',
+        industry: data.industry,
+        business_requirements: businessRequirements,
+        selected_agents: STUDIO_ENSEMBLE.map((a) => a.id),
+      });
+      try {
+        window.localStorage.removeItem(DRAFT_KEY(userKey));
+      } catch {
+        /* ignore */
       }
-    } catch (err: any) {
-      console.error('Upload failed:', err);
+      const newId: number | undefined = result?.id ?? result?.project_id;
+      if (newId) {
+        navigate(`/br-validation/${newId}`);
+      } else {
+        navigate('/');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('Submission failed.', "Échec de l'envoi."));
     } finally {
-      setUploading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleDelete = async (docId: number) => {
-    if (!projectId) return;
-    try {
-      await documents.delete(projectId, docId);
-      setUploadedDocs(prev => prev.filter(d => d.id !== docId));
-    } catch (err: any) {
-      console.error('Delete failed:', err);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
+  const acts = useMemo(
+    () => [
+      { id: 'act-1', label: 'Act I', subtitle: t('The opening', "L'ouverture") },
+      { id: 'act-2', label: 'Act II', subtitle: t('The brief', 'Le brief') },
+      { id: 'act-3', label: 'Act III', subtitle: t('The ensemble', "L'ensemble") },
+      { id: 'act-4', label: 'Act IV', subtitle: t('The schedule', 'Le calendrier') },
+      { id: 'act-5', label: 'Act V', subtitle: t('Curtain up', 'Lever de rideau') },
+    ],
+    [t],
+  );
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-        <FileText className="w-6 h-6 text-cyan-400" />
-        Exigences métier
-      </h2>
-
-      <div>
-        <label className="block text-sm text-slate-400 mb-2">
-          Décrivez vos besoins métier *
-        </label>
-        <textarea
-          value={data.business_requirements}
-          onChange={(e) => updateField('business_requirements', e.target.value)}
-          className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-          rows={6}
-          placeholder="Décrivez les fonctionnalités attendues, les processus métier à automatiser, les intégrations nécessaires..."
-        />
-        <p className="mt-1 text-xs text-slate-500">
-          {data.business_requirements.length} caractères (minimum 20)
-        </p>
-      </div>
-
-      {/* P3: Document Upload Section */}
-      {projectId && (
-        <div className="border border-slate-600 rounded-xl p-4">
-          <h3 className="text-md font-medium text-white flex items-center gap-2 mb-3">
-            <Upload className="w-5 h-5 text-purple-400" />
-            Documents techniques (optionnel)
-          </h3>
-          <p className="text-xs text-slate-500 mb-3">
-            Ajoutez des documents PDF, DOCX ou TXT pour enrichir le contexte RAG de ce projet.
-          </p>
-
-          {/* Drag & drop zone */}
-          <div
-            className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-              dragOver ? 'border-cyan-400 bg-cyan-500/10' : 'border-slate-600 hover:border-slate-500'
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById('doc-upload-input')?.click()}
-          >
-            {uploading ? (
-              <Loader2 className="w-8 h-8 animate-spin text-cyan-400 mx-auto" />
-            ) : (
-              <>
-                <Upload className="w-8 h-8 text-slate-500 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">
-                  Glissez vos fichiers ici ou cliquez pour parcourir
-                </p>
-                <p className="text-xs text-slate-600 mt-1">PDF, DOCX, TXT, MD, CSV (max 20 Mo)</p>
-              </>
-            )}
-            <input
-              id="doc-upload-input"
-              type="file"
-              multiple
-              accept=".pdf,.docx,.txt,.md,.csv"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files)}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-12">
+        {/* Sidebar gauche : stepper + crédits */}
+        <aside className="lg:sticky lg:top-24 lg:self-start space-y-10">
+          <div>
+            <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-4">
+              {t('№ 02 · Casting', '№ 02 · Distribution')}
+            </p>
+            <StudioStepper
+              steps={acts}
+              currentIndex={actIndex}
+              completed={completed}
+              onJump={jumpTo}
             />
           </div>
 
-          {/* Uploaded documents list */}
-          {uploadedDocs.length > 0 && (
-            <div className="mt-3 space-y-2">
-              {uploadedDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between bg-slate-900/50 rounded-lg px-3 py-2"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileIcon className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-white truncate">{doc.filename}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${
-                      doc.status === 'ready'
-                        ? 'bg-green-500/20 text-green-400'
-                        : doc.status === 'error'
-                        ? 'bg-red-500/20 text-red-400'
-                        : 'bg-yellow-500/20 text-yellow-400'
-                    }`}>
-                      {doc.status === 'ready' ? `${doc.chunk_count} chunks` : doc.status}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="text-slate-500 hover:text-red-400 transition-colors flex-shrink-0 ml-2"
-                    title="Supprimer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+          {tier && (
+            <div className="border-t border-bone/5 pt-6">
+              <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                {t('Credits', 'Crédits')}
+              </p>
+              <p className="mt-2 font-mono text-[18px] text-brass">
+                {tier.available.toLocaleString()}
+              </p>
+              <p className="mt-1 font-mono text-[10px] text-bone-4 capitalize">
+                {tier.tier} {t('tier', 'palier')}
+              </p>
             </div>
           )}
-        </div>
-      )}
+        </aside>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Systèmes existants</label>
-          <input
-            type="text"
-            value={data.existing_systems}
-            onChange={(e) => updateField('existing_systems', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="ERP, CRM legacy, etc."
-          />
-        </div>
+        {/* Contenu droite : acte courant */}
+        <section className="min-h-[600px]">
+          <AnimatePresence mode="wait" custom={direction}>
+            <motion.div
+              key={actIndex}
+              custom={direction}
+              initial={{ opacity: 0, x: direction * 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -direction * 40 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+            >
+              {actIndex === 0 && <ActOne data={data} update={update} lang={lang} />}
+              {actIndex === 1 && <ActTwo data={data} update={update} />}
+              {actIndex === 2 && <ActThree />}
+              {actIndex === 3 && <ActFour data={data} update={update} tier={tier} />}
+              {actIndex === 4 && <ActFive data={data} update={update} acts={acts} />}
+            </motion.div>
+          </AnimatePresence>
 
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Contraintes de conformité</label>
-          <input
-            type="text"
-            value={data.compliance_requirements}
-            onChange={(e) => updateField('compliance_requirements', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="RGPD, SOC2, etc."
-          />
-        </div>
+          {/* Footer navigation */}
+          <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-bone/5 pt-6">
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={actIndex === 0 || submitting}
+              className="inline-flex items-center gap-2 px-4 py-2 font-mono text-[11px] tracking-cta uppercase text-bone-3 hover:text-bone disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              {t('Previous', 'Précédent')}
+            </button>
 
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Nombre d'utilisateurs prévus</label>
-          <input
-            type="number"
-            value={data.expected_users}
-            onChange={(e) => updateField('expected_users', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-            placeholder="100"
-          />
-        </div>
+            {error && (
+              <p className="flex-1 mx-4 text-center font-mono text-[11px] text-error">
+                {error}
+              </p>
+            )}
 
-        <div>
-          <label className="block text-sm text-slate-400 mb-2">Volume de données</label>
-          <select
-            value={data.expected_data_volume}
-            onChange={(e) => updateField('expected_data_volume', e.target.value)}
-            className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600 rounded-xl text-white focus:border-cyan-500 focus:outline-none"
-          >
-            <option value="">Sélectionner...</option>
-            <option value="small">Petit (&lt; 100K records)</option>
-            <option value="medium">Moyen (100K - 1M)</option>
-            <option value="large">Grand (1M - 10M)</option>
-            <option value="enterprise">Enterprise (&gt; 10M)</option>
-          </select>
-        </div>
+            {actIndex < 4 ? (
+              <button
+                type="button"
+                onClick={goNext}
+                className="inline-flex items-center gap-2 px-5 py-2.5 border border-brass bg-brass/10 hover:bg-brass/20 transition-colors font-mono text-[11px] tracking-cta uppercase text-brass"
+              >
+                {t('Continue', 'Continuer')}
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !data.agreed_terms}
+                className="inline-flex items-center gap-2 px-6 py-3 border border-brass bg-brass text-ink hover:bg-brass-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors font-mono text-[11px] tracking-cta uppercase"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    {t('Raising the curtain…', 'Lever du rideau…')}
+                  </>
+                ) : (
+                  <>{t('◗ Raise the curtain →', '◗ Lever le rideau →')}</>
+                )}
+              </button>
+            )}
+          </div>
+        </section>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Act I — The opening
+// ─────────────────────────────────────────────────────────────────────
+interface ActProps {
+  data: WizardData;
+  update: <K extends keyof WizardData>(key: K, value: WizardData[K]) => void;
+}
+
+function ActOne({ data, update, lang }: ActProps & { lang: 'en' | 'fr' }) {
+  const { t } = useLang();
+  return (
+    <>
+      <WizardActHeader
+        eyebrow={t('Act I · The opening', "Acte I · L'ouverture")}
+        title={t('A new project takes shape.', 'Un nouveau projet prend forme.')}
+        lede={t(
+          'Tell us about the production you are about to commission. The basics, in three short answers.',
+          'Dites-nous quelle production vous commandez. Les bases, en trois réponses courtes.',
+        )}
+      />
+
+      <div className="space-y-6 max-w-2xl">
+        <StudioInput
+          name="name"
+          label={t('Project name', 'Nom du projet')}
+          value={data.name}
+          onChange={(e) => update('name', e.target.value)}
+          placeholder={t(
+            'e.g. LogiFleet — Service Cloud',
+            'ex. LogiFleet — Service Cloud',
+          )}
+          autoComplete="off"
+        />
+
+        <StudioSelect
+          name="industry"
+          label={t('Industry', 'Secteur')}
+          value={data.industry}
+          onChange={(e) => update('industry', e.target.value)}
+          placeholder={t('Choose an industry…', 'Choisissez un secteur…')}
+          options={INDUSTRY_OPTIONS.map((o) => ({
+            value: o.value,
+            label: lang === 'fr' ? o.fr : o.en,
+          }))}
+        />
+
+        <StudioRadioGroup
+          name="salesforce_edition"
+          label={t('Salesforce edition', 'Édition Salesforce')}
+          value={data.salesforce_edition}
+          onChange={(v) =>
+            update('salesforce_edition', v as WizardData['salesforce_edition'])
+          }
+          options={[
+            { value: 'enterprise', label: 'Enterprise' },
+            { value: 'unlimited', label: 'Unlimited' },
+            { value: 'other', label: t('Other', 'Autre') },
+          ]}
+        />
+
+        <StudioRadioGroup
+          name="user_role"
+          label={t('Your role', 'Votre rôle')}
+          value={data.user_role}
+          onChange={(v) => update('user_role', v as WizardData['user_role'])}
+          options={[
+            { value: 'admin', label: t('Salesforce admin', 'Admin Salesforce') },
+            { value: 'consultant', label: t('Consultant', 'Consultant·e') },
+            { value: 'project_lead', label: t('Project lead', 'Chef·fe de projet') },
+            { value: 'other', label: t('Other', 'Autre') },
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Act II — The brief
+// ─────────────────────────────────────────────────────────────────────
+function ActTwo({ data, update }: ActProps) {
+  const { t } = useLang();
+  const [dragOver, setDragOver] = useState(false);
+
+  const onPickFile = (file: File | null) => {
+    update('uploaded_file_name', file ? file.name : '');
+  };
+
+  return (
+    <>
+      <WizardActHeader
+        eyebrow={t('Act II · The brief', 'Acte II · Le brief')}
+        title={t('What needs to be built.', 'Ce qui doit être construit.')}
+        lede={t(
+          'Describe the project, the business outcomes, and any constraint we should respect. The longer, the sharper the SDS.',
+          "Décrivez le projet, les résultats attendus, et toute contrainte à respecter. Plus c'est précis, plus le SDS est juste.",
+        )}
+      />
+
+      <div className="space-y-6 max-w-2xl">
+        <StudioTextarea
+          name="description"
+          label={t('Project description', 'Description du projet')}
+          rows={5}
+          value={data.description}
+          onChange={(e) => update('description', e.target.value)}
+          placeholder={t(
+            'What is the engagement? Context, scope, key actors…',
+            'Quelle est la mission ? Contexte, périmètre, acteurs clés…',
+          )}
+        />
+
+        <StudioTextarea
+          name="business_goals"
+          label={t('Business goals', 'Objectifs business')}
+          rows={4}
+          value={data.business_goals}
+          onChange={(e) => update('business_goals', e.target.value)}
+          placeholder={t(
+            'What outcome should this unlock for your business?',
+            'Quels résultats cette mission doit-elle débloquer ?',
+          )}
+        />
+
+        <StudioTextarea
+          name="constraints"
+          label={t(
+            'Constraints / non-goals (optional)',
+            'Contraintes / hors-périmètre (optionnel)',
+          )}
+          rows={3}
+          value={data.constraints}
+          onChange={(e) => update('constraints', e.target.value)}
+          placeholder={t(
+            'Anything we must avoid, defer, or comply with?',
+            'À éviter, à différer, ou à respecter ?',
+          )}
+        />
+
+        <div>
+          <p className="block font-mono text-[10px] tracking-eyebrow uppercase text-bone-3 mb-2">
+            {t('Brief PDF (optional)', 'Brief PDF (optionnel)')}
+          </p>
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) onPickFile(f);
+            }}
+            className={[
+              'block border border-dashed bg-ink-2 px-6 py-8 cursor-pointer transition-colors',
+              dragOver
+                ? 'border-brass bg-ink-3'
+                : 'border-bone/15 hover:border-brass/40',
+            ].join(' ')}
+          >
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+            />
+            {data.uploaded_file_name ? (
+              <span className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-3 min-w-0">
+                  <FileText className="w-4 h-4 text-brass shrink-0" />
+                  <span className="font-mono text-[12px] text-bone truncate">
+                    {data.uploaded_file_name}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onPickFile(null);
+                  }}
+                  aria-label={t('Remove file', 'Retirer le fichier')}
+                  className="p-1 text-bone-4 hover:text-error transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ) : (
+              <span className="flex items-center gap-3">
+                <Upload className="w-4 h-4 text-bone-3" />
+                <span className="font-mono text-[11px] tracking-[0.05em] text-bone-3">
+                  {t(
+                    'Drop a brief PDF here, or click to browse.',
+                    'Déposez un PDF ici, ou cliquez pour parcourir.',
+                  )}
+                </span>
+              </span>
+            )}
+          </label>
+          <p className="mt-2 font-mono text-[11px] text-bone-4">
+            {t(
+              'Optional — Sophie will read it during the casting.',
+              'Optionnel — Sophie le lira pendant le casting.',
+            )}
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Act III — The ensemble (read-only)
+// ─────────────────────────────────────────────────────────────────────
+function ActThree() {
+  const { t } = useLang();
+  return (
+    <>
+      <WizardActHeader
+        eyebrow={t('Act III · The ensemble', "Acte III · L'ensemble")}
+        title={t('Eleven specialists. One studio.', 'Onze spécialistes. Un seul studio.')}
+        lede={t(
+          'You do not pick the cast — every project earns the full ensemble. They take the stage in turn.',
+          "Vous ne choisissez pas la distribution — chaque projet a droit à l'ensemble complet. Ils entrent en scène tour à tour.",
+        )}
+      />
+      <EnsembleDisplay />
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Act IV — The schedule
+// ─────────────────────────────────────────────────────────────────────
+function ActFour({
+  data,
+  update,
+  tier,
+}: ActProps & { tier: BillingTier | null }) {
+  const { t } = useLang();
+  const baseSds = SDS_CREDIT_COST;
+  const baseBuild = BUILD_CREDIT_COST;
+  const multiplier = data.priority === 'express' ? EXPRESS_MULTIPLIER : 1;
+  const totalEstimate = Math.round((baseSds + baseBuild) * multiplier);
+
+  return (
+    <>
+      <WizardActHeader
+        eyebrow={t('Act IV · The schedule', 'Acte IV · Le calendrier')}
+        title={t('When and how much.', 'Quand et combien.')}
+        lede={t(
+          'We estimate the credits and pace. Express adds 20% to the bill but moves you to the head of the queue.',
+          "Estimation des crédits et du rythme. L'express ajoute 20 % à la facture mais vous place en tête de file.",
+        )}
+      />
+
+      <div className="space-y-8 max-w-2xl">
+        <div className="border border-bone/10 bg-ink-2 px-5 py-4 grid grid-cols-2 gap-4">
+          <div>
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+              {t('Your tier', 'Votre palier')}
+            </p>
+            <p className="mt-2 font-serif italic text-xl text-bone capitalize">
+              {tier?.tier ?? '—'}
+            </p>
+          </div>
+          <div>
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+              {t('Available credits', 'Crédits disponibles')}
+            </p>
+            <p className="mt-2 font-mono text-xl text-brass">
+              {tier ? tier.available.toLocaleString() : '—'}
+            </p>
+          </div>
+        </div>
+
+        <div className="border border-bone/10 bg-ink-2 px-5 py-4">
+          <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+            {t('Estimated cost in credits', 'Coût estimé en crédits')}
+          </p>
+          <p className="mt-2 font-mono text-2xl text-brass">
+            ~ {totalEstimate.toLocaleString()}
+          </p>
+          <p className="mt-2 font-mono text-[11px] text-bone-3 leading-relaxed">
+            {t(
+              `SDS phase ~${baseSds.toLocaleString()} · BUILD phase ~${baseBuild.toLocaleString()}`,
+              `Phase SDS ~${baseSds.toLocaleString()} · Phase BUILD ~${baseBuild.toLocaleString()}`,
+            )}
+            {data.priority === 'express' && t(' · Express +20%', ' · Express +20 %')}
+          </p>
+        </div>
+
+        <StudioRadioGroup
+          name="priority"
+          label={t('Priority', 'Priorité')}
+          value={data.priority}
+          onChange={(v) => update('priority', v as Priority)}
+          options={[
+            {
+              value: 'standard',
+              label: t('Standard', 'Standard'),
+              description: t('Estimated 5–7 working days.', 'Délai estimé 5 à 7 jours ouvrés.'),
+            },
+            {
+              value: 'express',
+              label: t('Express', 'Express'),
+              description: t(
+                '+20% credits · Estimated 2–3 working days.',
+                '+20 % de crédits · Délai estimé 2 à 3 jours ouvrés.',
+              ),
+            },
+          ]}
+        />
+
+        <p className="font-mono text-[11px] text-bone-4">
+          {t(
+            'Estimated completion is indicative — Sophie will refine it during BR validation.',
+            "L'estimation est indicative — Sophie l'affinera pendant la validation des BR.",
+          )}
+        </p>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Act V — Curtain up
+// ─────────────────────────────────────────────────────────────────────
+function ActFive({
+  data,
+  update,
+  acts,
+}: ActProps & { acts: { id: string; label: string; subtitle: string }[] }) {
+  const { t } = useLang();
+
+  const summary: { label: string; value: string }[] = [
+    { label: t('Project name', 'Nom du projet'), value: data.name || '—' },
+    { label: t('Industry', 'Secteur'), value: data.industry || '—' },
+    {
+      label: t('Salesforce edition', 'Édition Salesforce'),
+      value: data.salesforce_edition,
+    },
+    {
+      label: t('Priority', 'Priorité'),
+      value:
+        data.priority === 'express' ? t('Express', 'Express') : t('Standard', 'Standard'),
+    },
+    {
+      label: t('Brief excerpt', 'Extrait du brief'),
+      value:
+        data.description.length > 140
+          ? `${data.description.slice(0, 140).trim()}…`
+          : data.description || '—',
+    },
+  ];
+
+  return (
+    <>
+      <WizardActHeader
+        eyebrow={t('Act V · Curtain up', 'Acte V · Lever de rideau')}
+        title={t(
+          'One last look before the lights go up.',
+          "Un dernier regard avant l'éclairage.",
+        )}
+        lede={t(
+          'Sophie will read your brief, draft a list of business requirements, then hand it back to you for validation.',
+          "Sophie lira votre brief, rédigera une liste de business requirements, puis vous la rendra pour validation.",
+        )}
+      />
+
+      <div className="space-y-8 max-w-2xl">
+        <div className="border border-bone/10 bg-ink-2 divide-y divide-bone/5">
+          {summary.map((row) => (
+            <div key={row.label} className="flex items-baseline gap-4 px-5 py-3">
+              <p className="w-48 font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 shrink-0">
+                {row.label}
+              </p>
+              <p className="font-sans text-[13px] text-bone leading-snug">{row.value}</p>
+            </div>
+          ))}
+        </div>
+
+        <p className="font-mono text-[11px] text-bone-3">
+          {t(
+            `${acts.length} acts ahead — your ensemble is ready.`,
+            `${acts.length} actes à venir — votre ensemble est prêt.`,
+          )}
+        </p>
+
+        <label className="flex items-start gap-3 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={data.agreed_terms}
+            onChange={(e) => update('agreed_terms', e.target.checked)}
+            className="sr-only peer"
+          />
+          <span
+            aria-hidden
+            className="mt-[2px] inline-flex w-4 h-4 border border-bone/30 peer-checked:border-brass peer-checked:bg-brass transition-colors items-center justify-center"
+          >
+            {data.agreed_terms && <span className="w-2 h-2 bg-ink" />}
+          </span>
+          <span className="font-mono text-[12px] text-bone-2 leading-relaxed">
+            {t(
+              'I agree to the terms of service and authorise the studio to begin the production.',
+              "J'accepte les conditions de service et autorise le studio à commencer la production.",
+            )}
+          </span>
+        </label>
+      </div>
+    </>
   );
 }
