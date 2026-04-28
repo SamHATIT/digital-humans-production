@@ -60,10 +60,12 @@ interface IndustryOption {
 const INDUSTRY_OPTIONS: IndustryOption[] = [
   { en: 'Logistics', fr: 'Logistique', value: 'logistics' },
   { en: 'Pharma', fr: 'Pharma', value: 'pharma' },
+  { en: 'Healthcare', fr: 'Santé', value: 'healthcare' },
   { en: 'Telecom', fr: 'Télécom', value: 'telecom' },
   { en: 'B2B', fr: 'B2B', value: 'b2b' },
   { en: 'Energy', fr: 'Énergie', value: 'energy' },
   { en: 'Retail', fr: 'Retail', value: 'retail' },
+  { en: 'Agentforce', fr: 'Agentforce', value: 'agentforce' },
   { en: 'Other', fr: 'Autre', value: 'other' },
 ];
 
