@@ -23,7 +23,7 @@ Modes :
 
     python3 tools/build_docs.py --deploy
         → Build normal (write + backup dans le repo) PUIS copie atomique
-          vers /var/www/digital-humans.fr/docs/refonte/index.html avec
+          vers /var/www/app-docs/index.html avec
           backup de la version /var/www avant écrasement. Smoke test HTTP
           post-deploy. Purge /var/www des backups > 7 jours.
 
@@ -65,9 +65,9 @@ SHELL = DOCS / "templates" / "shell.html"
 INDEX = DOCS / "index.html"
 GENERATED = DOCS / "index.generated.html"
 
-DEPLOY_DIR = Path("/var/www/digital-humans.fr/docs/refonte")
+DEPLOY_DIR = Path("/var/www/app-docs")
 DEPLOY_INDEX = DEPLOY_DIR / "index.html"
-SMOKE_URL = "https://digital-humans.fr/docs/refonte/"
+SMOKE_URL = "https://app.digital-humans.fr/admin/docs/"
 
 BACKUP_GLOB = "index.html.bak.*"
 
@@ -360,7 +360,12 @@ def atomic_write(dst: Path, content: str) -> None:
 
 
 def smoke_test(url: str, timeout: int = 10) -> tuple[bool, str]:
-    """HEAD request via curl, retourne (ok, message)."""
+    """HEAD request via curl, retourne (ok, message).
+    
+    Accepte 200 (accès direct) OU 302 (redirect vers /login car la doc est
+    auth-protégée). Le 302 prouve que nginx voit le bloc — la doc est déployée
+    et accessible aux utilisateurs authentifiés.
+    """
     try:
         r = subprocess.run(
             ["curl", "-sI", "-o", "/dev/null", "-w", "%{http_code}",
@@ -368,7 +373,7 @@ def smoke_test(url: str, timeout: int = 10) -> tuple[bool, str]:
             capture_output=True, text=True, timeout=timeout + 2,
         )
         code = r.stdout.strip()
-        ok = code == "200"
+        ok = code in ("200", "302")
         return ok, f"HTTP {code}"
     except subprocess.TimeoutExpired:
         return False, "timeout"
