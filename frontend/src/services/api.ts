@@ -159,6 +159,17 @@ export const executions = {
     return `${API_URL}/api/pm-orchestrator/execute/${executionId}/download?token=${token}`;
   },
 
+  /**
+   * URL of the rendered SDS HTML (Jinja2, DB-driven).
+   * This replaces the legacy getResultFile() docx export, which prints raw
+   * HTML markup into a Word document. Open this URL in a new tab and use
+   * the in-page PRINT · PDF button to save as PDF.
+   */
+  getSdsHtmlUrl: (executionId: number) => {
+    const token = localStorage.getItem('token');
+    return `${API_URL}/api/pm-orchestrator/execute/${executionId}/sds-html?token=${token}`;
+  },
+
   // H12: Resume execution with optional action (architecture validation)
   resume: async (executionId: number, action?: string) => {
     return apiCall(`/api/pm-orchestrator/execute/${executionId}/resume`, {

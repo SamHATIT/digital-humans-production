@@ -13,7 +13,7 @@ import {
   CheckCircle,
   Clock,
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, executions } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import {
   BUILD_STEPS,
@@ -304,13 +304,14 @@ export default function BuildMonitoringPage() {
               <RefreshCw className="w-3.5 h-3.5" />
               {t('Refresh', 'Actualiser')}
             </button>
-            {status === 'completed' && (
+            {status === 'completed' && executionId && (
               <button
                 type="button"
+                onClick={() => window.open(executions.getSdsHtmlUrl(Number(executionId)), '_blank')}
                 className="inline-flex items-center gap-2 px-5 py-2 bg-brass text-ink hover:bg-brass-2 font-mono text-[10px] tracking-cta uppercase"
               >
                 <Download className="w-3.5 h-3.5" />
-                {t('Download deliverable →', 'Télécharger le livrable →')}
+                {t('View SDS →', 'Voir le SDS →')}
               </button>
             )}
           </div>

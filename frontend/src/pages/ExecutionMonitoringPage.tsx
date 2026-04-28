@@ -247,7 +247,10 @@ export default function ExecutionMonitoringPage() {
 
   const handleDownload = () => {
     if (!id) return;
-    window.open(executions.getResultFile(id), '_blank');
+    // The SDS HTML is the canonical deliverable: rendered from DB via Jinja2,
+    // with an in-page PRINT · PDF button. The legacy /download endpoint
+    // returns a Word doc that just prints raw HTML markup.
+    window.open(executions.getSdsHtmlUrl(id), '_blank');
   };
 
   const handleSelectStep = (step: { id: string }) => {
@@ -527,7 +530,7 @@ export default function ExecutionMonitoringPage() {
                       className="inline-flex items-center gap-2 px-5 py-2 bg-brass text-ink hover:bg-brass-2 font-mono text-[10px] tracking-cta uppercase"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      {t('Download deliverable →', 'Télécharger le livrable →')}
+                      {t('View SDS →', 'Voir le SDS →')}
                     </button>
                   )}
                   <button
