@@ -73,7 +73,17 @@ class ExecutionState(str, PyEnum):
 # Transition table: current_state -> list of valid target states
 TRANSITIONS: Dict[str, List[str]] = {
     "draft":                ["queued"],
-    "queued":               ["sds_phase1_running", "failed", "cancelled"],
+    # `queued` is the transient state set by ARQ when a worker picks up a job.
+    # The worker immediately re-transitions to the appropriate runtime state
+    # (any SDS phase or BUILD lifecycle state). All these targets are allowed
+    # to keep the state machine in sync with what the worker actually does.
+    "queued":               ["sds_phase1_running", "sds_phase2_running",
+                             "sds_phase2_5_running", "sds_phase3_running",
+                             "sds_phase4_running", "sds_phase5_running",
+                             "waiting_br_validation", "waiting_architecture_validation",
+                             "waiting_expert_validation", "waiting_sds_validation",
+                             "build_queued", "build_running",
+                             "failed", "cancelled"],
 
     "sds_phase1_running":   ["sds_phase1_complete", "waiting_br_validation", "failed"],
     "sds_phase1_complete":  ["sds_phase2_running", "waiting_br_validation"],

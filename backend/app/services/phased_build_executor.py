@@ -610,8 +610,11 @@ class PhasedBuildExecutor:
         grouped = {1: [], 2: [], 3: [], 4: [], 5: [], 6: []}
         
         for task in tasks:
-            task_type = task.get("task_type", "").lower()
-            assigned_agent = task.get("assigned_agent", "").lower()
+            # Defensive: dict.get(k, default) returns the default only when k is
+            # absent. If the key exists with None, get() returns None and .lower()
+            # crashes. The `or ""` pattern handles both cases.
+            task_type = (task.get("task_type") or "").lower()
+            assigned_agent = (task.get("assigned_agent") or "").lower()
             
             # Try to determine phase from task_type
             phase = TASK_TYPE_TO_PHASE.get(task_type)
