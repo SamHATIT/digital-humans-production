@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon, Settings } from 'lucide-react';
 import { auth } from '../../services/api';
 import { useLang } from '../../contexts/LangContext';
 import CreditCounter from './CreditCounter';
@@ -9,6 +9,7 @@ import LangToggle from './LangToggle';
 interface CurrentUser {
   email?: string;
   name?: string;
+  is_admin?: boolean;
 }
 
 const NAV = (t: <T>(en: T, fr: T) => T) => [
@@ -27,7 +28,7 @@ export default function StudioHeader() {
     auth
       .getCurrentUser()
       .then((data) => {
-        if (!cancelled) setUser({ email: data?.email, name: data?.name });
+        if (!cancelled) setUser({ email: data?.email, name: data?.name, is_admin: data?.is_admin });
       })
       .catch(() => {
         if (!cancelled) setUser(null);
@@ -78,6 +79,19 @@ export default function StudioHeader() {
 
           {/* Right side */}
           <div className="flex items-center gap-4">
+            {/* Admin link — quick email-based check until proper RBAC ships.
+                Backend doesn't expose is_admin yet; we hardcode the known admin
+                email. To add admins, list them in ADMIN_EMAILS below. */}
+            {user?.email && ['admin@samhatit.com'].includes(user.email) && (
+              <a
+                href="/admin/"
+                title={t('Open admin console', 'Ouvrir la console admin')}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 hover:text-brass border border-bone/10 hover:border-brass/40 transition-colors"
+              >
+                <Settings className="w-3 h-3" />
+                {t('Admin', 'Admin')}
+              </a>
+            )}
             <CreditCounter />
             <LangToggle />
             <div className="flex items-center gap-2 pl-3 border-l border-bone/10">
