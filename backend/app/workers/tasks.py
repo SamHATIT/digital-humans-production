@@ -126,7 +126,14 @@ async def execute_build_task(ctx, project_id: int, execution_id: int):
         logger.info(f"[ARQ] BUILD v2 found {len(wbs_tasks)} tasks")
 
         executor = PhasedBuildExecutor(project_id, execution_id, db)
-        result = await executor.execute_build(wbs_tasks)
+        # Initialize jordan_service (git/sfdx) before execute_build — without
+        # this call, executor.jordan_service stays None and Phase 1 crashes on
+        # create_phase_branch with NoneType. Symmetric close() in finally.
+        await executor.initialize()
+        try:
+            result = await executor.execute_build(wbs_tasks)
+        finally:
+            await executor.close()
 
         # Transition to build_complete or failed
         try:
