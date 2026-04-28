@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, billing, config as config_routes
+from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, billing, config as config_routes, deliverables
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware, BuildEnabledMiddleware, ExecutionContextMiddleware  # CORE-001 + C-4 + D-2
 from app.database import Base, engine
@@ -48,6 +48,8 @@ app.add_middleware(
         "http://72.61.161.222",        # Port 80 via nginx
         "http://srv1064321.hstgr.cloud",  # Port 80 via nginx
         "http://72.61.161.222:3002",
+        "http://72.61.161.222:8080",
+        "http://72.61.161.222:3001",
         "http://72.61.161.222:3000", 
         "http://srv1064321.hstgr.cloud:3000",
         "http://localhost:3000",
@@ -97,6 +99,9 @@ app.include_router(hitl_routes.router)
 
 # CORE-001: Audit logging API
 app.include_router(audit.router, prefix=settings.API_V1_PREFIX)
+
+# Deliverables routes (architecture review, BR validation, etc.)
+app.include_router(deliverables.router, prefix=settings.API_V1_PREFIX)
 
 # BLD-01, DPL-04/05/06: Deployment & Package routes
 app.include_router(deployment.router, prefix=settings.API_V1_PREFIX)
