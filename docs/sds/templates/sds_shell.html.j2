@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SDS · LogiFleet #146 — Digital·Humans Studio</title>
+<title>SDS · {{ project.name | default("Project") }} #{{ execution.id }} — Digital·Humans Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -354,9 +354,9 @@
     </a>
     <div class="meta">
       <span class="pill hide-mob">SDS</span>
-      <span class="hide-mob">Execution #146</span>
+      <span class="hide-mob">Execution #{{ execution.id }}</span>
       <span class="dot">·</span>
-      <span class="pill ok">Coverage 95.2%</span>
+      <span class="pill {% if coverage.score >= 80 %}ok{% else %}warn{% endif %}">Coverage {{ coverage.score }}%</span>
       <button class="print-btn" onclick="window.__prepareAndPrint()" title="Print or save as PDF">Print · PDF</button>
     </div>
   </div>
@@ -569,7 +569,7 @@
 </ol></aside>
   <div class="reading-main">
     <div class="wrap">
-<p>*Restructured deliverable — derived from the 11 agent artifacts persisted in PostgreSQL for execution #146. **JSON deliverables → tables. Mermaid blocks → rendered diagrams.*</p>
+<p>*Restructured deliverable — derived from the 11 agent artifacts persisted in PostgreSQL for execution #{{ execution.id }}. **JSON deliverables → tables. Mermaid blocks → rendered diagrams.*</p>
 {% include 'partials/project_overview.html.j2' %}
 {% include 'partials/business_requirements.html.j2' %}
 {% include 'partials/use_cases.html.j2' %}
@@ -600,7 +600,7 @@
 <footer>
   <div class="wrap row">
     <span>Digital<span style="color:var(--brass-3)">·</span>Humans · Autonomous Salesforce Studio</span>
-    <span class="r">SDS #146 · LogiFleet · April 2026</span>
+    <span class="r">SDS #{{ execution.id }} · {{ project.name | default("Project") }} · {{ execution.completed_at.strftime("%B %Y") if execution.completed_at else execution.started_at.strftime("%B %Y") }}</span>
   </div>
 </footer>
 

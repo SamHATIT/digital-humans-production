@@ -23,15 +23,15 @@
 <p class='note'>These {{ crit_count }} gaps account for the missing {{ missing_pct }}%. The DATA_MODEL gaps are likely false positives — the validator is matching on raw object names from BR text against the architect<strong>'</strong>s API names. The objects ARE in the design but under different names (e.g. <strong>"</strong>maintenance__c<strong>"</strong> vs <strong>"</strong>Maintenance_Activity__c<strong>"</strong>). This is a known scoring issue that should be addressed in Emma<strong>'</strong>s validator.</p>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Type</strong></th>
-<th><strong>Value</strong></th>
+<th><strong>ID</strong></th>
+<th><strong>Missing element</strong></th>
 <th><strong>Severity</strong></th>
 <th><strong>Category</strong></th>
 </tr></thead>
 <tbody>
 {% for cg in coverage.critical_gaps %}<tr>
-<td><strong>{{ cg.element_type }}</strong></td>
-<td>{{ cg.element_value }}</td>
+<td><strong>{{ cg.id }}</strong></td>
+<td>{{ cg.what_is_missing }}</td>
 <td><strong>{{ cg.severity }}</strong></td>
 <td>{{ cg.category }}</td>
 </tr>
