@@ -4,6 +4,23 @@
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Cookie helpers — used to mirror the JWT token to a cookie so nginx
+// auth_request (e.g. /admin/docs/) can validate the user without
+// requiring the SPA to inject an Authorization header on every static
+// asset request. The localStorage entry stays as the canonical source
+// for fetch() calls; the cookie is purely for nginx-level auth checks.
+const TOKEN_COOKIE_DAYS = 7;
+function setTokenCookie(token: string) {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + TOKEN_COOKIE_DAYS);
+  const secure = location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie = `token=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Lax${secure}`;
+}
+function clearTokenCookie() {
+  document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+}
+
+
 // Helper function for API calls
 async function apiCall(endpoint: string, options: RequestInit = {}) {
   const token = localStorage.getItem('token');
@@ -21,6 +38,7 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
 
   if (response.status === 401) {
     localStorage.removeItem('token');
+    clearTokenCookie();
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }
@@ -45,12 +63,14 @@ export const auth = {
     
     if (data.access_token) {
       localStorage.setItem('token', data.access_token);
+      setTokenCookie(data.access_token);
     }
     return data;
   },
 
   logout: () => {
     localStorage.removeItem('token');
+    clearTokenCookie();
     window.location.href = '/login';
   },
 
