@@ -39,6 +39,26 @@ const AGENT_COLORS: Record<string, { bg: string; text: string; border: string; a
   slate:  { bg: 'bg-bone/5',  text: 'text-bone-4',  border: 'border-bone/20',  avatar: 'bg-bone/10' },
 };
 
+
+// Map backend agent_id (e.g. "sophie", "marcus") → photo slug filename.
+// The team photos live at /avatars/small/{slug}.png — reused across the
+// Studio. Keep in sync with /avatars/small/ assets when adding agents.
+const AGENT_PHOTO: Record<string, string> = {
+  sophie: 'sophie-pm',
+  olivia: 'olivia-ba',
+  emma: 'emma-research',
+  marcus: 'marcus-architect',
+  diego: 'diego-apex',
+  zara: 'zara-lwc',
+  raj: 'raj-admin',
+  elena: 'elena-qa',
+  jordan: 'jordan-devops',
+  aisha: 'aisha-data',
+  lucas: 'lucas-trainer',
+};
+const photoFor = (agentId: string | undefined): string =>
+  `/avatars/small/${AGENT_PHOTO[agentId || 'sophie'] || 'sophie-pm'}.png`;
+
 function formatMarkdownInline(text: string): string {
   return text
     .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono">$1</code>')
@@ -173,9 +193,12 @@ export default function ChatSidebar({
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-ink-3/60 transition-colors ${isSelected ? 'bg-ink-3/30' : ''}`}
                   >
-                    <div className={`w-7 h-7 rounded-full ${ac.avatar} flex items-center justify-center`}>
-                      <Bot className={`w-3.5 h-3.5 ${ac.text}`} />
-                    </div>
+                    <img
+                      src={photoFor(agent.agent_id)}
+                      alt={agent.name}
+                      className={`w-7 h-7 rounded-full object-cover border ${ac.border}`}
+                      onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }}
+                    />
                     <div>
                       <span className={`text-sm font-medium ${ac.text}`}>{agent.name}</span>
                       <span className="text-xs text-bone-4 ml-1.5">{agent.role}</span>
@@ -223,15 +246,18 @@ export default function ChatSidebar({
 
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-              msg.role === 'user' ? 'bg-brass/20' : colors.avatar
-            }`}>
-              {msg.role === 'user' ? (
+            {msg.role === 'user' ? (
+              <div className="w-8 h-8 rounded-full bg-brass/20 flex items-center justify-center flex-shrink-0">
                 <User className="w-4 h-4 text-brass" />
-              ) : (
-                <Bot className={`w-4 h-4 ${colors.text}`} />
-              )}
-            </div>
+              </div>
+            ) : (
+              <img
+                src={photoFor(selectedAgent)}
+                alt={currentAgent?.name || 'Agent'}
+                className={`w-8 h-8 rounded-full object-cover flex-shrink-0 border ${colors.border}`}
+                onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }}
+              />
+            )}
 
             <div className={`max-w-[80%] ${
               msg.role === 'user'
@@ -256,9 +282,12 @@ export default function ChatSidebar({
 
         {isSending && (
           <div className="flex gap-3">
-            <div className={`w-8 h-8 rounded-full ${colors.avatar} flex items-center justify-center flex-shrink-0`}>
-              <Bot className={`w-4 h-4 ${colors.text}`} />
-            </div>
+            <img
+              src={photoFor(selectedAgent)}
+              alt={currentAgent?.name || 'Agent'}
+              className={`w-8 h-8 rounded-full object-cover flex-shrink-0 border ${colors.border}`}
+              onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }}
+            />
             <div className={`${colors.bg} border ${colors.border} rounded-xl px-3 py-2`}>
               <div className="flex items-center gap-2">
                 <Loader2 className={`w-3.5 h-3.5 ${colors.text} animate-spin`} />
