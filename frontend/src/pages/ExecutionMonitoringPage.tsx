@@ -448,6 +448,11 @@ export default function ExecutionMonitoringPage() {
             <ExecutionMetricsStudio
               budget={budget}
               executionState={progress?.execution_state}
+              revisionCount={
+                progress?.agent_progress?.find(
+                  (a) => a.agent_name?.includes('Emma') || a.agent_name?.includes('Research'),
+                )?.extra_data?.revision_count ?? 0
+              }
               startedAt={null}
             />
             <StudioTimeline
