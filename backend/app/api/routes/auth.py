@@ -51,6 +51,23 @@ async def register(request: Request, response: Response, user_data: UserCreate, 
     db.commit()
     db.refresh(new_user)
 
+    # Create a Stripe Customer right at signup so the user can upgrade with
+    # one click later. Best-effort : if Stripe is unreachable or misconfigured,
+    # don't block the signup — the customer can still be created lazily on
+    # the first checkout call (create_customer is idempotent).
+    try:
+        from app.services.stripe_service import create_customer, is_configured, StripeNotConfiguredError
+        if is_configured():
+            create_customer(new_user, db)
+    except StripeNotConfiguredError:
+        pass  # Stripe not set up in this environment, skip
+    except Exception as exc:  # noqa: BLE001
+        # Log and move on — signup must not fail because of Stripe.
+        import logging
+        logging.getLogger(__name__).warning(
+            "Stripe customer creation failed for user %s: %s", new_user.id, exc
+        )
+
     return new_user
 
 
