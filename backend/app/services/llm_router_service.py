@@ -82,6 +82,7 @@ class LLMRequest:
     project_id: Optional[int] = None
     execution_id: Optional[int] = None
     user_id: Optional[int] = None                   # Phase 3.1 : credit owner. None = skip credit hook.
+    subscription_tier: Optional[str] = None         # Phase 3.4 : free/pro/team/enterprise. None = ignore tier_overrides.
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -311,6 +312,29 @@ class LLMRouterService:
             raise RuntimeError(
                 f"Profile '{self.profile}' is missing tier '{tier.value}' mapping"
             )
+
+        # Tier-based override (Phase 3.4) — appliqué uniquement quand
+        # subscription_tier est passé explicitement dans la request.
+        # Permet par ex. de router les orchestrators non-Marcus en Sonnet
+        # pour le tier Pro 49€, tout en gardant Marcus en Opus.
+        tier_overrides = profile_cfg.get("tier_overrides") or {}
+        sub_tier = (request.subscription_tier or "").lower().strip()
+        if sub_tier and sub_tier in tier_overrides:
+            override = tier_overrides[sub_tier] or {}
+            agent_normalized = (request.agent_type or "").lower().replace("-", "_").replace(" ", "_")
+            keep_list = [a.lower() for a in (override.get("agents_keep_orchestrator") or [])]
+
+            if tier == AgentTier.ORCHESTRATOR and agent_normalized not in keep_list:
+                forced = override.get("orchestrator_default")
+                if forced:
+                    logger.debug(
+                        "tier_override: tier=%s agent=%s → forcing %s (was %s)",
+                        sub_tier, agent_normalized, forced, provider,
+                    )
+                    return forced
+            # Worker tier : pas d'override actuellement (Sonnet partout sur Pro).
+            # Ajout futur possible : override.get("worker_default")
+
         return provider
 
     def _fallback_for(self, provider_str: str) -> Optional[str]:
@@ -736,6 +760,7 @@ class LLMRouterService:
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            subscription_tier=kwargs.get("subscription_tier"),
         )
         response = self.complete_sync(request)
         return _response_to_dict(response)
@@ -756,6 +781,7 @@ class LLMRouterService:
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            subscription_tier=kwargs.get("subscription_tier"),
         )
         response = await self.complete(request)
         return _response_to_dict(response)

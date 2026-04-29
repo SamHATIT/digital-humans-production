@@ -99,7 +99,13 @@ profiles:
         orchestrator_default: "anthropic/claude-sonnet"
         # Sauf agents listés ici qui gardent leur mapping standard (Opus)
         agents_keep_orchestrator:
-          - marcus    # Solution Architect — vitrine technique du SDS
+          # Tous les aliases Marcus / Solution Architect — vitrine technique du SDS,
+          # 56% du coût SDS, le SaaS Pro 49€ doit garder Opus ici sinon la
+          # qualité du livrable se dégrade. Les autres orchestrators (Sophie/
+          # Olivia/Emma) tournent en Sonnet pour ce tier (downgrade contrôlé).
+          - marcus
+          - architect
+          - solution_architect
         # Worker tier inchangé (Sonnet)
 
   # --- Profile 2 : on-premise (client airgapped) ---
