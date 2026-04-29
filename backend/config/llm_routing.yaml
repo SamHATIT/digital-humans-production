@@ -73,6 +73,7 @@ profiles:
 
   # --- Profile 1 : cloud (production VPS) ---
   # Anthropic pour tout, pas de Ollama. BUILD activé.
+  # Profile par défaut pour les tiers Team et Enterprise (et dev).
   cloud:
     build_enabled: true
     orchestrator: "anthropic/claude-opus"
@@ -80,6 +81,26 @@ profiles:
     fallback_chain:
       "anthropic/claude-opus":   "anthropic/claude-sonnet"
       "anthropic/claude-sonnet": "anthropic/claude-haiku"
+
+    # Tier-based overrides — appliqués UNIQUEMENT quand subscription_tier
+    # est passé dans le LLMRequest (sera branché en Phase 3 backend, en
+    # même temps que le wiring Stripe + propagation tier user → request).
+    #
+    # Décision actée 29 avril 2026 : pour le tier Pro 49€, Marcus reste en
+    # Opus (vitrine technique du SDS, agent le plus scruté par les clients
+    # Salesforce techies — 56 % du coût SDS à lui seul). Les 3 autres
+    # orchestrators (Sophie/Olivia/Emma) passent en Sonnet sur Pro.
+    #
+    # Les autres tiers (free, team, enterprise) ne sont pas listés ici car
+    # ils utilisent les mappings tier→provider standard sans override agent-level.
+    tier_overrides:
+      pro:
+        # Par défaut : tous les orchestrators tournent en Sonnet pour le tier Pro
+        orchestrator_default: "anthropic/claude-sonnet"
+        # Sauf agents listés ici qui gardent leur mapping standard (Opus)
+        agents_keep_orchestrator:
+          - marcus    # Solution Architect — vitrine technique du SDS
+        # Worker tier inchangé (Sonnet)
 
   # --- Profile 2 : on-premise (client airgapped) ---
   # Ollama local pour tout. AUCUN fallback cloud (confidentialité).
