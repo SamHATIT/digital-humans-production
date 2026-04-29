@@ -207,3 +207,4 @@ __all__.extend([
     "DEFAULT_SDS_TEMPLATE",
     "SYSTEM_TEMPLATES",
 ])
+from app.models.chat_log import ChatLog  # noqa: F401
