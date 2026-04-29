@@ -14,8 +14,8 @@
       </tr>
       <tr>
         <td><strong>Pro</strong></td><td>49 €/mois</td>
-        <td>Équipe complète des 11 agents. Upload de documents, mémoire persistante. <strong>Livrable final = SDS</strong> (BR extraction → UC generation → Solution Design → document Word/PDF). <em>Pas de BUILD, pas de déploiement.</em></td>
-        <td>Haiku + Sonnet</td>
+        <td>Équipe complète des 11 agents. Upload de documents, mémoire persistante. <strong>Livrable final = SDS</strong> (BR extraction → UC generation → Solution Design → document Word/PDF). <strong>Quota : 2 SDS/mois inclus</strong>, overage en packs de crédits. <em>Pas de BUILD, pas de déploiement.</em></td>
+        <td>Haiku + Sonnet pour Sophie/Olivia/Emma · <strong>Marcus en Opus</strong> (vitrine technique du SDS)</td>
       </tr>
       <tr>
         <td><strong>Team</strong></td><td>1 490 €/mois</td>
@@ -28,6 +28,37 @@
         <td>Choix client</td>
       </tr>
     </table>
+
+    <h3>Quota Pro &amp; overage</h3>
+    <p>Le tier Pro inclut <strong>2 SDS/mois</strong> au-delà desquels l'utilisateur achète des packs de crédits supplémentaires. Décision actée le 29 avril 2026 sur la base d'une analyse de coût réel (Exec #147, SDS complet de 1,4 M tokens) :</p>
+    <table>
+      <tr><th>Composant du SDS</th><th>Tokens (in/out)</th><th>Modèle</th><th>Coût</th></tr>
+      <tr><td>Marcus (Architect, design + WBS + fix gaps)</td><td>251 K / 461 K</td><td>Opus 4.7</td><td>$12.77 (61 %)</td></tr>
+      <tr><td>Emma (Research / synthèse SDS)</td><td>49 K / 109 K</td><td>Sonnet 4.6</td><td>$1.79</td></tr>
+      <tr><td>Olivia (BA, génération UC)</td><td>15 K / 68 K</td><td>Sonnet 4.6</td><td>$1.06</td></tr>
+      <tr><td>Sophie (PM, extract BR)</td><td>2 K / 8 K</td><td>Sonnet 4.6</td><td>$0.13</td></tr>
+      <tr><td>Workers (Aisha, Elena, Jordan, Lucas, Raj)</td><td>~170 K / ~300 K</td><td>Sonnet 4.6</td><td>~$5.12</td></tr>
+      <tr><th>Total SDS Pro</th><th>~490 K / ~950 K</th><th>—</th><th><strong>~$20.87</strong></th></tr>
+    </table>
+    <p>Marcus reste en Opus parce qu'il est l'agent le plus scruté par la cible (Salesforce techies) et que la qualité du design alimente la valeur du SDS livré. Les 3 autres orchestrators (Sophie/Olivia/Emma) tournent en Sonnet sur Pro — l'écart de qualité y est moins discriminant.</p>
+
+    <h4>Calibrage tier_config</h4>
+    <p>2 SDS/mois × ~7 000 crédits/SDS + buffer chat/itérations = <strong>~15 000 crédits/mois</strong> à provisionner sur le tier Pro. La table actuelle est seedée à 2 000 cr/mois (calibrée pour l'ancien modèle "tout Sonnet sans Marcus Opus") — à bumper dans la migration 010 quand on activera le tier gating dans le router LLM.</p>
+
+    <h4>Marge par usage (Pro 49 €, revenu net Stripe ~$51.4)</h4>
+    <table>
+      <tr><th>Usage</th><th>Coût LLM</th><th>Marge brute</th><th>%</th></tr>
+      <tr><td>1 SDS / mois (light)</td><td>$20.87</td><td>+$30.51</td><td>+59 %</td></tr>
+      <tr><td><strong>2 SDS / mois (quota inclus)</strong></td><td><strong>$41.74</strong></td><td><strong>+$9.65</strong></td><td><strong>+19 %</strong></td></tr>
+      <tr><td>3 SDS / mois (sans overage)</td><td>$62.61</td><td>−$11.22</td><td>−22 % ⚠️</td></tr>
+    </table>
+    <p>Au-delà de 2 SDS/mois, l'utilisateur achète des packs d'overage. Cibler ~8-10 € de marge brute par SDS additionnel pour calibrer le pricing des packs (à acter en séance pricing dédiée).</p>
+
+    <h4>Optimisations applicables</h4>
+    <ul>
+      <li><strong>Anthropic Prompt Caching sur Marcus</strong> : 7 calls par SDS avec system prompt + RAG context identiques. Cache write 1.25× input + cache read 0.10× input → gain estimé ~$1/SDS sans changer la qualité.</li>
+      <li><strong>Réduction du nombre d'iterations Marcus</strong> : actuellement 4 modes (design / fix_gaps / gap / wbs). Investiguer si fix_gaps + gap peuvent être consolidés.</li>
+    </ul>
 
     <h3>Modèle de crédits</h3>
     <p>Implémenté dès la V1 (pas reporté). Source de vérité : tables <code>credit_balances</code>, <code>credit_transactions</code>, <code>model_pricing</code>, <code>tier_config</code> (cf. <a href="#database">Base de données</a>). Service centralisé : <code>app/services/credit_service.py</code>.</p>

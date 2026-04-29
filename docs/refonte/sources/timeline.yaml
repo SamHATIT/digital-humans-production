@@ -153,6 +153,12 @@ entries:
     title: "💳 Cadrage pricing finalisé + offre Stripe validée"
     description: "Re-confirmation des 3 tiers : <strong>Free</strong> (Sophie+Olivia chat seul) / <strong>Pro 49 €/mois</strong> (équipe complète + upload + mémoire, livrable = SDS, pas de BUILD ni déploiement) / <strong>Team 1 490 €/mois</strong> (pipeline complet jusqu'à sandbox uniquement, pas de mise en prod pour raisons de sécurité) / <strong>Enterprise</strong> on-premise sur devis. Modèle de crédits implémenté dès la V1 (pas reporté). <strong>Stripe Standard</strong> validé : 1,5 % + 0,25 € pour cartes EEE, 2,5 % + 0,25 € pour cartes UK, sans frais fixes. Cap mis sur Mod 23 (section prix UI) en parallèle de Phase 3 backend."
 
+  - date: 2026-04-29
+    label: "29 avril 2026"
+    status: done
+    title: "🎯 Pro nuance — Marcus reste en Opus + 2 SDS/mois inclus"
+    description: "Analyse coût réel sur Exec #147 : Marcus à lui seul = $12.77 sur les $22.85 du SDS (56 %). Décision : <strong>Marcus reste en Opus sur Pro</strong> (vitrine technique scrutée par les clients Salesforce), les 3 autres orchestrators (Sophie/Olivia/Emma) passent en Sonnet. Coût SDS recalibré : <strong>~$20.87</strong> (vs $22.85 actuel ou $15.76 en tout-Sonnet). <strong>Quota Pro = 2 SDS/mois inclus</strong>, overage en packs de crédits au-delà. Calibrage <code>tier_config.pro.monthly_credits</code> à bumper de 2 000 → ~15 000. Migration 010 + override <code>llm_routing.yaml</code> tier-based à faire en Phase 3 backend. Optimisation Prompt Caching sur Marcus identifiée (gain ~$1/SDS)."
+
   - label: "Prochain"
     status: planned
     title: "Mod 23 (section prix) + Phase 3 backend (crédits + Stripe)"
