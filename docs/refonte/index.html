@@ -1293,7 +1293,7 @@ flowchart LR
           <td><strong>ARQ Worker</strong></td>
           <td><code>digital-humans-worker</code></td>
           <td>—</td>
-          <td><span class="tag tag-warning">inactive</span></td>
+          <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="5">
@@ -1511,7 +1511,7 @@ flowchart LR
   </div>
   <div id="database" class="section">
     <h2>Base de données</h2>
-    <p class="section-desc"><strong>41 tables</strong> dans le schema <code>public</code>.</p>
+    <p class="section-desc"><strong>46 tables</strong> dans le schema <code>public</code> · <span class="muted">non documentées : chat_logs, credit_balances, credit_transactions, model_pricing, tier_config</span>.</p>
 
     <h3>Orchestration SDS</h3>
     <table class="tbl-expand">
@@ -2346,7 +2346,7 @@ flowchart LR
   <div id="api" class="section">
     <h2>API Reference</h2>
     <p class="section-desc">API REST FastAPI. Préfixe par défaut <code>/api/v1</code>. Auth JWT sur tous les endpoints sauf <code>auth</code> et endpoints publics. Les endpoints ci-dessous sont extraits en direct du code (parsing AST des décorateurs <code>@router.method</code>).</p>
-    <p class="section-desc"><strong>180 endpoints</strong> répartis sur 28 modules.</p>
+    <p class="section-desc"><strong>180 endpoints</strong> répartis sur 28 modules · <span class="muted">fichiers non groupés : backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py</span>.</p>
 
 
     <h3>Projets <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 6 endpoints · <code>backend/app/api/routes/projects.py</code></span></h3>
@@ -3349,7 +3349,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/deliverables/</code></td>
+          <td><code>/api/v1/deliverables/</code></td>
           <td><code>create_deliverable</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3367,7 +3367,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/{deliverable_id}</code></td>
+          <td><code>/api/v1/deliverables/{deliverable_id}</code></td>
           <td><code>get_deliverable</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3385,7 +3385,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/{deliverable_id}/full</code></td>
+          <td><code>/api/v1/deliverables/{deliverable_id}/full</code></td>
           <td><code>get_deliverable_full</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3403,7 +3403,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/executions/{execution_id}</code></td>
+          <td><code>/api/v1/deliverables/executions/{execution_id}</code></td>
           <td><code>get_execution_deliverables</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3421,7 +3421,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/executions/{execution_id}/previews</code></td>
+          <td><code>/api/v1/deliverables/executions/{execution_id}/previews</code></td>
           <td><code>get_execution_deliverable_previews</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3439,7 +3439,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/executions/{execution_id}/agents/{agent_id}</code></td>
+          <td><code>/api/v1/deliverables/executions/{execution_id}/agents/{agent_id}</code></td>
           <td><code>get_agent_deliverables</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3457,7 +3457,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/deliverables/executions/{execution_id}/types/{deliverable_type}</code></td>
+          <td><code>/api/v1/deliverables/executions/{execution_id}/types/{deliverable_type}</code></td>
           <td><code>get_deliverable_by_type</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3475,7 +3475,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--ochre); border-color:rgba(184,149,74,0.55);">PUT</span></td>
-          <td><code>/deliverables/{deliverable_id}</code></td>
+          <td><code>/api/v1/deliverables/{deliverable_id}</code></td>
           <td><code>update_deliverable</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -3493,7 +3493,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--terra); border-color:rgba(184,116,92,0.55);">DELETE</span></td>
-          <td><code>/deliverables/{deliverable_id}</code></td>
+          <td><code>/api/v1/deliverables/{deliverable_id}</code></td>
           <td><code>delete_deliverable</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -6714,10 +6714,25 @@ flowchart TB
         <div class="timeline-title">✅ Track C — décisions O1 + O2 actées</div>
         <div class="timeline-desc">Planning d'ouverture (O1) : on finit les travaux d'abord, pas de date figée. Tarification (O2) : <strong>3 paliers au lancement</strong> (Free / Pro 49€ / Team 1490€ + Enterprise). Pas de palier Mid 299€ initial — sera ajouté plus tard si la demande émerge des agences (positionnement "demande grandissante").</div>
       </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">26 avril 2026</div>
+        <div class="timeline-title">🎨 Round 2 livrables design + Round 2 bis lancé</div>
+        <div class="timeline-desc"><strong>B2 Galerie</strong> ✅ validé sans arbitrage (grille 3×2, hover panneau slide-up, placeholders monogrammes hairline). <strong>B3 Casting + transitions</strong> ✅ validé sans arbitrage (storyboards Free→Pro 2.5s + Curtain rises 1.0s). <strong>B4 Blog Studio</strong> ✅ validé avec décisions Sam : <em>(1)</em> renommage "Blog" → <strong>The Journal</strong>, <em>(2)</em> 4 rubriques numérotées Manifesto/Craft/Dispatches/Archive, <em>(3)</em> retour aux <strong>vraies photos</strong> via nanobanana2 (Gemini 3 Pro Image), <em>(4)</em> cadence inchangée 1 article + 1 newsletter par semaine via N8N existant. <strong>A4 Crédits</strong> 🟡 review : 18/19 tests passent, 1 bug logique tier Free identifié + 1 fixture infra à fixer (brief A4-bis produit). <strong>Round 2 bis lancé</strong> : briefs A4-bis (fixes crédits) et B5 (newsletter Studio + couvertures Gemini).</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">28 avril 2026</div>
+        <div class="timeline-title">🎬 Mods 17-22 — Site preview enrichi</div>
+        <div class="timeline-desc"><strong>Mod 17</strong> : bouton <em>My Studio</em> dans la nav (cible <code>app.digital-humans.fr</code>, sous-domaine + HTTPS Let's Encrypt posés le même jour). <strong>Mod 18</strong> : fix 9 occurrences d'apostrophes typographiques mal échappées (U+2019 rendu en clair) dans le module <code>b077057a</code>. <strong>Mod 19</strong> : fix alignement droit <code>step-meta-col</code> (Sophie) — <code>align-items: flex-end</code> + <code>text-align: right</code> dans la colonne flex. <strong>Mod 20</strong> : chat widget <em>Talk to Sophie</em> branché sur <code>/api/public/concierge/talk</code>, drawer/fullscreen toggle, persistence <code>localStorage</code> session. <strong>Mods 21-22</strong> : Act 1 only + PM rename.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">29 avril 2026</div>
+        <div class="timeline-title">💳 Cadrage pricing finalisé + offre Stripe validée</div>
+        <div class="timeline-desc">Re-confirmation des 3 tiers : <strong>Free</strong> (Sophie+Olivia chat seul) / <strong>Pro 49 €/mois</strong> (équipe complète + upload + mémoire, livrable = SDS, pas de BUILD ni déploiement) / <strong>Team 1 490 €/mois</strong> (pipeline complet jusqu'à sandbox uniquement, pas de mise en prod pour raisons de sécurité) / <strong>Enterprise</strong> on-premise sur devis. Modèle de crédits implémenté dès la V1 (pas reporté). <strong>Stripe Standard</strong> validé : 1,5 % + 0,25 € pour cartes EEE, 2,5 % + 0,25 € pour cartes UK, sans frais fixes. Cap mis sur Mod 23 (section prix UI) en parallèle de Phase 3 backend.</div>
+      </div>
       <div class="timeline-item planned">
         <div class="timeline-date">Prochain</div>
-        <div class="timeline-title">Round 2 — Phase 2 site marketing + Phase 3 crédits Stripe</div>
-        <div class="timeline-desc">Phase 2 site (overlay urgence v1, galerie acte 3, FAQ, manifesto, tarifs 49€ Pro, footer, bandeau early access). Phase 3 schéma crédits + Stripe. Brief Phase 4 plateforme à partir de la spec Casting→Théâtre. À trancher en Track C : O1 planning d'ouverture, O2 palier Mid 299€.</div>
+        <div class="timeline-title">Mod 23 (section prix) + Phase 3 backend (crédits + Stripe)</div>
+        <div class="timeline-desc"><strong>Mod 23</strong> (frontend, ~1 session) : 3 colonnes Free/Pro/Team en langage Studio, bloc Enterprise séparé, bandeau early access, boutons "S'abonner" placeholder en attendant le wiring. <strong>Phase 3</strong> (backend, 3-4 sessions) : S3.1 schéma DB (<code>users</code>, <code>subscriptions</code>, <code>credit_balances</code>, <code>credit_transactions</code>, <code>model_pricing</code>) → S3.2 <code>CreditService</code> + hook LLM router → S3.3 intégration Stripe (produits, checkout, webhook, customer portal) → S3.4 endpoints <code>/api/billing/*</code> → S3.5 tests + métriques. <strong>Mod 24</strong> : wiring frontend ↔ backend.</div>
       </div>
     </div>
   </div>

@@ -11,7 +11,7 @@
 # L'ordre du fichier = ordre d'affichage (chronologique ascendant).
 
 version: 1
-last_reviewed: 2026-04-26
+last_reviewed: 2026-04-29
 
 entries:
 
@@ -141,7 +141,19 @@ entries:
     title: "🎨 Round 2 livrables design + Round 2 bis lancé"
     description: "<strong>B2 Galerie</strong> ✅ validé sans arbitrage (grille 3×2, hover panneau slide-up, placeholders monogrammes hairline). <strong>B3 Casting + transitions</strong> ✅ validé sans arbitrage (storyboards Free→Pro 2.5s + Curtain rises 1.0s). <strong>B4 Blog Studio</strong> ✅ validé avec décisions Sam : <em>(1)</em> renommage \"Blog\" → <strong>The Journal</strong>, <em>(2)</em> 4 rubriques numérotées Manifesto/Craft/Dispatches/Archive, <em>(3)</em> retour aux <strong>vraies photos</strong> via nanobanana2 (Gemini 3 Pro Image), <em>(4)</em> cadence inchangée 1 article + 1 newsletter par semaine via N8N existant. <strong>A4 Crédits</strong> 🟡 review : 18/19 tests passent, 1 bug logique tier Free identifié + 1 fixture infra à fixer (brief A4-bis produit). <strong>Round 2 bis lancé</strong> : briefs A4-bis (fixes crédits) et B5 (newsletter Studio + couvertures Gemini)."
 
+  - date: 2026-04-28
+    label: "28 avril 2026"
+    status: done
+    title: "🎬 Mods 17-22 — Site preview enrichi"
+    description: "<strong>Mod 17</strong> : bouton <em>My Studio</em> dans la nav (cible <code>app.digital-humans.fr</code>, sous-domaine + HTTPS Let's Encrypt posés le même jour). <strong>Mod 18</strong> : fix 9 occurrences d'apostrophes typographiques mal échappées (U+2019 rendu en clair) dans le module <code>b077057a</code>. <strong>Mod 19</strong> : fix alignement droit <code>step-meta-col</code> (Sophie) — <code>align-items: flex-end</code> + <code>text-align: right</code> dans la colonne flex. <strong>Mod 20</strong> : chat widget <em>Talk to Sophie</em> branché sur <code>/api/public/concierge/talk</code>, drawer/fullscreen toggle, persistence <code>localStorage</code> session. <strong>Mods 21-22</strong> : Act 1 only + PM rename."
+
+  - date: 2026-04-29
+    label: "29 avril 2026"
+    status: done
+    title: "💳 Cadrage pricing finalisé + offre Stripe validée"
+    description: "Re-confirmation des 3 tiers : <strong>Free</strong> (Sophie+Olivia chat seul) / <strong>Pro 49 €/mois</strong> (équipe complète + upload + mémoire, livrable = SDS, pas de BUILD ni déploiement) / <strong>Team 1 490 €/mois</strong> (pipeline complet jusqu'à sandbox uniquement, pas de mise en prod pour raisons de sécurité) / <strong>Enterprise</strong> on-premise sur devis. Modèle de crédits implémenté dès la V1 (pas reporté). <strong>Stripe Standard</strong> validé : 1,5 % + 0,25 € pour cartes EEE, 2,5 % + 0,25 € pour cartes UK, sans frais fixes. Cap mis sur Mod 23 (section prix UI) en parallèle de Phase 3 backend."
+
   - label: "Prochain"
     status: planned
-    title: "Round 2 — Phase 2 site marketing + Phase 3 crédits Stripe"
-    description: "Phase 2 site (overlay urgence v1, galerie acte 3, FAQ, manifesto, tarifs 49€ Pro, footer, bandeau early access). Phase 3 schéma crédits + Stripe. Brief Phase 4 plateforme à partir de la spec Casting→Théâtre. À trancher en Track C : O1 planning d'ouverture, O2 palier Mid 299€."
+    title: "Mod 23 (section prix) + Phase 3 backend (crédits + Stripe)"
+    description: "<strong>Mod 23</strong> (frontend, ~1 session) : 3 colonnes Free/Pro/Team en langage Studio, bloc Enterprise séparé, bandeau early access, boutons \"S'abonner\" placeholder en attendant le wiring. <strong>Phase 3</strong> (backend, 3-4 sessions) : S3.1 schéma DB (<code>users</code>, <code>subscriptions</code>, <code>credit_balances</code>, <code>credit_transactions</code>, <code>model_pricing</code>) → S3.2 <code>CreditService</code> + hook LLM router → S3.3 intégration Stripe (produits, checkout, webhook, customer portal) → S3.4 endpoints <code>/api/billing/*</code> → S3.5 tests + métriques. <strong>Mod 24</strong> : wiring frontend ↔ backend."
