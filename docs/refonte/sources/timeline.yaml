@@ -156,6 +156,12 @@ entries:
   - date: 2026-04-29
     label: "29 avril 2026"
     status: done
+    title: "💎 Mod 23 — Section prix UI dans le bundle preview"
+    description: "Ajout de la section narrative <strong>№ 04 · The pact / Le pacte</strong> dans le bundle React monolithique du site preview, entre OurWork et CTA (CTA renuméroté №04→№05). 3 cards Free / Pro 49€ / Team 1 490€ + bloc Enterprise séparé. Card Pro mise en évidence (double-bordure brass offset, eyebrow <em>MOST POPULAR</em>). Contenu bilingue EN/FR conforme aux décisions actées : Free chat seul, Pro = équipe complète + 2 SDS/mois inclus + Marcus en Opus, Team = pipeline complet jusqu''à sandbox. Boutons CTA <em>Get on the list</em> ouvrent le drawer Sophie (Mod 20) — wiring Stripe en attente Phase 3 backend. Modules touchés : <code>0fbb2257</code> (Site composition), <code>b077057a</code> (avatars.jsx — composant Pricing), template CSS (~5,8 K chars). Bundle 16 155 K → 16 164 K. Backup <code>pre-mod23-pricing</code>. Commit <code>d679652</code>."
+
+  - date: 2026-04-29
+    label: "29 avril 2026"
+    status: done
     title: "🎯 Pro nuance — Marcus reste en Opus + 2 SDS/mois inclus"
     description: "Analyse coût réel sur Exec #147 : Marcus à lui seul = $12.77 sur les $22.85 du SDS (56 %). Décision : <strong>Marcus reste en Opus sur Pro</strong> (vitrine technique scrutée par les clients Salesforce), les 3 autres orchestrators (Sophie/Olivia/Emma) passent en Sonnet. Coût SDS recalibré : <strong>~$20.87</strong> (vs $22.85 actuel ou $15.76 en tout-Sonnet). <strong>Quota Pro = 2 SDS/mois inclus</strong>, overage en packs de crédits au-delà. Calibrage <code>tier_config.pro.monthly_credits</code> à bumper de 2 000 → ~15 000. Migration 010 + override <code>llm_routing.yaml</code> tier-based à faire en Phase 3 backend. Optimisation Prompt Caching sur Marcus identifiée (gain ~$1/SDS)."
 
