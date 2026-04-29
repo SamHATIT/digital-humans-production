@@ -1,0 +1,64 @@
+  <div id="marketing-site" class="section">
+    <h2>Site marketing &amp; preview</h2>
+    <p class="section-desc">Le site public Digital·Humans (preview en cours d'itération avant remplacement de la version en ligne) est un <strong>bundle React monolithique</strong> servi par Nginx. Format de fichier custom à 3 sections, modifications par <em>mods</em> appliqués par scripts Python.</p>
+
+    <h3>Topologie des domaines</h3>
+    <table>
+      <tr><th>URL</th><th>Rôle</th><th>Auth</th></tr>
+      <tr><td><code>digital-humans.fr</code></td><td>Site public actuel (sera remplacé par la preview)</td><td>—</td></tr>
+      <tr><td><code>digital-humans.fr/preview/</code></td><td>Preview du nouveau site (itérations Mod 1-22+)</td><td>Basic auth</td></tr>
+      <tr><td><code>app.digital-humans.fr</code></td><td>Plateforme dashboard (React/Vite, sous-domaine dédié)</td><td>JWT</td></tr>
+      <tr><td><code>app.digital-humans.fr/admin/docs/</code></td><td>Documentation refonte (cette page)</td><td>—</td></tr>
+    </table>
+
+    <h3>Format du bundle</h3>
+    <p>Le fichier <code>/var/www/dh-preview/index.html</code> (~14.5 MB) embarque tout : modules JSX, CSS inline, photos d'agents, textes bilingues. Trois sections <code>&lt;script type="..."&gt;</code> sont parsées au runtime :</p>
+    <table>
+      <tr><th>Section</th><th>Contenu</th><th>Volume</th></tr>
+      <tr><td><code>__bundler/manifest</code></td><td>JSON des ressources <code>{uuid: {mime, compressed, data: base64}}</code></td><td>41 entries (modules + photos)</td></tr>
+      <tr><td><code>__bundler/ext_resources</code></td><td>Mapping <code>name → uuid</code> (<code>av0001</code>, <code>av0002</code>, etc.)</td><td>11 avatars + 1 carte projet</td></tr>
+      <tr><td><code>__bundler/template</code></td><td>JSON contenant le HTML complet de la page (CSS + modules JSX référencés par UUID)</td><td>~1 MB</td></tr>
+    </table>
+    <p>Modules JSX : compressés gzip + base64 (<code>"compressed": true</code>). Images : base64 brut (<code>"compressed": false</code>, ~600 KB-1.3 MB chacune en JPEG).</p>
+
+    <h3>Workflow d'un mod</h3>
+    <p>Chaque modification visuelle ou fonctionnelle est appliquée par un script Python <code>docs/marketing-site/scripts/dh-mod{N}.py</code> qui :</p>
+    <ol>
+      <li>Lit <code>index.html</code> → parse les 3 sections du bundle</li>
+      <li>Modifie le module JSX cible (identifié par UUID stable, ex : <code>b077057a</code> pour avatars/CTA/Footer, <code>6641f2bf</code> pour Benefits/HowItWorks)</li>
+      <li>Re-compresse + ré-injecte dans <code>__bundler/manifest</code></li>
+      <li>Sérialise le template avec <code>json.dumps(ensure_ascii=False)</code> + escape <code>&lt;/script&gt;</code> et <code>&lt;/style&gt;</code> en <code>&#92;u002Fscript</code></li>
+      <li>Sauvegarde en <code>index.html.pre-mod{N}-{label}</code> avant écriture (rollback en 1 commande)</li>
+    </ol>
+
+    <h3>Mods appliqués (vue chronologique)</h3>
+    <table>
+      <tr><th>Mods</th><th>Chantier</th></tr>
+      <tr><td>1-8</td><td>Retouches design générales (hero, navigation, sections benefits)</td></tr>
+      <tr><td>9-11</td><td>Photos agents — Sophie solo Act I, layout unifié 220×275, cerclage couleur via <code>--ac</code></td></tr>
+      <tr><td>12-14</td><td>10 photos restantes + rôles bilingues + punchlines en bloc séparé</td></tr>
+      <tr><td>17</td><td>Bouton <em>My Studio</em> dans la nav (cible <code>app.digital-humans.fr</code>)</td></tr>
+      <tr><td>18</td><td>Fix 9 occurrences <code>&#92;u2019</code> rendues littéralement (apostrophe typo)</td></tr>
+      <tr><td>19</td><td>Fix alignement droit <code>step-meta-col</code> (Sophie Act I)</td></tr>
+      <tr><td>20</td><td>Chat widget <em>Talk to Sophie</em> branché sur <code>/api/public/concierge/talk</code></td></tr>
+      <tr><td>21-22</td><td>Act 1 only (focus narratif) + PM rename</td></tr>
+      <tr><td><strong>23</strong></td><td><strong>Section prix UI</strong> — 3 colonnes Free/Pro/Team + bloc Enterprise (en cours)</td></tr>
+    </table>
+
+    <h3>Backend public</h3>
+    <p>Le site marketing communique avec le backend FastAPI via des routes publiques (no-auth, rate-limited) :</p>
+    <table>
+      <tr><th>Endpoint</th><th>Rôle</th></tr>
+      <tr><td><code>POST /api/public/concierge/talk</code></td><td>Chat avec Sophie (concierge sur le site, conversation stateless ou rattachée à un <code>session_uuid</code>)</td></tr>
+      <tr><td><code>GET /api/public/concierge/history/{uuid}</code></td><td>Reload de l'historique pour persistence <code>localStorage</code></td></tr>
+    </table>
+    <p>Service implémenté dans <code>backend/app/services/sophie_concierge_service.py</code>, model <code>chat_log</code>, route <code>concierge_routes.py</code>.</p>
+
+    <h3>Pièges connus</h3>
+    <ul>
+      <li>⚠️ Apostrophes ASCII dans les strings JSX cassent la string JS — toujours utiliser l'apostrophe typographique <code>&#92;u2019</code> pour les rôles FR.</li>
+      <li>⚠️ Escape obligatoire de <code>&lt;/script&gt;</code> et <code>&lt;/style&gt;</code> dans le template JSON sérialisé (sinon parse HTML termine prématurément).</li>
+      <li>⚠️ Cache navigateur — toujours <code>Ctrl+Shift+R</code> après modif pour voir le changement.</li>
+      <li>⚠️ Backups <code>index.html.pre-mod{N}</code> non purgés automatiquement — gestion manuelle.</li>
+    </ul>
+  </div>

@@ -326,6 +326,13 @@
       </ul>
     </div>
     <div class="toc-side-group">
+      <div class="toc-side-label">Site &amp; produit</div>
+      <ul class="toc-side-list">
+        <li class="toc-side-item" data-sec="marketing-site"><a class="toc-side-link" href="#marketing-site">Site marketing</a></li>
+        <li class="toc-side-item" data-sec="pricing-billing"><a class="toc-side-link" href="#pricing-billing">Pricing &amp; billing</a></li>
+      </ul>
+    </div>
+    <div class="toc-side-group">
       <div class="toc-side-label">Refonte 2026</div>
       <ul class="toc-side-list">
         <li class="toc-side-item" data-sec="problems"><a class="toc-side-link" href="#problems">Problèmes P0-P12</a></li>
@@ -6455,6 +6462,156 @@ curl -s localhost:8002/api/health | jq .llm_provider_reachable
       <li>CSP strict dans les headers Nginx</li>
       <li>Rotation auto <code>SECRET_KEY</code> + blacklist des tokens émis avec l'ancienne clé (impossible sans refresh tokens)</li>
     </ul>
+  </div>
+  <div id="marketing-site" class="section">
+    <h2>Site marketing &amp; preview</h2>
+    <p class="section-desc">Le site public Digital·Humans (preview en cours d'itération avant remplacement de la version en ligne) est un <strong>bundle React monolithique</strong> servi par Nginx. Format de fichier custom à 3 sections, modifications par <em>mods</em> appliqués par scripts Python.</p>
+
+    <h3>Topologie des domaines</h3>
+    <table>
+      <tr><th>URL</th><th>Rôle</th><th>Auth</th></tr>
+      <tr><td><code>digital-humans.fr</code></td><td>Site public actuel (sera remplacé par la preview)</td><td>—</td></tr>
+      <tr><td><code>digital-humans.fr/preview/</code></td><td>Preview du nouveau site (itérations Mod 1-22+)</td><td>Basic auth</td></tr>
+      <tr><td><code>app.digital-humans.fr</code></td><td>Plateforme dashboard (React/Vite, sous-domaine dédié)</td><td>JWT</td></tr>
+      <tr><td><code>app.digital-humans.fr/admin/docs/</code></td><td>Documentation refonte (cette page)</td><td>—</td></tr>
+    </table>
+
+    <h3>Format du bundle</h3>
+    <p>Le fichier <code>/var/www/dh-preview/index.html</code> (~14.5 MB) embarque tout : modules JSX, CSS inline, photos d'agents, textes bilingues. Trois sections <code>&lt;script type="..."&gt;</code> sont parsées au runtime :</p>
+    <table>
+      <tr><th>Section</th><th>Contenu</th><th>Volume</th></tr>
+      <tr><td><code>__bundler/manifest</code></td><td>JSON des ressources <code>{uuid: {mime, compressed, data: base64}}</code></td><td>41 entries (modules + photos)</td></tr>
+      <tr><td><code>__bundler/ext_resources</code></td><td>Mapping <code>name → uuid</code> (<code>av0001</code>, <code>av0002</code>, etc.)</td><td>11 avatars + 1 carte projet</td></tr>
+      <tr><td><code>__bundler/template</code></td><td>JSON contenant le HTML complet de la page (CSS + modules JSX référencés par UUID)</td><td>~1 MB</td></tr>
+    </table>
+    <p>Modules JSX : compressés gzip + base64 (<code>"compressed": true</code>). Images : base64 brut (<code>"compressed": false</code>, ~600 KB-1.3 MB chacune en JPEG).</p>
+
+    <h3>Workflow d'un mod</h3>
+    <p>Chaque modification visuelle ou fonctionnelle est appliquée par un script Python <code>docs/marketing-site/scripts/dh-mod{N}.py</code> qui :</p>
+    <ol>
+      <li>Lit <code>index.html</code> → parse les 3 sections du bundle</li>
+      <li>Modifie le module JSX cible (identifié par UUID stable, ex : <code>b077057a</code> pour avatars/CTA/Footer, <code>6641f2bf</code> pour Benefits/HowItWorks)</li>
+      <li>Re-compresse + ré-injecte dans <code>__bundler/manifest</code></li>
+      <li>Sérialise le template avec <code>json.dumps(ensure_ascii=False)</code> + escape <code>&lt;/script&gt;</code> et <code>&lt;/style&gt;</code> en <code>&#92;u002Fscript</code></li>
+      <li>Sauvegarde en <code>index.html.pre-mod{N}-{label}</code> avant écriture (rollback en 1 commande)</li>
+    </ol>
+
+    <h3>Mods appliqués (vue chronologique)</h3>
+    <table>
+      <tr><th>Mods</th><th>Chantier</th></tr>
+      <tr><td>1-8</td><td>Retouches design générales (hero, navigation, sections benefits)</td></tr>
+      <tr><td>9-11</td><td>Photos agents — Sophie solo Act I, layout unifié 220×275, cerclage couleur via <code>--ac</code></td></tr>
+      <tr><td>12-14</td><td>10 photos restantes + rôles bilingues + punchlines en bloc séparé</td></tr>
+      <tr><td>17</td><td>Bouton <em>My Studio</em> dans la nav (cible <code>app.digital-humans.fr</code>)</td></tr>
+      <tr><td>18</td><td>Fix 9 occurrences <code>&#92;u2019</code> rendues littéralement (apostrophe typo)</td></tr>
+      <tr><td>19</td><td>Fix alignement droit <code>step-meta-col</code> (Sophie Act I)</td></tr>
+      <tr><td>20</td><td>Chat widget <em>Talk to Sophie</em> branché sur <code>/api/public/concierge/talk</code></td></tr>
+      <tr><td>21-22</td><td>Act 1 only (focus narratif) + PM rename</td></tr>
+      <tr><td><strong>23</strong></td><td><strong>Section prix UI</strong> — 3 colonnes Free/Pro/Team + bloc Enterprise (en cours)</td></tr>
+    </table>
+
+    <h3>Backend public</h3>
+    <p>Le site marketing communique avec le backend FastAPI via des routes publiques (no-auth, rate-limited) :</p>
+    <table>
+      <tr><th>Endpoint</th><th>Rôle</th></tr>
+      <tr><td><code>POST /api/public/concierge/talk</code></td><td>Chat avec Sophie (concierge sur le site, conversation stateless ou rattachée à un <code>session_uuid</code>)</td></tr>
+      <tr><td><code>GET /api/public/concierge/history/{uuid}</code></td><td>Reload de l'historique pour persistence <code>localStorage</code></td></tr>
+    </table>
+    <p>Service implémenté dans <code>backend/app/services/sophie_concierge_service.py</code>, model <code>chat_log</code>, route <code>concierge_routes.py</code>.</p>
+
+    <h3>Pièges connus</h3>
+    <ul>
+      <li>⚠️ Apostrophes ASCII dans les strings JSX cassent la string JS — toujours utiliser l'apostrophe typographique <code>&#92;u2019</code> pour les rôles FR.</li>
+      <li>⚠️ Escape obligatoire de <code>&lt;/script&gt;</code> et <code>&lt;/style&gt;</code> dans le template JSON sérialisé (sinon parse HTML termine prématurément).</li>
+      <li>⚠️ Cache navigateur — toujours <code>Ctrl+Shift+R</code> après modif pour voir le changement.</li>
+      <li>⚠️ Backups <code>index.html.pre-mod{N}</code> non purgés automatiquement — gestion manuelle.</li>
+    </ul>
+  </div>
+  <div id="pricing-billing" class="section">
+    <h2>Pricing &amp; billing</h2>
+    <p class="section-desc">Modèle freemium 4 paliers, modèle de crédits unifié, intégration Stripe (Standard) pour les paiements. Décisions actées 26 + 29 avril 2026.</p>
+
+    <h3>Les 4 tiers</h3>
+    <table>
+      <tr>
+        <th>Tier</th><th>Prix</th><th>Périmètre fonctionnel</th><th>Modèles LLM</th>
+      </tr>
+      <tr>
+        <td><strong>Free</strong></td><td>0 €</td>
+        <td>Chat avec Sophie (PM) + Olivia (BA) <em>seulement</em>. Pas d'upload, pas de mémoire persistante, sessions stateless. Vitrine + qualification prospect.</td>
+        <td>Haiku 4.5</td>
+      </tr>
+      <tr>
+        <td><strong>Pro</strong></td><td>49 €/mois</td>
+        <td>Équipe complète des 11 agents. Upload de documents, mémoire persistante. <strong>Livrable final = SDS</strong> (BR extraction → UC generation → Solution Design → document Word/PDF). <em>Pas de BUILD, pas de déploiement.</em></td>
+        <td>Haiku + Sonnet</td>
+      </tr>
+      <tr>
+        <td><strong>Team</strong></td><td>1 490 €/mois</td>
+        <td>Pipeline complet. SDS + BUILD (Apex, LWC, Admin) + déploiement SFDX vers <strong>sandbox uniquement</strong>. Multi-environnement, git integration. <em>Pas de mise en production</em> (raison de sécurité, validé Sam 29 avril).</td>
+        <td>Haiku + Sonnet + Opus opt-in</td>
+      </tr>
+      <tr>
+        <td><strong>Enterprise</strong></td><td>Sur devis</td>
+        <td>Tout Team + déploiement prod négocié au contrat. Installation on-premise, choix du LLM (Claude/GPT/Mistral/Llama), customisation, SSO, audit logs, white-label.</td>
+        <td>Choix client</td>
+      </tr>
+    </table>
+
+    <h3>Modèle de crédits</h3>
+    <p>Implémenté dès la V1 (pas reporté). Source de vérité : tables <code>credit_balances</code>, <code>credit_transactions</code>, <code>model_pricing</code>, <code>tier_config</code> (cf. <a href="#database">Base de données</a>). Service centralisé : <code>app/services/credit_service.py</code>.</p>
+    <p>Une unité de crédit = <strong>1 000 tokens d'input Sonnet équivalent</strong>. Conversion par modèle :</p>
+    <table>
+      <tr><th>Modèle</th><th>Input (cr / 1K tok)</th><th>Output (cr / 1K tok)</th><th>Tiers autorisés</th><th>Opt-in</th></tr>
+      <tr><td><code>claude-haiku-4-5</code></td><td>0.300</td><td>1.500</td><td>free, pro, team</td><td>—</td></tr>
+      <tr><td><code>claude-sonnet-4-6</code></td><td>1.000</td><td>5.000</td><td>pro, team</td><td>—</td></tr>
+      <tr><td><code>claude-opus-4-7</code></td><td>5.000</td><td>25.000</td><td>team</td><td>✅ requis</td></tr>
+    </table>
+    <p>Allotements mensuels par tier (table <code>tier_config</code>) : Free <code>0</code> crédits inclus + cap journalier <code>300</code>, Pro <code>2 000</code>/mois, Team <code>100 000</code>/mois. Reset mensuel par cron.</p>
+
+    <h3>Intégration Stripe</h3>
+    <p>Offre retenue : <strong>Stripe Standard</strong> ("I'll do it"), pas Managed Payments. Tarifs négociés à l'ouverture du compte (29 avril 2026) :</p>
+    <table>
+      <tr><th>Type de carte</th><th>Tarif</th></tr>
+      <tr><td>EEE (Espace Économique Européen)</td><td>1,5 % + 0,25 €</td></tr>
+      <tr><td>Royaume-Uni</td><td>2,5 % + 0,25 €</td></tr>
+      <tr><td>Frais d'installation / mensuels</td><td>Aucun</td></tr>
+    </table>
+    <p>Renégociation possible quand le volume mensuel dépasse 80 k€. Stripe Tax envisagé en option (+0,5 %) pour automatiser la TVA si l'expansion hors-EEE l'exige.</p>
+
+    <h3>Endpoints API billing</h3>
+    <table>
+      <tr><th>Endpoint</th><th>Statut</th><th>Rôle</th></tr>
+      <tr><td><code>GET /api/billing/balance</code></td><td>✅ live</td><td>Solde courant + reset date pour l'utilisateur authentifié</td></tr>
+      <tr><td><code>GET /api/billing/usage</code></td><td>✅ live</td><td>Consommation agrégée sur N jours, breakdown par modèle</td></tr>
+      <tr><td><code>POST /api/billing/checkout</code></td><td>🟦 Phase 3 S3.3</td><td>Crée une session Stripe Checkout pour upgrade Free → Pro/Team</td></tr>
+      <tr><td><code>POST /api/billing/webhook</code></td><td>🟦 Phase 3 S3.3</td><td>Reçoit <code>subscription.created/updated/deleted</code>, <code>invoice.paid/failed</code></td></tr>
+      <tr><td><code>POST /api/billing/portal</code></td><td>🟦 Phase 3 S3.3</td><td>Customer Portal Stripe pour gestion abonnement</td></tr>
+      <tr><td><code>POST /api/billing/upgrade/{tier}</code></td><td>🟡 stub legacy</td><td>Existe en stub côté <code>routes/subscription.py</code>, à câbler à Stripe</td></tr>
+      <tr><td><code>POST /api/billing/cancel</code></td><td>🟦 Phase 3 S3.3</td><td>Résiliation</td></tr>
+    </table>
+
+    <h3>Hook dans le LLM router</h3>
+    <p>Avant chaque appel LLM, le router appelle <code>credit_service.preflight_check(user_id, model, max_tokens)</code> qui :</p>
+    <ol>
+      <li>Vérifie que le tier de l'utilisateur autorise le modèle (cf. <code>model_pricing.allowed_tiers</code>)</li>
+      <li>Vérifie que le solde de crédits couvre l'estimation maximale (input + output)</li>
+      <li>Lève <code>ModelNotAllowedError</code> ou <code>InsufficientCreditsError</code> avant tout appel API</li>
+    </ol>
+    <p>Après l'appel, <code>credit_service.charge()</code> débite le solde réel (basé sur les tokens effectivement consommés) et inscrit une ligne dans <code>credit_transactions</code> avec lien vers <code>execution_id</code> et <code>project_id</code>.</p>
+
+    <h3>État d'implémentation</h3>
+    <table>
+      <tr><th>Composant</th><th>Statut</th></tr>
+      <tr><td>Schéma DB (4 tables) + migration <code>008_credits_tables</code></td><td>✅ live</td></tr>
+      <tr><td>Seed <code>tier_config</code> (free/pro/team) + <code>model_pricing</code> (haiku/sonnet/opus)</td><td>✅ live</td></tr>
+      <tr><td><code>CreditService</code> (charge / get_balance / get_usage / preflight_check)</td><td>✅ live</td></tr>
+      <tr><td>Routes <code>/balance</code> et <code>/usage</code></td><td>✅ live</td></tr>
+      <tr><td>Auth (register/login/JWT) + champ <code>stripe_customer_id</code> sur User</td><td>✅ live</td></tr>
+      <tr><td>Modèle 4-tier dans <code>SubscriptionTier</code> enum</td><td>🟦 en cours (refactor 29 avril, branche <code>feature/freemium-realignment</code>)</td></tr>
+      <tr><td>Service Stripe (customer creation, checkout, webhook, portal)</td><td>❌ à créer (Phase 3 S3.3)</td></tr>
+      <tr><td>Page tarifs UI (Mod 23)</td><td>❌ à créer</td></tr>
+    </table>
   </div>
   <div id="problems" class="section">
     <h2>Problèmes architecturaux (P0-P11)</h2>
