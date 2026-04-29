@@ -78,15 +78,20 @@ class UnknownModelError(CreditError):
 # Tier mapping
 # ---------------------------------------------------------------------------
 
-# Existing User.subscription_tier values (free/premium/enterprise) → credit
-# tier names (free/pro/team). Phase 3 keeps both vocabularies alive : Stripe
-# upgrade flow (A6) will rename the user-facing tier later.
+# Map User.subscription_tier values → credit tier names used by tier_config.
+# Since 29 avril 2026 the canonical 4-tier model is free / pro / team / enterprise.
+# Legacy 'premium' values from the old 3-tier model are mapped to 'team' because
+# the old 99€ Premium tier included BUILD, which now lives in the Team tier (not
+# in the new 49€ Pro tier). 'enterprise' is mapped to 'team' for the credit
+# accounting (no dedicated enterprise row in tier_config — Enterprise contracts
+# are billed annually, not metered through credit_balances).
 _TIER_ALIAS = {
     "free": "free",
-    "premium": "pro",
     "pro": "pro",
-    "enterprise": "team",
     "team": "team",
+    "enterprise": "team",   # credit accounting only — see comment above
+    # --- Legacy aliases (DEPRECATED, will be removed once migration 009 lands) ---
+    "premium": "team",      # was 99€ with BUILD → equivalent to current Team tier
 }
 
 

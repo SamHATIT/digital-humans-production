@@ -80,7 +80,7 @@ def require_feature(feature_name: str):
             # Check feature access
             if not has_feature(tier, feature_name):
                 required = get_required_tier(feature_name)
-                raise FeatureAccessError(feature_name, required or SubscriptionTier.PREMIUM)
+                raise FeatureAccessError(feature_name, required or SubscriptionTier.PRO)
             
             return await func(*args, **kwargs)
         
@@ -263,7 +263,7 @@ def get_locked_features(user) -> list:
             required = get_required_tier(feature)
             locked.append({
                 "feature": feature,
-                "required_tier": required.value if required else "premium"
+                "required_tier": required.value if required else "pro"
             })
     
     return locked
