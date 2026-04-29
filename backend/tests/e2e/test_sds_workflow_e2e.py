@@ -334,10 +334,14 @@ class SDSWorkflowE2ETest:
                 "passed": not has_feature(SubscriptionTier.FREE, "build_phase")
             })
             
-            # Test PREMIUM can access BUILD
+            # Test TEAM can access BUILD (Pro cannot — that's the freemium boundary)
             results["tests"].append({
-                "name": "PREMIUM can access build_phase",
-                "passed": has_feature(SubscriptionTier.PREMIUM, "build_phase")
+                "name": "TEAM can access build_phase",
+                "passed": has_feature(SubscriptionTier.TEAM, "build_phase")
+            })
+            results["tests"].append({
+                "name": "PRO cannot access build_phase",
+                "passed": not has_feature(SubscriptionTier.PRO, "build_phase")
             })
             
             # Test ENTERPRISE unlimited
