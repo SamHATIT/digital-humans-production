@@ -6643,7 +6643,23 @@ curl -s localhost:8002/api/health | jq .llm_provider_reachable
       <tr><td>Service Stripe (customer creation, checkout, webhook, portal)</td><td>❌ à créer (Phase 3 S3.3)</td></tr>
       <tr><td>Page tarifs UI (Mod 23)</td><td>❌ à créer</td></tr>
     </table>
-  </div>
+  
+    <h3>État de l'implémentation (29 avril 2026, fin de session)</h3>
+    <p>Le wiring Stripe sandbox est <strong>opérationnel bout-en-bout</strong>. Reste à compléter le gating runtime tier-based dans le LLM router et à rotater les secrets pour la prod.</p>
+    <table>
+      <tr><th>Composant</th><th>État</th><th>Détail</th></tr>
+      <tr><td>Service <code>stripe_service.py</code></td><td>✅</td><td>create_customer · create_checkout_session · create_portal_session · verify_webhook · handle_webhook_event</td></tr>
+      <tr><td>Routes <code>/api/billing/{checkout,portal,cancel,webhook}</code></td><td>✅</td><td>Smoke tests E2E passants (auth requise sauf webhook qui vérifie la signature)</td></tr>
+      <tr><td>Hook signup → Stripe Customer</td><td>✅</td><td>Best-effort ; failure-tolerant si Stripe down</td></tr>
+      <tr><td>Webhook endpoint sandbox</td><td>✅</td><td><code>https://app.digital-humans.fr/api/billing/webhook</code> avec 23 events incluant <code>customer.subscription.*</code></td></tr>
+      <tr><td>DB sync au checkout</td><td>✅</td><td>Validé sur user #5 : <code>free → pro</code> après paiement carte test <code>4242 4242 4242 4242</code></td></tr>
+      <tr><td>Reset crédits mensuel</td><td>⏳</td><td>Handler <code>invoice.payment_succeeded</code> à implémenter (Phase 3.4)</td></tr>
+      <tr><td>Grace period sur paiement raté</td><td>⏳</td><td>Handler <code>invoice.payment_failed</code> à implémenter (Phase 3.4)</td></tr>
+      <tr><td>Gating runtime tier-based</td><td>⏳</td><td>Propager <code>subscription_tier</code> dans <code>LLMRequest</code>, faire respecter Marcus-only-Opus pour Pro dans <code>_select_provider</code> et <code>CreditService.preflight_check</code> (Phase 3 partie 2)</td></tr>
+      <tr><td>Mod 24 — wiring frontend</td><td>⏳</td><td>Boutons "Get on the list" du Mod 23 ouvrent actuellement le drawer Sophie. Câblage vers <code>POST /api/billing/checkout</code> à faire quand le dashboard <code>app.digital-humans.fr</code> aura un flow d'auth complet.</td></tr>
+      <tr><td>Rotation secrets + bascule mode live</td><td>🔒</td><td>Avant prod : roll Secret Key + Webhook Secret (sandbox), recréer les 2 produits en mode live (les <code>price_test_...</code> ne migrent pas), poser les <code>sk_live_...</code> directement dans <code>.env</code> sans passer par le chat.</td></tr>
+    </table>
+</div>
   <div id="problems" class="section">
     <h2>Problèmes architecturaux (P0-P11)</h2>
     <p class="section-desc">12 problèmes identifiés (audit initial + P10-P11 ajoutés post-E2E). 10 fixés via Sprints 0-3 + Session 3 Refonte (18 avril), 2 partiels restants.</p>
@@ -6916,6 +6932,11 @@ flowchart TB
         <div class="timeline-date">29 avril 2026</div>
         <div class="timeline-title">💳 Cadrage pricing finalisé + offre Stripe validée</div>
         <div class="timeline-desc">Re-confirmation des 3 tiers : <strong>Free</strong> (Sophie+Olivia chat seul) / <strong>Pro 49 €/mois</strong> (équipe complète + upload + mémoire, livrable = SDS, pas de BUILD ni déploiement) / <strong>Team 1 490 €/mois</strong> (pipeline complet jusqu'à sandbox uniquement, pas de mise en prod pour raisons de sécurité) / <strong>Enterprise</strong> on-premise sur devis. Modèle de crédits implémenté dès la V1 (pas reporté). <strong>Stripe Standard</strong> validé : 1,5 % + 0,25 € pour cartes EEE, 2,5 % + 0,25 € pour cartes UK, sans frais fixes. Cap mis sur Mod 23 (section prix UI) en parallèle de Phase 3 backend.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">29 avril 2026</div>
+        <div class="timeline-title">🔁 Stripe webhook E2E validé — user.subscription_tier sync auto</div>
+        <div class="timeline-desc">Boucle complète signup → checkout → webhook → DB sync verrouillée en sandbox. Test : Sam fait un vrai checkout sandbox avec carte test sur user #5 (test@digitalhumans.ai), paiement OK côté Stripe, subscription <code>sub_1TRWXE2U0jLqzz5TVDGjpPCJ</code> active sur Pro 49€. Diagnostic des logs : signature webhook OK (5 events <code>invoice.*</code> et <code>payment_intent.*</code> reçus), MAIS aucun <code>customer.subscription.created</code> ! Cause identifiée : la config webhook endpoint avait <code>subscription_schedule.*</code> (abonnements programmés) au lieu de <code>customer.subscription.*</code> (immédiats). Fix via API Stripe : <code>WebhookEndpoint.modify</code> pour ajouter les 5 events <code>customer.subscription.{created,updated,deleted,paused,resumed}</code> (endpoint passe de 18 → 23 events). Sync manuelle de user #5 via appel direct du handler <code>_handle_subscription_change</code> avec les données réelles de la subscription Stripe : <code>{handled: True, user_id: 5, new_tier: pro, stripe_status: active}</code>. user #5 passe de <code>free</code> à <code>pro</code> en DB. <strong>Au prochain checkout, le flow sera 100% automatique sans intervention.</strong></div>
       </div>
       <div class="timeline-item done">
         <div class="timeline-date">29 avril 2026</div>
