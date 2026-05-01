@@ -170,7 +170,7 @@ def generate_llm_response(
             system_prompt=system_prompt,
             max_tokens=clean_kwargs.pop("max_tokens", 16000),
             temperature=clean_kwargs.pop("temperature", 0.7),
-            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier")},
+            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
         )
 
         # Budget tracking post-call
@@ -234,7 +234,7 @@ async def generate_llm_response_async(
         system_prompt=system_prompt,
         max_tokens=clean_kwargs.pop("max_tokens", 16000),
         temperature=clean_kwargs.pop("temperature", 0.7),
-        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier")},
+        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
     )
 
 
