@@ -1,0 +1,106 @@
+{# ─── Topbar (uses preview bundle's classes — no duplication) ────── #}
+{% macro topbar(active='journal') %}
+<header class="glass">
+  <div class="wrap bar">
+    <a href="/preview/" class="mk" aria-label="Digital-Humans home">
+      <span class="wm">Digital<span class="dot">·</span><em>Humans</em></span>
+      <span class="tag">Autonomous<br/>Studio · EST MMXXV</span>
+    </a>
+    <nav class="links">
+      <a href="/preview/#benefits" class="link">Benefits</a>
+      <a href="/preview/#how"      class="link">The Sequence</a>
+      <a href="/preview/#work"     class="link">The Work</a>
+      <a href="/preview/#pricing"  class="link">The Pact</a>
+      <a href="/journal" class="link {{ 'is-active' if active=='journal' }}" aria-current="{{ 'page' if active=='journal' }}">Journal</a>
+      <a href="https://app.digital-humans.fr" class="btn-studio">My Studio <span class="ar">→</span></a>
+      <button class="lang" type="button" aria-label="Toggle language" disabled title="Journal currently single-language">FR · EN</button>
+      <button class="theme-toggle" type="button" aria-label="Toggle theme" id="dh-theme-toggle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" id="dh-theme-icon-moon"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" id="dh-theme-icon-sun" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+{% endmacro %}
+
+{# ─── Footer (matches preview footer; will be auto-extended later) ── #}
+{% macro footer() %}
+<footer class="j-footer wrap" style="margin-top:80px;">
+  <div>© {{ year }} Sam Hatit Consulting · Digital·Humans</div>
+  <div>
+    <a href="/cgv">CGV</a> · <a href="/legal">Mentions légales</a> · <a href="/privacy">Privacy</a>
+  </div>
+  <div class="j-footer__legal">Editorial · Cast of eleven · Studio of one</div>
+</footer>
+{% endmacro %}
+
+{# ─── Article cover composition (SVG fallback when no feature_image) #}
+{% macro article_cover(num, rubric_id, rubric_color, rubric_title, height=400, big=false, viewbox_w=600, viewbox_h=400) %}
+{% set safe_id = num|replace('№ ','')|replace(' ','')|replace('/','')|replace('.','')|replace(':','-') %}
+<div class="j-cover" style="height: {{ height }}px;">
+  <svg width="100%" height="100%" viewBox="0 0 {{ viewbox_w }} {{ viewbox_h }}" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <defs>
+      <pattern id="hair-{{ safe_id }}" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="14" stroke="rgba(245,242,236,0.045)" stroke-width="1"/>
+      </pattern>
+    </defs>
+    <rect width="{{ viewbox_w }}" height="{{ viewbox_h }}" fill="url(#hair-{{ safe_id }})"/>
+    <line x1="40" y1="40" x2="{{ viewbox_w - 40 }}" y2="40" stroke="{{ rubric_color }}" stroke-width="1" opacity="0.5"/>
+    <line x1="40" y1="40" x2="40" y2="{{ viewbox_h - 40 }}" stroke="rgba(245,242,236,0.14)" stroke-width="1" opacity="0.5"/>
+    <text x="40" y="100" font-family="'JetBrains Mono', monospace" font-size="11" fill="{{ rubric_color }}" letter-spacing="2.4">{{ num }}</text>
+    <text x="40" y="{{ 260 if big else 230 }}" font-family="'Cormorant Garamond', serif" font-style="italic" font-size="{{ 160 if big else 120 }}"
+          fill="#B8B2A6" opacity="0.18" letter-spacing="-0.04em">{{ num|replace('№ ','') }}</text>
+    <text x="40" y="{{ 320 if big else 300 }}" font-family="'Cormorant Garamond', serif" font-style="italic" font-size="{{ 28 if big else 22 }}"
+          fill="#76716A" opacity="0.5">{{ rubric_title }}</text>
+  </svg>
+</div>
+{% endmacro %}
+
+{# ─── Cover OR feature image (image takes precedence when present) ── #}
+{% macro cover_or_image(post, height=400, big=false) %}
+{% if post.feature_image %}
+<div class="j-cover j-cover--image" style="height: {{ height }}px; background-image: url('{{ post.feature_image }}'); background-size: cover; background-position: center;">
+  <div class="j-cover__overlay" style="position:absolute; inset:0; background: linear-gradient(180deg, transparent 0%, transparent 50%, rgba(10,10,11,0.55) 100%);"></div>
+  <div class="j-cover__num" style="position:absolute; top:24px; left:24px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.16em; color: {{ post.rubric.color }}; text-shadow: 0 1px 4px rgba(0,0,0,0.5);">{{ post.num }}</div>
+</div>
+{% else %}
+{{ article_cover(post.num, post.rubric.id, post.rubric.color, post.rubric.title, height=height, big=big) }}
+{% endif %}
+{% endmacro %}
+
+{# ─── Theme toggle script (native JS so it works without React) ───── #}
+{% macro theme_script() %}
+<script>
+(function(){
+  // Anti-FOUC: read saved theme as early as possible
+  try {
+    var saved = localStorage.getItem('dh-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.dataset.theme = saved;
+    }
+  } catch(e){}
+
+  function setIcons(theme) {
+    var moon = document.getElementById('dh-theme-icon-moon');
+    var sun  = document.getElementById('dh-theme-icon-sun');
+    if (!moon || !sun) return;
+    moon.style.display = theme === 'light' ? 'none' : '';
+    sun.style.display  = theme === 'light' ? '' : 'none';
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    var btn = document.getElementById('dh-theme-toggle');
+    if (!btn) return;
+    var current = document.documentElement.dataset.theme || 'dark';
+    setIcons(current);
+    btn.addEventListener('click', function(){
+      var cur  = document.documentElement.dataset.theme || 'dark';
+      var next = cur === 'light' ? 'dark' : 'light';
+      document.documentElement.dataset.theme = next;
+      try { localStorage.setItem('dh-theme', next); } catch(e){}
+      setIcons(next);
+    });
+  });
+})();
+</script>
+{% endmacro %}

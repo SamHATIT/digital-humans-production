@@ -123,8 +123,10 @@ app.include_router(billing.router, prefix=settings.API_V1_PREFIX)
 
 # Leads capture
 from app.api.routes import leads, blog
+from app.api.routes import journal_webhook
 app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
 app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
+app.include_router(journal_webhook.router, prefix=settings.API_V1_PREFIX)
 
 # P3: Document upload routes (RAG project isolation)
 app.include_router(documents.router, prefix=settings.API_V1_PREFIX)

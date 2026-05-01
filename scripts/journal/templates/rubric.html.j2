@@ -1,0 +1,62 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topbar, footer, article_cover, cover_or_image %}
+{% block body %}
+{{ topbar('journal') }}
+
+<section class="j-masthead j-masthead--rubric" style="--rubric-color: {{ rubric.color }};">
+  <div class="j-masthead__inner">
+    <div class="j-eyebrow j-eyebrow--rubric">Journal · № {{ rubric.num }} · Rubric</div>
+    <h1 class="j-title-xl j-title-xl--tight">{{ rubric.title }}.</h1>
+    <p class="j-deck">{{ rubric.long_desc }}</p>
+    <nav class="j-subnav" aria-label="Rubrics">
+      <a href="/journal" class="j-subnav__item">All</a>
+      {% for r in rubrics %}
+        <a href="/journal/{{ r.id }}" class="j-subnav__item j-subnav__item--rubric {{ 'is-active' if r.id == rubric.id }}" style="--rubric-color: {{ r.color }};">{{ r.title }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</section>
+
+{% if featured_pair %}
+<section class="j-featured-pair" style="--rubric-color: {{ rubric.color }};">
+  <div class="j-featured-pair__inner">
+    {% for a in featured_pair %}
+    <article>
+      <a href="/journal/{{ a.slug }}">{{ cover_or_image(a, height=300) }}</a>
+      <div class="j-featured-pair__meta">
+        <span>{{ a.num }}</span><span class="sep">·</span><span class="date">{{ a.date_label }}</span><span class="sep">·</span><span class="read">{{ a.read_label|upper }}</span>
+      </div>
+      <h2 class="j-featured-pair__title"><a href="/journal/{{ a.slug }}">{{ a.title }}</a></h2>
+      <p class="j-featured-pair__deck">{{ a.deck }}</p>
+      <div class="j-featured-pair__by">By <a href="/journal/by/{{ a.author.slug }}">{{ a.author.name|upper }}</a> · {{ a.author.role|upper }}</div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="j-list">
+  <div class="j-list__inner">
+    <div class="j-list__head">
+      <span>{{ rubric.title|upper }} · {{ '%03d'|format(rest_count) }} on file</span>
+      <span>Sorted by date ↓</span>
+    </div>
+    {% for a in rest %}
+    <article class="j-list__row j-list__row--rubric" style="--rubric-color: {{ a.rubric.color }};">
+      <span class="j-list__num">{{ a.num }}</span>
+      <div>
+        <h3 class="j-list__title j-list__title--small"><a href="/journal/{{ a.slug }}">{{ a.title }}</a></h3>
+        <div class="j-list__deck">{{ a.deck }}</div>
+      </div>
+      <div class="j-list__author"><a href="/journal/by/{{ a.author.slug }}">{{ a.author.name|upper }}</a></div>
+      <span class="j-list__date">{{ a.date_label }}</span>
+    </article>
+    {% endfor %}
+    {% if rest|length == 0 and not featured_pair %}
+    <p style="font-family: var(--serif); font-style: italic; font-size: 21px; color: var(--bone-3); padding: 48px 0;">No articles in this rubric yet — check back soon.</p>
+    {% endif %}
+  </div>
+</section>
+
+{{ footer() }}
+{% endblock %}
