@@ -33,6 +33,7 @@ import stripe
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.services.llm_service import invalidate_tier_cache
 
 logger = logging.getLogger(__name__)
 
@@ -269,6 +270,9 @@ def _handle_subscription_change(sub: Dict[str, Any], db: Session,
 
     db.add(user)
     db.commit()
+    # Invalidate tier cache so in-flight executions pick up the new tier
+    # immediately (relevant on upgrade/downgrade during a running SDS).
+    invalidate_tier_cache()
     logger.info("Updated user %s tier → %s (Stripe sub %s status=%s)",
                 user.id, user.subscription_tier, sub.get("id"), status_str)
     return {
@@ -289,6 +293,8 @@ def _handle_subscription_deleted(sub: Dict[str, Any], db: Session) -> Dict[str, 
     user.subscription_tier = "free"
     db.add(user)
     db.commit()
+    # Cache invalidation : in-flight runs from this user (rare) should fall back to free.
+    invalidate_tier_cache()
     logger.info("User %s downgraded to free (sub %s deleted)",
                 user.id, sub.get("id"))
     return {"handled": True, "type": "customer.subscription.deleted",
