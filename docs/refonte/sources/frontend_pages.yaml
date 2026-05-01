@@ -14,7 +14,10 @@ pages:
     description: Authentification JWT (email + password)
     access: public
   Pricing:
-    description: Grille tarifaire publique (plans Starter/Pro/Enterprise)
+    description: Grille tarifaire publique 4 tiers (Free / Pro 49€ / Team 1490€ / Enterprise) avec FAQ + ZDR
+    access: public
+  SignupPage:
+    description: Création de compte free-tier (name/email/password/confirm + terms) — workflow register puis auto-login. Refonte studio ink/bone/brass cohérente avec LoginPage.
     access: public
   Dashboard:
     description: Vue d'ensemble utilisateur — stats, dernières exécutions, raccourcis
@@ -46,3 +49,6 @@ pages:
   AgentTesterPage:
     description: Test unitaire d'un agent (prompt custom, output inspection)
     access: protected
+  AppShell:
+    description: Layout wrapper pour les pages (variant=protected/public) — fournit StudioHeader + container, géré globalement dans App.tsx, pas une route à part entière
+    access: layout
