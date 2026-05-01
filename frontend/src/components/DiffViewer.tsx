@@ -92,14 +92,14 @@ export default function DiffViewer({
 
   const lineStyles: Record<string, string> = {
     unchanged: '',
-    added: 'bg-green-500/10',
-    removed: 'bg-red-500/10',
+    added: 'bg-sage/10',
+    removed: 'bg-error/10',
   };
 
   const lineGutterStyles: Record<string, string> = {
-    unchanged: 'text-slate-600',
-    added: 'text-green-500/60 bg-green-500/5',
-    removed: 'text-red-500/60 bg-red-500/5',
+    unchanged: 'text-bone-4',
+    added: 'text-sage/60 bg-sage/5',
+    removed: 'text-error/60 bg-error/5',
   };
 
   const linePrefixes: Record<string, string> = {
@@ -109,25 +109,25 @@ export default function DiffViewer({
   };
 
   const linePrefixColors: Record<string, string> = {
-    unchanged: 'text-slate-600',
-    added: 'text-green-400',
-    removed: 'text-red-400',
+    unchanged: 'text-bone-4',
+    added: 'text-sage',
+    removed: 'text-error',
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-700 rounded-xl overflow-hidden">
+    <div className="bg-ink border border-bone/10 rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 bg-slate-800/50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-bone/10 bg-ink-2">
         <div className="flex items-center gap-2">
-          <GitBranch className="w-4 h-4 text-purple-400" />
-          <span className="text-sm font-medium text-white">Changes</span>
+          <GitBranch className="w-4 h-4 text-plum" />
+          <span className="text-sm font-medium text-bone">Changes</span>
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <span className="text-slate-500">{oldLabel}</span>
-          <span className="text-slate-600">&rarr;</span>
-          <span className="text-slate-500">{newLabel}</span>
-          <span className="text-green-400">+{stats.added}</span>
-          <span className="text-red-400">-{stats.removed}</span>
+          <span className="text-bone-4">{oldLabel}</span>
+          <span className="text-bone-4">&rarr;</span>
+          <span className="text-bone-4">{newLabel}</span>
+          <span className="text-sage">+{stats.added}</span>
+          <span className="text-error">-{stats.removed}</span>
         </div>
       </div>
 
@@ -139,13 +139,13 @@ export default function DiffViewer({
               <tr key={idx} className={lineStyles[line.type]}>
                 {/* Old line number */}
                 <td
-                  className={`px-2 py-0.5 text-right select-none w-10 border-r border-slate-700/30 ${lineGutterStyles[line.type]}`}
+                  className={`px-2 py-0.5 text-right select-none w-10 border-r border-bone/10 ${lineGutterStyles[line.type]}`}
                 >
                   {line.oldLineNo ?? ''}
                 </td>
                 {/* New line number */}
                 <td
-                  className={`px-2 py-0.5 text-right select-none w-10 border-r border-slate-700/30 ${lineGutterStyles[line.type]}`}
+                  className={`px-2 py-0.5 text-right select-none w-10 border-r border-bone/10 ${lineGutterStyles[line.type]}`}
                 >
                   {line.newLineNo ?? ''}
                 </td>
@@ -156,7 +156,7 @@ export default function DiffViewer({
                   {linePrefixes[line.type]}
                 </td>
                 {/* Content */}
-                <td className="px-2 py-0.5 text-slate-300 whitespace-pre">
+                <td className="px-2 py-0.5 text-bone-3 whitespace-pre">
                   {line.content}
                 </td>
               </tr>

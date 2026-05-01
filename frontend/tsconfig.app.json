@@ -16,10 +16,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
-    /* Linting - Relaxed for build */
+    /* Linting - A5.1 : strict mode complet (TS strict + unused vars/params) */
     "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true

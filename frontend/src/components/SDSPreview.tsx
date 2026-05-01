@@ -54,7 +54,7 @@ function renderMarkdownSection(text: string): ReactNode {
         i++;
       }
       elements.push(
-        <ul key={`ul-${i}`} className="list-disc list-inside space-y-1 my-2 text-slate-300 text-sm">
+        <ul key={`ul-${i}`} className="list-disc list-inside space-y-1 my-2 text-bone-3 text-sm">
           {listItems.map((item, j) => (
             <li key={j} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
           ))}
@@ -71,7 +71,7 @@ function renderMarkdownSection(text: string): ReactNode {
         i++;
       }
       elements.push(
-        <ol key={`ol-${i}`} className="list-decimal list-inside space-y-1 my-2 text-slate-300 text-sm">
+        <ol key={`ol-${i}`} className="list-decimal list-inside space-y-1 my-2 text-bone-3 text-sm">
           {listItems.map((item, j) => (
             <li key={j} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
           ))}
@@ -101,7 +101,7 @@ function renderMarkdownSection(text: string): ReactNode {
     elements.push(
       <p
         key={`p-${i}`}
-        className="text-slate-300 text-sm my-1.5 leading-relaxed"
+        className="text-bone-3 text-sm my-1.5 leading-relaxed"
         dangerouslySetInnerHTML={{ __html: inlineFormat(line) }}
       />
     );
@@ -113,10 +113,10 @@ function renderMarkdownSection(text: string): ReactNode {
 
 function inlineFormat(text: string): string {
   return text
-    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-slate-700 text-cyan-300 rounded text-xs font-mono">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em class="text-slate-200">$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-cyan-400 underline hover:text-cyan-300" target="_blank" rel="noopener noreferrer">$1</a>');
+    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-bone font-semibold">$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em class="text-bone-2">$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-brass underline hover:text-brass-2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 function renderTable(lines: string[], key: number): ReactNode {
@@ -131,25 +131,25 @@ function renderTable(lines: string[], key: number): ReactNode {
 
   return (
     <div key={`table-${key}`} className="overflow-x-auto my-3">
-      <table className="w-full text-sm border border-slate-700 rounded-lg overflow-hidden">
-        <thead className="bg-slate-800/80">
+      <table className="w-full text-sm border border-bone/10 rounded-lg overflow-hidden">
+        <thead className="bg-ink-2/80">
           <tr>
             {headers.map((h, i) => (
               <th
                 key={i}
-                className="px-3 py-2 text-left text-slate-300 font-medium border-b border-slate-700"
+                className="px-3 py-2 text-left text-bone-3 font-medium border-b border-bone/10"
                 dangerouslySetInnerHTML={{ __html: inlineFormat(h) }}
               />
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-700/50">
+        <tbody className="divide-y divide-bone/10">
           {rows.map((row, ri) => (
-            <tr key={ri} className="hover:bg-slate-800/30">
+            <tr key={ri} className="hover:bg-ink-2/60">
               {row.map((cell, ci) => (
                 <td
                   key={ci}
-                  className="px-3 py-2 text-slate-400"
+                  className="px-3 py-2 text-bone-4"
                   dangerouslySetInnerHTML={{ __html: inlineFormat(cell) }}
                 />
               ))}
@@ -240,17 +240,17 @@ export default function SDSPreview({ content, title }: SDSPreviewProps) {
     <div className="flex gap-4 max-h-[80vh]">
       {/* Table of Contents sidebar */}
       {showTOC && toc.length > 0 && (
-        <nav className="w-64 flex-shrink-0 bg-slate-900/60 border border-slate-700 rounded-xl p-4 overflow-y-auto">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700">
-            <List className="w-4 h-4 text-cyan-400" />
-            <span className="text-sm font-medium text-white">Table of Contents</span>
+        <nav className="w-64 flex-shrink-0 bg-ink border border-bone/10 rounded-xl p-4 overflow-y-auto">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-bone/10">
+            <List className="w-4 h-4 text-brass" />
+            <span className="text-sm font-medium text-bone">Table of Contents</span>
           </div>
           <ul className="space-y-1">
             {toc.map((entry) => (
               <li key={entry.id}>
                 <button
                   onClick={() => scrollToSection(entry.id)}
-                  className="w-full text-left text-sm text-slate-400 hover:text-cyan-400 transition-colors py-1 truncate"
+                  className="w-full text-left text-sm text-bone-4 hover:text-brass transition-colors py-1 truncate"
                   style={{ paddingLeft: `${(entry.level - 2) * 12}px` }}
                 >
                   {entry.text}
@@ -262,19 +262,19 @@ export default function SDSPreview({ content, title }: SDSPreviewProps) {
       )}
 
       {/* Main content */}
-      <div className="flex-1 overflow-y-auto bg-slate-900/40 border border-slate-700 rounded-xl">
+      <div className="flex-1 overflow-y-auto bg-ink border border-bone/10 rounded-xl">
         {/* Header bar */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-slate-800/90 backdrop-blur-sm border-b border-slate-700">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 bg-ink-2/90 backdrop-blur-sm border-b border-bone/10">
           <div className="flex items-center gap-2">
-            <FileText className="w-4 h-4 text-purple-400" />
-            <span className="text-sm font-medium text-white">
+            <FileText className="w-4 h-4 text-plum" />
+            <span className="text-sm font-medium text-bone">
               {title || 'SDS Document'}
             </span>
           </div>
           {toc.length > 0 && (
             <button
               onClick={() => setShowTOC(!showTOC)}
-              className="text-xs text-slate-400 hover:text-white transition-colors"
+              className="text-xs text-bone-4 hover:text-bone transition-colors"
             >
               {showTOC ? 'Hide' : 'Show'} TOC
             </button>
@@ -294,9 +294,9 @@ export default function SDSPreview({ content, title }: SDSPreviewProps) {
             const isCollapsed = collapsedSections.has(section.id);
             const HeadingTag = section.level === 2 ? 'h2' : section.level === 3 ? 'h3' : 'h4';
             const headingSizes: Record<number, string> = {
-              2: 'text-xl font-bold text-white',
-              3: 'text-lg font-semibold text-slate-100',
-              4: 'text-base font-medium text-slate-200',
+              2: 'text-xl font-bold text-bone',
+              3: 'text-lg font-semibold text-bone',
+              4: 'text-base font-medium text-bone-2',
             };
 
             return (
@@ -310,9 +310,9 @@ export default function SDSPreview({ content, title }: SDSPreviewProps) {
                   className="flex items-center gap-2 w-full text-left group py-2"
                 >
                   {isCollapsed ? (
-                    <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 flex-shrink-0" />
+                    <ChevronRight className="w-4 h-4 text-bone-4 group-hover:text-brass flex-shrink-0" />
                   ) : (
-                    <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-cyan-400 flex-shrink-0" />
+                    <ChevronDown className="w-4 h-4 text-bone-4 group-hover:text-brass flex-shrink-0" />
                   )}
                   <HeadingTag className={headingSizes[section.level]}>
                     {section.title}
@@ -320,7 +320,7 @@ export default function SDSPreview({ content, title }: SDSPreviewProps) {
                 </button>
 
                 {!isCollapsed && section.content && (
-                  <div className="pl-6 border-l border-slate-700/50">
+                  <div className="pl-6 border-l border-bone/10">
                     {section.content.includes('```mermaid') ? (
                       <MermaidRenderer content={section.content} />
                     ) : (

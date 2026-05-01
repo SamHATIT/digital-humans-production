@@ -1,0 +1,81 @@
+/* ============================================================
+   Studio Design Tokens — palette ink/bone/brass + accents acte
+   Identique au preview Mod 16 (/var/www/dh-preview/index.html)
+   ============================================================ */
+
+:root {
+  /* Backgrounds */
+  --ink:        #0A0A0B;
+  --ink-2:      #141416;
+  --ink-3:      #1C1C1F;
+
+  /* Text */
+  --bone:       #F5F2EC;
+  --bone-2:     #E5E1D8;
+  --bone-3:     #B5B0A4;
+  --bone-4:     #6F6B62;
+
+  /* Accent dominant */
+  --brass:      #C8A97E;
+  --brass-2:    #B89968;
+  --brass-3:    #8B764D;
+
+  /* Accents acte (5) */
+  --indigo:     #6E7DB8;  /* Act I — Direction (Sophie) */
+  --plum:       #9B6E94;  /* Act II — Visionaries (Olivia, Emma, Marcus) */
+  --terra:      #C57F5C;  /* Act III — Builders (Diego, Zara, Raj) */
+  --sage:       #7A9474;  /* Act IV — Guardians (Elena, Jordan) */
+  --ochre:      #B88B3F;  /* Act V — Stage (Aisha, Lucas) */
+
+  /* Notifications / status (alignés Studio) */
+  --success:    #7A9474;
+  --error:      #C25450;
+  --warning:    #B88B3F;
+
+  /* Hairlines */
+  --hairline:           rgba(245, 242, 236, 0.08);
+  --hairline-strong:    rgba(245, 242, 236, 0.16);
+  --hairline-brass:     rgba(200, 169, 126, 0.24);
+
+  /* Typography */
+  --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono:  'JetBrains Mono', 'Menlo', 'Consolas', monospace;
+}
+
+/* ----------------------------------------------------------------
+   Tailwind v4 @theme — expose tokens en utilitaires (bg-ink,
+   text-bone-3, border-brass-2, font-serif, tracking-eyebrow…)
+   ---------------------------------------------------------------- */
+
+@theme {
+  --color-ink:       #0A0A0B;
+  --color-ink-2:     #141416;
+  --color-ink-3:     #1C1C1F;
+
+  --color-bone:      #F5F2EC;
+  --color-bone-2:    #E5E1D8;
+  --color-bone-3:    #B5B0A4;
+  --color-bone-4:    #6F6B62;
+
+  --color-brass:     #C8A97E;
+  --color-brass-2:   #B89968;
+  --color-brass-3:   #8B764D;
+
+  --color-indigo:    #6E7DB8;
+  --color-plum:      #9B6E94;
+  --color-terra:     #C57F5C;
+  --color-sage:      #7A9474;
+  --color-ochre:     #B88B3F;
+
+  --color-success:   #7A9474;
+  --color-error:     #C25450;
+  --color-warning:   #B88B3F;
+
+  --font-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+  --font-sans:  'Inter', -apple-system, 'Segoe UI', sans-serif;
+  --font-mono:  'JetBrains Mono', Menlo, Consolas, monospace;
+
+  --tracking-eyebrow: 0.16em;
+  --tracking-cta:     0.14em;
+}

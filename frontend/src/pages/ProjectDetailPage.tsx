@@ -1,11 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+/**
+ * ProjectDetailPage — A5.4
+ * Hub Studio : Overview / Deliverables / Change requests / Settings (modal).
+ * № 03 · the work in production.
+ *
+ * Préserve TOUS les contrats API existants (project, sds-versions, change-requests, chat).
+ */
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  MessageSquare, FileText, GitBranch, CheckCircle, Download, Plus,
-  Send, Clock, AlertCircle, Loader2, X, ChevronDown, ChevronUp, Play,
-  Settings, Cloud, Eye, Camera
-} from 'lucide-react';
+import { Send, Loader2, Settings, ExternalLink } from 'lucide-react';
 import api from '../services/api';
+import { useLang } from '../contexts/LangContext';
+import StudioTabs from '../components/studio/StudioTabs';
+import ProjectHealthCard from '../components/projects/ProjectHealthCard';
+import ProjectActivityFeed from '../components/projects/ProjectActivityFeed';
+import type { ActivityItem } from '../components/projects/ProjectActivityFeed';
+import DeliverableCard from '../components/projects/DeliverableCard';
+import type { DeliverableItem } from '../components/projects/DeliverableCard';
+import ChangeRequestCard from '../components/projects/ChangeRequestCard';
+import type { ChangeRequestItem, CRStatus, CRPriority } from '../components/projects/ChangeRequestCard';
+import ChangeRequestModal from '../components/projects/ChangeRequestModal';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
 
 interface Project {
@@ -22,7 +35,6 @@ interface Project {
   git_repo_url?: string;
 }
 
-
 interface SDSVersion {
   id: number;
   version_number: number;
@@ -32,17 +44,15 @@ interface SDSVersion {
   download_url: string;
 }
 
-interface ChangeRequest {
+interface RawCR {
   id: number;
-  cr_number: string;
+  cr_number?: string;
   title: string;
   description?: string;
   category: string;
   status: string;
   priority: string;
   created_at: string;
-  impact_analysis?: any;
-  estimated_cost?: number;
 }
 
 interface ChatMessage {
@@ -52,701 +62,610 @@ interface ChatMessage {
   created_at: string;
 }
 
-const CR_CATEGORIES = [
-  { value: 'business_rule', label: 'Business Rule', icon: '📋' },
-  { value: 'data_model', label: 'Data Model', icon: '🗄️' },
-  { value: 'process', label: 'Process / Flow', icon: '🔄' },
-  { value: 'ui_ux', label: 'UI / UX', icon: '🎨' },
-  { value: 'integration', label: 'Integration', icon: '🔗' },
-  { value: 'security', label: 'Security', icon: '🔒' },
-  { value: 'other', label: 'Other', icon: '📝' },
-];
+type TabId = 'overview' | 'deliverables' | 'changes' | 'chat';
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: 'bg-gray-500',
-  submitted: 'bg-blue-500',
-  analyzed: 'bg-yellow-500',
-  approved: 'bg-green-500',
-  processing: 'bg-purple-500',
-  completed: 'bg-emerald-600',
-  rejected: 'bg-red-500',
-};
+function normalizePriority(p: string): CRPriority {
+  const v = p?.toLowerCase();
+  if (v === 'low' || v === 'medium' || v === 'high') return v;
+  return 'medium';
+}
+function normalizeStatus(s: string): CRStatus {
+  const v = s?.toLowerCase();
+  const allowed: CRStatus[] = ['draft', 'submitted', 'analyzed', 'approved', 'processing', 'completed', 'rejected'];
+  return (allowed.includes(v as CRStatus) ? v : 'draft') as CRStatus;
+}
+
+function phaseLabel(status: string, t: <T>(en: T, fr: T) => T): string {
+  const map: Record<string, { en: string; fr: string }> = {
+    draft:          { en: 'Casting',     fr: 'Casting' },
+    in_progress:    { en: 'Act II',      fr: 'Acte II' },
+    sds_generated:  { en: 'SDS phase',   fr: 'Phase SDS' },
+    sds_in_review:  { en: 'SDS review',  fr: 'Revue SDS' },
+    sds_approved:   { en: 'SDS approved', fr: 'SDS approuvé' },
+    build_ready:    { en: 'BUILD phase', fr: 'Phase BUILD' },
+    completed:      { en: 'Live',        fr: 'En production' },
+    failed:         { en: 'Failed',      fr: 'Échoué' },
+  };
+  const e = map[status?.toLowerCase()];
+  return e ? t(e.en, e.fr) : status;
+}
 
 export default function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  
+  const { t, lang } = useLang();
+
   const [project, setProject] = useState<Project | null>(null);
   const [sdsVersions, setSdsVersions] = useState<SDSVersion[]>([]);
-  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [crs, setCrs] = useState<RawCR[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [chatLoading, setChatLoading] = useState(false);
-  const [showCRModal, setShowCRModal] = useState(false);
-  const [approvingSDSLoading, setApprovingSDSLoading] = useState(false);
-  const [expandedCR, setExpandedCR] = useState<number | null>(null);
-  const [startingBuild, setStartingBuild] = useState(false);
   const [latestExecutionId, setLatestExecutionId] = useState<number | null>(null);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  
-  const [newCR, setNewCR] = useState({
-    category: 'business_rule',
-    title: '',
-    description: '',
-    priority: 'medium'
-  });
-  
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabId>('overview');
+
+  const [chatInput, setChatInput] = useState('');
+  const [chatPosting, setChatPosting] = useState(false);
+  const [showCRModal, setShowCRModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [approvingSDS, setApprovingSDS] = useState(false);
+  const [startingBuild, setStartingBuild] = useState(false);
+  const [snapshotting, setSnapshotting] = useState(false);
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadProjectData();
+    if (!projectId) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const [proj, sds, crsResp, chatResp] = await Promise.all([
+          api.get(`/api/projects/${projectId}`),
+          api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ versions: [] })),
+          api.get(`/api/projects/${projectId}/change-requests`).catch(() => ({ change_requests: [] })),
+          api.get(`/api/projects/${projectId}/chat/history`).catch(() => ({ messages: [] })),
+        ]);
+        if (cancelled) return;
+        setProject(proj);
+        setSdsVersions(sds?.versions ?? sds ?? []);
+        setCrs(crsResp?.change_requests ?? crsResp ?? []);
+        setChatMessages(chatResp?.messages ?? chatResp ?? []);
+        // try to find latest execution id (used for SDS HTML preview)
+        try {
+          const exec = await api.get(`/api/pm-orchestrator/projects/${projectId}/executions`).catch(() => null);
+          const list = exec?.executions ?? exec ?? [];
+          if (Array.isArray(list) && list.length > 0) {
+            setLatestExecutionId(list[0]?.id ?? null);
+          }
+        } catch {/* ignore */}
+      } catch (err: any) {
+        if (!cancelled) setError(err?.message ?? 'Failed to load project');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [projectId]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
-
-  const loadProjectData = async () => {
-    if (!projectId) return;
-    setLoading(true);
-    try {
-      const [projectRes, versionsRes, crsRes, chatRes] = await Promise.all([
-        api.get(`/api/projects/${projectId}`),
-        api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ versions: [] })),
-        api.get(`/api/projects/${projectId}/change-requests`).catch(() => ({ change_requests: [] })),
-        api.get(`/api/projects/${projectId}/chat/history`).catch(() => ({ messages: [] }))
-      ]);
-      
-      setProject(projectRes);
-      // Get latest execution ID for BUILD progress link
-      if (projectRes.executions && projectRes.executions.length > 0) {
-        setLatestExecutionId(projectRes.executions[0].id);
-      }
-      setSdsVersions(versionsRes.versions || []);
-      setChangeRequests(crsRes.change_requests || []);
-      setChatMessages(chatRes.messages || []);
-    } catch (error) {
-      console.error('Failed to load project:', error);
-    } finally {
-      setLoading(false);
+    if (tab === 'chat') {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  };
+  }, [chatMessages, tab]);
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || chatLoading) return;
-    const userMessage = newMessage;
-    setNewMessage('');
-    setChatLoading(true);
-    
-    setChatMessages(prev => [...prev, {
+  const sendChat = async () => {
+    if (!chatInput.trim() || !projectId) return;
+    const message = chatInput.trim();
+    setChatInput('');
+    const optimistic: ChatMessage = {
       id: Date.now(),
       role: 'user',
-      message: userMessage,
-      created_at: new Date().toISOString()
-    }]);
-    
+      message,
+      created_at: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, optimistic]);
+    setChatPosting(true);
     try {
-      const response = await api.post(`/api/projects/${projectId}/chat`, { message: userMessage });
-      setChatMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        message: response.data.message,
-        created_at: new Date().toISOString()
-      }]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      setChatMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        role: 'assistant',
-        message: "Désolée, une erreur s'est produite. Veuillez réessayer.",
-        created_at: new Date().toISOString()
-      }]);
+      const resp = await api.post(`/api/projects/${projectId}/chat`, { message });
+      if (resp?.assistant_message) {
+        setChatMessages((prev) => [...prev, resp.assistant_message]);
+      }
+    } catch (err: any) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          message: t('Sorry — I could not respond.', 'Désolée — je n’ai pas pu répondre.'),
+          created_at: new Date().toISOString(),
+        },
+      ]);
     } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const createChangeRequest = async () => {
-    if (!newCR.title || !newCR.description) return;
-    try {
-      await api.post(`/api/projects/${projectId}/change-requests`, newCR);
-      setShowCRModal(false);
-      setNewCR({ category: 'business_rule', title: '', description: '', priority: 'medium' });
-      loadProjectData();
-    } catch (error) {
-      console.error('Failed to create CR:', error);
+      setChatPosting(false);
     }
   };
 
   const submitCR = async (crId: number) => {
+    if (!projectId) return;
     try {
       await api.post(`/api/projects/${projectId}/change-requests/${crId}/submit`);
-      loadProjectData();
-    } catch (error) {
-      console.error('Failed to submit CR:', error);
+      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: 'submitted' } : c)));
+    } catch {
+      window.alert(t('Could not submit.', 'Soumission impossible.'));
     }
   };
 
   const approveCR = async (crId: number) => {
+    if (!projectId) return;
     try {
       await api.post(`/api/projects/${projectId}/change-requests/${crId}/approve`, {});
-      loadProjectData();
-    } catch (error) {
-      console.error('Failed to approve CR:', error);
+      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: 'approved' } : c)));
+    } catch {
+      window.alert(t('Could not approve.', 'Approbation impossible.'));
+    }
+  };
+
+  const createCR = async (data: { title: string; description: string; category: string; priority: 'low' | 'medium' | 'high' }) => {
+    if (!projectId) return;
+    try {
+      const resp = await api.post(`/api/projects/${projectId}/change-requests`, data);
+      const created = resp?.change_request ?? resp;
+      if (created) setCrs((prev) => [created, ...prev]);
+    } catch {
+      window.alert(t('Could not create change request.', 'Création impossible.'));
     }
   };
 
   const approveSDS = async () => {
-    setApprovingSDSLoading(true);
+    if (!projectId) return;
+    setApprovingSDS(true);
     try {
       await api.post(`/api/projects/${projectId}/approve-sds`);
-      loadProjectData();
-    } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to approve SDS');
+      setProject((prev) => (prev ? { ...prev, status: 'sds_approved' } : prev));
+    } catch {
+      window.alert(t('Could not approve SDS.', 'Approbation SDS impossible.'));
     } finally {
-      setApprovingSDSLoading(false);
+      setApprovingSDS(false);
     }
   };
-  
+
   const startBuild = async () => {
+    if (!projectId) return;
     setStartingBuild(true);
     try {
-      const response = await api.post(`/api/pm-orchestrator/projects/${projectId}/start-build`);
-      // Navigate to BUILD monitoring page
-      navigate(`/execution/${response.data.execution_id}/build`);
-    } catch (error: any) {
-      alert(error.response?.data?.detail || 'Failed to start BUILD phase');
+      const resp = await api.post(`/api/pm-orchestrator/projects/${projectId}/start-build`);
+      if (resp?.execution_id) {
+        navigate(`/execution/${resp.execution_id}/build`);
+      }
+    } catch {
+      window.alert(t('Could not start BUILD.', 'Démarrage BUILD impossible.'));
     } finally {
       setStartingBuild(false);
     }
   };
 
-  const downloadSDS = async (versionNumber: number) => {
-    const token = localStorage.getItem('token');
-    window.open(`/api/projects/${projectId}/sds-versions/${versionNumber}/download?token=${token}`, '_blank');
-  };
-
-  // Iter 8 — Live preview du SDS DB-driven (sans cout LLM, ~510ms)
-  const livePreviewSDS = () => {
-    if (!latestExecutionId) {
-      alert('Aucune execution disponible pour ce projet');
-      return;
-    }
-    const token = localStorage.getItem('token');
-    window.open(`/api/pm-orchestrator/execute/${latestExecutionId}/sds-html?token=${token}`, '_blank');
-  };
-
-  // Iter 8 — Snapshot freeze (cree une version DB-driven immuable)
-  const [snapshotting, setSnapshotting] = useState(false);
   const snapshotSDS = async () => {
-    if (!latestExecutionId) {
-      alert('Aucune execution disponible pour ce projet');
-      return;
-    }
+    if (!projectId) return;
     setSnapshotting(true);
     try {
-      await api.post(`/api/projects/${projectId}/sds-versions`, {
-        execution_id: latestExecutionId,
-        notes: `Snapshot DB-driven from execution #${latestExecutionId}`,
-      });
-      // Refresh la liste des versions
-      const versionsRes = await api.get(`/api/projects/${projectId}/sds-versions`);
-      setSdsVersions(versionsRes.versions || []);
-    } catch (error: any) {
-      alert(error.response?.data?.detail || 'Snapshot failed');
+      await api.post(`/api/projects/${projectId}/sds-versions`, {});
+      const sds = await api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ versions: [] }));
+      setSdsVersions(sds?.versions ?? sds ?? []);
+    } catch {
+      window.alert(t('Could not snapshot SDS.', 'Snapshot impossible.'));
     } finally {
       setSnapshotting(false);
     }
   };
 
-  // Iter 8 — View inline d'une version frozen
-  const viewVersion = (versionNumber: number) => {
+  const downloadSDS = (versionNumber: number) => {
     const token = localStorage.getItem('token');
-    window.open(`/api/projects/${projectId}/sds-versions/${versionNumber}/view?token=${token}`, '_blank');
+    window.open(
+      `/api/projects/${projectId}/sds-versions/${versionNumber}/download?token=${token}`,
+      '_blank',
+    );
   };
 
+  const previewSDSHtml = () => {
+    if (!latestExecutionId) return;
+    const token = localStorage.getItem('token');
+    window.open(
+      `/api/pm-orchestrator/execute/${latestExecutionId}/sds-html?token=${token}`,
+      '_blank',
+    );
+  };
+
+  // ─── Derived data ──────────────────────────────────────────────────────────
+  const formattedCRs: ChangeRequestItem[] = useMemo(
+    () =>
+      crs.map((c) => ({
+        id: c.id,
+        title: c.title,
+        description: c.description ?? '',
+        category: c.category,
+        status: normalizeStatus(c.status),
+        priority: normalizePriority(c.priority),
+        created_at: c.created_at,
+      })),
+    [crs],
+  );
+
+  const deliverables: DeliverableItem[] = useMemo(() => {
+    const items: DeliverableItem[] = sdsVersions.map((v) => ({
+      id: `sds-${v.id}`,
+      kind: 'doc' as const,
+      title: v.file_name || `SDS v${v.version_number}`,
+      version: `v${v.version_number}`,
+      date: v.generated_at ? new Date(v.generated_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB') : undefined,
+      meta: v.notes,
+    }));
+    if (latestExecutionId) {
+      items.unshift({
+        id: 'sds-html-preview',
+        kind: 'preview',
+        title: t('SDS · live preview', 'SDS · prévisualisation'),
+        meta: t('HTML rendering of the latest SDS', 'Rendu HTML du dernier SDS'),
+      });
+    }
+    return items;
+  }, [sdsVersions, latestExecutionId, lang, t]);
+
+  const recentActivity: ActivityItem[] = useMemo(() => {
+    const items: ActivityItem[] = [];
+    sdsVersions.slice(0, 3).forEach((v) => {
+      items.push({
+        id: `sds-${v.id}`,
+        who: 'Sophie',
+        what: t(
+          `Saved SDS v${v.version_number}.`,
+          `Snapshot SDS v${v.version_number}.`,
+        ),
+        when: v.generated_at
+          ? new Date(v.generated_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB')
+          : '',
+        accent: 'indigo',
+      });
+    });
+    crs.slice(0, 3).forEach((c) => {
+      items.push({
+        id: `cr-${c.id}`,
+        who: 'CR',
+        what: c.title,
+        when: c.created_at ? new Date(c.created_at).toLocaleDateString(lang === 'fr' ? 'fr-FR' : 'en-GB') : '',
+        accent: 'plum',
+      });
+    });
+    return items.slice(0, 6);
+  }, [sdsVersions, crs, lang, t]);
+
+  // ─── Render ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-      </div>
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-ink-2 border border-bone/10 h-32 animate-pulse mb-8" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-ink-2 border border-bone/10 h-60 animate-pulse" />
+          <div className="bg-ink-2 border border-bone/10 h-60 animate-pulse" />
+        </div>
+      </section>
     );
   }
 
-  if (!project) {
+  if (error || !project) {
     return (
-      <div className="min-h-screen bg-[#0a1628] flex items-center justify-center text-white">
-        Project not found
-      </div>
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-ink-2 border border-error/30 p-6">
+          <p className="font-mono text-[11px] tracking-eyebrow uppercase text-error mb-2">
+            {t('Error', 'Erreur')}
+          </p>
+          <p className="font-mono text-[12px] text-bone-2">{error ?? t('Project not found', 'Projet introuvable')}</p>
+          <button
+            type="button"
+            onClick={() => navigate('/projects')}
+            className="mt-6 inline-flex items-center gap-2 px-4 py-2 font-mono text-[10px] tracking-cta uppercase text-bone-3 hover:text-bone transition-colors"
+          >
+            ← {t('Back to projects', 'Retour aux projets')}
+          </button>
+        </div>
+      </section>
     );
   }
 
-  const pendingCRs = changeRequests.filter(cr => !['completed', 'rejected'].includes(cr.status));
-  const canApproveSDS = pendingCRs.length === 0 && sdsVersions.length > 0;
+  const showApproveSDS = ['sds_generated', 'sds_in_review'].includes(project.status);
+  const showStartBuild = project.status === 'sds_approved';
+
+  const tabsList = [
+    { id: 'overview' as TabId,     label: t('Overview',     'Vue') },
+    { id: 'deliverables' as TabId, label: t('Deliverables', 'Livrables'), count: deliverables.length },
+    { id: 'changes' as TabId,      label: t('Changes',      'Demandes'),  count: crs.length },
+    { id: 'chat' as TabId,         label: t('Chat',         'Chat') },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#0a1628] text-white p-6">
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-cyan-400">{project.name}</h1>
-        <p className="text-gray-400">{project.salesforce_product} • {project.organization_type}</p>
-        <div className="mt-2 flex items-center gap-2">
-          <span className={`px-2 py-1 rounded text-xs ${
-            project.status === 'sds_approved' ? 'bg-green-600' : 'bg-blue-600'
-          }`}>
-            {project.status.toUpperCase().replace(/_/g, ' ')}
-          </span>
-          {project.current_sds_version > 0 && (
-            <span className="px-2 py-1 rounded text-xs bg-purple-600">
-              SDS v{project.current_sds_version}
-            </span>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+        <div className="min-w-0">
+          <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-3">
+            № 03 · {project.organization_type?.toUpperCase() || 'PROJECT'} · {phaseLabel(project.status, t).toUpperCase()}
+          </p>
+          <h1 className="font-serif italic text-4xl md:text-5xl text-bone leading-[1.05] truncate">
+            {project.name}
+          </h1>
+          {project.description && (
+            <p className="font-mono text-[12px] text-bone-3 mt-3 max-w-3xl line-clamp-2">
+              {project.description}
+            </p>
           )}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowSettings(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-bone/10 hover:border-brass/40 text-bone-3 hover:text-bone font-mono text-[10px] tracking-cta uppercase transition-colors"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            {t('Settings', 'Réglages')}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: SDS Versions & Change Requests */}
-        <div className="lg:col-span-1 space-y-6">
-          {/* SDS Versions */}
-          <div className="bg-[#1a2744] rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-4">
-              <FileText className="w-5 h-5 text-cyan-400" />
-              <h2 className="font-semibold">SDS Documents</h2>
-            </div>
-            
-            {/* Iter 8 — Boutons Live Preview + Snapshot DB-driven */}
-            {latestExecutionId && (
-              <div className="mb-4 flex flex-col gap-2">
-                <button
-                  onClick={livePreviewSDS}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg text-sm font-medium transition"
-                  title="Generate SDS preview live from PostgreSQL (no LLM cost)"
-                >
-                  <Eye className="w-4 h-4" />
-                  Live preview (DB-driven)
-                </button>
-                <button
-                  onClick={snapshotSDS}
-                  disabled={snapshotting}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-lg text-sm font-medium transition"
-                  title="Freeze a new immutable version from current DB state"
-                >
-                  {snapshotting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-                  {snapshotting ? 'Snapshotting...' : 'Snapshot version'}
-                </button>
-              </div>
-            )}
-            
-            {sdsVersions.length === 0 ? (
-              <p className="text-gray-500 text-sm">No SDS versions yet</p>
-            ) : (
-              <div className="space-y-2">
-                {sdsVersions.map(version => (
-                  <div key={version.id} className="flex items-center justify-between p-2 bg-[#0d1829] rounded-lg">
-                    <div>
-                      <span className="font-medium">v{version.version_number}</span>
-                      {version.version_number === project.current_sds_version && (
-                        <span className="ml-2 text-xs bg-green-600 px-1 rounded">Current</span>
-                      )}
-                      <p className="text-xs text-gray-500">
-                        {new Date(version.generated_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => viewVersion(version.version_number)}
-                        className="p-2 hover:bg-[#2a3f5f] rounded"
-                        title="View inline"
-                      >
-                        <Eye className="w-4 h-4 text-cyan-400" />
-                      </button>
-                      <button
-                        onClick={() => downloadSDS(version.version_number)}
-                        className="p-2 hover:bg-[#2a3f5f] rounded"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4 text-cyan-400" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      {/* Contextual primary CTA */}
+      {(showApproveSDS || showStartBuild) && (
+        <div className="bg-ink-2 border border-brass/30 p-5 mb-8 flex items-center justify-between gap-6">
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-brass mb-1">
+              {showApproveSDS ? t('SDS ready for review', 'SDS prête à revue') : t('SDS approved', 'SDS approuvé')}
+            </p>
+            <p className="font-serif italic text-xl text-bone">
+              {showApproveSDS
+                ? t('The casting is set. Approve to move to BUILD.', 'Le casting est posé. Approuvez pour passer au BUILD.')
+                : t('Curtain up. Begin the BUILD phase.', 'Lever de rideau. Démarrez la phase BUILD.')}
+            </p>
           </div>
-
-          {/* Project Settings */}
-          <div className="bg-[#1a2744] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Settings className="w-5 h-5 text-amber-400" />
-                <h2 className="font-semibold">Project Settings</h2>
-              </div>
-              <button
-                onClick={() => setShowSettingsModal(true)}
-                className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 rounded-lg"
-              >
-                Configure
-              </button>
-            </div>
-            
-            <div className="space-y-3">
-              {/* Salesforce Status */}
-              <div className="flex items-center justify-between p-2 bg-[#0d1829] rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Cloud className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm">Salesforce</span>
-                </div>
-                {project?.sf_connected ? (
-                  <span className="text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" /> Connected
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-500">Not configured</span>
-                )}
-              </div>
-              
-              {/* Git Status */}
-              <div className="flex items-center justify-between p-2 bg-[#0d1829] rounded-lg">
-                <div className="flex items-center gap-2">
-                  <GitBranch className="w-4 h-4 text-orange-400" />
-                  <span className="text-sm">Git Repository</span>
-                </div>
-                {project?.git_connected ? (
-                  <span className="text-xs text-green-400 flex items-center gap-1">
-                    <CheckCircle className="w-3 h-3" /> Connected
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-500">Not configured</span>
-                )}
-              </div>
-            </div>
-            
-            {/* Warning if BUILD phase but no connections */}
-            {project?.status === 'sds_approved' && (!project?.sf_connected || !project?.git_connected) && (
-              <div className="mt-3 p-2 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-                <p className="text-xs text-yellow-400 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  Configure Git & Salesforce before starting BUILD
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Change Requests */}
-          <div className="bg-[#1a2744] rounded-xl p-4">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <GitBranch className="w-5 h-5 text-purple-400" />
-                <h2 className="font-semibold">Change Requests</h2>
-              </div>
-              <button
-                onClick={() => setShowCRModal(true)}
-                className="p-1 hover:bg-[#2a3f5f] rounded"
-              >
-                <Plus className="w-5 h-5 text-purple-400" />
-              </button>
-            </div>
-
-            {changeRequests.length === 0 ? (
-              <p className="text-gray-500 text-sm">No change requests</p>
-            ) : (
-              <div className="space-y-2">
-                {changeRequests.map(cr => (
-                  <div key={cr.id} className="bg-[#0d1829] rounded-lg overflow-hidden">
-                    <div 
-                      className="p-3 cursor-pointer hover:bg-[#152238]"
-                      onClick={() => setExpandedCR(expandedCR === cr.id ? null : cr.id)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[cr.status]}`} />
-                          <span className="font-medium text-sm">{cr.cr_number}</span>
-                        </div>
-                        {expandedCR === cr.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </div>
-                      <p className="text-sm text-gray-300 mt-1 truncate">{cr.title}</p>
-                    </div>
-                    
-                    {expandedCR === cr.id && (
-                      <div className="p-3 border-t border-gray-700 text-sm">
-                        <p className="text-gray-400 mb-2">{cr.description}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-3">
-                          <span className="capitalize">{cr.category.replace('_', ' ')}</span>
-                          <span>•</span>
-                          <span className="capitalize">{cr.priority}</span>
-                          <span>•</span>
-                          <span className="capitalize">{cr.status}</span>
-                        </div>
-                        
-                        {cr.impact_analysis && (
-                          <div className="bg-[#1a2744] p-2 rounded mb-3">
-                            <p className="text-xs text-cyan-400 mb-1">Impact Analysis:</p>
-                            <p className="text-xs">{cr.impact_analysis.summary}</p>
-                            {cr.estimated_cost && (
-                              <p className="text-xs text-yellow-400 mt-1">
-                                Estimated cost: ${cr.estimated_cost.toFixed(2)}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        
-                        <div className="flex gap-2">
-                          {cr.status === 'draft' && (
-                            <button
-                              onClick={() => submitCR(cr.id)}
-                              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs"
-                            >
-                              Submit for Analysis
-                            </button>
-                          )}
-                          {cr.status === 'analyzed' && (
-                            <button
-                              onClick={() => approveCR(cr.id)}
-                              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-xs"
-                            >
-                              Approve & Process
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Approve SDS Button - Show only if not yet approved */}
-          {project.status !== 'sds_approved' && project.status !== 'build_in_progress' && (
-            <>
-              <button
-                onClick={approveSDS}
-                disabled={!canApproveSDS || approvingSDSLoading}
-                className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 ${
-                  canApproveSDS 
-                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700' 
-                    : 'bg-gray-600 cursor-not-allowed opacity-50'
-                }`}
-              >
-                {approvingSDSLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle className="w-5 h-5" />
-                    Approve SDS & Continue
-                  </>
-                )}
-              </button>
-              
-              {pendingCRs.length > 0 && (
-                <p className="text-xs text-yellow-400 text-center">
-                  <AlertCircle className="w-3 h-3 inline mr-1" />
-                  {pendingCRs.length} pending CR(s) must be resolved first
-                </p>
-              )}
-            </>
-          )}
-          
-          {/* Start BUILD Button - Show after SDS approval */}
-          {project.status === 'sds_approved' && (
+          {showApproveSDS && (
             <button
-              onClick={startBuild}
-              disabled={startingBuild}
-              className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600"
+              type="button"
+              onClick={approveSDS}
+              disabled={approvingSDS}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-brass text-ink font-mono text-[10px] tracking-cta uppercase hover:bg-brass-2 transition-colors disabled:opacity-50 flex-shrink-0"
             >
-              {startingBuild ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  <Play className="w-5 h-5" />
-                  Start BUILD Phase
-                </>
-              )}
+              {approvingSDS ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '✓'}
+              {t('Approve SDS', 'Approuver SDS')}
             </button>
           )}
-          
-          {/* BUILD in progress - Link to monitoring */}
-          {project.status === 'build_in_progress' && (
+          {showStartBuild && (
             <button
-              onClick={() => navigate(`/execution/${latestExecutionId}/build`)}
-              className="w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600"
+              type="button"
+              onClick={startBuild}
+              disabled={startingBuild}
+              className="inline-flex items-center gap-2 px-5 py-3 bg-brass text-ink font-mono text-[10px] tracking-cta uppercase hover:bg-brass-2 transition-colors disabled:opacity-50 flex-shrink-0"
             >
-              <Clock className="w-5 h-5" />
-              View BUILD Progress
+              {startingBuild ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '◗'}
+              {t('Begin BUILD', 'Démarrer BUILD')} →
             </button>
           )}
         </div>
+      )}
 
-        {/* Right Column: Chat with Sophie */}
-        <div className="lg:col-span-2 bg-[#1a2744] rounded-xl flex flex-col h-[600px]">
-          <div className="p-4 border-b border-gray-700 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center">
-              <span className="text-lg">S</span>
-            </div>
-            <div>
-              <h2 className="font-semibold">Chat with Sophie</h2>
-              <p className="text-xs text-gray-400">Project Manager • Ask anything about your SDS</p>
-            </div>
+      {/* Tabs */}
+      <StudioTabs
+        tabs={tabsList}
+        active={tab}
+        onChange={(id) => setTab(id as TabId)}
+        className="mb-8"
+      />
+
+      {/* Overview */}
+      {tab === 'overview' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProjectHealthCard
+            phase={phaseLabel(project.status, t)}
+            health="nominal"
+            nextMilestone={
+              showApproveSDS
+                ? t('Awaiting your approval', 'En attente de votre approbation')
+                : showStartBuild
+                ? t('BUILD ready to start', 'BUILD prêt à démarrer')
+                : null
+            }
+          />
+          <ProjectActivityFeed items={recentActivity} />
+        </div>
+      )}
+
+      {/* Deliverables */}
+      {tab === 'deliverables' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-[11px] text-bone-3">
+              {deliverables.length} {t('deliverable(s)', 'livrable(s)')}
+            </p>
+            <button
+              type="button"
+              onClick={snapshotSDS}
+              disabled={snapshotting}
+              className="inline-flex items-center gap-2 px-3 py-2 font-mono text-[10px] tracking-cta uppercase text-brass hover:text-bone transition-colors disabled:opacity-50"
+            >
+              {snapshotting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '◗'}
+              {t('Snapshot current SDS', 'Snapshot du SDS courant')}
+            </button>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {chatMessages.length === 0 && (
-              <div className="text-center text-gray-500 mt-8">
-                <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>Start a conversation with Sophie</p>
-                <p className="text-sm">Ask questions about your SDS, requirements, or request clarifications</p>
-              </div>
-            )}
-            
-            {chatMessages.map(msg => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] p-3 rounded-xl ${
-                  msg.role === 'user' 
-                    ? 'bg-cyan-600 text-white' 
-                    : 'bg-[#0d1829] text-gray-200'
-                }`}>
-                  <p className="whitespace-pre-wrap">{msg.message}</p>
-                  <p className="text-xs opacity-50 mt-1">
-                    {new Date(msg.created_at).toLocaleTimeString()}
-                  </p>
+          {deliverables.length === 0 ? (
+            <div className="bg-ink-2 border border-bone/10 p-12 text-center">
+              <p className="font-serif italic text-xl text-bone-2">
+                {t('No deliverables yet.', 'Pas encore de livrables.')}
+              </p>
+            </div>
+          ) : (
+            deliverables.map((d) => (
+              <DeliverableCard
+                key={d.id}
+                item={d}
+                onView={
+                  d.id === 'sds-html-preview'
+                    ? previewSDSHtml
+                    : undefined
+                }
+                onDownload={
+                  d.id === 'sds-html-preview'
+                    ? undefined
+                    : () => {
+                        const v = sdsVersions.find((sv) => `sds-${sv.id}` === d.id);
+                        if (v) downloadSDS(v.version_number);
+                      }
+                }
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Change requests */}
+      {tab === 'changes' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-[11px] text-bone-3">
+              {crs.length} {t('change request(s)', 'demande(s)')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCRModal(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 bg-brass text-ink font-mono text-[10px] tracking-cta uppercase hover:bg-brass-2 transition-colors"
+            >
+              + {t('New change request', 'Nouvelle demande')}
+            </button>
+          </div>
+
+          {formattedCRs.length === 0 ? (
+            <div className="bg-ink-2 border border-bone/10 p-12 text-center">
+              <p className="font-serif italic text-xl text-bone-2 mb-2">
+                {t('No change requests yet.', 'Pas encore de demandes.')}
+              </p>
+              <p className="font-mono text-[11px] text-bone-3">
+                {t(
+                  'Spotted something to refine? Open a request — Sophie will pick it up.',
+                  'Vous voulez affiner quelque chose ? Ouvrez une demande — Sophie la récupèrera.',
+                )}
+              </p>
+            </div>
+          ) : (
+            formattedCRs.map((c) => (
+              <ChangeRequestCard
+                key={c.id}
+                item={c}
+                onSubmit={() => submitCR(c.id)}
+                onApprove={() => approveCR(c.id)}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Chat */}
+      {tab === 'chat' && (
+        <div className="bg-ink-2 border border-bone/10">
+          <div className="p-5 border-b border-bone/10">
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-brass mb-1">
+              Sophie
+            </p>
+            <p className="font-serif italic text-lg text-bone">
+              {t('What would you like to discuss?', 'De quoi voulez-vous parler ?')}
+            </p>
+          </div>
+
+          <div className="max-h-[480px] overflow-y-auto p-5 space-y-4">
+            {chatMessages.length === 0 ? (
+              <p className="font-mono text-[12px] text-bone-3 italic text-center py-8">
+                {t('No messages yet — open the conversation.', 'Pas de messages — ouvrez la conversation.')}
+              </p>
+            ) : (
+              chatMessages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] px-4 py-3 ${
+                      m.role === 'user'
+                        ? 'bg-brass/15 border border-brass/30 text-bone'
+                        : 'bg-ink-3 border border-bone/10 text-bone-2'
+                    }`}
+                  >
+                    <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 mb-1.5">
+                      {m.role === 'user' ? t('You', 'Vous') : 'Sophie'}
+                    </p>
+                    <p className="font-mono text-[12px] leading-relaxed whitespace-pre-wrap">
+                      {m.message}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-            
-            {chatLoading && (
-              <div className="flex justify-start">
-                <div className="bg-[#0d1829] p-3 rounded-xl">
-                  <Loader2 className="w-5 h-5 animate-spin text-cyan-400" />
-                </div>
-              </div>
+              ))
             )}
-            
             <div ref={chatEndRef} />
           </div>
 
-          {/* Input */}
-          <div className="p-4 border-t border-gray-700">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Ask Sophie about your project..."
-                className="flex-1 bg-[#0d1829] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={chatLoading || !newMessage.trim()}
-                className="px-4 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-xl disabled:opacity-50"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* CR Modal */}
-      {showCRModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-[#1a2744] rounded-xl p-6 w-full max-w-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">New Change Request</h2>
-              <button onClick={() => setShowCRModal(false)}>
-                <X className="w-5 h-5 text-gray-400 hover:text-white" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Category</label>
-                <select
-                  value={newCR.category}
-                  onChange={(e) => setNewCR({ ...newCR, category: e.target.value })}
-                  className="w-full bg-[#0d1829] rounded-lg px-4 py-2 text-white"
-                >
-                  {CR_CATEGORIES.map(cat => (
-                    <option key={cat.value} value={cat.value}>
-                      {cat.icon} {cat.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Title</label>
-                <input
-                  type="text"
-                  value={newCR.title}
-                  onChange={(e) => setNewCR({ ...newCR, title: e.target.value })}
-                  placeholder="Brief description of the change"
-                  className="w-full bg-[#0d1829] rounded-lg px-4 py-2 text-white placeholder-gray-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Description</label>
-                <textarea
-                  value={newCR.description}
-                  onChange={(e) => setNewCR({ ...newCR, description: e.target.value })}
-                  placeholder="Explain the change in detail..."
-                  rows={4}
-                  className="w-full bg-[#0d1829] rounded-lg px-4 py-2 text-white placeholder-gray-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Priority</label>
-                <div className="flex gap-2">
-                  {['low', 'medium', 'high', 'critical'].map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setNewCR({ ...newCR, priority: p })}
-                      className={`px-3 py-1 rounded capitalize text-sm ${
-                        newCR.priority === p 
-                          ? 'bg-cyan-600' 
-                          : 'bg-[#0d1829] hover:bg-[#152238]'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowCRModal(false)}
-                className="flex-1 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={createChangeRequest}
-                disabled={!newCR.title || !newCR.description}
-                className="flex-1 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg disabled:opacity-50"
-              >
-                Create CR
-              </button>
-            </div>
+          <div className="p-5 border-t border-bone/10 flex items-end gap-3">
+            <textarea
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  sendChat();
+                }
+              }}
+              placeholder={t('Speak to Sophie…', 'Parlez à Sophie…')}
+              rows={2}
+              className="flex-1 bg-ink-3 border border-bone/10 px-4 py-3 font-sans text-[14px] text-bone placeholder:text-bone-4 focus:border-brass focus:outline-none resize-none"
+            />
+            <button
+              type="button"
+              onClick={sendChat}
+              disabled={!chatInput.trim() || chatPosting}
+              className="inline-flex items-center gap-2 px-4 py-3 bg-brass text-ink font-mono text-[10px] tracking-cta uppercase hover:bg-brass-2 transition-colors disabled:opacity-50"
+            >
+              {chatPosting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {t('Send', 'Envoyer')}
+            </button>
           </div>
         </div>
       )}
 
-      {/* Settings Modal */}
-      <ProjectSettingsModal
-        projectId={parseInt(projectId || '0')}
-        isOpen={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        onSaved={() => {
-          setShowSettingsModal(false);
-          loadProjectData();
-        }}
+      {/* Modals */}
+      <ChangeRequestModal
+        isOpen={showCRModal}
+        onClose={() => setShowCRModal(false)}
+        onSubmit={createCR}
       />
-    </div>
+      {showSettings && project && (
+        <ProjectSettingsModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          projectId={project.id}
+          onSaved={() => {
+            // Refetch project data after save
+            api.get(`/api/projects/${project.id}`)
+              .then((p) => setProject(p))
+              .catch(() => { /* keep current */ });
+          }}
+        />
+      )}
+
+      {/* Bottom unobtrusive return link */}
+      <div className="mt-12 pt-6 border-t border-bone/10">
+        <button
+          type="button"
+          onClick={() => navigate('/projects')}
+          className="inline-flex items-center gap-2 font-mono text-[10px] tracking-eyebrow uppercase text-bone-3 hover:text-brass transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          {t('Back to all productions', 'Retour à toutes les productions')}
+        </button>
+      </div>
+    </section>
   );
 }

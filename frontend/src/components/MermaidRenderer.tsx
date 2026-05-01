@@ -10,13 +10,13 @@ mermaid.initialize({
   startOnLoad: false,
   theme: 'dark',
   themeVariables: {
-    primaryColor: '#2563eb',
-    primaryTextColor: '#e2e8f0',
-    primaryBorderColor: '#475569',
-    lineColor: '#64748b',
-    secondaryColor: '#1e293b',
-    tertiaryColor: '#0f172a',
-    fontFamily: 'ui-monospace, monospace',
+    primaryColor: '#1C1C1F',
+    primaryTextColor: '#E5E1D8',
+    primaryBorderColor: '#C8A97E',
+    lineColor: '#B5B0A4',
+    secondaryColor: '#141416',
+    tertiaryColor: '#0A0A0B',
+    fontFamily: '"Cormorant Garamond", Georgia, serif',
     fontSize: '14px',
   },
   securityLevel: 'strict',
@@ -77,12 +77,12 @@ function MermaidDiagram({ code }: { code: string }) {
 
   if (error) {
     return (
-      <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 my-3">
-        <p className="text-red-400 text-sm font-medium mb-1">Diagram render error</p>
-        <pre className="text-xs text-red-300 whitespace-pre-wrap">{error}</pre>
+      <div className="bg-error/10 border border-error/30 p-4 my-3">
+        <p className="text-error text-sm font-mono mb-1">Diagram render error</p>
+        <pre className="text-xs text-error/80 whitespace-pre-wrap">{error}</pre>
         <details className="mt-2">
-          <summary className="text-xs text-slate-500 cursor-pointer">Show source</summary>
-          <pre className="text-xs text-slate-400 mt-1 whitespace-pre-wrap">{code}</pre>
+          <summary className="text-xs text-bone-4 cursor-pointer">Show source</summary>
+          <pre className="text-xs text-bone-3 mt-1 whitespace-pre-wrap">{code}</pre>
         </details>
       </div>
     );
@@ -91,36 +91,38 @@ function MermaidDiagram({ code }: { code: string }) {
   if (!svg) {
     return (
       <div className="flex items-center justify-center py-6">
-        <div className="w-5 h-5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-        <span className="text-slate-400 ml-2 text-sm">Rendering diagram...</span>
+        <div className="w-5 h-5 border-2 border-brass border-t-transparent rounded-full animate-spin" />
+        <span className="text-bone-3 ml-2 text-sm font-mono text-[11px] tracking-eyebrow uppercase">
+          Rendering diagram…
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="my-3 bg-slate-900/50 border border-slate-700 rounded-xl overflow-hidden">
+    <div className="my-3 bg-ink border border-bone/10 overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-end gap-1 px-3 py-2 border-b border-slate-700/50 bg-slate-800/30">
+      <div className="flex items-center justify-end gap-1 px-3 py-2 border-b border-bone/10 bg-ink-2">
         <button
           onClick={handleZoomOut}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+          className="p-1.5 text-bone-4 hover:text-bone hover:bg-ink-3 transition-colors"
           title="Zoom out"
         >
           <ZoomOut className="w-4 h-4" />
         </button>
-        <span className="text-xs text-slate-500 min-w-[3rem] text-center">
+        <span className="text-[11px] font-mono text-bone-4 min-w-[3rem] text-center">
           {Math.round(zoom * 100)}%
         </span>
         <button
           onClick={handleZoomIn}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+          className="p-1.5 text-bone-4 hover:text-bone hover:bg-ink-3 transition-colors"
           title="Zoom in"
         >
           <ZoomIn className="w-4 h-4" />
         </button>
         <button
           onClick={handleReset}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition-colors"
+          className="p-1.5 text-bone-4 hover:text-bone hover:bg-ink-3 transition-colors"
           title="Reset zoom"
         >
           <Maximize2 className="w-4 h-4" />
@@ -150,7 +152,7 @@ export default function MermaidRenderer({ content }: MermaidRendererProps) {
         ) : (
           <pre
             key={i}
-            className="text-sm text-slate-300 whitespace-pre-wrap break-words font-mono"
+            className="text-sm text-bone-2 whitespace-pre-wrap break-words font-mono"
           >
             {block.content}
           </pre>

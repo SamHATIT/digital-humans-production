@@ -1,59 +1,62 @@
 /**
- * Roadmap Planning Page - Timeline-based roadmap visualization
+ * Roadmap Planning Page — Timeline visualization (legacy).
+ * Page non routée actuellement, refonte prévue en A5.3.
  */
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import pmService from '../../services/pmService';
+import type { Roadmap } from '../../services/pmService';
 
 export default function RoadmapPlanning() {
-  const { projectId } = useParams();
+  const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
 
-  const [roadmap, setRoadmap] = useState(null);
+  const [roadmap, setRoadmap] = useState<Roadmap | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
 
   useEffect(() => {
-    loadRoadmap();
+    if (!projectId) return;
+    let cancelled = false;
+    setLoading(true);
+    pmService
+      .getRoadmap(projectId)
+      .then((response) => {
+        if (!cancelled) setRoadmap(response.roadmap ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) window.alert('Failed to load roadmap');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]);
 
-  const loadRoadmap = async () => {
-    try {
-      setLoading(true);
-      const response = await pmService.getRoadmap(projectId);
-      setRoadmap(response.roadmap);
-    } catch (error) {
-      console.error('Error loading roadmap:', error);
-      alert('Failed to load roadmap');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleValidateRoadmap = async () => {
+    if (!projectId) return;
+    setValidating(true);
     try {
-      setValidating(true);
-      // In production, this would trigger the execution start
-      alert('Roadmap validated! Execution can now be launched.');
+      window.alert('Roadmap validated! Execution can now be launched.');
       navigate(`/projects/${projectId}/execution`);
-    } catch (error) {
-      console.error('Error validating roadmap:', error);
-      alert('Failed to validate roadmap');
+    } catch {
+      window.alert('Failed to validate roadmap');
     } finally {
       setValidating(false);
     }
   };
 
-  const getProgressPercentage = (phaseIndex, totalPhases) => {
-    return ((phaseIndex + 1) / totalPhases) * 100;
-  };
+  const getProgressPercentage = (phaseIndex: number, totalPhases: number) =>
+    ((phaseIndex + 1) / totalPhases) * 100;
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pm-primary mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading roadmap...</p>
         </div>
       </div>
@@ -66,8 +69,8 @@ export default function RoadmapPlanning() {
         <div className="text-center">
           <p className="text-gray-600">No roadmap available</p>
           <button
-            onClick={() => navigate(`/projects/${projectId}/user-stories`)}
-            className="mt-4 px-4 py-2 bg-pm-primary text-white rounded-lg hover:bg-pm-secondary"
+            onClick={() => projectId && navigate(`/projects/${projectId}/user-stories`)}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Go Back
           </button>
@@ -76,32 +79,30 @@ export default function RoadmapPlanning() {
     );
   }
 
+  const phases = roadmap.phases ?? [];
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4">
-        {/* Header */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Implementation Roadmap
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">Implementation Roadmap</h1>
               <p className="text-gray-600 mt-2">
-                Timeline: {roadmap.total_duration_weeks} weeks |{' '}
-                {roadmap.phases?.length || 0} phases
+                Timeline: {roadmap.total_duration_weeks} weeks | {phases.length} phases
               </p>
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => navigate(`/projects/${projectId}/user-stories`)}
+                onClick={() => projectId && navigate(`/projects/${projectId}/user-stories`)}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 ← Back to Stories
               </button>
               <button
-                onClick={handleValidateRoadmap}
+                onClick={() => void handleValidateRoadmap()}
                 disabled={validating}
-                className="px-6 py-2 bg-pm-success text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               >
                 {validating ? 'Validating...' : '✅ Validate & Launch Execution'}
               </button>
@@ -109,9 +110,8 @@ export default function RoadmapPlanning() {
           </div>
         </div>
 
-        {/* Timeline */}
         <div className="space-y-6">
-          {roadmap.phases?.map((phase, index) => (
+          {phases.map((phase, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, x: -20 }}
@@ -119,19 +119,14 @@ export default function RoadmapPlanning() {
               transition={{ delay: index * 0.1 }}
               className="bg-white rounded-lg shadow-sm p-6"
             >
-              {/* Phase Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center">
-                  <div className="w-10 h-10 bg-pm-primary text-white rounded-full flex items-center justify-center font-bold mr-4">
+                  <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold mr-4">
                     {index + 1}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {phase.name}
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      Duration: {phase.duration_weeks} weeks
-                    </p>
+                    <h2 className="text-xl font-bold text-gray-900">{phase.name}</h2>
+                    <p className="text-sm text-gray-600">Duration: {phase.duration_weeks} weeks</p>
                   </div>
                 </div>
                 <div className="text-right">
@@ -141,72 +136,48 @@ export default function RoadmapPlanning() {
                 </div>
               </div>
 
-              {/* Progress Bar */}
               <div className="mb-4">
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{
-                      width: `${getProgressPercentage(
-                        index,
-                        roadmap.phases.length
-                      )}%`,
-                    }}
+                    animate={{ width: `${getProgressPercentage(index, phases.length)}%` }}
                     transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="bg-pm-primary h-2 rounded-full"
+                    className="bg-blue-600 h-2 rounded-full"
+                    style={{ width: `${getProgressPercentage(index, phases.length)}%` }}
                   />
                 </div>
               </div>
 
-              {/* Phase Details */}
               <div className="grid grid-cols-3 gap-6">
-                {/* User Stories */}
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">
-                    User Stories
-                  </h3>
+                  <h3 className="font-semibold text-gray-700 mb-2">User Stories</h3>
                   <div className="space-y-1">
                     {phase.user_stories?.map((storyId, idx) => (
-                      <div
-                        key={idx}
-                        className="text-sm bg-gray-50 px-3 py-1 rounded"
-                      >
+                      <div key={idx} className="text-sm bg-gray-50 px-3 py-1 rounded">
                         {storyId}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Deliverables */}
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">
-                    Deliverables
-                  </h3>
+                  <h3 className="font-semibold text-gray-700 mb-2">Deliverables</h3>
                   <ul className="space-y-1">
                     {phase.deliverables?.map((deliverable, idx) => (
-                      <li
-                        key={idx}
-                        className="text-sm text-gray-600 flex items-start"
-                      >
-                        <span className="text-pm-success mr-2">📦</span>
+                      <li key={idx} className="text-sm text-gray-600 flex items-start">
+                        <span className="text-green-600 mr-2">📦</span>
                         <span>{deliverable}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
 
-                {/* Success Criteria */}
                 <div>
-                  <h3 className="font-semibold text-gray-700 mb-2">
-                    Success Criteria
-                  </h3>
+                  <h3 className="font-semibold text-gray-700 mb-2">Success Criteria</h3>
                   <ul className="space-y-1">
                     {phase.success_criteria?.map((criteria, idx) => (
-                      <li
-                        key={idx}
-                        className="text-sm text-gray-600 flex items-start"
-                      >
-                        <span className="text-pm-success mr-2">✓</span>
+                      <li key={idx} className="text-sm text-gray-600 flex items-start">
+                        <span className="text-green-600 mr-2">✓</span>
                         <span>{criteria}</span>
                       </li>
                     ))}
@@ -217,7 +188,6 @@ export default function RoadmapPlanning() {
           ))}
         </div>
 
-        {/* Summary */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -229,22 +199,15 @@ export default function RoadmapPlanning() {
               <span className="text-2xl">🚀</span>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-900">
-                Ready to Launch
-              </h3>
+              <h3 className="text-sm font-medium text-blue-900">Ready to Launch</h3>
               <div className="mt-2 text-sm text-blue-700">
-                <p>
-                  Once you validate this roadmap, the system will:
-                </p>
+                <p>Once you validate this roadmap, the system will:</p>
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li>Create an execution plan for all agents</li>
                   <li>Generate all technical specifications</li>
                   <li>Implement code and configurations</li>
                   <li>Produce training materials</li>
-                  <li>
-                    Generate final deliverables (Functional Specs, Technical
-                    Specs, etc.)
-                  </li>
+                  <li>Generate final deliverables (Functional Specs, Technical Specs, etc.)</li>
                 </ul>
               </div>
             </div>
