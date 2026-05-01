@@ -82,6 +82,8 @@ class LLMRequest:
     project_id: Optional[int] = None
     execution_id: Optional[int] = None
     user_id: Optional[int] = None                   # Phase 3.1 : credit owner. None = skip credit hook.
+    subscription_tier: Optional[str] = None         # Phase 3.4 : free/pro/team/enterprise. None = ignore tier_overrides.
+    cache_system: bool = False                       # Phase 3.5 : Anthropic prompt caching on system prompt
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -98,7 +100,31 @@ class LLMResponse:
     error: Optional[str] = None
     stop_reason: Optional[str] = None
     continuations: int = 0
+    cache_read_input_tokens: int = 0                # Phase 3.5 : tokens cache HIT (90% off)
+    cache_creation_input_tokens: int = 0           # Phase 3.5 : tokens cache WRITE (+25%, first call)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+_CACHE_ELIGIBLE_AGENTS = frozenset({"marcus", "architect", "solution_architect"})
+
+
+def _should_cache_system(agent_type: Optional[str], subscription_tier: Optional[str]) -> bool:
+    """Determine if Anthropic prompt caching should be auto-enabled for this call.
+
+    Activated for architects (Marcus & co.) on paying tiers — they have long
+    system prompts (Salesforce reference design, BR/UC context) that stay stable
+    across the ~7 calls per SDS, giving ~90% input token discount on cache hits.
+
+    Free tier doesn't run Marcus (chat only with Sophie/Olivia), so caching
+    eligibility is moot there — kept conservative (require non-free).
+    """
+    if not agent_type:
+        return False
+    normalized = agent_type.lower().replace("-", "_").replace(" ", "_")
+    if normalized not in _CACHE_ELIGIBLE_AGENTS:
+        return False
+    tier = (subscription_tier or "").lower().strip()
+    return tier in ("pro", "team", "enterprise")
 
 
 class LLMRouterService:
@@ -311,6 +337,29 @@ class LLMRouterService:
             raise RuntimeError(
                 f"Profile '{self.profile}' is missing tier '{tier.value}' mapping"
             )
+
+        # Tier-based override (Phase 3.4) — appliqué uniquement quand
+        # subscription_tier est passé explicitement dans la request.
+        # Permet par ex. de router les orchestrators non-Marcus en Sonnet
+        # pour le tier Pro 49€, tout en gardant Marcus en Opus.
+        tier_overrides = profile_cfg.get("tier_overrides") or {}
+        sub_tier = (request.subscription_tier or "").lower().strip()
+        if sub_tier and sub_tier in tier_overrides:
+            override = tier_overrides[sub_tier] or {}
+            agent_normalized = (request.agent_type or "").lower().replace("-", "_").replace(" ", "_")
+            keep_list = [a.lower() for a in (override.get("agents_keep_orchestrator") or [])]
+
+            if tier == AgentTier.ORCHESTRATOR and agent_normalized not in keep_list:
+                forced = override.get("orchestrator_default")
+                if forced:
+                    logger.debug(
+                        "tier_override: tier=%s agent=%s → forcing %s (was %s)",
+                        sub_tier, agent_normalized, forced, provider,
+                    )
+                    return forced
+            # Worker tier : pas d'override actuellement (Sonnet partout sur Pro).
+            # Ajout futur possible : override.get("worker_default")
+
         return provider
 
     def _fallback_for(self, provider_str: str) -> Optional[str]:
@@ -400,10 +449,34 @@ class LLMRouterService:
                 success=False, error="Anthropic client not initialized",
             )
 
+        # Phase 3.5 : prompt caching — éligible si cache_system=True ET system_prompt
+        # assez long (~1024 tokens min côté Anthropic, ~4096 chars en pratique).
+        # Anthropic refuse silencieusement le cache_control si trop court → on filtre côté client.
+        cache_eligible = (
+            request.cache_system
+            and request.system_prompt is not None
+            and len(request.system_prompt) >= 4096
+        )
+        if request.cache_system and not cache_eligible:
+            logger.debug(
+                "cache_system requested but skipped: system_prompt too short "
+                "(%d chars, need >=4096) or absent",
+                len(request.system_prompt or ""),
+            )
+
         def _build_kwargs(messages: List[Dict[str, str]]) -> Dict[str, Any]:
             kw = {"model": model_id, "max_tokens": request.max_tokens, "messages": messages}
             if request.system_prompt:
-                kw["system"] = request.system_prompt
+                if cache_eligible:
+                    # Format multi-block obligatoire pour cache_control. Un seul bloc
+                    # cached marqué ephemeral (TTL 5 min côté Anthropic).
+                    kw["system"] = [{
+                        "type": "text",
+                        "text": request.system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }]
+                else:
+                    kw["system"] = request.system_prompt
             # Opus 4.7+ : sampling parameters (temperature, top_p, top_k) sont déprécies.
             # Envoyer une de ces valeurs retourne 400. Le code n'utilise ni top_p ni top_k
             # actuellement, donc seul temperature est filtre ici. Si top_p/top_k sont
@@ -427,6 +500,9 @@ class LLMRouterService:
             tokens_in = response.usage.input_tokens
             tokens_out = response.usage.output_tokens
             stop_reason = response.stop_reason
+            # Phase 3.5 : capture cache stats si dispo (présent uniquement si cache utilisé)
+            cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
+            cache_create = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
 
             # CRIT-02 port : auto-continue if truncated
             continuations = 0
@@ -448,6 +524,8 @@ class LLMRouterService:
                     content += "\n" + cont_text
                     tokens_in += cont_resp.usage.input_tokens
                     tokens_out += cont_resp.usage.output_tokens
+                    cache_read += getattr(cont_resp.usage, "cache_read_input_tokens", 0) or 0
+                    cache_create += getattr(cont_resp.usage, "cache_creation_input_tokens", 0) or 0
                 except Exception as cont_err:
                     logger.error("Continuation %d failed: %s", continuations, cont_err)
                     break
@@ -460,6 +538,8 @@ class LLMRouterService:
                 tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
                 latency_ms=latency_ms, success=True, stop_reason=stop_reason,
                 continuations=continuations,
+                cache_read_input_tokens=cache_read,
+                cache_creation_input_tokens=cache_create,
             )
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
@@ -730,12 +810,18 @@ class LLMRouterService:
         **kwargs,
     ) -> Dict[str, Any]:
         """Sync convenience method matching the legacy LLMService interface."""
+        sub_tier = kwargs.get("subscription_tier")
+        cache_system = kwargs.get("cache_system")
+        if cache_system is None:
+            cache_system = _should_cache_system(agent_type, sub_tier)
         request = LLMRequest(
             prompt=prompt, agent_type=agent_type, system_prompt=system_prompt,
             max_tokens=max_tokens, temperature=temperature,
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            subscription_tier=sub_tier,
+            cache_system=bool(cache_system),
         )
         response = self.complete_sync(request)
         return _response_to_dict(response)
@@ -750,12 +836,18 @@ class LLMRouterService:
         **kwargs,
     ) -> Dict[str, Any]:
         """Async convenience method matching the legacy LLMService interface."""
+        sub_tier = kwargs.get("subscription_tier")
+        cache_system = kwargs.get("cache_system")
+        if cache_system is None:
+            cache_system = _should_cache_system(agent_type, sub_tier)
         request = LLMRequest(
             prompt=prompt, agent_type=agent_type, system_prompt=system_prompt,
             max_tokens=max_tokens, temperature=temperature,
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            subscription_tier=sub_tier,
+            cache_system=bool(cache_system),
         )
         response = await self.complete(request)
         return _response_to_dict(response)

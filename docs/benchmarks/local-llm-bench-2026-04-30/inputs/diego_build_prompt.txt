@@ -1,0 +1,357 @@
+# 💻 APEX CODE GENERATION - BUILD MODE
+
+You are Diego, generating REAL, DEPLOYABLE Apex code for Salesforce.
+
+## TASK TO IMPLEMENT
+**Task ID:** TASK-BUILD-001
+**Task Name:** Vehicle Status Trigger Handler
+**Description:** Implement an Apex trigger handler for the Vehicle__c custom object that:
+1. On insert/update: validates that Status__c follows the allowed state machine (Available → Rented → InMaintenance → Available; Available → Retired)
+2. On status change to 'InMaintenance', creates a Maintenance__c record automatically with default fields
+3. On status change to 'Rented', verifies that an active RentalContract__c exists for this vehicle
+4. Use trigger handler pattern (separate handler class from trigger)
+5. Bulk-safe: handle up to 200 records in a single transaction
+
+
+## ARCHITECTURE CONTEXT
+{
+  "data_model": {
+    "standard_objects": [
+      {
+        "api_name": "Account",
+        "label": "Account (Client Company)",
+        "purpose": "Represents client companies that rent vehicles. Used as the primary client entity for rental contracts and invoicing, consolidating BR-003 and BR-005 client concepts.",
+        "custom_fields": [
+          {
+            "api_name": "Client_Number__c",
+            "type": "Text(20)",
+            "required": false,
+            "description": "Auto-generated unique client identifier (e.g., CLI-00001). Populated by Flow on record creation.",
+            "values": []
+          },
+          {
+            "api_name": "National_ID__c",
+            "type": "Text(30)",
+            "required": false,
+            "description": "National identification number for individual client accounts. Unique external ID.",
+            "values": []
+          },
+          {
+            "api_name": "Driver_License_Number__c",
+            "type": "Text(30)",
+            "required": false,
+            "description": "Driver license number for individual client accounts.",
+            "values": []
+          },
+          {
+            "api_name": "Date_of_Birth__c",
+            "type": "Date",
+            "required": false,
+            "description": "Date of birth for individual client accounts.",
+            "values": []
+          },
+          {
+            "api_name": "Client_Type__c",
+            "type": "Picklist",
+            "required": true,
+            "description": "Distinguishes between company and individual clients.",
+            "values": [
+              "Company",
+              "Individual"
+            ]
+          }
+        ],
+        "record_types": [
+          {
+            "name": "Company_Client",
+            "description": "Business/enterprise client renting fleet vehicles"
+          },
+          {
+            "name": "Individual_Client",
+            "description": "Individual person renting vehicles, with identification fields"
+          }
+        ]
+      },
+      {
+        "api_name": "Contact",
+        "label": "Contact (Driver/Contact Person)",
+        "purpose": "Represents drivers and contact persons associated with client accounts. Used for driver-vehicle assignments and incident reporting.",
+        "custom_fields": [
+          {
+            "api_name": "Is_Driver__c",
+            "type": "Checkbox",
+            "required": false,
+            "description": "Indicates if this contact is a driver eligible for vehicle assignments.",
+            "values": []
+          },
+          {
+            "api_name": "Driver_License_Number__c",
+            "type": "Text(30)",
+            "required": false,
+            "description": "Driver license number for driver contacts.",
+            "values": []
+          },
+          {
+            "api_name": "Driver_License_Expiry__c",
+            "type": "Date",
+            "required": false,
+            "description": "Expiration date of driver license.",
+            "values": []
+          }
+        ],
+        "record_types": [
+          {
+            "name": "Driver",
+            "description": "Contact who is a driver assigned to vehicles"
+          },
+          {
+            "name": "Contact_Person",
+            "description": "General contact person for a client account"
+          }
+        ]
+      },
+      {
+        "api_name": "Task",
+        "label": "Task",
+        "purpose": "Standard task object used for maintenance reminders, inspection alerts, incident follow-ups, and contract expiration action items.",
+        "custom_fields": [],
+        "record_types": []
+      },
+      {
+        "api_name": "ContentVersion",
+        "label": "ContentVersion",
+        "purpose": "Stores file uploads including incident photos, odometer photos, and problem report attachments.",
+        "custom_fields": [],
+        "record_types": []
+      },
+      {
+        "api_name": "ContentDocumentLink",
+        "label": "ContentDocumentLink",
+        "purpose": "Links uploaded files (ContentVersion) to related records such as Incident_Report__c and Problem_Report__c.",
+        "custom_fields": [],
+        "record_types": []
+      }
+    ],
+    "custom_objects": [
+      {
+        "api_name": "Vehicle__c",
+        "label": "Vehicle",
+        "purpose": "Central entity representing each vehicle in the fleet. Tracks vehicle details, status, mileage, maintenance dates, and inspection information. Referenced by nearly all business requirements.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Brand__c",
+            "type": "Text(100)",
+            "required": true,
+            "description": "Vehicle manufacturer/brand (e.g., Renault, Peugeot)"
+          },
+          {
+            "api_name": "Model__c",
+            "type": "Text(100)",
+            "required": true,
+            "description": "Vehicle model name"
+          },
+          {
+            "api_name": "Registration_Number__c",
+            "type": "Text(20)",
+            "required": true,
+            "description": "Unique vehicle registration/license plate number. External ID with unique constraint."
+          },
+          {
+            "api_name": "Year__c",
+            "type": "Number(4,0)",
+            "required": false,
+            "description": "Manufacturing year of the vehicle"
+          },
+          {
+            "api_name": "Mileage__c",
+            "type": "Number(10,0)",
+            "required": false,
+            "description": "Current odometer reading in kilometers. Updated by mileage readings and maintenance activities."
+          },
+          {
+            "api_name": "Condition_Status__c",
+            "type": "Picklist",
+            "required": true,
+            "description": "Current operational status of the vehicle",
+            "values": [
+              "Available",
+              "Rented",
+              "In Maintenance",
+              "Out of Service"
+            ]
+          },
+          {
+            "api_name": "Status_Last_Changed__c",
+            "type": "DateTime",
+            "required": false,
+            "description": "Timestamp of the last Condition_Status__c change. Auto-populated by Flow."
+          },
+          {
+            "api_name": "Last_Oil_Change_Date__c",
+            "type": "Date",
+            "required": false,
+            "description": "Date of the most recent oil change maintenance activity"
+          },
+          {
+            "api_name": "Last_Technical_Inspection_Date__c",
+            "type": "Date",
+            "required": false,
+            "description": "Date of the most recent technical inspection (controle technique)"
+          },
+          {
+            "api_name": "Last_Inspection_Date__c",
+            "type": "Date",
+            "required": false,
+            "description": "Alias/same as Last_Technical_Inspection_Date__c for BR-008 compatibility"
+          },
+          {
+            "api_name": "Inspection_Interval_Months__c",
+            "type": "Number(3,0)",
+            "required": false,
+            "description": "Number of months between required technical inspections. Defaults to 24 if blank."
+          },
+          {
+            "api_name": "Next_Inspection_Due_Date__c",
+            "type": "Formula(Date)",
+            "required": false,
+            "description": "Formula: ADDMONTHS(Last_Technical_Inspection_Date__c, IF(ISBLANK(Inspection_Interval_Months__c), 24, Inspection_Interval_Months__c))"
+          },
+          {
+            "api_name": "Inspection_Alert_Status__c",
+            "type": "Picklist",
+            "required": false,
+            "description": "Indicates if an inspection alert has been generated",
+            "values": [
+              "None",
+              "Alert Generated",
+              "Overdue"
+            ]
+          },
+          {
+            "api_name": "Last_Mileage_Date__c",
+            "type": "Date",
+            "required": false,
+            "description": "Date of the most recent mileage re
+
+## VALIDATION CRITERIA
+- Apex code must be deployable as-is (no missing imports, no undefined types)
+- Use AuraHandledException for user-facing errors
+- Include @TestVisible annotations where appropriate
+- Trigger should be ONE LINE delegating to handler
+- Handler class should expose static methods for each event (beforeInsert, beforeUpdate, afterUpdate)
+- All SOQL inside handler must be bulk-safe (no queries inside loops)
+
+
+## ⚠️ CRITICAL RULES - MUST FOLLOW
+
+### RULE 1: NO EXTERNAL DEPENDENCIES
+- DO NOT create or reference custom Exception classes (like SharingException)
+- Use standard Salesforce exceptions: AuraHandledException, DMLException, etc.
+- All classes you reference MUST be included in your output OR be standard Salesforce classes
+
+### RULE 2: SELF-CONTAINED CODE
+- Every class you use must either:
+  a) Be a standard Salesforce class (System.*, Schema.*, Database.*, etc.)
+  b) Be included in your output files
+- If you need a helper class, CREATE IT in the output
+
+### RULE 3: STANDARD EXCEPTIONS TO USE
+Instead of custom exceptions, use:
+- `AuraHandledException` - For LWC/Aura errors with user-friendly messages
+- `System.QueryException` - For SOQL issues
+- `System.DmlException` - For DML issues
+- `System.JSONException` - For JSON parsing issues
+- `IllegalArgumentException` - For invalid parameters
+
+### RULE 4: OUTPUT FORMAT
+For EACH file, use this EXACT format:
+
+```apex
+// FILE: force-app/main/default/classes/ClassName.cls
+public class ClassName {
+    // Implementation
+}
+```
+
+```xml
+// FILE: force-app/main/default/classes/ClassName.cls-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <status>Active</status>
+</ApexClass>
+```
+
+### RULE 5: APEX BEST PRACTICES
+1. **Bulkification**: Use List<SObject>, Map<Id, SObject>
+2. **No SOQL/DML in loops**: Query before, DML after
+3. **Security**: WITH SECURITY_ENFORCED or isAccessible checks
+4. **Error Handling**: Try-catch with AuraHandledException for user messages
+5. **No hardcoded IDs**: Use Custom Metadata or Custom Settings
+
+### RULE 5b: SOQL CLAUSE ORDER (CRITICAL!)
+⚠️ SOQL clauses MUST be in THIS EXACT ORDER:
+1. SELECT
+2. FROM
+3. WHERE (optional)
+4. WITH SECURITY_ENFORCED (MUST be BEFORE GROUP BY!)
+5. GROUP BY (optional)
+6. HAVING (optional)
+7. ORDER BY (optional)
+8. LIMIT (optional)
+
+❌ WRONG (will cause "Unexpected token WITH" error):
+```
+[SELECT AccountId, COUNT(Id) cnt FROM Case WHERE Status = 'Open' GROUP BY AccountId WITH SECURITY_ENFORCED]
+```
+
+✅ CORRECT:
+```
+[SELECT AccountId, COUNT(Id) cnt FROM Case WHERE Status = 'Open' WITH SECURITY_ENFORCED GROUP BY AccountId]
+```
+
+### RULE 6: TEST CLASS REQUIREMENTS
+- Include @isTest annotation
+- Use @testSetup for test data
+- Aim for 85%+ code coverage
+- Test positive, negative, and bulk scenarios
+
+## EXAMPLE: CORRECT ERROR HANDLING
+```apex
+public class MyService {
+    public static void doSomething(List<Id> recordIds) {
+        if (recordIds == null || recordIds.isEmpty()) {
+            throw new AuraHandledException('No records provided');
+        }
+        try {
+            // Business logic
+        } catch (DmlException e) {
+            throw new AuraHandledException('Save failed: ' + e.getMessage());
+        }
+    }
+}
+```
+
+## ⚠️ CRITICAL: COMPLETE CODE ONLY
+- Generate COMPLETE, FULLY IMPLEMENTED code
+- DO NOT truncate methods or leave "// TODO" comments
+- Every method must have full implementation
+- If code is too long, prioritize core functionality but COMPLETE it
+
+## ⚠️ COMPLETENESS CHECKLIST - VERIFY BEFORE SUBMITTING
+Before generating, ensure:
+□ All classes compile independently (no missing dependencies)
+□ All methods have complete implementations (not just signatures)
+□ All referenced classes are either standard SF classes OR included in output
+□ Use AuraHandledException for errors (not custom exception classes)
+□ Test class covers all methods with @isTest annotation
+□ All SOQL queries use WITH SECURITY_ENFORCED
+□ Meta XML files included for each class
+
+$correction_context
+$rag_section
+$solution_design_section
+$gap_context_section
+
+## GENERATE COMPLETE, DEPLOYABLE CODE NOW:

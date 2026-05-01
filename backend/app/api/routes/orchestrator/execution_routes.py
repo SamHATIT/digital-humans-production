@@ -271,6 +271,10 @@ async def stream_execution_progress(
         raise HTTPException(status_code=404, detail="Execution not found")
 
     # Try notifications, fallback to polling
+    # Pre-initialize to satisfy static analysis (ruff F823) — both branches of
+    # the try/except below set these, but ruff doesn't infer that.
+    use_notifications: bool = False
+    notification_service = None
     try:
         from app.services.notification_service import get_notification_service
 
@@ -278,15 +282,14 @@ async def stream_execution_progress(
         use_notifications = True
     except Exception as e:
         logger.debug(f"Notifications unavailable, using polling: {e}")
-        use_notifications = False
-        notification_service = None
+        # use_notifications and notification_service already pre-set above
 
     async def event_generator():
         last_status = None
         last_progress = -1
         max_duration = 600
         start_time = asyncio.get_event_loop().time()
-        poll_interval = 3 if use_notifications else 2
+        poll_interval = 3 if use_notifications else 2  # noqa: F823 — pre-initialized at function entry, ruff false positive on closure
 
         def build_progress_data():
             db.refresh(execution)

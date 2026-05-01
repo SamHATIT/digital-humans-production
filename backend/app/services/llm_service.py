@@ -15,9 +15,58 @@ Symbols publics conservés pour backward compatibility :
 
 import logging
 from enum import Enum
+from functools import lru_cache
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Tier resolution helpers (Phase 3.4 — tier-based LLM routing)
+# ---------------------------------------------------------------------------
+# Cached by execution_id : un SDS = ~7 LLM calls Marcus, ~5 Olivia, etc. On
+# ne veut pas requêter DB à chaque appel. Dans une exécution donnée, le tier
+# du user est figé (changement Stripe ne s'applique qu'aux runs suivants).
+
+@lru_cache(maxsize=512)
+def _resolve_tier_for_execution(execution_id: int) -> Optional[str]:
+    """Look up subscription_tier from execution_id → project → user.
+
+    Returns the tier string (free/pro/team/enterprise) or None on any error
+    (lookup failure, missing user, etc.). None means "no tier-based override
+    will be applied" — equivalent to pre-Phase 3.4 behavior.
+    """
+    if not execution_id:
+        return None
+    try:
+        from app.database import SessionLocal
+        from app.models.execution import Execution
+        from app.models.project import Project
+        from app.models.user import User
+
+        db = SessionLocal()
+        try:
+            execution = db.query(Execution).filter(Execution.id == execution_id).first()
+            if not execution or not execution.project_id:
+                return None
+            project = db.query(Project).filter(Project.id == execution.project_id).first()
+            if not project or not project.user_id:
+                return None
+            user = db.query(User).filter(User.id == project.user_id).first()
+            if not user:
+                return None
+            tier = (user.subscription_tier or "free").lower().strip()
+            return tier
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("Tier resolution failed for execution %s: %s", execution_id, e)
+        return None
+
+
+def invalidate_tier_cache(execution_id: Optional[int] = None) -> None:
+    """Invalidate cached tier(s). Called by Stripe webhook on subscription change."""
+    _resolve_tier_for_execution.cache_clear()
 
 
 class LLMProvider(str, Enum):
@@ -106,6 +155,14 @@ def generate_llm_response(
         "user_prompt_preview": prompt[:500],
     })
 
+    # Auto-resolve subscription_tier from execution_id if not explicitly passed
+    # (Phase 3.4 — tier-based LLM routing, cached per execution).
+    if "subscription_tier" not in clean_kwargs and execution_id:
+        resolved_tier = _resolve_tier_for_execution(execution_id)
+        if resolved_tier:
+            clean_kwargs["subscription_tier"] = resolved_tier
+            logger.debug("Resolved tier=%s for execution=%s", resolved_tier, execution_id)
+
     try:
         response = router.generate(
             prompt=prompt,
@@ -113,7 +170,7 @@ def generate_llm_response(
             system_prompt=system_prompt,
             max_tokens=clean_kwargs.pop("max_tokens", 16000),
             temperature=clean_kwargs.pop("temperature", 0.7),
-            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id")},
+            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
         )
 
         # Budget tracking post-call
@@ -163,13 +220,21 @@ async def generate_llm_response_async(
     router = get_llm_router()
     clean_kwargs = _strip_legacy_kwargs(kwargs)
 
+    # Auto-resolve subscription_tier from execution_id (Phase 3.4)
+    execution_id = clean_kwargs.get("execution_id")
+    if "subscription_tier" not in clean_kwargs and execution_id:
+        resolved_tier = _resolve_tier_for_execution(execution_id)
+        if resolved_tier:
+            clean_kwargs["subscription_tier"] = resolved_tier
+            logger.debug("Resolved tier=%s for execution=%s (async)", resolved_tier, execution_id)
+
     return await router.generate_async(
         prompt=prompt,
         agent_type=agent_type,
         system_prompt=system_prompt,
         max_tokens=clean_kwargs.pop("max_tokens", 16000),
         temperature=clean_kwargs.pop("temperature", 0.7),
-        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id")},
+        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
     )
 
 

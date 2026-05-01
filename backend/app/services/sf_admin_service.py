@@ -588,13 +588,15 @@ class SFAdminService:
             fields = section.get("fields", [])
             
             items_xml = ""
-            for field in fields:
+            # Renamed loop var from `field` to `field_name` to avoid shadowing
+            # `dataclasses.field` imported at top of module (ruff F402).
+            for field_name in fields:
                 # Name field doit être Readonly pour les custom objects
-                behavior = "Readonly" if field.upper() == "NAME" else "Edit"
+                behavior = "Readonly" if field_name.upper() == "NAME" else "Edit"
                 items_xml += f'''
             <layoutItems>
                 <behavior>{behavior}</behavior>
-                <field>{field}</field>
+                <field>{field_name}</field>
             </layoutItems>'''
             
             sections_xml += f'''

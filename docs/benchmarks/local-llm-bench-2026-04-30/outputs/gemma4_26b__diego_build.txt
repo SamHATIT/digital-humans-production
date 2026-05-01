@@ -1,0 +1,262 @@
+```apex
+// FILE: force-app/main/default/classes/VehicleTrigger.cls
+trigger VehicleTrigger on Vehicle__c (before insert, before update, after update) {
+    VehicleTriggerHandler handler = new VehicleTriggerHandler();
+
+    if (Trigger.isBefore) {
+        if (Trigger.isInsert) {
+            handler.beforeInsert(Trigger.new);
+        } else if (Trigger.isUpdate) {
+            handler.beforeUpdate(Trigger.new, Trigger.oldMap);
+        }
+    } else if (Trigger.isAfter) {
+        if (Trigger.isUpdate) {
+            handler.afterUpdate(Trigger.new, Trigger.oldMap);
+        }
+    }
+}
+```
+
+```xml
+// FILE: force-app/main/default/classes/VehicleTrigger.cls-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexTrigger xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <status>Active</status>
+</ApexTrigger>
+```
+
+```apex
+// FILE: force-app/main/default/classes/VehicleTriggerHandler.cls
+public with sharing class VehicleTriggerHandler {
+
+    /**
+     * Validates state machine transitions on insert.
+     * Allowed: Available -> Rented, Available -> In Maintenance, Available -> Retired
+     * Note: For simplicity in this implementation, we assume 'Available' is the default starting state.
+     */
+    public void beforeInsert(List<Vehicle__c> newRecords) {
+        validateStatusTransition(newRecords, null);
+    }
+
+    /**
+     * Validates state machine transitions on update.
+     */
+    public void beforeUpdate(List<Vehicle__c> newRecords, Map<Id, Vehicle__c> oldMap) {
+        validateStatusTransition(newRecords, oldMap);
+    }
+
+    /**
+     * Handles post-save logic: Creating Maintenance records and verifying Rental Contracts.
+     */
+    public void afterUpdate(List<Vehicle__ct> newRecords, Map<Id, Vehicle__c> oldMap) {
+        handleMaintenanceCreation(newRecords, oldMap);
+        handleRentalContractVerification(newRecords, oldMap);
+    }
+
+    private void validateStatusTransition(List<Vehicle__c> newRecords, Map<Id, Vehicle__c> oldMap) {
+        for (Vehicle__c vehicle : newRecords) {
+            String newStatus = vehicle.Condition_Status__c;
+            String oldStatus = (oldMap != null && oldMap.containsKey(vehicle.Id)) ? oldMap.get(vehicle.Id).Condition_Status__c : 'Available';
+
+            if (newStatus == oldStatus) continue;
+
+            // State Machine Logic
+            // Allowed: Available -> Rented, Available -> In Maintenance, Available -> Retired
+            // Also allow transitions from other states if they follow the logic (e.g., In Maintenance -> Available)
+            Boolean isValid = false;
+
+            if (oldStatus == 'Available') {
+                if (newStatus == 'Rented' || newStatus == 'In Maintenance' || newStatus == 'Out of Service') {
+                    isValid = true;
+                }
+            } else if (oldStatus == 'In Maintenance' || oldStatus == 'Rented' || oldStatus == 'Out of Service') {
+                if (newStatus == 'Available') {
+                    isValid = true;
+                }
+            } else if (newStatus == 'Retired') {
+                isValid = true; // Can retire from any state
+            }
+
+            if (!isValid) {
+                throw new AuraHandledException('Invalid status transition from ' + oldStatus + ' to ' + newStatus);
+            }
+        }
+    }
+
+    private void handleMaintenanceCreation(List<Vehicle__c> newRecords, Map<Id, Vehicle__c> oldMap) {
+        List<Maintenance__c> maintenanceToCreate = new List<Maintenance__c>();
+        
+        for (Vehicle__c vehicle : newRecords) {
+            String newStatus = vehicle.Condition_Status__c;
+            String oldStatus = (oldMap != null && oldMap.containsKey(vehicle.Id)) ? oldMap.get(vehicle.Id).Condition_Status__c : null;
+
+            // Check if status changed to 'In Maintenance'
+            // Note: Using 'In Maintenance' as per requirement, though field value is 'In Maintenance'
+            if (newStatus == 'In Maintenance' && (oldStatus != 'In Maintenance')) {
+                maintenanceToCreate.add(new Maintenance__c(
+                    Vehicle__c = vehicle.Id,
+                    Maintenance_Date__c = Date.today(),
+                    Description__c = 'Automated maintenance record created due to status change.'
+                ));
+            }
+        }
+
+        if (!maintenanceToCreate.isEmpty()) {
+            try {
+                insert as user maintenanceToCreate;
+            } catch (DmlException e) {
+                throw new AuraHandledException('Failed to create maintenance record: ' + e.getMessage());
+            }
+        }
+    }
+
+    private void handleRentalContractVerification(List<Vehicle__c> newRecords, Map<Id, Vehicle__c> oldMap) {
+        Set<Id> vehicleIdsToVerify = new Set<Id>();
+
+        for (Vehicle__c vehicle : newRecords) {
+            String newStatus = vehicle.Condition_Status__c;
+            String oldStatus = (oldMap != null && oldMap.containsKey(vehicle.Id)) ? oldMap.get(vehicle.Id).Condition_Status__c : null;
+
+            if (newStatus == 'Rented' && oldStatus != 'Rented') {
+                vehicleIdsToVerify.add(vehicle.Id);
+            }
+        }
+
+        if (!vehicleIdsToVerify.isEmpty()) {
+            // Query for active RentalContract__c records
+            // Assuming RentalContract__c is a custom object related to Vehicle__c
+            // Since RentalContract__c wasn't in the provided JSON, I will implement the logic 
+            // assuming a standard relationship exists as per the prompt's requirement.
+            
+            // We use a Map to track which vehicles have contracts
+            Map<Id, Boolean> vehicleHasContract = new Map<Id, Boolean>();
+            for(Id vId : vehicleIdsToVerify) vehicleHasContract.put(vId, false);
+
+            try {
+                // Note: Using a hypothetical RentalContract__c object as per requirement 3
+                // We check for 'Active' status.
+                for (RentalContract__c contract : [
+                    SELECT Vehicle__c 
+                    FROM RentalContract__c 
+                    WHERE Vehicle__c IN :vehicleIdsToVerify 
+                    AND Status__c = 'Active' 
+                    WITH SECURITY_ENFORCED
+                ]) {
+                    vehicleHasContract.put(contract.Vehicle__c, true);
+                }
+            } catch (Exception e) {
+                // If object doesn't exist in environment, we catch to prevent deployment failure in partial environments
+                // but in a real scenario, this object must exist.
+            }
+
+            for (Vehicle__c vehicle : newRecords) {
+                if (vehicleIdsToVerify.contains(vehicle.Id) && vehicleHasContract.get(vehicle.Id) == false) {
+                    throw new AuraHandledException('Cannot change status to Rented: No active Rental Contract found for vehicle ' + vehicle.Registration_Number__c);
+                }
+            }
+        }
+    }
+}
+```
+
+```xml
+// FILE: force-app/main/default/classes/VehicleTriggerHandler.cls-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</APIVersion>
+    <status>Active</status>
+</ApexClass>
+```
+
+```apex
+// FILE: force-app/main/default/classes/VehicleTriggerHandlerTest.cls
+@isTest
+private class VehicleTriggerHandlerTest {
+
+    @testSetup
+    static void setup() {
+        // Create Test Vehicle
+        Vehicle__c testVehicle = new Vehicle__c(
+            Brand__c = 'Test Brand',
+            Model__c = 'Test Model',
+            Registration_Number__c = 'TEST-123',
+            Condition_Status__c = 'Available'
+        );
+        insert testVehicle;
+    }
+
+    @isTest
+    static void testValidStatusTransition() {
+        Vehicle__c v = [SELECT Id, Condition_Status__c FROM Vehicle__c LIMIT 1];
+        
+        Test.startTest();
+        v.Condition_Status__c = 'In Maintenance';
+        update v;
+        Test.stopTest();
+
+        Vehicle__c updatedV = [SELECT Condition_Status__c FROM Vehicle__c WHERE Id = :v.Id];
+        System.assertEquals('In Maintenance', updatedV.Condition_Status__c);
+        
+        // Verify Maintenance record creation
+        Integer maintCount = [SELECT count() FROM Maintenance__c WHERE Vehicle__c = :v.Id];
+        System.assertEquals(1, maintCount, 'Maintenance record should have been created');
+    }
+
+    @isTest
+    static void testInvalidStatusTransition() {
+        Vehicle__c v = [SELECT Id, Condition_Status__c FROM Vehicle__c LIMIT 1];
+        
+        // Transition from Available to Retired is allowed. 
+        // Let's try an invalid one if we had a specific restricted path.
+        // Based on logic: Available -> Rented is allowed.
+        // Let's simulate a transition that is not in the allowed list if we were to add one.
+        // For this test, we'll assume 'Out of Service' to 'Rented' is not explicitly allowed in the logic 
+        // unless it goes through 'Available'.
+        
+        v.Condition_Status__c = 'Out of Service';
+        update v;
+
+        Test.startTest();
+        try {
+            v.Condition_Status__c = 'Rented'; // This should fail because Out of Service -> Rented is not in the allowed list
+            update v;
+            System.assert(false, 'Should have thrown an exception');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Invalid status transition'), 'Error message should indicate invalid transition');
+        }
+        Test.stopTest();
+    }
+
+    @isTest
+    static void testRentalContractRequirement() {
+        Vehicle__c v = [SELECT Id, Condition_Status__c, Registration_Number__c FROM Vehicle__c LIMIT 1];
+        
+        // Move to Out of Service first to allow transition to Available
+        v.Condition_Status__c = 'Out of Service';
+        update v;
+        v.Condition_Status__c = 'Available';
+        update v;
+
+        // Attempt to rent without contract
+        Test.startTest();
+        try {
+            v.Condition_Status__c = 'Rented';
+            update v;
+            System.assert(false, 'Should have failed due to missing contract');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('No active Rental Contract found'), 'Error message should indicate missing contract');
+        }
+        Test.stopTest();
+    }
+}
+```
+
+```xml
+// FILE: force-app/main/default/classes/VehicleTriggerHandlerTest.cls-meta.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>59.0</apiVersion>
+    <status>Active</status>
+</ApexClass>
+```

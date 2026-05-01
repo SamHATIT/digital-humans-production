@@ -1,0 +1,184 @@
+{
+  "started_at": "2026-04-30T20:12:46.768522+00:00",
+  "models": [
+    "gemma4:26b",
+    "qwen3.5:27b",
+    "qwen3.6:27b",
+    "magistral:24b",
+    "devstral:24b",
+    "ministral-3:14b"
+  ],
+  "tasks": [
+    "marcus_design",
+    "diego_build"
+  ],
+  "runs": [
+    {
+      "model": "gemma4:26b",
+      "task": "marcus_design",
+      "started_at_run": "2026-04-30T20:35:46.110582+00:00",
+      "ok": true,
+      "elapsed_seconds": 1379.34,
+      "output_size_chars": 25888,
+      "output_file": "outputs/gemma4_26b__marcus_design.txt",
+      "metrics": {
+        "wall_seconds": 1379.34,
+        "load_seconds": 12.32,
+        "prompt_tokens": 8903,
+        "prompt_eval_seconds": 309.79,
+        "prompt_tps": 28.7,
+        "output_tokens": 7128,
+        "output_eval_seconds": 1051.84,
+        "output_tps": 6.8,
+        "total_seconds_ollama": 1379.32
+      },
+      "error": null,
+      "done_reason": "stop"
+    },
+    {
+      "model": "gemma4:26b",
+      "task": "diego_build",
+      "started_at_run": "2026-04-30T20:42:37.687180+00:00",
+      "ok": true,
+      "elapsed_seconds": 411.58,
+      "output_size_chars": 10570,
+      "output_file": "outputs/gemma4_26b__diego_build.txt",
+      "metrics": {
+        "wall_seconds": 411.58,
+        "load_seconds": 13.26,
+        "prompt_tokens": 3284,
+        "prompt_eval_seconds": 77.8,
+        "prompt_tps": 42.2,
+        "output_tokens": 2665,
+        "output_eval_seconds": 318.37,
+        "output_tps": 8.4,
+        "total_seconds_ollama": 411.57
+      },
+      "error": null,
+      "done_reason": "stop"
+    },
+    {
+      "model": "qwen3.5:27b",
+      "task": "marcus_design",
+      "started_at_run": "2026-04-30T21:42:37.791956+00:00",
+      "ok": false,
+      "elapsed_seconds": 3600.1,
+      "output_size_chars": 0,
+      "output_file": "outputs/qwen3.5_27b__marcus_design.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "qwen3.5:27b",
+      "task": "diego_build",
+      "started_at_run": "2026-04-30T22:42:37.930324+00:00",
+      "ok": false,
+      "elapsed_seconds": 3600.13,
+      "output_size_chars": 0,
+      "output_file": "outputs/qwen3.5_27b__diego_build.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "qwen3.6:27b",
+      "task": "marcus_design",
+      "started_at_run": "2026-04-30T23:42:38.074683+00:00",
+      "ok": false,
+      "elapsed_seconds": 3600.13,
+      "output_size_chars": 0,
+      "output_file": "outputs/qwen3.6_27b__marcus_design.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "qwen3.6:27b",
+      "task": "diego_build",
+      "started_at_run": "2026-05-01T00:42:38.333108+00:00",
+      "ok": false,
+      "elapsed_seconds": 3600.17,
+      "output_size_chars": 0,
+      "output_file": "outputs/qwen3.6_27b__diego_build.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "magistral:24b",
+      "task": "marcus_design",
+      "started_at_run": "2026-05-01T01:42:38.828299+00:00",
+      "ok": false,
+      "elapsed_seconds": 3600.39,
+      "output_size_chars": 0,
+      "output_file": "outputs/magistral_24b__marcus_design.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "magistral:24b",
+      "task": "diego_build",
+      "started_at_run": "2026-05-01T02:42:41.124144+00:00",
+      "ok": false,
+      "elapsed_seconds": 3601.0,
+      "output_size_chars": 0,
+      "output_file": "outputs/magistral_24b__diego_build.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "devstral:24b",
+      "task": "marcus_design",
+      "started_at_run": "2026-05-01T03:42:44.720944+00:00",
+      "ok": false,
+      "elapsed_seconds": 3602.7,
+      "output_size_chars": 0,
+      "output_file": "outputs/devstral_24b__marcus_design.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "devstral:24b",
+      "task": "diego_build",
+      "started_at_run": "2026-05-01T04:42:48.022669+00:00",
+      "ok": false,
+      "elapsed_seconds": 3602.2,
+      "output_size_chars": 0,
+      "output_file": "outputs/devstral_24b__diego_build.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "ministral-3:14b",
+      "task": "marcus_design",
+      "started_at_run": "2026-05-01T05:42:49.916201+00:00",
+      "ok": false,
+      "elapsed_seconds": 3601.3,
+      "output_size_chars": 0,
+      "output_file": "outputs/ministral-3_14b__marcus_design.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    },
+    {
+      "model": "ministral-3:14b",
+      "task": "diego_build",
+      "started_at_run": "2026-05-01T06:42:51.074873+00:00",
+      "ok": false,
+      "elapsed_seconds": 3601.05,
+      "output_size_chars": 0,
+      "output_file": "outputs/ministral-3_14b__diego_build.txt",
+      "metrics": {},
+      "error": "TimeoutError: timed out",
+      "done_reason": null
+    }
+  ],
+  "last_update": "2026-05-01T06:42:51.077921+00:00",
+  "elapsed_total_seconds": 37804.32,
+  "completed_at": "2026-05-01T06:42:51.083577+00:00"
+}
