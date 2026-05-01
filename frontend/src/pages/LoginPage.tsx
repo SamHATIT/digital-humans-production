@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { AlertTriangle, Loader2, ArrowRight } from 'lucide-react';
 import { auth } from '../services/api';
 import { LangProvider, useLang } from '../contexts/LangContext';
@@ -164,13 +164,22 @@ function LoginInner() {
             </form>
 
             <div className="mt-8 pt-6 border-t border-bone/5">
-              <a
-                href="mailto:[email protected]?subject=Studio%20access%20request"
-                className="font-mono text-[11px] tracking-[0.04em] uppercase text-bone-3 hover:text-brass transition-colors"
+              <Link
+                to="/signup"
+                className="block font-mono text-[11px] tracking-[0.04em] uppercase text-bone-3 hover:text-brass transition-colors"
               >
                 {t(
-                  "Don't have an account? Request access →",
-                  "Pas encore de compte ? Demander un accès →",
+                  "Don't have an account? Open your studio →",
+                  "Pas encore de compte ? Ouvrir votre studio →",
+                )}
+              </Link>
+              <a
+                href="mailto:[email protected]?subject=Enterprise%20access%20request"
+                className="block mt-3 font-mono text-[10px] tracking-[0.04em] uppercase text-bone-4 hover:text-bone-3 transition-colors"
+              >
+                {t(
+                  "— or request enterprise access",
+                  "— ou demander un accès Entreprise",
                 )}
               </a>
             </div>
