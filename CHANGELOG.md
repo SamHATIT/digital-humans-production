@@ -5,6 +5,104 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## [2026-05-01] Session consolidation — Sprint 1+2 marketing + tier-routing complete + merges main
+
+Tag : `v2026.05-may-1-consolidation` (post-merge main)
+
+### Marketing site Sprints pre-launch (Mods 28-30)
+- **Mod 28 — Sprint 1** (commit `cf86231`) : footer mailto live, CTAs pricing fonctionnels (Free → /signup, Pro/Team grisés "Bientôt"), 3 nouvelles routes SPA `/cgv` `/legal` `/privacy` avec contenu juridique boilerplate FR+EN (~3000 lignes, 10 sections CGV). Module legal.jsx (UUID `a1b2c3d4-...`, +12KB compressé) injecté dans le bundle preview.
+- **Mod 29 — Sprint 2** (commit `3366d29`) : 700+ lignes CSS responsive mobile `<= 720px`, color contrast WCAG AA (`--bone-4: #76716A` → `#9A938A`), tap targets 44×44px, focus visible brass 2px, ARIA `role="tab"` aux seq-dot, SEO meta + OG + Twitter Card. **Lighthouse mobile : a11y 86→100, SEO 91→100, TBT −66%** (16690→5620ms).
+- **Mod 30 — favicon SVG inline** (commit `18698e5`) : fix console error 404 `/favicon.ico`, "DH" italic Georgia brass sur ink rounded 4px en data URI, +341 bytes. **Best Practices 100/100**.
+
+### Tier-based LLM routing (3 étapes)
+- **Étape 1** (commit `19c53f9`) : Pro 49€ downgrade orchestrators (Sophie/Olivia/Emma en Sonnet, Marcus reste Opus pour quality SDS).
+- **Étape 2** (commit `c1e1a17`) : auto-resolution tier via `_resolve_tier_for_execution(execution_id)` avec `lru_cache(512)`, helper `invalidate_tier_cache()` exposé. Branché dans webhook Stripe (`stripe_service._handle_subscription_change` + `_handle_subscription_deleted`). **Tests E2E 6/6 + 4/4**.
+- **Étape 3** (commit `73fe8c5`) : Anthropic prompt caching auto-activé pour agents architectes (`marcus`/`architect`/`solution_architect`) sur tier paying. Format system block list avec `cache_control:ephemeral`, fallback string si <4096 chars. `LLMRequest.cache_system: bool`, `LLMResponse.cache_read_input_tokens` + `cache_creation_input_tokens`. **Tests E2E 5/5**. Économie ~$1+/SDS.
+- Tag `v2026.05-tier-routing-complete` posé après tests.
+
+### SignupPage refondue (parcours libre du bug du 1er mai)
+- Premier essai (commit `8665b58`, **REVERTED**) : SignupPage créée sur feature/tier-based-routing en clonant le pattern LoginPage actuel de cette branche, qui était la version legacy purple/cyan. Le déploiement a écrasé le studio refondu en prod (rsync --delete sur /var/www/app-studio).
+- Restauration immédiate depuis backup `/var/www/app-studio.pre-signup-page` (Apr 28 build = studio refondu intact).
+- **Recréation propre sur feat/platform-studio** (commit `9dab8cb`) : 355 lignes, layout 2-col cover/form respect du pattern A5.1 Foundation, Cormorant italic H1 "Open your studio", JetBrains Mono eyebrows, palette ink/bone/brass strict, validation client visuelle, i18n FR/EN via LangProvider, workflow register+auto-login. Tests E2E backend OK (user 9 créé, JWT obtenu, cleanup OK).
+- LoginPage modifiée : mailto "Request access" remplacé par `Link to="/signup"` ("Open your studio →"), mailto enterprise conservé en plus discret.
+- Revert (commit `c363584`) : annulation du commit 8665b58 sur tier-based-routing.
+
+### Bench LLM locaux 30 avril (R&D self-hosted)
+- Commit `8f8370e` : 30 fichiers, 18,435 lignes, 3 MB dans `docs/benchmarks/local-llm-bench-2026-04-30/`. Test de modèles open-weights sur VPS Hostinger KVM 8 (8 vCPU AMD EPYC, 32 GB RAM, sans GPU).
+- **Conclusion** : sur CPU 8 cœurs, **seuls les modèles MoE sont viables** pour des prompts longs. `gemma4:26b` (3.8B actifs) OK 23min Marcus / 7min Diego. `qwen3.5:27b`, `qwen3.6:27b`, `magistral:24b`, `devstral:24b`, `ministral-3:14b` tous KO timeout 1h (prefill trop long).
+- À refaire sur Mac M-series (Metal + mémoire unifiée 5-10× plus rapide) ou VPS GPU (Hetzner GEX44 RTX 4000 SFF 20GB ~180-220€/mo).
+
+### Tech debt — F823 + F402 lint fixes
+- Commit `1281e9a` : audit ruff complet sur `app/` + `agents/`. **0 F821 confirmé** (les 22 du 18 avril ont été fixées entre-temps). 2 vrais bugs latents fixés :
+  - **F823** dans `execution_routes.py:289` : faux positif sur closure async, fix défensif (pré-init `use_notifications=False` + `# noqa: F823` documenté).
+  - **F402** dans `sf_admin_service.py:591` : variable de loop `field` shadowait `dataclasses.field`. Renommage `field` → `field_name` (3 occurrences).
+- Reste cosmétique : F541 (56), F841 (21), F401 (4), zéro risque runtime.
+
+### Merges main (consolidation totale)
+- **Merge `feat/platform-studio` → `main`** (commit `8bc569c`, tag `v2026.05-platform-studio-merged`) : 99 fichiers, +9272 / −5521 lignes, **0 conflit auto-merge**. La refonte Studio Sprint A5.1 → A5.4 + suite est désormais dans main. Pricing.tsx A5.4 retenu (405 lignes, 4 tiers + FAQ + ZDR), strictement plus riche que la Mod 23 sur main (250 lignes).
+- **Rebase `feature/tier-based-routing` sur le nouveau main** : 10 commits → 8 commits propres (drop des 2 commits SignupPage legacy + revert qui s'annulaient mutuellement) via `GIT_SEQUENCE_EDITOR` automatisé. 0 conflit lors du replay.
+- **Fix `frontend_pages.yaml`** (commit `48ae96a`) : ajout SignupPage + AppShell post-merge platform-studio (le hook post-commit qui rebuild la doc admin plantait sur `BuildError: Composants présents dans App.tsx mais absents`). Description Pricing mise à jour (legacy "Starter/Pro/Enterprise" → "Free/Pro/Team/Enterprise + FAQ + ZDR").
+- **Merge `feature/tier-based-routing` → `main`** (commit `2f72f5c`, tag `v2026.05-may-1-consolidation`) : 45 fichiers, +54072 / −183 lignes (gros volumes = audits Lighthouse JSON + bench LLM outputs + contenu juridique CGV).
+
+### Effet structurel
+Le code source du studio refondu est maintenant **DANS main**. Toute future branche feature partira d'un main brand-coherent. Le bug du 1er mai (commit basé sur du code legacy) ne peut plus se reproduire.
+
+
+## [2026-04-29] Session — Stripe Phase 3 S3.3 + fin Sprint A5 marketing
+
+### Stripe billing backend (Phase 3 S3.3)
+- Commit `b8e4f82` : `stripe_service.py` avec checkout sessions, customer portal, webhook handlers (subscription.created/updated/deleted, invoice.payment_succeeded/failed). Routes `/billing/checkout`, `/billing/portal`, `/billing/webhook`. Hook signup pour créer customer Stripe automatiquement.
+- Commit `c801873` : timeline doc refonte mise à jour.
+- Commit `3ae9425` : fin de session avec Stripe webhook E2E validé.
+
+### Marketing site finalisation pricing
+- Commit `d679652` : **Mod 23 — Section prix UI** (3 colonnes Free/Pro/Team + Enterprise band). Section narrative `№ 04 · The pact / Le pacte` ajoutée dans le bundle preview entre OurWork et CTA. CTA renuméroté №04 → №05.
+- Commit `12ec705` : timeline doc.
+
+### Pro tier ajustements
+- Commit `4bc1875` : bump quota Pro 2k→15k crédits, Opus allowed_tiers étendu à 'pro,team'.
+- Commit `0e88784` : doc Pro tier nuance — Marcus en Opus + 2 SDS/mois inclus.
+
+
+## [2026-04-28] Session — Refactor freemium 4-tier + concierge Sophie public
+
+### Freemium realignment
+- Commit `e538605` : refactor 3-tier (free/premium/enterprise) → **4-tier (free/pro/team/enterprise)**. Modifs sur subscription model, llm_routing.yaml, allowed_tiers, quota_credits, etc.
+- Commit `32223f6` : merge feature/freemium-realignment dans main.
+
+### Concierge Sophie public
+- Commit `6bbc643` : widget chat public Sophie sur le marketing site. Nouveau service `sophie_concierge_service.py` (avec `func.coalesce(...)` pour limite quotidienne). Endpoint `/api/public/concierge/talk` accessible sans auth. Intégré dans le bundle preview.
+
+### Marketing site
+- Commit `a41c240` : nouvelles sections (marketing-site + pricing-billing) ajoutées à la doc refonte.
+- Commit `d1fb657` : timeline 28-29 avril — Mods 17-22 + pricing finalisé + Stripe.
+
+
+## [2026-04-27] Session — Refonte Studio Sprint A5 + features connexes
+
+### Sprint A5 Platform Studio (refonte complète frontend)
+- Commit `eab203f` : **A5.1 Foundation** — design tokens (`tokens.css` ink/bone/brass + 5 acte accents), AppShell + StudioHeader + StudioFooter + StudioPlaceholderCover, LoginPage refondue (Cormorant italic, AUTONOMOUS STUDIO MMXXV), Dashboard refondu ("Welcome back, Admin." + № 01 STUDIO + № 02 REPERTOIRE + cards productions GD/L/SC).
+- Commit `928aed5` : **A5.2 Casting** — ProjectWizard 5-act, NewProject welcome page, BR validation Studio, StudioInput/Select/Tabs/Stepper/Textarea/RadioGroup/Timeline, WizardActHeader.
+- Commit `1abb6d8` + `03d554c` : **A5.3 Theatre** — ExecutionMonitoringPage refondue (AgentStage, AgentLivePreview, CurtainOverlay, EnsembleDisplay, ExecutionMetricsStudio, ChatSidebarStudio).
+- Commit `4979cd2` : **A5.4 Pages connexes** — Projects, ProjectDetail, AgentTester, Pricing refondus + composants projects/ (ChangeRequestCard, ChangeRequestModal, DeliverableCard, ProjectActivityFeed, ProjectHealthCard) + cleanup legacy (Navbar.tsx, App.jsx, main.jsx, pmService.js supprimés au profit de AppShell, App.tsx, main.tsx, pmService.ts).
+- Commit `25598be` : **perf** — route-level React.lazy, bundle initial **1.46 MB → 269 KB (-82%)**.
+- Commits `c7d0777`, `8832ce5`, `f10c91a` : avatars regen (1024 sources), fix monitoring revisionCount, wizard Healthcare + Agentforce options.
+- Commits `a35f7b6`, `3ff7e6a`, `56a7924`, `db171e9`, `b0ee6dc` : deliverable download redirect SDS HTML, admin link /admin/, JWT cookie auth_request nginx, deploy script, agent photos chat.
+
+### BUILD pipeline fixes
+- Commit `de52d0b` : fix state-machine + build unblock BUILD pipeline post-SDS.
+- Commit `018f34e` : fix initialize PhasedBuildExecutor before execute_build.
+
+### SDS templating
+- Commit `0d05d25` : fix sds-templates replace LogiFleet hardcodes with dynamic context.
+
+### Doc admin
+- Commit `30f6ea2` : deploy doc admin to `/var/www/app-docs/` accessible via app.digital-humans.fr/admin/docs/.
+- Commits `f42bfef`, `4ecc177`, `10fe2cb`, `0fc1708` : briefs A5 (Round 3 + Foundation + cleanup).
+
+---
+
+
 ## [Unreleased] — Session 3 refonte · Agent A (Backend Bloquants)
 
 Runtime bugs that prevented BUILD from running, plus P0/P7/P11 stabilization.

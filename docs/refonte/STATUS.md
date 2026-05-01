@@ -1,9 +1,9 @@
 # Refonte doc — État courant
 
-**Dernière mise à jour** : 2026-04-25 (session Claude+Sam, post-LLM migration + nouveau chantier SDS templating démarré)
+**Dernière mise à jour** : 2026-05-01 (consolidation totale main, post-merge feat/platform-studio + feature/tier-based-routing)
 
 ## Phase courante
-**Phases 0, 1, 2, 3, 4 terminées.** Refonte doc livrée. Prochain : enrichissements éditoriaux à la carte (nouvelles sections, hero par section, etc.) et hook git local optionnel (post-N2).
+**Phases 0, 1, 2, 3, 4 terminées + hook post-commit livré et opérationnel.** Refonte doc autonome (rebuild auto à chaque commit qui touche les sources). Doc admin déployée sur https://app.digital-humans.fr/admin/docs/ (auth requise). Prochain : enrichissements éditoriaux à la carte (nouvelles sections, hero par section, etc.) et CI post-N2.
 
 ## Décisions actées
 - **Framework** : Jinja2 + Python stdlib. Léger, zéro dépendance neuve, SSoT projet.
@@ -44,6 +44,49 @@ Démarré sur la branche **`feat/sds-templating`** (non mergée). Objectif : rem
 Itération 2 close : 13/13 sous-sections de la section 6 Solution Design instrumentées DB-driven. Build ~1.2s, 0 coût LLM.
 
 📄 **Status dédié** : `docs/sds/STATUS.md` (151 lignes — décisions actées, sessions, workflow, prochaines étapes, pièges connus).
+
+## Fait sessions 26 avril -> 1er mai 2026
+
+### Session 27 avril — Sprint A5 Platform Studio (refonte frontend complète)
+- ✅ A5.1 Foundation (`eab203f`) : design tokens `tokens.css` ink/bone/brass + 5 acte accents, AppShell + StudioHeader/Footer/Cover, LoginPage refondue, Dashboard refondu (Cormorant italic + № 01 STUDIO + cards productions GD/L/SC).
+- ✅ A5.2 Casting (`928aed5`) : ProjectWizard 5-act, NewProject welcome, BR validation Studio, composants StudioInput/Select/Tabs/Stepper.
+- ✅ A5.3 Theatre (`1abb6d8` + `03d554c`) : ExecutionMonitoringPage refondue (AgentStage, AgentLivePreview, CurtainOverlay, EnsembleDisplay, ChatSidebarStudio).
+- ✅ A5.4 Pages connexes (`4979cd2`) : Projects, ProjectDetail, AgentTester, Pricing refondus + cleanup legacy (Navbar.tsx, App.jsx, main.jsx, pmService.js → AppShell, App.tsx, main.tsx, pmService.ts).
+- ✅ Perf (`25598be`) : route-level React.lazy, **bundle initial 1.46 MB → 269 KB (-82%)**.
+- ✅ Doc admin déployée (`30f6ea2`) : `/var/www/app-docs/` accessible via `app.digital-humans.fr/admin/docs/` (auth nginx_request_auth via JWT cookie).
+- ✅ Fixes BUILD pipeline (`de52d0b`, `018f34e`) : state machine post-SDS débloquée, PhasedBuildExecutor init.
+
+### Session 28 avril — Refactor freemium 4-tier + Sophie concierge public
+- ✅ `e538605` + `32223f6` : refactor 3-tier (free/premium/enterprise) → **4-tier (free/pro/team/enterprise)**. Modifs subscription model, llm_routing.yaml, allowed_tiers, quota_credits.
+- ✅ `6bbc643` : widget chat public Sophie sur le marketing site. Endpoint `/api/public/concierge/talk` accessible sans auth.
+- ✅ `a41c240` : nouvelles sections marketing-site + pricing-billing dans la doc refonte.
+
+### Session 29 avril — Stripe Phase 3 S3.3 + Mod 23 pricing
+- ✅ `b8e4f82` : `stripe_service.py` complet (checkout, customer portal, webhooks subscription + invoice). Routes `/billing/checkout`, `/billing/portal`, `/billing/webhook`. Hook signup pour créer Stripe customer auto.
+- ✅ `d679652` : **Mod 23** — Section prix UI bundle preview (3 colonnes Free/Pro/Team + Enterprise band, narrative № 04 The pact / Le pacte).
+- ✅ `4bc1875` : bump quota Pro 2k → 15k crédits, Opus allowed_tiers='pro,team'.
+- ✅ Stripe webhook E2E validé (`3ae9425`).
+
+### Session 1er mai — Sprint 1+2 marketing + tier-routing + merges main
+**Tag final** : `v2026.05-may-1-consolidation`
+
+- ✅ **Marketing pre-launch** :
+  - Mod 28 Sprint 1 (`cf86231`) : footer mailto, CTAs pricing fonctionnels, 3 routes SPA légales `/cgv` `/legal` `/privacy` avec contenu FR+EN (~3000 lignes).
+  - Mod 29 Sprint 2 (`3366d29`) : 700+ lignes CSS responsive + a11y WCAG AA + SEO. **Lighthouse mobile : a11y 86→100, SEO 91→100**.
+  - Mod 30 (`18698e5`) : favicon SVG inline, **Best Practices 100/100**.
+- ✅ **Tier-based LLM routing 3/3** :
+  - Étape 1 (`19c53f9`) : Pro 49€ downgrade Sonnet sauf Marcus.
+  - Étape 2 (`c1e1a17`) : auto-resolution tier via `_resolve_tier_for_execution()` + `lru_cache(512)` + invalidation webhook Stripe. Tests E2E 6/6 + 4/4.
+  - Étape 3 (`73fe8c5`) : Anthropic prompt caching auto Marcus tier paying. Tests E2E 5/5. **~$1+/SDS économisé**.
+- ✅ **SignupPage refondue** (`9dab8cb` sur feat/platform-studio) : 355 lignes pattern A5.1 (Cormorant italic, JetBrains Mono, ink/bone/brass), validation client, i18n FR/EN, register+auto-login.
+- ✅ **Bench LLM locaux 30 avr** (`8f8370e`) : `gemma4:26b` MoE seul viable CPU-only (23min Marcus, 7min Diego), denses 24-27B KO timeout.
+- ✅ **F823 + F402 lint fixes** (`1281e9a`) : 0 F821 confirmé, 2 vrais bugs latents éliminés.
+- ✅ **Merge feat/platform-studio dans main** (`8bc569c`, tag `v2026.05-platform-studio-merged`) : 99 fichiers, +9272/-5521 lignes, **0 conflit**. Refonte Studio désormais dans main.
+- ✅ **Merge feature/tier-based-routing dans main** (`2f72f5c`) : 45 fichiers, +54072/-183 lignes (gros volumes = audits Lighthouse JSON + bench LLM + contenu juridique).
+- ✅ **frontend_pages.yaml fix** (`48ae96a`) : ajout SignupPage + AppShell post-merge platform-studio (le hook post-commit plantait sur `BuildError: Composants présents dans App.tsx mais absents`).
+
+### Effet structurel
+Le code source du studio refondu est désormais **DANS main**. Toute future branche feature partira d'un main brand-coherent. Le bug du 1er mai (commit basé sur du code legacy purple/cyan parce que feat/platform-studio n'était pas mergée) ne peut plus se reproduire.
 
 ## Workflow de référence (pour Sam, futur-Claude, etc.)
 

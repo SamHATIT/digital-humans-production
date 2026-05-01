@@ -1,49 +1,84 @@
 # Backlog — Digital Humans Production
-# Updated: 2026-02-11 after E2E #142
 
-## Priority 1 — Deploy Before E2E #143
+**Dernière mise à jour** : 2026-05-01 (post-merge `v2026.05-may-1-consolidation`)
 
-| ID | Description | Commit | File |
-|----|-------------|--------|------|
-| BUG-015 | uc_digest extraction: reads content directly, not content.digest | fe0cb64 | pm_orchestrator_service_v2.py:518 |
-| BUG-016 | Section writer max_tokens 16K→16384 | f225baf | sds_section_writer.py |
-| BUG-007 | Accumulate LLM cost on execution after each agent call | 861d24d | pm_orchestrator_service_v2.py |
+Le suivi détaillé des sessions est dans `CHANGELOG.md`. Ce fichier liste **uniquement
+les actions futures** (priorisées par bloquant pour le launch puis dette technique).
 
-## Priority 2 — Fix Before Next E2E
+---
 
-| ID | Description | Severity | Notes |
-|----|-------------|----------|-------|
-| BUG-016b | Gap analysis mode not in 32K max_tokens list | MEDIUM | salesforce_solution_architect.py:972 — add 'gap' to 32K modes |
-| BUG-014b | Resume phase3 replays Phase 2/2.5 (no checkpoint guard) | MEDIUM | Only phase1 checks resume_from variable |
-| COST-001 | Cost counter always $0.00 | MEDIUM | tokens_used=0 in all agent_status entries |
+## P0 — Pre-launch bloquants (côté Sam)
 
-## Priority 3 — UX Improvements
+| ID | Description | Notes |
+|----|-------------|-------|
+| LEGAL-001 | Validation juriste CGV (300-500 €, 1-2h) | Le contenu boilerplate FR+EN est livré (Mod 28), reste à faire valider par un juriste avant ouverture publique. |
+| LEGAL-002 | Compléter SIRET + adresse siège | `[À COMPLÉTER]` placeholders dans Mentions Légales actuellement. |
+| BIZ-001 | Décision tier Free Studio : ouvert ou "Bientôt" au launch | Si fermé, le bouton "My Studio" du marketing renvoie vers un trou. Si ouvert, /signup est en prod et fonctionne. |
 
-| ID | Description | Severity | Notes |
-|----|-------------|----------|-------|
-| UX-003 | Coverage gaps show only severity tag, not description | MINOR | Frontend renders severity but not element_type/recommendation |
-| UX-004 | Active Agent: .find() → .filter() for parallel agents | MINOR | ExecutionMonitoringPage.tsx:544 |
-| COST-002 | Budget $50 hardcoded | MINOR | Should come from project settings |
+## P1 — Phase 3 finalisation Stripe
 
-## Priority 4 — Quality/Polish
+| ID | Description | Notes |
+|----|-------------|-------|
+| STRIPE-001 | Reset crédits mensuel sur `invoice.payment_succeeded` | Webhook handler à étendre dans `stripe_service.py`. |
+| STRIPE-002 | Grace period 5j sur `invoice.payment_failed` | Avant downgrade automatique en free. |
+| STRIPE-003 | Mod 24 — wiring frontend Stripe | Utile uniquement quand Pro/Team passent de "Bientôt" à actif. |
+| STRIPE-004 | Bascule prod Stripe | Rotation secrets test → live + recréation produits live. |
 
-| ID | Description | Severity | Notes |
-|----|-------------|----------|-------|
-| PROMPT-001 | Emma recommends Einstein Bots (hallucination) | MINOR | Prompt guardrail needed |
-| ROUTER-001 | Phase 4 experts use mixed models (Haiku/Sonnet4/Sonnet4.5) | MINOR | LLM router config inconsistency |
-| TRUNC-001 | Marcus design v1 hits 32K cap — JSON truncated | ARCH | Need chunked design or more concise output |
-| TRUNC-002 | Section writer batch 2 hits 16K cap + 3 continuations | ARCH | Continuation loop wastes ~$1 per run |
+## P1 — Journal publication
 
-## Completed (E2E #142 session)
+| ID | Description | Notes |
+|----|-------------|-------|
+| JOURNAL-001 | Configurer `JOURNAL_WEBHOOK_SECRET` dans .env | Le webhook code est sur `feature/journal-publication` (commit `8fe4082`). |
+| JOURNAL-002 | Configurer le webhook côté Ghost admin | Pointer vers `https://app.digital-humans.fr/api/webhooks/journal/rebuild?secret=...`. |
+| JOURNAL-003 | Test endpoint `/webhooks/journal/health` puis `/rebuild` | Vérifier rebuild et /var/www/journal/ généré. |
+| JOURNAL-004 | Merger `feature/journal-publication` dans main | Quand stable. |
 
-| ID | Description | Commit | Verified |
-|----|-------------|--------|----------|
-| ARCH-002 | Pass uc_digest + previous_design to Marcus revision | 84b33e0 | ✅ E2E #142 |
-| ARCH-002b | Truncation 12K→40K for previous_design | 84b33e0 | ✅ E2E #142 |
-| BUG-013 | HITL instead of crash when coverage < 70% | 84b33e0 | ✅ E2E #142 (buttons appeared) |
-| BUG-012 | Async LLM path for Phase 5 | e02f102 | ✅ E2E #142 |
-| BUG-011 | phase3_complete transition in resume | e02f102 | ✅ E2E #142 |
-| BUG-006 | flush→commit | 86aa448 | ✅ E2E #142 |
-| BUG-008 | Ghost job guard | 86aa448 | ✅ E2E #142 |
-| BUG-010 | Auto-resume checkpoints | 86aa448 | ✅ E2E #142 |
+## P2 — Dettes techniques (post-launch acceptable)
 
+| ID | Description | Notes |
+|----|-------------|-------|
+| REVISION-001 | Marcus revision via mode `patch` (par section) au lieu de `fix_gaps` (regenere tout) | Code patch déjà écrit dans `salesforce_solution_architect.py:441` (`get_patch_prompt`), pas branché dans `pm_orchestrator_service_v2.py:880-935`. Mapping `CATEGORY_TO_SECTION = {DATA_MODEL → data_model, AUTOMATION → automation_design, UI → ui_components}`. Cause de la régression Rev1→Rev2 documentée E2E #143 (64.8% → 54.8%). |
+| COST-001 | Propager `cost_usd` des autres agents (Emma, Olivia, ...) | Marcus déjà fait en feb 14 (commit `7aa5db9`). Reste : Emma, Olivia, Aisha, Lucas, Elena. Capture actuelle ~22% du coût réel. |
+| P10 | BaseAgent : contrat commun pour les 11 agents | Pas de classe parent commune actuellement (`_call_llm`/`execution_id`/logging dupliqués). |
+| LINT-001 | Nettoyage F541 (56) + F841 (21) + F401 (4) cosmétiques | `ruff --fix --unsafe-fixes` sur app/ + agents/. Risque très faible. |
+| BUNDLE-001 | Bundle 16 MB site marketing : split lazy-load post-launch | Dette tech qui bloque le score Lighthouse Performance à 25/100 (les 4 autres scores sont à 100). |
+
+## P2 — UX améliorations restantes
+
+| ID | Description | Notes |
+|----|-------------|-------|
+| UX-003 | Coverage gaps frontend : afficher description, pas que severity | Frontend lit `gap.severity` mais pas `gap.what_is_missing` ni `gap.fix_instruction`. Vu E2E #143. |
+| UX-004 | Active Agent : `.find()` → `.filter()` pour agents parallèles | `ExecutionMonitoringPage.tsx:544`. Permet d'afficher Diego + Zara + Raj simultanément en phase BUILD. |
+
+## P3 — E2E tests
+
+| ID | Description | Notes |
+|----|-------------|-------|
+| E2E-144 | Lancer E2E #144 | Précédé d'une revue prompt Marcus + Emma (déjà préparée dans `MARCUS_PROMPTS_V4_SPEC.md` et `PROMPT_REWRITE_SPEC_E2E144.md`). Worker actuellement OFF. |
+| E2E-145 | Validation patch mode (post-REVISION-001) | Une fois REVISION-001 livré, valider que Rev2 ne régresse plus. |
+
+## P3 — Cleanup git (5 min)
+
+| ID | Description | Notes |
+|----|-------------|-------|
+| GIT-001 | Supprimer branche locale + remote `feature/tier-based-routing` | Mergée dans main au commit `2f72f5c`. |
+| GIT-002 | Statuer sur `feat/platform-studio` | Conserver pour historique Sprint A5 ou supprimer (mergée dans main au commit `8bc569c`). |
+
+---
+
+## Bugs latents — Status snapshot 1er mai 2026
+
+| ID | Status | Resolution |
+|----|--------|------------|
+| F821 (22 erreurs runtime du 18 avr) | ✅ FIXED | Tous corrigés entre le 18 avril et le 1er mai (audit ruff confirmé). |
+| F823 (1 latent) | ✅ FIXED | Commit `1281e9a` du 1er mai. Pré-init défensive + noqa documenté. |
+| F402 (1 latent) | ✅ FIXED | Commit `1281e9a` du 1er mai. Renommage variable de loop. |
+| Studio en prod legacy purple/cyan | ✅ FIXED | Sprint A5.1 → A5.4 mergé dans main au commit `8bc569c` du 1er mai. Charte ink/bone/brass cohérente avec le marketing. |
+| SignupPage absente du Studio | ✅ FIXED | Commit `9dab8cb` du 1er mai sur feat/platform-studio (mergé dans main). |
+| Page /pricing legacy "Starter/Pro/Enterprise" | ✅ FIXED | Refactor freemium 4-tier (commit `e538605`) + Mod 23 (commit `d679652`) + A5.4 Pricing.tsx refonte. |
+| Pages légales /cgv /legal /privacy 404 | ✅ FIXED | Mod 28 (commit `cf86231`) du 1er mai, contenu boilerplate FR+EN livré. |
+| Lighthouse mobile a11y 86, SEO 91 | ✅ FIXED | Mod 29 (commit `3366d29`) du 1er mai, scores 100/100/100. |
+| Console error 404 /favicon.ico | ✅ FIXED | Mod 30 (commit `18698e5`) du 1er mai. |
+| Stripe webhook backend manquant | ✅ DONE | Phase 3 S3.3 (commit `b8e4f82`) du 29 avril. |
+| Marcus régression Rev2 (E2E #143) | ⏳ KNOWN | Voir REVISION-001 P2. Code patch écrit, pas branché. |
+| Cost tracking 22% capture | ⏳ KNOWN | Voir COST-001 P2. |
