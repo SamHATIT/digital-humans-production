@@ -1,0 +1,914 @@
+{
+  "artifact_id": "ARCH-001",
+  "title": "LogiFleet Solution Design Specification",
+  "data_model": {
+    "standard_objects": [
+      {
+        "api_name": "Account",
+        "label": "Account",
+        "purpose": "Represents the Client/Tenant entity for rental contracts.",
+        "custom_fields": [
+          {
+            "api_name": "Client_Type__c",
+            "type": "Picklist",
+            "values": ["Individual", "Corporate"],
+            "required": true,
+            "description": "Distinguishes between personal and business clients."
+          }
+        ],
+        "record_types": [
+          {
+            "name": "Corporate_Client",
+            "description": "Account record type for business entities."
+          }
+        ]
+      },
+      {
+        "api_name": "Contact",
+        "label": "Contact",
+        "purpose": "Represents drivers and individual tenants.",
+        "custom_fields": [
+          {
+            "api_name": "Driver_License_Number__c",
+            "type": "Text(50)",
+            "required": false,
+            "description": "Stored for driver identification."
+          }
+        ]
+      },
+      {
+        "api_name": "Task",
+        "label": "Task",
+        "purpose": "Used for automated notifications and maintenance reminders.",
+        "custom_fields": []
+      }
+    ],
+    "custom_objects": [
+      {
+        "api_name": "Vehicle__c",
+        "label": "Vehicle",
+        "purpose": "Central entity for fleet inventory management.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Brand__c",
+            "type": "Text(100)",
+            "required": true,
+            "description": "Vehicle manufacturer."
+          },
+          {
+            "api_name": "Model__c",
+            "type": "Text(100)",
+            "required": true,
+            "description": "Vehicle model name."
+          },
+          {
+            "api_name": "Registration_Number__c",
+            "type": "Text(50)",
+            "required": true,
+            "description": "Unique license plate number."
+          },
+          {
+            "api_name": "Mileage__c",
+            "type": "Number(18,0)",
+            "required": false,
+            "description": "Current odometer reading."
+          },
+          {
+            "api_name": "Condition_Status__c",
+            "type": "Picklist",
+            "values": ["New", "Good", "Fair", "Poor"],
+            "required": false,
+            "description": "Physical state of the vehicle."
+          },
+          {
+            "api_name": "Status__c",
+            "type": "Picklist",
+            "values": ["Available", "Rented", "Maintenance", "Inactive"],
+            "required": true,
+            "description": "Operational status."
+          },
+          {
+            "api_name": "Fleet_Manager__c",
+            "type": "Lookup(User)",
+            "required": false,
+            "description": "Assigned manager for the vehicle."
+          }
+        ],
+        "indexes": [
+          "Registration_Number__c"
+        ],
+        "relationships": []
+      },
+      {
+        "api_name": "Rental_Contract__c",
+        "label": "Rental Contract",
+        "purpose": "Manages the duration and status of vehicle rentals.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Start_Date__c",
+            "type": "Date",
+            "required": true,
+            "description": "Contract commencement date."
+          },
+          {
+            _api_name": "End_Date__c",
+            "type": "Date",
+            "required": true,
+            "description": "Contract expiration date."
+          },
+          {
+            "api_name": "Duration_Months__c",
+            "type": "Number(18,0)",
+            "required": false,
+            "description": "Calculated duration."
+          },
+          {
+            "api_name": "Status__c",
+            "type": "Picklist",
+            "values": ["Upcoming", "Active", "Expired", "Terminated", "Renewed", "Reassigned"],
+            "required": true,
+            "description": "Lifecycle status of the contract."
+          },
+          {
+            "api_name": "Rental_Manager__c",
+            "type": "Lookup(User)",
+            "required": false,
+            "description": "Person responsible for the contract."
+          },
+          {
+            "api_name": "Tenant__c",
+            "type": "Lookup(Contact)",
+            "required": true,
+            "description": "The person renting the vehicle."
+          },
+          {
+            "api_name": "Expiration_Alert_Sent__c",
+            "type": "Checkbox",
+            "required": false,
+            "description": "Flag to prevent duplicate alerts."
+          }
+        ],
+        "relationships": [
+          {
+            "field": "Vehicle__c",
+            "type": "Lookup",
+            "target": "Vehicle__c",
+            "cardinality": "Many-to-One"
+          },
+          {
+            "field": "Account__c",
+            "type": "Lookup",
+            "target": "Account",
+            "cardinality": "Many-to-One"
+          }
+        ]
+      },
+      {
+        "api_name": "Maintenance_Schedule__c",
+        "label": "Maintenance Schedule",
+        "purpose": "Tracks upcoming and recurring maintenance tasks.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Vehicle__c",
+            "type": "Lookup(Vehicle__c)",
+            "required": true,
+            "description": "Associated vehicle."
+          },
+          {
+            "api_name": "Maintenance_Type__c",
+            "type": "Picklist",
+            "values": ["Oil Change", "Tire Rotation", "Brake Inspection", "General"],
+            "required": true,
+            "description": "Type of service."
+          },
+          {
+            "api_name": "Scheduled_Date__c",
+            "type": "Date",
+            "required": true,
+            "description": "Date maintenance is due."
+          },
+          {
+            "api_name": "Recurrence_Interval__c",
+            "type": "Number(18,0)",
+            "required": false,
+            "description": "Months until next service."
+          },
+          {
+            "api_name": "Status__c",
+            "type": "Picklist",
+            "values": ["Scheduled", "Completed", "Overdue"],
+            "required": true,
+            "description": "Current state of the schedule."
+          }
+        ],
+        "relationships": [
+          {
+            "field": "Vehicle__c",
+            "type": "MasterDetail",
+            "target": "Vehicle__c",
+            "cascade_delete": true
+          }
+        ]
+      },
+      {
+        "api_name": "Insurance_Policy__c",
+        "label": "Insurance Policy",
+        "purpose": "Stores policy details and coverage limits.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Policy_Number__c",
+            "type": "Text(50)",
+            "required": true,
+            "description": "Unique policy identifier."
+          },
+          {
+            "api_name": "Coverage_Limit__c",
+            "type": "Currency(18,2)",
+            "required": true,
+            "description": "Maximum coverage amount."
+          },
+          {
+            "api_name": "Total_Claimed_Amount__c",
+            "type": "Currency(18,2)",
+            "required": false,
+            "description": "Aggregated amount of all claims."
+          },
+          {
+            "api_name": "Coverage_Limit_Exceeded__c",
+            "type": "Checkbox",
+            "required": false,
+            "description": "Flag for limit breach."
+          }
+        ],
+        "relationships": []
+      },
+      {
+        "api_name": "Claim__c",
+        "label": "Claim",
+        "purpose": "Tracks insurance claims for incidents.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Insurance_Policy__c",
+            "type": "Lookup(Insurance_Policy__c)",
+            "required": true,
+            "description": "Linked policy."
+          },
+          {
+            "api_name": "Claimed_Amount__c",
+            "type": "Currency(18,2)",
+            "required": true,
+            "description": "Cost of the claim."
+          }
+        ],
+        "relationships": [
+          {
+            "field": "Insurance_Policy__c",
+            "type": "Lookup",
+            "target": "Insurance_Policy__c",
+            "cardinality": "Many-to-One"
+          }
+        ]
+      },
+      {
+        "api_name": "Incident_Report__c",
+        "label": "Incident Report",
+        "purpose": "Mobile-submitted reports for vehicle damage.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Vehicle__c",
+            "type": "Lookup(Vehicle__c)",
+            "required": true,
+            "description": "Vehicle involved."
+          },
+          {
+            "api_name": "Description__c",
+            "type": "LongTextArea(32000)",
+            "required": true,
+            "description": "Details of the incident."
+          },
+          {
+            "api_name": "Reported_DateTime__c",
+            "type": "DateTime",
+            "required": true,
+            "description": "Auto-populated timestamp."
+          }
+        ],
+        "relationships": [
+          {
+            "field": "Vehicle__c",
+            "type": "Lookup",
+            "target": "Vehicle__c",
+            "cardinality": "Many-to-One"
+          }
+        ]
+      },
+      {
+        "api_name": "Mileage_Reading__c",
+        "label": "Mileage Reading",
+        "purpose": "Logs odometer readings for trend analysis.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Vehicle__c",
+            "type": "Lookup(Vehicle__c)",
+            "required": true,
+            "description": "Vehicle being read."
+          },
+          {
+            "api_name": "Odometer_Value__c",
+            "type": "Number(18,0)",
+            "required": true,
+            "description": "The reading value."
+          },
+          {
+            "api_name": "Is_Anomaly__c",
+            "type": "Checkbox",
+            "required": false,
+            "description": "Flagged by Apex."
+          }
+        ],
+        "relationships": [
+          {
+            "field": "Vehicle__c",
+            "type": "Lookup",
+            "target": "Vehicle__c",
+            "cardinality": "Many-to-One"
+          }
+        ]
+      },
+      {
+        "api_name": "Fleet_Metric__c",
+        "label": "Fleet Metric Snapshot",
+        "purpose": "Daily historical snapshots of fleet health.",
+        "sharing_model": "Private",
+        "fields": [
+          {
+            "api_name": "Snapshot_Date__c",
+            "type": "Date",
+            "required": true,
+            "description": "Date of snapshot."
+          },
+          {
+            "api_name": "Total_Vehicles__c",
+            "type": "Number(18,0)",
+            "required": true,
+            "description": "Total count."
+          }
+        ],
+        "relationships": []
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Maintenance_Schedule__c",
+        "to": "Vehicle__c",
+        "type": "MasterDetail",
+        "field": "Vehicle__c",
+        "cardinal:ity": "Many-to-One"
+      },
+      {
+        "from": "Claim__c",
+        "to": "Insurance_Policy__c",
+        "type": "Lookup",
+        "field": "Insurance_Policy__c",
+        "cardinality": "Many-to-One"
+      }
+    ],
+    "erd_mermaid": "erDiagram\n  Vehicle__c ||--o{ Maintenance_Schedule__c : has\n  Vehicle__c ||--o{ Rental_Contract__c : assigned_to\n  Vehicle__c ||--o{ Incident_Report__c : involved_in\n  Vehicle__c ||--o{ Mileage_Reading__c : records\n  Insurance_Policy__c ||--o{ Claim__c : covers\n  Contact ||--o{ Rental_Contract__c : signs"
+  },
+  "security_model": {
+    "profiles": [
+      {
+        "name": "Fleet Operations",
+        "description": "Standard users managing vehicles and contracts.",
+        "license": "Salesforce"
+      },
+      {
+        "name": "Driver",
+        "description": "Mobile users reporting incidents and mileage.",
+        "license": "Sales_Mobile_License"
+      },
+      {
+        "name": "Finance Staff",
+        "description": "Users managing invoices and claims.",
+        "license": "Salesforce"
+      }
+    ],
+    "permission_sets": [
+      {
+        "api_name": "PS_Fleet_Manager",
+        "label": "Fleet Manager Permissions",
+        "description": "Full access to vehicle and maintenance management.",
+        "object_permissions": [
+          {
+            "object": "Vehicle__c",
+            "create": true,
+            "read": true,
+            "edit": true,
+            "delete": true,
+            "view_all": true,
+            "modify_all": true
+          },
+          {
+            "object": "Maintenance_Schedule__c",
+            "create": true,
+            "read": true,
+            "edit": true,
+            "delete": true,
+            "view_all": false,
+            "modify_all": false
+          }
+        ],
+        "field_permissions": [
+          {
+            "object": "Vehicle__c",
+            "field": "Condition_Status__c",
+            "readable": true,
+            "editable": true
+          }
+        ]
+      },
+      {
+        "api_name": "PS_Driver_Mobile",
+        "label": "Driver Mobile Permissions",
+        "description": "Limited access for incident and mileage reporting.",
+        "object_permissions": [
+          {
+            "object": "Incident_Report__c",
+            "create": true,
+            "read": true,
+            "edit": false,
+            "delete": false,
+            "view_all": false,
+            "modify_all": false
+          },
+          {
+            "object": "Mileage_Reading__c",
+            "create": true,
+            "read": true,
+            "edit": false,
+            "delete": false,
+            "view_all": false,
+            "modify_all": false
+          }
+        ],
+        "field_permissions": [
+          {
+            "object": "Incident_Report__c",
+            "field": "Description__c",
+            "readable": true,
+            "editable": true
+          }
+        ]
+      }
+    ],
+    "sharing_rules": [
+      {
+        "name": "Fleet Manager Vehicle Access",
+        "object": "Vehicle__c",
+        "type": "Criteria-Based",
+        "criteria": "Status__c = 'Available'",
+        "shared_with": "Fleet_Manager_Public_Group",
+        "access": "Read/Write"
+      }
+    ],
+    "owd": [
+      {
+        "object": "Vehicle__c",
+        "internal": "Private",
+        "external": "Private"
+      },
+      {
+        "object": "Rental_Contract__c",
+        "internal": "Private",
+        "external": "Private"
+      },
+      {
+        "object": "Incident_Report__c",
+        "internal": "Private",
+        "external": "Private"
+      }
+    ]
+  },
+  "automation_design": {
+    "flows": [
+      {
+        "api_name": "Flow_Contract_Status_Update",
+        "label": "Contract Status Daily Update",
+        "type": "Scheduled Flow",
+        "trigger": {
+          "object": "Rental_Contract__c",
+          "event": "Scheduled",
+          "condition": "Status__c IN ('Upcoming', 'Active')"
+        },
+        "uc_refs": [
+          "BR-004"
+        ],
+        "elements": [
+          {
+            "type": "Decision",
+            "name": "Check_Date_Status",
+            "conditions": [
+              {
+                "label": "Is Expired",
+                "criteria": "Today > End_Date__c"
+              },
+              {
+                "label": "Is Active",
+                "criteria": "Today >= Start_Date__c AND Today <= End_Date__c"
+              }
+            ]
+          },
+          {
+            "type": "Update Records",
+            "object": "$$Record",
+            "field_assignments": [
+              {
+                "field": "Status__c",
+                "value": "Expired"
+              }
+            ]
+          }
+        ],
+        "error_handling": "Fault path -> Create Error_Log__c with error details"
+      },
+      {
+        "api_name": "Flow_Maintenance_Recurrence",
+        "label": "Maintenance Recurrence Generator",
+        "type": "Record-Triggered Flow",
+        "trigger": {
+          "object": "Maintenance_Schedule__c",
+          "event": "After Update",
+          "condition": "Status__c = 'Completed'"
+        },
+        "uc_refs": [
+          "BR-007"
+        ],
+        "elements": [
+          {
+            "type": "Decision",
+            "name": "Check_Recurrence",
+            "conditions": [
+              {
+                "label": "Has Interval",
+                "criteria": "Recurrence_Interval__c != null"
+              }
+            ]
+          },
+          {
+            "type": "Create Records",
+            "object": "Maintenance_Schedule__c",
+            "field_assignments": [
+              {
+                "field": "Vehicle__c",
+                "value": "$$Record.Vehicle__c"
+              },
+              {
+                "field": "Scheduled_Date__c",
+                "value": "ADD_MONTHS($$Record.Scheduled_Date__c, $$Record.Recurrence_Interval__c)"
+              },
+              {
+                "field": "Status__c",
+                "value": "Scheduled"
+              }
+            ]
+          }
+        ],
+        "error_handling": "Fault path -> Create Error_Log__c with error details"
+      },
+      {
+        "api_name": "Flow_Incident_Notification",
+        "label": "Incident Notification Flow",
+        "type": "Record-Triggered Flow",
+        "trigger": {
+          "object": "Incident_Report__c",
+          "event": "After Create",
+          "condition": "Status__c = 'Submitted'"
+        },
+        "uc_refs": [
+          "BR-016"
+        ],
+        "elements": [
+          {
+            "type": "Get Records",
+            "object": "Vehicle__c",
+            "filter": "Id = $$Record.Vehicle__c",
+            "purpose": "Retrieve vehicle fleet manager."
+          },
+          {
+            "type": "Create Records",
+            "Task",
+            "field_assignments": [
+              {
+                "field": "WhatId",
+                "value": "$$Record.Id"
+              },
+              {
+                "field": "Subject",
+                "value": "New Incident Report: " + $$Record.Id
+              }
+            ]
+          }
+        ],
+        "error_handling": "Fault path -> Create Error_Log__c with error details"
+      }
+    ],
+    "apex_triggers": [
+      {
+        "name": "MileageAnomalyTrigger",
+        "object": "Mileage_Reading__c",
+        "events": [
+          "before insert"
+        ],
+        "handler_class": "MileageAnomalyHandler",
+        "uc_refs": [
+          "BR-022"
+        ],
+        "logic_summary": "Compares new reading against historical average of last 10 readings. If deviation > 20%, sets Is_Anomaly__c = true and creates a Task for Fleet Manager."
+      }
+    ],
+    "scheduled_jobs": [
+      {
+        "name": "FleetMetricsSnapshotJob",
+        "type": "Batch Apex",
+        "schedule": "Daily 6:00 AM",
+        "purpose": "Aggregates daily counts for vehicles, claims, and contracts into Fleet_Metric__c.",
+        "batch_size": 200
+      }
+    ],
+    "platform_events": [
+      {
+        "api_name": "Fleet_Alert__e",
+        "purpose": "Real-time notification for critical vehicle issues.",
+        "fields": [
+          {
+            "api_name": "Vehicle_Id__c",
+            "type": "Text(18)"
+          },
+          {
+            "api_name": "Alert_Type__c",
+            "type": "Text(50)"
+          }
+        ]
+      }
+    ]
+  },
+  "integration_points": [
+    {
+      "name": "Mobile Incident Submission",
+      "system": "Salesforce Mobile App",
+      "direction": "Inbound",
+      "method": "REST",
+      "frequency": "Real-time",
+      "uc_refs": [
+        "BR-016"
+      ],
+      "auth": {
+        "type": "OAuth 2.0",
+        "grant": "Authorization Code",
+        "scopes": [
+          "api",
+          "web"
+        ]
+      },
+      "endpoint_spec": {
+        "url_pattern": "/services/data/v58.0/sobjects/Incident_Report__c",
+        "payload_format": "JSON",
+        "key_fields": [
+          "Vehicle__c",
+          "Description__c"
+        ],
+        "response_codes": {
+          "200": "Success",
+          "400": "Bad Request",
+          "401": "Auth Failed"
+        }
+      },
+      "error_handling": {
+        "retry_strategy": "Exponential backoff, max 3",
+        "dead_letter": "Error_Log__c"
+      },
+      "rate_limits": {
+        "requests_per_day": 10000
+      },
+      "named_credential": "Salesforce_Mobile_Internal"
+    }
+  ],
+  "ui_components": {
+    "lightning_apps": [
+      {
+        "name": "LogiFleet Operations",
+        "type": "Standard App",
+        "tabs": [
+          "Vehicle__c",
+          "Rental_Contract__c",
+          "Maintenance_Schedule__c",
+          "Incident_Report__c"
+        ],
+        "utility_bar": [
+          "History",
+          "Recent Items"
+        ]
+      }
+    ],
+    "lightning_pages": [
+      {
+        "name": "Vehicle_Record_Page",
+        "type": "Record Page",
+        "object": "Vehicle__c",
+        "layout": "Two regions: Left for core details, Right for Maintenance and Mileage history.",
+        "components": [
+          "Mileage_Trend_Chart_LWC",
+          "Related_Lists"
+        ]
+      }
+    ],
+    "lwc_components": [
+      {
+        "name": "mileageTrendChart",
+        "purpose": "Visualizes odometer readings over time with anomaly highlighting.",
+        "uc_refs": [
+          "BR-022"
+        ],
+        "target": "lightning__RecordPage (Vehicle__c)",
+        "api_properties": [
+          {
+            "name": "recordId",
+            "type": "String",
+            "decorator": "@api"
+          }
+        ],
+        "wire_adapters": [
+          "getRecord",
+          "getRelatedListRecords"
+        ],
+        "events_fired": [
+          "chartPointSelected"
+        ],
+        "events_handled": [
+          "none"
+        ],
+        "child_components": [
+          "lightning-datatable"
+        ],
+        "design_notes": "Uses Chart.js via static resource to render trend lines."
+      }
+    ],
+    "quick_actions": [
+      {
+        "name": "Vehicle.Report_Incident",
+        "type": "Screen Flow",
+        "flow_name": "Flow_Incident_Reporting_Mobile"
+      },
+      {
+        "name": "Rental_Contract__c.Take_Action",
+        "type": "Screen Flow",
+        "flow_name": "Flow_Contract_Action_Handler"
+      }
+    ]
+  },
+  "reporting": {
+    "reports": [
+      {
+        "name": "Fleet Status Summary",
+        "type": "Summary",
+        "object": "Vehicle__c",
+        "grouping": [
+          "Status__c"
+        ],
+        "filters": [
+          "Status__c != 'Inactive'"
+        ],
+        "charts": [
+          "Donut Chart"
+        ]
+      },
+      {
+        "name": "Upcoming Maintenance",
+        "type": "Tabular",
+        "object": "Maintenance_Schedule__c",
+        "grouping": [],
+        "filters": [
+          "Scheduled_Date__c = NEXT_90_DAYS"
+        ],
+        "charts": []
+      },
+      {
+        "name": "Claims by Policy",
+        "type": "Matrix",
+        "object": "Claim__c",
+        "grouping": [
+          "Insurance_Policy__r.Policy_Number__c"
+        ],
+        "filters": [
+          "CreatedDate = THIS_YEAR"
+        ],
+        "charts": [
+          "Bar Chart"
+        ]
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Fleet Overview Dashboard",
+        "components": [
+          {
+            "title": "Total Vehicles",
+            "report": "Fleet Status Summary",
+            "type": "Gauge"
+          },
+          {
+            "title": "Maintenance Due",
+            "report": "Upcoming Maintenance",
+            "type": "Table"
+          }
+        ]
+      }
+    ]
+  },
+  "uc_traceability": {
+    "BR-001": [
+      "Vehicle__c (Object)",
+      "Registration_Number__c (Field)"
+    ],
+    "BR-004": [
+      "Flow_Contract_Status_Update (Flow)",
+      "Duration_Months__c (Field)"
+    ],
+    "BR-007": [
+      "Flow_Maintenance_Recurrence (Flow)",
+      "Maintenance_Schedule__c (Object)"
+    ],
+    "BR-010": [
+      "Flow_Contract_Status_Update (Flow)",
+      "Flow_Contract_Action_Handler (Quick Action)"
+    ],
+    "BR-013": [
+      "Claim__c (Object)",
+      "Insurance_Policy__c (Object)"
+    ],
+    "BR-016": [
+      "Flow_Incident_Notification (Flow)",
+      "Incident_Report__c (Object)",
+      "Vehicle_Report_Incident (Quick Action)"
+    ],
+    "BR-019": [
+      "FleetMetricsSnapshotJob (Scheduled Job)",
+      "Fleet_Metric__c (Object)",
+      "Fleet Overview Dashboard (Dashboard)"
+    ],
+    "BR-022": [
+      "MileageAnomalyTrigger (Apex)",
+      "mileageTrendChart (LWC)",
+      "Mileage_Reading__c (Object)"
+    ]
+  },
+  "queues": [
+    {
+      "name": "Fleet_Operations_Queue",
+      "object": "Incident_Report__c",
+      "members_type": "Role",
+      "members": [
+        "Fleet_Manager_Role"
+      ]
+    }
+  ],
+  "technical_considerations": [
+    {
+      "topic": "Data Volume",
+      "consideration": "High volume of Mileage_Reading__c and Invoice__c records.",
+      "mitigation": "Implement archiving strategy for readings older than 2 years; use Batch Apex for aggregations."
+    },
+    {
+      "topic": "Performance",
+      "consideration": "Complex Apex anomaly detection on trigger.",
+      "mitigation": "Ensure trigger is bulkified and uses Maps to avoid SOQL in loops."
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Duplicate Registration Numbers",
+      "probability": "Medium",
+      "impact": "High",
+      "mitigation": "Implement Duplicate Rules and Matching Rules on Vehicle__c.Registration_Number__c.",
+      "uc_refs": [
+        "BR-001"
+      ]
+    },
+    {
+      "risk": "Mobile Connectivity in Remote Areas",
+      "probability": "High",
+      "implication": "Low",
+      "mitigation": "Ensure Incident reports are designed for offline-capable sync via Salesforce Mobile.",
+      "uc_refs": [
+        "BR-016"
+      ]
+    }
+  ]
+}

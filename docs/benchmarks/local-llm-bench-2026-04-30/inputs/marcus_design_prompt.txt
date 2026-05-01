@@ -1,0 +1,195 @@
+# SOLUTION DESIGN SPECIFICATION
+
+You are **Marcus**, a Salesforce Certified Technical Architect (CTA).
+
+## YOUR MISSION
+Create a **High-Level Solution Design** from the Use Cases provided.
+
+## PROJECT CONTEXT
+Project: LogiFleet
+Industry: Vehicle rental and fleet management
+Goal: Build a Salesforce Service Cloud solution to manage vehicle inventory, rental contracts, maintenance, and client invoicing for a French vehicle rental SMB.
+Org type: New Salesforce org (greenfield).
+Expected users: ~50 (operations + sales + maintenance teams).
+Languages: French primary, English secondary.
+
+NOTE FOR THIS BENCHMARK: Use cases below are a representative subset (1/3 of full project). Output a complete architecture for these UCs only.
+
+
+## USE CASES TO ARCHITECT
+{"success": true, "agent_id": "research_analyst", "agent_name": "Emma (Research Analyst)", "mode": "analyze", "execution_id": 146, "project_id": 98, "deliverable_type": "uc_digest", "artifact_id": "UCD-001", "content": {"artifact_id": "UCD-001", "title": "Use Case Digest", "generated_at": "2026-04-18T14:48:55.901897", "total_use_cases_analyzed": 20, "by_requirement": {"BR-001": {"title": "Vehicle Inventory Management", "uc_count": 2, "sf_objects": ["Vehicle__c"], "sf_fields": {"Vehicle__c": ["Brand__c", "Model__c", "Registration_Number__c", "Mileage__c", "Condition_Status__c"]}, "automations": [{"type": "Validation Rule", "purpose": "Ensure Brand__c, Model__c, and Registration_Number__c are not blank on save"}, {"type": "Validation Rule", "purpose": "Enforce unique Registration_Number__c to prevent duplicate vehicle records"}], "ui_components": ["Vehicle__c Record Page", "Vehicle__c List View"], "key_acceptance_criteria": ["User can create a new Vehicle__c record with all required fields", "System prevents duplicate Registration_Number__c entries", "Validation error displayed when Brand__c, Model__c, or Registration_Number__c is blank", "User can view and edit vehicle attributes including Mileage__c", "Vehicle list view displays all vehicle records with key attributes"]}, "BR-004": {"title": "Rental Contract Duration Calculation and Status Automation", "uc_count": 2, "sf_objects": ["Rental_Contract__c"], "sf_fields": {"Rental_Contract__c": ["Start_Date__c", "End_Date__c", "Duration_Months__c", "Status__c"]}, "automations": [{"type": "Formula Field", "purpose": "Auto-calculate Duration_Months__c based on Start_Date__c and End_Date__c"}, {"type": "Flow", "purpose": "Scheduled daily flow to evaluate and set Status__c to Upcoming, Active, or Expired based on current date vs Start/End dates"}], "ui_components": ["Rental_Contract__c Record Page"], "key_acceptance_criteria": ["Duration_Months__c displays correct month count between Start and End dates", "Duration_Months__c recalculates when End_Date__c is updated", "Duration_Months__c displays blank or zero when End Date is missing", "Scheduled flow sets Status__c to Upcoming when today is before Start_Date__c", "Scheduled flow sets Status__c to Active when today is between Start and End dates", "Scheduled flow sets Status__c to Expired when today is after End_Date__c"]}, "BR-007": {"title": "Scheduled Maintenance and Recurring Maintenance Management", "uc_count": 3, "sf_objects": ["Vehicle__c", "Maintenance_Schedule__c", "Task"], "sf_fields": {"Maintenance_Schedule__c": ["Vehicle__c", "Maintenance_Type__c", "Scheduled_Date__c", "Recurrence_Interval__c", "Notes__c", "Status__c"], "Vehicle__c": ["Status__c"], "Task": []}, "automations": [{"type": "Validation Rule", "purpose": "Prevent saving Maintenance_Schedule__c with Scheduled_Date__c in the past"}, {"type": "Flow", "purpose": "Auto-generate next recurring Maintenance_Schedule__c when current schedule is marked Completed and Recurrence_Interval__c is populated"}, {"type": "Flow", "purpose": "Skip recurring schedule generation if associated Vehicle__c is inactive"}], "ui_components": ["Vehicle__c Record Page with Maintenance Schedule Related List", "Maintenance_Schedule__c Record Page"], "key_acceptance_criteria": ["User can create a Maintenance_Schedule__c linked to a Vehicle__c with required fields", "Past Scheduled_Date__c is rejected with validation error", "On completion with Recurrence_Interval__c populated, a new schedule is auto-created with calculated next date", "No new schedule is created if Recurrence_Interval__c is blank", "No recurring schedule is generated for inactive vehicles", "Maintenance Schedule related list displays all records sorted by Scheduled_Date__c ascending", "User can filter by Status__c (Scheduled, Overdue, Completed)"]}, "BR-010": {"title": "Rental Contract Expiration Alerts and Contract Actions", "uc_count": 3, "sf_objects": ["Rental_Contract__c", "Task", "User", "Contact"], "sf_fields": {"Rental_Contract__c": ["End_Date__c", "Status__c", "Rental_Manager__c", "Contract_Number__c", "Tenant__c", "Expiration_Alert_Sent__c", "OwnerId", "Contract_Action__c", "Termination_Reason__c", "New_Tenant__c", "Action_Taken_Date__c"], "Task": ["Subject", "ActivityDate", "OwnerId", "Status"], "User": [], "Contact": []}, "automations": [{"type": "Flow", "purpose": "Scheduled daily flow to generate expiration alert Tasks and email notifications for active contracts approaching End_Date__c"}, {"type": "Flow", "purpose": "Prevent duplicate alerts by checking Expiration_Alert_Sent__c flag"}, {"type": "Flow", "purpose": "Default notification to record owner when no Rental_Manager__c is assigned"}, {"type": "Flow", "purpose": "Screen Flow for Take Contract Action: Renew, Terminate, or Reassign with appropriate field updates"}, {"type": "Flow", "purpose": "Record-triggered flow to reset Expiration_Alert_Sent__c to FALSE when End_Date__c is extended to a future date"}, {"type": "Validation Rule", "purpose": "Prevent saving End_Date__c in the past"}], "ui_components": ["Rental_Contract__c Record Page", "Take Contract Action Screen Flow Button", "Rental_Contract__c List View"], "key_acceptance_criteria": ["Scheduled flow creates Task and sends email for active contracts within configured alert threshold of End_Date__c", "No duplicate alert when Expiration_Alert_Sent__c is already TRUE", "Default notification to record owner when Rental_Manager__c is blank", "Renew action updates Contract_Action__c to Renewed, extends End_Date__c, sets Action_Taken_Date__c", "Terminate action updates Status__c to Terminated, records Termination_Reason__c and Action_Taken_Date__c", "Reassign action updates Tenant__c to New_Tenant__c and sets Contract_Action__c to Reassigned", "Expiration_Alert_Sent__c resets to FALSE when End_Date__c is extended", "Expiration_Alert_Sent__c remains unchanged for Terminated contracts", "Past End_Date__c is rejected with validation error"]}, "BR-013": {"title": "Claim-Insurance Policy Association and Coverage Utilization Tracking", "uc_count": 2, "sf_objects": ["Claim__c", "Insurance_Policy__c"], "sf_fields": {"Claim__c": ["Insurance_Policy__c", "Claim_Number__c", "Claim_Status__c", "Incident_Date__c", "Claimed_Amount__c"], "Insurance_Policy__c": ["Policy_Number__c", "Policy_Status__c", "Coverage_Type__c", "Expiration_Date__c", "Total_Claims_Count__c", "Total_Claimed_Amount__c", "Coverage_Limit__c", "Coverage_Limit_Exceeded__c"]}, "automations": [{"type": "Validation Rule", "purpose": "Display warning when user selects an expired or inactive policy on a Claim__c record"}, {"type": "Flow", "purpose": "Auto-calculate Total_Claims_Count__c and Total_Claimed_Amount__c on Insurance_Policy__c when Claim__c is created, updated, or deleted"}, {"type": "Flow", "purpose": "Set Coverage_Limit_Exceeded__c to true and send notification when Total_Claimed_Amount__c exceeds Coverage_Limit__c"}], "ui_components": ["Claim__c Record Page", "Insurance_Policy__c Record Page with Claims Related List"], "key_acceptance_criteria": ["User can associate a Claim__c with a valid Insurance_Policy__c via lookup", "Warning displayed when selecting an expired or inactive policy", "All related claims visible on Insurance_Policy__c related list", "Total_Claims_Count__c and Total_Claimed_Amount__c auto-update on claim changes", "Coverage_Limit_Exceeded__c is set to true when total claimed exceeds coverage limit", "Notification sent when coverage limit is exceeded", "Utilization fields recalculate correctly when a claim is removed"]}, "BR-016": {"title": "Mobile Incident Reporting by Drivers", "uc_count": 3, "sf_objects": ["Incident_Report__c", "Vehicle__c", "ContentVersion", "ContentDocumentLink", "Task", "User"], "sf_fields": {"Incident_Report__c": ["Report_Type__c", "Vehicle__c", "Description__c", "Status__c", "Reported_DateTime__c", "Driver__c"], "Vehicle__c": ["Fleet_Manager__c"], "ContentVersion": [], "ContentDocumentLink": [], "Task": ["Subject", "ActivityDate", "OwnerId", "WhatId"], "User": []}, "automations": [{"type": "Flow", "purpose": "Auto-populate Reported_DateTime__c with current datetime on Incident_Report__c creation"}, {"type": "Flow", "purpose": "Record-triggered flow to send email notification to Fleet Manager and create Task when Incident_Report__c is submitted"}, {"type": "Flow", "purpose": "Route notification to default fleet operations queue when Vehicle__c has no Fleet_Manager__c"}], "ui_components": ["Incident_Report__c Mobile-Optimized Record Page", "Incident_Report__c Compact Layout for Mobile", "Global Quick Action: Report Incident", "Salesforce Mobile App Navigation Configuration"], "key_acceptance_criteria": ["Driver can submit incident report from Salesforce Mobile App with Description__c and optional photo", "Photo attachment creates ContentVersion linked via ContentDocumentLink", "Reported_DateTime__c auto-populated on creation", "Report Incident action visible in mobile navigation menu", "Compact layout shows key fields on mobile", "Submitted reports are read-only for driver profile via object/field-level security", "Fleet Manager receives email notification on new submission", "Task created for Fleet Manager with one-business-day due date", "Notification routed to default fleet operations queue when no Fleet_Manager__c"]}, "BR-019": {"title": "Fleet Overview Dashboard and Automated Metrics Aggregation", "uc_count": 2, "sf_objects": ["Vehicle__c", "Maintenance__c", "Contract", "Claim__c", "Invoice__c", "Dashboard", "Report", "Fleet_Metric__c"], "sf_fields": {"Vehicle__c": ["Status__c", "Name"], "Maintenance__c": ["Scheduled_Date__c", "Vehicle__c"], "Contract": ["EndDate", "Status"], "Claim__c": ["Status__c"], "Invoice__c": ["Due_Date__c", "Status__c"], "Fleet_Metric__c": ["Total_Vehicles__c", "Vehicles_Active__c", "Vehicles_In_Maintenance__c", "Upcoming_Maintenance_Count__c", "Expiring_Contracts__c", "Open_Claims__c", "Overdue_Invoices__c", "Snapshot_Date__c"]}, "automations": [{"type": "Flow", "purpose": "Scheduled daily flow at 6:00 AM to aggregate fleet metrics and create/update Fleet_Metric__c snapshot record"}], "ui_components": ["Fleet Overview Dashboard", "Fleet Metrics Lightning Page", "Dashboard Components: Total Vehicles, Status Breakdown, Upcoming Maintenance, Expiring Contracts, Open Claims, Overdue Invoices"], "key_acceptance_criteria": ["Dashboard displays total vehicle count matching actual Vehicle__c records", "Vehicles grouped by Status__c with accurate counts", "Upcoming maintenance within 30 days displayed", "Expiring contracts within 60 days displayed", "Open claims and overdue invoices displayed", "Scheduled flow creates Fleet_Metric__c snapshot daily with accurate aggregated values", "Fleet_Metric__c.Vehicles_In_Maintenance__c matches actual count", "Fleet_Metric__c.Expiring_Contracts__c matches contracts expiring within 60 days"]}, "BR-022": {"title": "Mileage Reading Recording, Anomaly Detection, and Trend Analysis", "uc_count": 3, "sf_objects": ["Vehicle__c", "Mileage_Reading__c", "Task"], "sf_fields": {"Mileage_Reading__c": ["Vehicle__c", "Reading_Date__c", "Odometer_Value__c", "Source__c", "Is_Anomaly__c", "Notes__c", "Anomaly_Reason__c", "Daily_Mileage_Rate__c"], "Vehicle__c": ["Current_Mileage__c", "Last_Mileage_Date__c", "Average_Daily_Mileage__c", "Has_Mileage_Anomaly__c"], "Task": ["Subject", "WhatId"]}, "automations": [{"type": "Validation Rule", "purpose": "Reject mileage reading if Odometer_Value__c is less than or equal to Vehicle__c.Current_Mileage__c"}, {"type": "Validation Rule", "purpose": "Reject future Reading_Date__c"}, {"type": "Apex", "purpose": "Detect mileage anomalies by comparing new daily mileage rate against historical average of last 10 readings; flag anomalies and create Tasks"}, {"type": "Apex", "purpose": "Skip anomaly detection when fewer than 3 prior readings exist"}], "ui_components": ["Mileage_Reading__c Entry Form", "Vehicle__c Record Page with Mileage History Related List/Tab", "Mileage Trend Chart Component"], "key_acceptance_criteria": ["Valid mileage reading creates record and updates Vehicle__c.Current_Mileage__c and Last_Mileage_Date__c", "Reading with Odometer_Value__c <= Current_Mileage__c is rejected", "Future Reading_Date__c is rejected", "Anomaly detection flags readings with daily rate significantly exceeding historical average", "Task created for fleet manager when anomaly detected", "Anomaly detection skipped with fewer than 3 prior readings", "Mileage History displays all readings in chronological order", "User can filter by date range, source, or anomaly status", "Trend chart visually distinguishes anomaly data points"]}}, "cross_cutting_concerns": {"shared_objects": [{"object": "Vehicle__c", "usage": "Central entity used in BR-001, BR-002, BR-003, BR-006, BR-007, BR-008, BR-011, BR-012, BR-016, BR-017, BR-018, BR-019, BR-020, BR-021, BR-022, BR-023, BR-024"}, {"object": "Rental_Contract__c", "usage": "Used in BR-003, BR-004, BR-010, BR-014"}, {"object": "Invoice__c", "usage": "Used in BR-014, BR-015, BR-019"}, {"object": "Maintenance_Activity__c", "usage": "Used in BR-006, BR-009"}, {"object": "Maintenance_Schedule__c", "usage": "Used in BR-007"}, {"object": "Maintenance__c", "usage": "Used in BR-019, BR-020 — potential overlap/duplicate with Maintenance_Activity__c from BR-006; needs consolidation"}, {"object": "Task", "usage": "Used as notification/action mechanism in BR-007, BR-008, BR-009, BR-010, BR-016, BR-022, BR-023"}, {"object": "Account", "usage": "Used in BR-003, BR-014 as Client/Tenant entity"}, {"object": "Client__c", "usage": "Used in BR-005 — potential overlap with Account used in BR-003; needs clarification on client data model"}, {"object": "Contact", "usage": "Used in BR-010, BR-018, BR-023 as Driver/Tenant entity"}, {"object": "Driver_Vehicle_Assignment__c", "usage": "Used in BR-017, BR-018 to link drivers to vehicles"}, {"object": "Mileage_Reading__c", "usage": "Used in BR-017, BR-022 — two separate use case groups reference similar functionality; needs consolidation"}, {"object": "ContentVersion/ContentDocumentLink", "usage": "Used in BR-016, BR-023 for photo attachments on mobile reports"}, {"object": "Sinistre__c", "usage": "Used in BR-011 for claims/incidents"}, {"object": "Claim__c", "usage": "Used in BR-013, BR-019 — potential overlap with Sinistre__c from BR-011; needs clarification"}, {"object": "Insurance_Policy__c", "usage": "Used in BR-012, BR-013"}, {"object": "Vehicle_Insurance__c", "usage": "Used in BR-024 — potential overlap with Insurance_Policy__c from BR-012; needs consolidation"}, {"object": "Alert__c", "usage": "Used in BR-021 as generic alert object"}, {"object": "Insurance_Alert__c", "usage": "Used in BR-024 for insurance-specific alerts"}, {"object": "Inspection_Alert__c", "usage": "Used in BR-008 for inspection-specific alerts"}, {"object": "Fleet_Metric__c", "usage": "Used in BR-019 for dashboard metric snapshots"}, {"object": "Alert_Configuration__mdt", "usage": "Used in BR-021 for configurable alert lead times"}, {"object": "Maintenance_Alert_Setting__mdt", "usage": "Used in BR-009 for maintenance alert threshold configuration"}], "integration_points": [{"name": "Salesforce Mobile App", "systems": ["Salesforce Mobile"], "direction": "Inbound", "notes": "Used by drivers for incident reporting (BR-016), problem reporting (BR-023), and mileage submission (BR-017)"}], "security_requirements": ["Role-based access: Finance Staff profile for Invoice Payment_Status__c editing (BR-015)", "Field-level security: Payment_Status__c read-only for non-finance users (BR-015)", "Object/field-level security: Drivers cannot edit submitted Incident_Report__c records (BR-016)", "Record owner-based fallback for notifications when manager fields are blank (BR-009, BR-010, BR-016)", "Fleet Manager role required for problem report assignment and closure (BR-023)", "System Administrator access for Custom Metadata Type configuration (BR-009, BR-021)", "Profile-based access to Fleet Overview Dashboard (BR-019)"]}, "recommendations": ["CRITICAL: Consolidate Maintenance__c and Maintenance_Activity__c into a single object — BR-006, BR-019, and BR-020 reference overlapping maintenance concepts with different object names. Recommend using Maintenance_Activity__c as the canonical object.", "CRITICAL: Clarify and consolidate the Client data model — BR-005 uses Client__c while BR-003 uses Account as the client entity. Determine whether to use standard Account/Contact or custom Client__c and standardize across all use cases.", "CRITICAL: Consolidate Sinistre__c (BR-011) and Claim__c (BR-013) — these appear to represent the same concept (insurance claims/incidents). Recommend a single object with Incident_Type__c to differentiate.", "CRITICAL: Consolidate Insurance_Policy__c (BR-012) and Vehicle_Insurance__c (BR-024) — these represent the same insurance policy concept. Use a single object.", "CRITICAL: Consolidate alert objects — Inspection_Alert__c (BR-008), Insurance_Alert__c (BR-024), and Alert__c (BR-021) could be unified into a single Alert__c object with Alert_Type__c picklist to reduce object sprawl.", "CRITICAL: Consolidate Maintenance_Alert_Setting__mdt (BR-009) and Alert_Configuration__mdt (BR-021) into a single Custom Metadata Type for all alert threshold configurations.", "CRITICAL: Consolidate Mileage_Reading__c field naming — BR-017 uses Reading_Value__c while BR-022 uses Odometer_Value__c for the same concept. Standardize field names.", "Consider using Roll-Up Summary fields (if Master-Detail) or Rollup Helper/DLRS instead of Flow-based aggregation for Total_Maintenance_Cost__c (BR-020) and Total_Claims_Count__c/Total_Claimed_Amount__c (BR-013) for better performance.", "Use Formula Fields for calculated values where possible: Duration_Months__c (BR-004), Next_Inspection_Due_Date__c (BR-008) to avoid automation overhead.", "Implement a unified Scheduled Flow architecture — multiple BRs require daily scheduled processes (BR-004, BR-008, BR-009, BR-010, BR-012, BR-015, BR-019, BR-021, BR-024). Consider a single orchestrator flow or batch Apex to reduce scheduled job count and improve maintainability.", "Use Master-Detail relationships where appropriate: Maintenance_Activity__c to Vehicle__c, Vehicle_Status_History__c to Vehicle__c, Invoice__c to Rental_Contract__c — this enables native Roll-Up Summary fields.", "Implement duplicate rules and matching rules for Registration_Number__c (BR-001), National_ID__c (BR-005), and Policy_Number__c (BR-012) instead of or in addition to validation rules.", "For the Apex trigger enforcing unique active assignments (BR-018), ensure bulkification and consider using a unique compound index via a concatenated unique text field (Vehicle__c + Status Active) as an alternative.", "For mileage anomaly detection (BR-022), Apex is appropriate due to the computational complexity of historical trend analysis. Ensure the trigger is bulkified.", "Consider Platform Events or Custom Notifications for real-time alert delivery instead of relying solely on email and Task creation.", "Implement a consistent notification framework across all alert types (maintenance, inspection, insurance, contract expiration) to reduce code duplication.", "For the Fleet Overview Dashboard (BR-019), consider using standard Salesforce Reports and Dashboards with real-time data rather than a separate Fleet_Metric__c snapshot object, unless historical trend analysis of metrics is required.", "Ensure all scheduled flows have proper error handling, logging, and retry mechanisms to handle bulk data processing failures.", "Consider using Salesforce Mobile Publisher or a custom LWC for the mobile incident/problem reporting screens (BR-016, BR-023) to provide a better user experience than standard quick actions."], "data_volume_estimates": {"Vehicle__c": "500-5,000 records (fleet size)", "Client__c": "1,000-10,000 records", "Account": "1,000-10,000 records (if used as client entity)", "Contact": "1,000-10,000 records (drivers and tenants)", "Rental_Contract__c": "2,000-20,000 records (historical + active)", "Invoice__c": "20,000-200,000 records (monthly per contract, growing over time)", "Maintenance_Activity__c": "5,000-50,000 records (multiple per vehicle per year)", "Maintenance_Schedule__c": "2,000-20,000 records (recurring schedules per vehicle)", "Vehicle_Status_History__c": "10,000-100,000 records (multiple status changes per vehicle over time)", "Mileage_Reading__c": "10,000-200,000 records (frequent readings per vehicle, especially with mobile submissions)", "Sinistre__c": "500-5,000 records (incidents are less frequent)", "Claim__c": "500-5,000 records", "Involved_Party__c": "1,000-10,000 records (multiple parties per incident)", "Insurance_Policy__c": "500-5,000 records (one or more per vehicle)", "Inspection_Alert__c": "1,000-10,000 records (generated periodically)", "Insurance_Alert__c": "1,000-10,000 records", "Alert__c": "2,000-20,000 records (consolidated alerts)", "Problem_Report__c": "1,000-10,000 records", "Incident_Report__c": "1,000-10,000 records", "Driver_Vehicle_Assignment__c": "1,000-10,000 records (historical + active)", "Fleet_Metric__c": "365-3,650 records (daily snapshots over 1-10 years)", "Invoice_Generation_Log__c": "100-1,000 records (monthly log entries)", "Task": "20,000-100,000 records (generated by multiple automated processes)", "Maintenance_Alert_Setting__mdt": "5-20 records (configuration metadata)", "Alert_Configuration__mdt": "5-20 records (configuration metadata)"}, "_bench_note": "Truncated to 8/24 BRs for benchmark"}, "metadata": {"tokens_used": 35881, "cost_usd": 1.404675, "model": "claude-opus-4-6", "provider": "anthropic/claude-opus", "execution_time_seconds": 218.58, "use_cases_count": 58, "generated_at": "2026-04-18T14:48:55.901897"}}
+## SALESFORCE BEST PRACTICES
+(RAG context omitted for benchmark — rely on training knowledge)
+
+
+## OUTPUT FORMAT (JSON)
+
+Generate a solution design. Output ONLY valid JSON matching this structure:
+
+{
+  "artifact_id": "ARCH-001",
+  "title": "Solution Design Specification",
+
+  "data_model": {
+    "standard_objects": [
+      {"api_name": "Case", "label": "...", "purpose": "...", "custom_fields": [{"api_name": "Field__c", "type": "Picklist", "values": ["A","B"], "required": true, "description": "..."}], "record_types": [{"name": "...", "description": "..."}]}
+    ],
+    "custom_objects": [
+      {"api_name": "Error_Log__c", "label": "...", "purpose": "...", "sharing_model": "Private", "fields": [{"api_name": "...", "type": "Text(255)|Number(10,0)|Picklist|Lookup(Target)|LongTextArea(32000)|Checkbox|DateTime|Currency", "required": false, "description": "..."}], "indexes": ["Field__c"], "relationships": [{"field": "Related__c", "type": "Lookup|MasterDetail", "target": "Object", "cascade_delete": false}]}
+    ],
+    "relationships": [{"from": "Child__c", "to": "Parent", "type": "Lookup", "field": "Parent__c", "cardinality": "Many-to-One"}],
+    "erd_mermaid": "erDiagram\n  Parent ||--o{ Child__c : has\n  ..."
+  },
+
+  "security_model": {
+    "profiles": [{"name": "Service Agent", "description": "...", "license": "Salesforce"}],
+    "permission_sets": [
+      {
+        "api_name": "PS_Name",
+        "label": "...",
+        "description": "...",
+        "object_permissions": [
+          {"object": "Custom_Object__c", "create": true, "read": true, "edit": true, "delete": false, "view_all": false, "modify_all": false}
+        ],
+        "field_permissions": [
+          {"object": "Case", "field": "Internal__c", "readable": true, "editable": false}
+        ]
+      }
+    ],
+    "sharing_rules": [{"name": "...", "object": "Case", "type": "Criteria-Based", "criteria": "...", "shared_with": "...", "access": "Read/Write"}],
+    "owd": [{"object": "Case", "internal": "Private", "external": "Private"}]
+  },
+
+  "automation_design": {
+    "flows": [
+      {
+        "api_name": "Flow_API_Name",
+        "label": "...",
+        "type": "Record-Triggered Flow|Screen Flow|Scheduled Flow|Autolaunched Flow",
+        "trigger": {"object": "Case", "event": "After Create|Before Save|Scheduled", "condition": "Status = 'New'"},
+        "uc_refs": ["UC-001-01"],
+        "elements": [
+          {"type": "Get Records", "object": "Object__c", "filter": "Active__c = true", "purpose": "..."},
+          {"type": "Decision", "name": "Check_Condition", "conditions": [{"label": "Match", "criteria": "..."}, {"label": "Default", "criteria": "Default"}]},
+          {"type": "Create Records", "object": "Case", "field_assignments": [{"field": "Status", "value": "New"}, {"field": "Origin", "source": "$$Record.Channel__c"}]},
+          {"type": "Update Records", "object": "$$Record", "field_assignments": [{"field": "Processed__c", "value": "true"}]}
+        ],
+        "error_handling": "Fault path -> Create Error_Log__c with error details"
+      }
+    ],
+    "apex_triggers": [
+      {"name": "ObjectTrigger", "object": "Case", "events": ["before insert", "after insert"], "handler_class": "ObjectTriggerHandler", "uc_refs": ["UC-001-03"], "logic_summary": "..."}
+    ],
+    "scheduled_jobs": [
+      {"name": "CleanupJob", "type": "Schedulable Apex|Batch Apex", "schedule": "Daily 2:00 AM", "purpose": "...", "batch_size": 200}
+    ],
+    "platform_events": [
+      {"api_name": "Event__e", "purpose": "...", "fields": [{"api_name": "Record_Id__c", "type": "Text(18)"}]}
+    ]
+  },
+
+  "integration_points": [
+    {
+      "name": "External System API",
+      "system": "System Name",
+      "direction": "Inbound|Outbound|Bidirectional",
+      "method": "REST|SOAP|Platform Event|Streaming",
+      "frequency": "Real-time|Batch|Scheduled",
+      "uc_refs": ["UC-003-01"],
+      "auth": {"type": "OAuth 2.0|API Key|Certificate", "grant": "Authorization Code|Client Credentials", "scopes": ["scope1"]},
+      "endpoint_spec": {
+        "url_pattern": "/api/v1/resource",
+        "payload_format": "JSON|XML",
+        "key_fields": ["field1", "field2"],
+        "response_codes": {"200": "Success", "400": "Bad Request", "401": "Auth Failed", "429": "Rate Limited"}
+      },
+      "error_handling": {"retry_strategy": "Exponential backoff, max 3", "dead_letter": "Error_Log__c"},
+      "rate_limits": {"requests_per_day": 10000},
+      "named_credential": "Credential_Name"
+    }
+  ],
+
+  "ui_components": {
+    "lightning_apps": [{"name": "App_Name", "type": "Console App|Standard App", "tabs": ["Case", "Custom__c"], "utility_bar": ["History", "Macros"]}],
+    "lightning_pages": [{"name": "Record_Page", "type": "Record Page", "object": "Case", "layout": "2 regions description", "components": ["lwcName", "Related Lists"]}],
+    "lwc_components": [
+      {
+        "name": "componentName",
+        "purpose": "...",
+        "uc_refs": ["UC-001-01"],
+        "target": "lightning__RecordPage (Case)|lightning__AppPage|lightning__HomePage",
+        "api_properties": [
+          {"name": "recordId", "type": "String", "decorator": "@api"},
+          {"name": "fieldValue", "type": "String", "wire": "getRecord(Object.Field__c)"}
+        ],
+        "wire_adapters": ["getRecord|getRelatedListRecords|apex method"],
+        "events_fired": ["CustomEvent names"],
+        "events_handled": ["CustomEvent names"],
+        "child_components": ["childComponent"],
+        "design_notes": "Key implementation detail"
+      }
+    ],
+    "quick_actions": [{"name": "Object.Action_Name", "type": "Screen Flow|LWC", "flow_name": "Flow_Name"}]
+  },
+
+  "reporting": {
+    "reports": [
+      {"name": "Report_Name", "type": "Summary|Tabular|Matrix", "object": "Case", "grouping": ["Field1", "Field2"], "filters": ["CreatedDate = THIS_YEAR"], "charts": ["Bar Chart"]}
+    ],
+    "dashboards": [
+      {"name": "Dashboard_Name", "components": [{"title": "...", "report": "Report_Name", "type": "Donut Chart|Gauge|Table"}]}
+    ]
+  },
+
+  "uc_traceability": {
+    "UC-001-01": ["Flow_Name (Flow)", "Field__c (Field)", "componentName (LWC)"],
+    "UC-002-01": ["ApexClass (Apex)", "PermissionSet (Security)"]
+  },
+
+  "queues": [
+    {"name": "Queue_Name", "object": "Case", "members_type": "Role|Public Group", "members": ["Role_Name"]}
+  ],
+
+  "technical_considerations": [
+    {"topic": "Governor Limits|Data Volume|Performance", "consideration": "...", "mitigation": "..."}
+  ],
+
+  "risks": [
+    {"risk": "...", "probability": "Low|Medium|High", "impact": "Low|Medium|High", "mitigation": "...", "uc_refs": ["UC-001-01"]}
+  ]
+}
+
+## DEPTH REQUIREMENTS — CRITICAL
+
+Your architecture MUST be detailed enough for BUILD agents using Haiku to implement WITHOUT improvising.
+
+### What scores 90%+ (REQUIRED):
+1. **Flows**: MUST include `elements` array with specific types (Get Records, Decision, Create Records, Update Records, Assignment). Each element: object, filter/criteria, field_assignments.
+2. **LWC**: MUST include `api_properties` with decorators (@api/@wire/@track), `wire_adapters`, events, child components.
+3. **Security**: MUST include `object_permissions` with CRUD booleans per object per permission set. MUST include `owd` per object.
+4. **Integrations**: MUST include `auth`, `endpoint_spec` (URL, payload, response codes), `error_handling`, `rate_limits`.
+5. **Reporting**: At least 3 reports with object/grouping/filters. At least 1 dashboard.
+6. **UC Traceability**: `uc_traceability` mapping EVERY UC-ID to implementing components. No orphan UCs.
+7. **Queues**: Define all queues referenced by routing flows.
+
+### What scores below 50% (AVOID):
+- `"flows": [{"name": "Process", "purpose": "Process things"}]` — NO elements, NO trigger
+- `"permission_sets": ["Manager"]` — Just a name, no CRUD matrix
+- `"lwc_components": ["indicator"]` — No properties, no wire, no target
+- `"integration_points": [{"system": "API", "method": "REST"}]` — No auth, no endpoints
+
+## RULES
+1. Use Salesforce standard objects before creating custom ones
+2. Prefer declarative (Flows) over code (Apex) where possible
+3. Follow Salesforce naming conventions (API names with __c suffix for custom)
+4. Consider governor limits in design
+5. ERD must use valid Mermaid erDiagram syntax
+6. Be specific about object and field API names — never use placeholders
+7. EVERY Flow must have an `elements` array — never just a name and purpose
+8. EVERY LWC must have `api_properties` — never just a name
+9. EVERY integration must have `auth` and `endpoint_spec`
+10. EVERY UC must appear in `uc_traceability`
+
+---
+
+**Generate the Solution Design now. Output ONLY valid JSON. NEVER insert markdown code fences (```) inside JSON string values.**

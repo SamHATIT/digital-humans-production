@@ -1,0 +1,63 @@
+
+============================================================
+[1/12] gemma4:26b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✓ OK in 1379.3s | in=8903@28.7tps | out=7128@6.8tps | output_size=25888 chars
+
+============================================================
+[2/12] gemma4:26b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✓ OK in 411.6s | in=3284@42.2tps | out=2665@8.4tps | output_size=10570 chars
+
+============================================================
+[3/12] qwen3.5:27b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[4/12] qwen3.5:27b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[5/12] qwen3.6:27b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[6/12] qwen3.6:27b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[7/12] magistral:24b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[8/12] magistral:24b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[9/12] devstral:24b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[10/12] devstral:24b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[11/12] ministral-3:14b / marcus_design
+  prompt=31276 chars, max_tokens=12000, temp=0.4
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+[12/12] ministral-3:14b / diego_build
+  prompt=12963 chars, max_tokens=16000, temp=0.2
+  ✗ FAIL: TimeoutError: timed out
+
+============================================================
+DONE in 37804s. Results: /root/workspace/digital-humans-production/docs/benchmarks/local-llm-bench-2026-04-30/outputs/results.json
