@@ -76,10 +76,30 @@ MAX_ARCHITECTURE_REVISIONS = 2  # Max times user can request revision
 # REVISION-001 -- Mapping des categories de gaps Emma vers les sections Marcus.
 # Permet de patcher uniquement les sections impactees au lieu de regenerer
 # toute la solution (mode fix_gaps cassait la qualite : E2E #143 64.8% -> 54.8%).
+#
+# Bug-fix prompt review (E2E #144) : Emma a 2 vocabulaires de categories :
+# - Code programmatique (research_analyst.py l.305-329) : UPPERCASE
+#   ("DATA_MODEL", "AUTOMATION", "UI")
+# - LLM fix_instructions (emma_research.yaml mode fix_instructions) : lowercase
+#   ("data_model", "automation", "ui_component", "security", "integration",
+#    "reporting", "uc_traceability")
+# DB E2E #143 confirme les 2 casses cohabitent dans critical_gaps.
+# Le mapping doit couvrir TOUTES les variantes pour eviter le no-op.
 CATEGORY_TO_SECTION = {
-    "DATA_MODEL":  "data_model",
-    "AUTOMATION":  "automation_design",
-    "UI":          "ui_components",
+    # Code programmatique (uppercase historique)
+    "DATA_MODEL":       "data_model",
+    "AUTOMATION":       "automation_design",
+    "UI":               "ui_components",
+    # LLM Emma fix_instructions (lowercase, vocabulaire YAML)
+    "data_model":       "data_model",
+    "automation":       "automation_design",
+    "ui":               "ui_components",
+    "ui_component":     "ui_components",
+    "ui_components":    "ui_components",
+    "security":         "security_model",
+    "integration":      "integration_points",
+    "reporting":        "reporting",
+    "uc_traceability":  "uc_traceability",
 }
 
 # Agent configurations

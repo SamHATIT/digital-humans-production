@@ -677,7 +677,7 @@ modes:
       Return ONLY the updated `$section_key` section as valid JSON.
       Not the full architecture — just this one section.
 
-      Example: if section_key is "data_model", return:
+      ### Example A — section_key = "data_model"
       {
         "standard_objects": [...existing + new...],
         "custom_objects": [...existing + new...],
@@ -685,12 +685,82 @@ modes:
         "erd_mermaid": "updated diagram"
       }
 
+      ### Example B — section_key = "automation_design"
+      {
+        "flows": [
+          {
+            "api_name": "Existing_Flow",
+            "label": "...",
+            "type": "Record-Triggered Flow",
+            "trigger": {"object": "Case", "event": "After Create", "condition": "..."},
+            "uc_refs": ["UC-001-01"],
+            "elements": [
+              {"type": "Get Records", "object": "...", "filter": "...", "purpose": "..."},
+              {"type": "Decision", "name": "...", "conditions": [...]},
+              {"type": "Update Records", "object": "$$Record", "field_assignments": [...]}
+            ],
+            "error_handling": "Fault path -> Create Error_Log__c"
+          },
+          {"...newly added flows from fix_instructions..."}
+        ],
+        "apex_triggers": [...existing + new...],
+        "scheduled_jobs": [...existing + new...],
+        "platform_events": [...existing + new...]
+      }
+
+      ### Example C — section_key = "ui_components"
+      {
+        "lightning_apps": [...existing + new...],
+        "lightning_pages": [...existing + new...],
+        "lwc_components": [
+          {
+            "name": "componentName",
+            "purpose": "...",
+            "uc_refs": ["UC-001-01"],
+            "target": "lightning__RecordPage (Case)",
+            "api_properties": [
+              {"name": "recordId", "type": "String", "decorator": "@api"},
+              {"name": "fieldValue", "type": "String", "wire": "getRecord(Object.Field__c)"}
+            ],
+            "wire_adapters": ["getRecord"],
+            "events_fired": ["..."],
+            "events_handled": ["..."],
+            "child_components": ["..."]
+          }
+        ],
+        "quick_actions": [...existing + new...]
+      }
+
+      ## DEPTH CHECK — EVERY ADDED COMPONENT MUST MEET THESE MINIMUMS
+
+      Marcus patches that produce shallow components will be flagged again by Emma
+      next iteration -> wasted call. Every new element MUST satisfy:
+
+      | Component | Minimum Required Fields |
+      |---|---|
+      | Flow | api_name, label, type, trigger (object/event/condition), elements (>=2 with type/object/filter/field_assignments), error_handling |
+      | LWC | name, purpose, target, api_properties (>=1 with decorator), wire_adapters, uc_refs |
+      | Custom Object | api_name, label, purpose, sharing_model, fields (each: api_name/type/required), relationships |
+      | Standard Object Custom Field | object, api_name, type, required, description |
+      | PermissionSet | api_name, label, object_permissions (CRUD matrix per object), field_permissions if FLS needed |
+      | Apex Trigger | name, object, events, handler_class, uc_refs, logic_summary |
+      | Integration | name, system, method, auth (type/grant/scopes), endpoint_spec, error_handling, rate_limits |
+      | Report | name, type, object, grouping, filters |
+      | Validation Rule | rule_name, object, formula, error_message |
+
+      Shallow patches (e.g. `{"name": "Process X", "purpose": "..."}` without elements)
+      are detected by Emma's programmatic scoring and trigger another revision loop.
+
       ## RULES
-      1. KEEP all existing elements unchanged
+      1. KEEP all existing elements unchanged (do NOT remove anything)
       2. ADD every element from fix_instructions
-      3. Use real Salesforce API names (no placeholders)
-      4. Flows must have elements[], LWC must have api_properties[]
-      5. Return ONLY valid JSON — no markdown fences, no explanations
+      3. Use real Salesforce API names (no placeholders, no "...")
+      4. Each new component must satisfy the DEPTH CHECK table above
+      5. Flows must have elements[], LWC must have api_properties[]
+      6. Return ONLY valid JSON — no markdown fences, no explanations
+      7. Do NOT include the wrapper key `$section_key` in your output —
+         return directly the section content (e.g. for data_model, output starts
+         with `{"standard_objects": ...`, not `{"data_model": {"standard_objects": ...`)
 
       ---
 
