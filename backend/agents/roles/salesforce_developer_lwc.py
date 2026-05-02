@@ -215,7 +215,7 @@ def validate_lwc_structure(files: dict) -> dict:
         # Verifier fichiers requis
         has_js = any(f.endswith('.js') and not f.endswith('.js-meta.xml') for f in comp_files)
         has_meta = any(f.endswith('.js-meta.xml') for f in comp_files)
-        has_html = any(f.endswith('.html') for f in comp_files)
+        any(f.endswith('.html') for f in comp_files)
 
         if not has_js:
             issues.append({

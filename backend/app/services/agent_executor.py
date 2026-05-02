@@ -415,7 +415,7 @@ class AgentExecutor:
             if sf_check["connected"]:
                 yield self.log(LogLevel.SUCCESS, f"✅ Connecté à {salesforce_config.username}").to_sse()
             else:
-                yield self.log(LogLevel.WARNING, f"⚠️ Connexion SF non vérifiée (non bloquant)").to_sse()
+                yield self.log(LogLevel.WARNING, "⚠️ Connexion SF non vérifiée (non bloquant)").to_sse()
             
             # === P3: DIRECT IMPORT PATH for migrated agents ===
             if agent_id in MIGRATED_AGENTS:

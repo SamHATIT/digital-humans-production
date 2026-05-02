@@ -4,7 +4,7 @@ Execution management routes for PM Orchestrator.
 P4: Extracted from pm_orchestrator.py — SDS execution lifecycle.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List
 import asyncio
@@ -421,7 +421,7 @@ def get_sds_live_preview(
     
     Iter 8 — bascule du SDS DB-driven (vs ancien pipeline phase 5 Emma LLM).
     """
-    execution = verify_execution_access(execution_id, current_user.id, db)
+    verify_execution_access(execution_id, current_user.id, db)
     
     # Importer build_sds (extracted en fonction publique au lot D iter 7)
     import sys

@@ -587,7 +587,6 @@ def get_execution_metrics(
 
     # Cost from execution totals
     total_cost = execution.total_cost or 0.0
-    total_tokens = execution.total_tokens_used or 0
 
     # Build phase info from state_history
     state_history = execution.state_history or []

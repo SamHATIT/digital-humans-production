@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Optional, Dict, Any
+from typing import Dict, Any
 
 import stripe
 from sqlalchemy.orm import Session

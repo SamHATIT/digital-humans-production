@@ -22,7 +22,6 @@ def repair_truncated_json(text: str) -> str:
     in_string = False
     escape_next = False
     stack = []  # Stack de '{' et '['
-    last_complete_pos = 0
     
     i = 0
     while i < len(text):
@@ -54,14 +53,14 @@ def repair_truncated_json(text: str) -> str:
         elif char == '}':
             if stack and stack[-1] == '{':
                 stack.pop()
-                last_complete_pos = i + 1
+                i + 1
         elif char == ']':
             if stack and stack[-1] == '[':
                 stack.pop()
-                last_complete_pos = i + 1
+                i + 1
         elif char == ',' and not stack:
             # Virgule au niveau racine après une valeur complète
-            last_complete_pos = i
+            pass
         
         i += 1
     
@@ -69,7 +68,7 @@ def repair_truncated_json(text: str) -> str:
     if in_string or stack:
         # Trouver un bon point de coupure
         # Chercher la dernière virgule ou fin de valeur avant la troncature
-        search_area = text[:len(text)]
+        text[:len(text)]
         
         # Patterns de fin de valeur valide
         # On cherche de la fin vers le début

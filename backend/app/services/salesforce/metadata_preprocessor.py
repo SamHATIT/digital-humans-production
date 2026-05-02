@@ -306,7 +306,7 @@ class MetadataPreprocessor:
     def analyze_flows(self) -> Dict:
         """Analyze Flows and detect deprecated automation"""
         flows = self.raw_data.get("flows", [])
-        flow_versions = self.raw_data.get("flow_versions", [])
+        self.raw_data.get("flow_versions", [])
         
         if not flows:
             return {"count": 0, "items": [], "by_type": {}}

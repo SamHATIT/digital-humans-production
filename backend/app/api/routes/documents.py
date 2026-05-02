@@ -102,7 +102,7 @@ def upload_document(
     The file is saved, chunked, and ingested into ChromaDB with
     project_id metadata for isolation.
     """
-    project = _get_project_or_404(project_id, current_user, db)
+    _get_project_or_404(project_id, current_user, db)
 
     # Validate file extension
     ext = Path(file.filename or "").suffix.lower()

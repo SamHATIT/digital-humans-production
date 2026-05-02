@@ -261,7 +261,7 @@ class SFDXService:
             if metadata_type == "ApexClass":
                 (metadata_dir / f"{metadata_name}.cls").write_text(content)
                 (metadata_dir / f"{metadata_name}.cls-meta.xml").write_text(
-                    f'''<?xml version="1.0" encoding="UTF-8"?>
+                    '''<?xml version="1.0" encoding="UTF-8"?>
 <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>59.0</apiVersion>
     <status>Active</status>
@@ -270,7 +270,7 @@ class SFDXService:
             elif metadata_type == "ApexTrigger":
                 (metadata_dir / f"{metadata_name}.trigger").write_text(content)
                 (metadata_dir / f"{metadata_name}.trigger-meta.xml").write_text(
-                    f'''<?xml version="1.0" encoding="UTF-8"?>
+                    '''<?xml version="1.0" encoding="UTF-8"?>
 <ApexTrigger xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>59.0</apiVersion>
     <status>Active</status>

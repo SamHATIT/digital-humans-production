@@ -195,7 +195,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
     try:
         result = stripe_service.handle_webhook_event(event, db)
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         logger.exception("Webhook handler crashed for event %s", event.get("type"))
         # Return 500 so Stripe retries. If the bug is deterministic, you'll
         # see it surface in the Stripe dashboard event log.

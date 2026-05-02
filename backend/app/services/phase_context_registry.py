@@ -370,7 +370,7 @@ class PhaseContextRegistry:
         pattern = r'(?:public|global)\s+(?:static\s+)?(\w+)\s+(\w+)\s*\([^)]*\)'
         
         for match in re.finditer(pattern, content):
-            return_type = match.group(1)
+            match.group(1)
             method_name = match.group(2)
             if method_name not in ('class', 'interface'):
                 methods.append(f"{method_name}()")

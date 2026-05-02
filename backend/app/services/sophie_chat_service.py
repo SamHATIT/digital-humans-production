@@ -144,7 +144,7 @@ class SophieChatService:
         execution_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """Process a chat message and get Sophie's response using Claude."""
-        logger.info(f"[Sophie Chat] ========== NEW CHAT MESSAGE ==========")
+        logger.info("[Sophie Chat] ========== NEW CHAT MESSAGE ==========")
         logger.info(f"[Sophie Chat] Project: {project_id}, Message length: {len(user_message)}")
         
         # Get context
@@ -168,7 +168,7 @@ class SophieChatService:
         
         try:
             # Call Claude via LLM router (profile-aware)
-            logger.info(f"[Sophie Chat] Calling Claude (agent_type=sophie)...")
+            logger.info("[Sophie Chat] Calling Claude (agent_type=sophie)...")
             
             response = generate_llm_response(
                 prompt=full_prompt,
@@ -189,7 +189,7 @@ class SophieChatService:
             self._save_message(project_id, execution_id, "user", user_message, 0, model_used)
             self._save_message(project_id, execution_id, "assistant", assistant_message, tokens_used, model_used)
             
-            logger.info(f"[Sophie Chat] ========== CHAT COMPLETE ==========")
+            logger.info("[Sophie Chat] ========== CHAT COMPLETE ==========")
             
             return {
                 "success": True,

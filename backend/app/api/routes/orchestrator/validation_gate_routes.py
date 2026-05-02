@@ -107,7 +107,7 @@ def get_pending_validation(
     current_user: User = Depends(get_current_user),
 ):
     """Get the current pending validation gate for an execution."""
-    execution = verify_execution_access(execution_id, current_user.id, db)
+    verify_execution_access(execution_id, current_user.id, db)
     service = ValidationGateService(db)
     pending = service.get_pending_validation(execution_id)
     history = service.get_validation_history(execution_id)
@@ -233,7 +233,7 @@ def get_validation_history(
     current_user: User = Depends(get_current_user),
 ):
     """Get the full validation history for an execution."""
-    execution = verify_execution_access(execution_id, current_user.id, db)
+    verify_execution_access(execution_id, current_user.id, db)
     service = ValidationGateService(db)
     history = service.get_validation_history(execution_id)
     return {

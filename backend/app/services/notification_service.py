@@ -81,7 +81,7 @@ class NotificationService:
             async with self._pool.acquire() as conn:
                 # PostgreSQL NOTIFY with JSON payload
                 await conn.execute(
-                    f"SELECT pg_notify($1, $2)",
+                    "SELECT pg_notify($1, $2)",
                     channel,
                     json.dumps(payload)
                 )

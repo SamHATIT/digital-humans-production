@@ -277,7 +277,7 @@ class QualityGatesService:
 
         if "pm" in previous_outputs:
             # All agents should align with PM's project plan
-            pm_output = previous_outputs["pm"]
+            previous_outputs["pm"]
 
             # Basic check: ensure agent is aware of project context
             # This is a simple heuristic - could be more sophisticated

@@ -123,7 +123,7 @@ def _check_daily_budget(db: Session) -> bool:
     to the created_at index. We use the DB rather than Redis to avoid
     introducing a Redis dependency for a low-volume endpoint — if traffic
     grows we'll move to a cached counter."""
-    from sqlalchemy import func, and_
+    from sqlalchemy import func
     cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     total_micro_cents = db.query(func.coalesce(func.sum(ChatLog.cost_usd), 0)).filter(
         ChatLog.created_at >= cutoff
@@ -219,7 +219,7 @@ async def converse(
 
     try:
         response = await router.complete(request)
-    except Exception as e:
+    except Exception:
         logger.exception("Sophie LLM call failed")
         return ConciergeReply(
             text=(

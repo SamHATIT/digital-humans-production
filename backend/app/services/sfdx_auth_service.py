@@ -72,7 +72,7 @@ class SFDXAuthService:
                 data = json.loads(result.stdout)
                 return data.get("result", [])
             return []
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to list SFDX orgs")
             return []
     

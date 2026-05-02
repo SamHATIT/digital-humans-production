@@ -60,7 +60,7 @@ class ChangeRequestService:
         Analyze the impact of a change request using Claude.
         Returns structured impact analysis with affected items and cost estimate.
         """
-        logger.info(f"[CR Service] ========== IMPACT ANALYSIS START ==========")
+        logger.info("[CR Service] ========== IMPACT ANALYSIS START ==========")
         logger.info(f"[CR Service] Analyzing CR ID: {cr_id}")
         
         # Load CR
@@ -134,7 +134,7 @@ Tu dois retourner UNIQUEMENT un JSON valide avec cette structure exacte:
 Sois précis et factuel. Base ton analyse sur les éléments fournis."""
         
         try:
-            logger.info(f"[CR Service] Calling Claude for impact analysis...")
+            logger.info("[CR Service] Calling Claude for impact analysis...")
             
             response = generate_llm_response(
                 prompt=prompt,
@@ -153,10 +153,10 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
             impact_data = self._parse_impact_json(response_text)
             
             if not impact_data:
-                logger.warning(f"[CR Service] Could not parse JSON, using category-based fallback")
+                logger.warning("[CR Service] Could not parse JSON, using category-based fallback")
                 impact_data = self._fallback_impact_analysis(cr)
             
-            logger.info(f"[CR Service] Impact analysis result:")
+            logger.info("[CR Service] Impact analysis result:")
             logger.info(f"[CR Service]   - Risk level: {impact_data.get('risk_level')}")
             logger.info(f"[CR Service]   - Agents to rerun: {impact_data.get('agents_to_rerun')}")
             logger.info(f"[CR Service]   - Affected BRs: {impact_data.get('affected_brs')}")
@@ -176,7 +176,7 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
             self.db.commit()
             
             logger.info(f"[CR Service] CR {cr.cr_number} updated with analysis")
-            logger.info(f"[CR Service] ========== IMPACT ANALYSIS COMPLETE ==========")
+            logger.info("[CR Service] ========== IMPACT ANALYSIS COMPLETE ==========")
             
             return {
                 "success": True,
@@ -309,7 +309,7 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
         """
         Process an approved CR by triggering targeted re-generation.
         """
-        logger.info(f"[CR Service] ========== PROCESSING CR START ==========")
+        logger.info("[CR Service] ========== PROCESSING CR START ==========")
         logger.info(f"[CR Service] Processing CR ID: {cr_id}")
         
         # Load CR
@@ -331,7 +331,7 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
         
         try:
             # Get project and latest execution
-            project = self.db.query(Project).filter(Project.id == cr.project_id).first()
+            self.db.query(Project).filter(Project.id == cr.project_id).first()
             execution = self.db.query(Execution).filter(
                 Execution.project_id == cr.project_id
             ).order_by(Execution.created_at.desc()).first()
@@ -371,7 +371,7 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
             
             self.db.commit()
             
-            logger.info(f"[CR Service] ========== PROCESSING CR COMPLETE ==========")
+            logger.info("[CR Service] ========== PROCESSING CR COMPLETE ==========")
             
             return result
             

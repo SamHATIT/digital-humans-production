@@ -80,7 +80,7 @@ class JordanDeployService:
         if git_cred and git_cred.encrypted_value:
             # Le token Git n'est pas encrypté dans cette table (stocké en clair)
             git_token = git_cred.encrypted_value
-            logger.info(f"[Jordan] Git token loaded from project_credentials")
+            logger.info("[Jordan] Git token loaded from project_credentials")
         
         # Créer GitService
         if git_repo_url:
@@ -461,16 +461,6 @@ class JordanDeployService:
         logger.info(f"[Jordan] Generating final package.xml for phases: {deployed_phases}")
         
         # Collect all deployed components
-        all_components = {
-            "CustomObject": [],
-            "CustomField": [],
-            "ApexClass": [],
-            "ApexTrigger": [],
-            "LightningComponentBundle": [],
-            "Flow": [],
-            "PermissionSet": [],
-            "Layout": [],
-        }
         
         # This would normally query deployed components from DB
         # For now, return a template

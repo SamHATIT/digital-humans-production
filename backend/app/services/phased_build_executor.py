@@ -194,7 +194,7 @@ class PhasedBuildExecutor:
                 result["package"] = package_result
             
         except Exception as e:
-            logger.exception(f"[PhasedBuild] BUILD failed with exception")
+            logger.exception("[PhasedBuild] BUILD failed with exception")
             result["success"] = False
             result["error"] = str(e)
         
@@ -521,7 +521,7 @@ class PhasedBuildExecutor:
                 )
                 return result.get("content", {}) if result.get("success") else None
                 
-        except Exception as e:
+        except Exception:
             logger.exception(f"[PhasedBuild] Agent {agent} failed")
             return None
         
@@ -587,7 +587,7 @@ class PhasedBuildExecutor:
             }
 
         except Exception as e:
-            logger.exception(f"[PhasedBuild] Elena review failed — failing phase visibly")
+            logger.exception("[PhasedBuild] Elena review failed — failing phase visibly")
             # No fail-open: if Elena crashes we cannot assert the build is correct.
             # Return FAIL so the orchestrator can retry or surface the problem to HITL.
             return {

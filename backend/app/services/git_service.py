@@ -170,7 +170,7 @@ class GitService:
             return success, stdout_str, stderr_str
             
         except asyncio.TimeoutError:
-            logger.error(f"[Git] Command timed out")
+            logger.error("[Git] Command timed out")
             return False, "", "Timeout"
         except Exception as e:
             logger.error(f"[Git] Exception: {str(e)}")

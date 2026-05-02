@@ -73,6 +73,15 @@ COVERAGE_AUTO_APPROVE = 95   # >= this: auto-proceed, no pause
 COVERAGE_MIN_PROCEED = 70    # >= this: pause for HITL validation; below: fail
 MAX_ARCHITECTURE_REVISIONS = 2  # Max times user can request revision
 
+# REVISION-001 -- Mapping des categories de gaps Emma vers les sections Marcus.
+# Permet de patcher uniquement les sections impactees au lieu de regenerer
+# toute la solution (mode fix_gaps cassait la qualite : E2E #143 64.8% -> 54.8%).
+CATEGORY_TO_SECTION = {
+    "DATA_MODEL":  "data_model",
+    "AUTOMATION":  "automation_design",
+    "UI":          "ui_components",
+}
+
 # Agent configurations
 AGENT_CONFIG = {
     "pm": {"script": "salesforce_pm.py", "tier": "pm", "display_name": "Sophie (PM)"},
@@ -305,7 +314,7 @@ class PMOrchestratorServiceV2:
                 results["agent_outputs"]["pm_extract"] = br_result["output"]
             else:
                 # Normal flow - extract BRs with Sophie
-                logger.info(f"[Phase 1] Sophie PM - Extracting Business Requirements")
+                logger.info("[Phase 1] Sophie PM - Extracting Business Requirements")
                 self._update_progress(execution, "pm", "running", 5, "Extracting Business Requirements...")
                 try:
                     sm.transition_to("sds_phase1_running")
@@ -402,7 +411,7 @@ class PMOrchestratorServiceV2:
             # ========================================
             # PHASE 2: Olivia BA - Generate UCs per BR (DATABASE-FIRST)
             # ========================================
-            logger.info(f"[Phase 2] Olivia BA - Generating Use Cases (database-first)")
+            logger.info("[Phase 2] Olivia BA - Generating Use Cases (database-first)")
             self._update_progress(execution, "ba", "running", 18, "Starting Use Case generation...")
             try:
                 sm.transition_to("sds_phase2_running")
@@ -440,7 +449,7 @@ class PMOrchestratorServiceV2:
                 )
                 
                 # For compatibility with existing code, use first BR's id
-                br = batch_brs[0]
+                batch_brs[0]
                 br_id = br_ids[0]
                 batch_idx += 1
                 
@@ -452,7 +461,7 @@ class PMOrchestratorServiceV2:
                     exec_time = metadata.get("execution_time_seconds", 0)
                     
                     # F-081: Handle batch results - tokens are for the whole batch
-                    batch_tokens = tokens_used // len(batch_brs) if len(batch_brs) > 1 else tokens_used
+                    tokens_used // len(batch_brs) if len(batch_brs) > 1 else tokens_used
                     
                     # SAVE IMMEDIATELY TO DATABASE (database-first)
                     saved = self._save_use_cases_from_result(
@@ -518,7 +527,7 @@ class PMOrchestratorServiceV2:
             # ========================================
             # Emma analyzes ALL UCs and creates a structured digest for Marcus
             # This replaces the old approach of passing raw UCs (limited to 15)
-            logger.info(f"[Phase 2.5] Emma Research Analyst - Generating UC Digest")
+            logger.info("[Phase 2.5] Emma Research Analyst - Generating UC Digest")
             self._update_progress(execution, "research_analyst", "running", 43, "Analyzing Use Cases...")
             try:
                 sm.transition_to("sds_phase2_5_running")
@@ -569,7 +578,7 @@ class PMOrchestratorServiceV2:
 
             # PHASE 3: Marcus Architect - 4 Sequential Calls
             # ========================================
-            logger.info(f"[Phase 3] Marcus Architect - Solution Design")
+            logger.info("[Phase 3] Marcus Architect - Solution Design")
             self._update_progress(execution, "architect", "running", 46, "Retrieving Salesforce metadata...")
             try:
                 sm.transition_to("sds_phase3_running")
@@ -613,7 +622,7 @@ class PMOrchestratorServiceV2:
             # Validate UC Digest before using it
             uc_digest_valid = is_digest_valid(uc_digest)
             if uc_digest and not uc_digest_valid:
-                logger.warning(f"[Phase 3] ⚠️ UC Digest is corrupted (parse_error or missing by_requirement), falling back to raw UCs")
+                logger.warning("[Phase 3] ⚠️ UC Digest is corrupted (parse_error or missing by_requirement), falling back to raw UCs")
                 logger.warning(f"[Phase 3]    Digest keys: {list(uc_digest.keys())}")
             
             # 3.1: As-Is Analysis
@@ -653,10 +662,10 @@ class PMOrchestratorServiceV2:
                     results["artifacts"]["AS_IS"] = asis_result["output"]
                     architect_tokens += asis_result["output"]["metadata"].get("tokens_used", 0)
                     self._save_deliverable(execution_id, "architect", "as_is", asis_result["output"])
-                    logger.info(f"[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
+                    logger.info("[Phase 3.1] ✅ As-Is Analysis (ASIS-001)")
                 else:
                     results["artifacts"]["AS_IS"] = {"artifact_id": "ASIS-001", "content": {}, "note": "Org analysis pending"}
-                    logger.warning(f"[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
+                    logger.warning("[Phase 3.1] ⚠️ As-Is Analysis failed, using placeholder")
             
             # Gap Analysis moved to Phase 3.4 (after Emma Validate)
             
@@ -711,7 +720,7 @@ class PMOrchestratorServiceV2:
                     results["artifacts"]["ARCHITECTURE"] = design_result["output"]
                     architect_tokens += design_result["output"]["metadata"].get("tokens_used", 0)
                     self._save_deliverable(execution_id, "architect", "solution_design", design_result["output"])
-                    logger.info(f"[Phase 3.2] ✅ Solution Design (single-shot fallback)")
+                    logger.info("[Phase 3.2] ✅ Solution Design (single-shot fallback)")
             else:
                 core_content = core_result["output"].get("content", {})
                 core_tokens = core_result["output"]["metadata"].get("tokens_used", 0)
@@ -775,15 +784,15 @@ class PMOrchestratorServiceV2:
                     logger.info(f"[Phase 3.2] ✅ Solution Design MERGED (core+tech, {core_tokens + tech_tokens} total tokens)")
                 else:
                     # Tech call failed — use core only (partial but better than nothing)
-                    logger.warning(f"[Phase 3.2b] ⚠️ Technical design failed, using core-only design")
+                    logger.warning("[Phase 3.2b] ⚠️ Technical design failed, using core-only design")
                     results["artifacts"]["ARCHITECTURE"] = core_result["output"]
                     self._save_deliverable(execution_id, "architect", "solution_design", core_result["output"])
-                    logger.info(f"[Phase 3.2] ⚠️ Solution Design PARTIAL (core only)")
+                    logger.info("[Phase 3.2] ⚠️ Solution Design PARTIAL (core only)")
             
             design_result = {"success": bool(results["artifacts"].get("ARCHITECTURE"))}
             
             if design_result.get("success"):
-                logger.info(f"[Phase 3.2] ✅ Solution Design complete (TRUNC-001 split)")
+                logger.info("[Phase 3.2] ✅ Solution Design complete (TRUNC-001 split)")
                 
                 # ========================================
                 # PHASE 3.3: Emma Validate — HITL Coverage Gate (H12)
@@ -868,7 +877,7 @@ class PMOrchestratorServiceV2:
                             execution.status = ExecutionStatus.WAITING_ARCHITECTURE_VALIDATION
                         self._save_checkpoint(execution, "phase3_3_coverage_gate")
 
-                        logger.info(f"[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
+                        logger.info("[Phase 3.3] ⏸️ Execution paused — WAITING_ARCHITECTURE_VALIDATION")
                         return results  # <-- PAUSE: execution stops here
 
                     # ── Zone 3: AUTO-REVISE (< 70%) ──
@@ -886,32 +895,139 @@ class PMOrchestratorServiceV2:
                                 f"— auto-revision {revision_count}/{MAX_ARCHITECTURE_REVISIONS}"
                             )
 
-                            # Marcus revises with gap feedback
+                            # REVISION-001 -- Mode patch (par section) au lieu de fix_gaps (regenere tout)
                             self._update_progress(execution, "architect", "running", 68,
-                                                 f"Revising architecture (attempt {revision_count})...")
+                                                 f"Patching architecture (attempt {revision_count})...")
 
-                            revision_result = await self._run_agent(
-                                agent_id="architect",
-                                mode="fix_gaps",
-                                input_data={
-                                    "current_solution": results["artifacts"]["ARCHITECTURE"].get("content", {}),
-                                    "coverage_gaps": current_gaps,
-                                    "uncovered_use_cases": current_uncovered,
-                                    "iteration": revision_count,
-                                    "previous_score": current_coverage,
-                                },
-                                execution_id=execution_id,
-                                project_id=project_id
-                            )
+                            # Grouper les gaps par section impactee (via CATEGORY_TO_SECTION).
+                            gaps_by_section = {}
+                            unmapped_gaps = []
+                            for gap in current_gaps:
+                                category = gap.get("category", "")
+                                section_key = CATEGORY_TO_SECTION.get(category)
+                                if section_key:
+                                    gaps_by_section.setdefault(section_key, []).append(gap)
+                                else:
+                                    unmapped_gaps.append(gap)
 
-                            if revision_result.get("success"):
-                                results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
-                                architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
-                                self._save_deliverable(execution_id, "architect", f"solution_design_rev{revision_count}", revision_result["output"])
-                                logger.info(f"[Phase 3.3] Marcus revision {revision_count} completed")
+                            if unmapped_gaps:
+                                unmapped_cats = sorted({g.get("category", "?") for g in unmapped_gaps})
+                                logger.info(
+                                    f"[REVISION-001] {len(unmapped_gaps)} gaps with unmapped categories "
+                                    f"({unmapped_cats}) skipped this iteration"
+                                )
+
+                            if not gaps_by_section:
+                                # Rien de patchable -> fallback fix_gaps (filet de securite)
+                                logger.warning(
+                                    "[REVISION-001] No mappable gaps for patch mode "
+                                    "-> fallback to fix_gaps (regenere tout)"
+                                )
+                                revision_result = await self._run_agent(
+                                    agent_id="architect",
+                                    mode="fix_gaps",
+                                    input_data={
+                                        "current_solution": results["artifacts"]["ARCHITECTURE"].get("content", {}),
+                                        "coverage_gaps": current_gaps,
+                                        "uncovered_use_cases": current_uncovered,
+                                        "iteration": revision_count,
+                                        "previous_score": current_coverage,
+                                    },
+                                    execution_id=execution_id,
+                                    project_id=project_id
+                                )
+                                if revision_result.get("success"):
+                                    results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
+                                    architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
+                                    self._save_deliverable(execution_id, "architect", f"solution_design_rev{revision_count}", revision_result["output"])
+                                    logger.info(f"[Phase 3.3] Marcus fallback fix_gaps revision {revision_count} completed")
+                                else:
+                                    logger.warning(f"[Phase 3.3] Marcus fallback fix_gaps revision {revision_count} failed, keeping previous")
+                                    break
                             else:
-                                logger.warning(f"[Phase 3.3] Marcus revision {revision_count} failed, keeping previous")
-                                break
+                                # Mode patch : un appel par section impactee.
+                                logger.info(
+                                    f"[REVISION-001] Patching {len(gaps_by_section)} section(s): "
+                                    f"{list(gaps_by_section.keys())} ({sum(len(g) for g in gaps_by_section.values())} gaps)"
+                                )
+                                arch_artifact = results["artifacts"]["ARCHITECTURE"]
+                                current_solution = arch_artifact.get("content", {})
+                                if not isinstance(current_solution, dict):
+                                    logger.error(
+                                        "[REVISION-001] current_solution is not a dict (type=%s) - aborting patch",
+                                        type(current_solution).__name__,
+                                    )
+                                    break
+
+                                patched_solution = dict(current_solution)
+                                any_patch_success = False
+
+                                for section_key, section_gaps in gaps_by_section.items():
+                                    current_section = patched_solution.get(section_key, {})
+
+                                    patch_result = await self._run_agent(
+                                        agent_id="architect",
+                                        mode="patch",
+                                        input_data={
+                                            "section_key": section_key,
+                                            "current_section": current_section,
+                                            "fix_instructions": section_gaps,
+                                        },
+                                        execution_id=execution_id,
+                                        project_id=project_id,
+                                    )
+
+                                    if patch_result.get("success"):
+                                        patched_section = patch_result["output"].get("content", {})
+                                        # Le mode patch peut retourner soit la section directement,
+                                        # soit un wrapper {section_key: {...}}.
+                                        if isinstance(patched_section, dict):
+                                            if section_key in patched_section and isinstance(patched_section[section_key], dict):
+                                                patched_solution[section_key] = patched_section[section_key]
+                                            else:
+                                                patched_solution[section_key] = patched_section
+                                        else:
+                                            logger.warning(
+                                                f"[REVISION-001] Patch result for {section_key} "
+                                                f"is not a dict, skipping merge"
+                                            )
+                                            continue
+
+                                        architect_tokens += patch_result["output"].get("metadata", {}).get("tokens_used", 0)
+                                        self._save_deliverable(
+                                            execution_id, "architect",
+                                            f"solution_design_rev{revision_count}_patch_{section_key}",
+                                            patch_result["output"],
+                                        )
+                                        any_patch_success = True
+                                        logger.info(
+                                            f"[REVISION-001] Patched section '{section_key}' "
+                                            f"({len(section_gaps)} gaps) successfully"
+                                        )
+                                    else:
+                                        logger.warning(
+                                            f"[REVISION-001] Patch failed for section '{section_key}' "
+                                            f"- keeping previous version of this section"
+                                        )
+
+                                if not any_patch_success:
+                                    logger.error(
+                                        f"[REVISION-001] All {len(gaps_by_section)} section patches failed "
+                                        f"- aborting revision loop"
+                                    )
+                                    break
+
+                                # Reconstituer l'artifact avec le solution patche.
+                                results["artifacts"]["ARCHITECTURE"]["content"] = patched_solution
+                                self._save_deliverable(
+                                    execution_id, "architect",
+                                    f"solution_design_rev{revision_count}",
+                                    {"content": patched_solution, "metadata": arch_artifact.get("metadata", {})},
+                                )
+                                logger.info(
+                                    f"[Phase 3.3] Marcus revision {revision_count} completed "
+                                    f"({len(gaps_by_section)} sections patched)"
+                                )
 
                             # Emma re-validates
                             self._update_progress(execution, "research_analyst", "running", 70,
@@ -939,7 +1055,7 @@ class PMOrchestratorServiceV2:
                                                       f"coverage_report_rev{revision_count}", revalidate_result["output"])
                                 logger.info(f"[Phase 3.3] Re-validation: {current_coverage}%")
                             else:
-                                logger.warning(f"[Phase 3.3] Re-validation failed, using previous score")
+                                logger.warning("[Phase 3.3] Re-validation failed, using previous score")
                                 break
 
                         # After revision loop — apply zones again
@@ -1037,10 +1153,10 @@ class PMOrchestratorServiceV2:
                     results["artifacts"]["GAP"] = gap_result["output"]
                     architect_tokens += gap_result["output"]["metadata"].get("tokens_used", 0)
                     self._save_deliverable(execution_id, "architect", "gap_analysis", gap_result["output"])
-                    logger.info(f"[Phase 3.4] ✅ Gap Analysis (GAP-001)")
+                    logger.info("[Phase 3.4] ✅ Gap Analysis (GAP-001)")
                 else:
                     results["artifacts"]["GAP"] = {"artifact_id": "GAP-001", "content": {"gaps": []}}
-                    logger.warning(f"[Phase 3.4] ⚠️ Gap Analysis failed")
+                    logger.warning("[Phase 3.4] ⚠️ Gap Analysis failed")
                 
                 # ========================================
                 # 3.5: WBS (Break down gaps into tasks)
@@ -1063,7 +1179,7 @@ class PMOrchestratorServiceV2:
                     results["artifacts"]["WBS"] = wbs_result["output"]
                     architect_tokens += wbs_result["output"]["metadata"].get("tokens_used", 0)
                     self._save_deliverable(execution_id, "architect", "wbs", wbs_result["output"])
-                    logger.info(f"[Phase 3.5] ✅ WBS (WBS-001)")
+                    logger.info("[Phase 3.5] ✅ WBS (WBS-001)")
                 else:
                     logger.warning(f"[Phase 3.5] ⚠️ WBS generation failed: {wbs_result.get('error', 'Unknown')}")
 
@@ -1177,7 +1293,7 @@ class PMOrchestratorServiceV2:
         else:
             sf_cfg = salesforce_config  # Fallback to global singleton
 
-        logger.info(f"[Metadata] Retrieving Salesforce org metadata...")
+        logger.info("[Metadata] Retrieving Salesforce org metadata...")
 
         metadata = {
             "org_info": {},
@@ -1231,7 +1347,7 @@ class PMOrchestratorServiceV2:
                 all_limits = limits_data.get("result", [])
                 key_limits = ["DailyApiRequests", "DataStorageMB", "FileStorageMB", "DailyAsyncApexExecutions"]
                 metadata["limits"] = {l["name"]: l for l in all_limits if l.get("name") in key_limits}
-                logger.info(f"[Metadata] ✅ Org limits retrieved")
+                logger.info("[Metadata] ✅ Org limits retrieved")
             
             # 6. BUG-047: Describe key standard objects (Case, Contact, Account, Lead, Opportunity)
             # This gives Marcus the actual fields available, preventing redundant custom fields
@@ -1274,7 +1390,7 @@ class PMOrchestratorServiceV2:
                     "summary": summary
                 }
             )
-            logger.info(f"[Metadata] ✅ Full metadata stored in DB")
+            logger.info("[Metadata] ✅ Full metadata stored in DB")
             
             return {
                 "success": True,
@@ -1283,7 +1399,7 @@ class PMOrchestratorServiceV2:
             }
             
         except subprocess.TimeoutExpired:
-            logger.error(f"[Metadata] ❌ Timeout retrieving metadata")
+            logger.error("[Metadata] ❌ Timeout retrieving metadata")
             return {"success": False, "summary": {}, "full_metadata": {}, "error": "Timeout"}
         except Exception as e:
             logger.error(f"[Metadata] ❌ Error: {str(e)}")
@@ -2098,7 +2214,7 @@ See WBS-001 artifact for details.
         Execute targeted re-generation for a Change Request.
         Only runs specified agents and regenerates the SDS.
         """
-        logger.info(f"[Targeted Regen] ========== START ==========")
+        logger.info("[Targeted Regen] ========== START ==========")
         logger.info(f"[Targeted Regen] Execution: {execution_id}, Project: {project_id}")
         logger.info(f"[Targeted Regen] CR: {change_request.cr_number} - {change_request.title}")
         logger.info(f"[Targeted Regen] Agents to run: {agents_to_run}")
@@ -2109,11 +2225,11 @@ See WBS-001 artifact for details.
             project = self.db.query(Project).filter(Project.id == project_id).first()
             
             if not execution or not project:
-                logger.error(f"[Targeted Regen] Execution or project not found")
+                logger.error("[Targeted Regen] Execution or project not found")
                 return {"success": False, "error": "Execution or project not found"}
             
             # Load existing artifacts from previous execution
-            logger.info(f"[Targeted Regen] Loading existing artifacts...")
+            logger.info("[Targeted Regen] Loading existing artifacts...")
             existing_artifacts = self._load_existing_artifacts(execution_id)
             logger.info(f"[Targeted Regen] Found {len(existing_artifacts)} existing artifacts")
             
@@ -2142,11 +2258,11 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             # Run each agent that needs to be re-run
             for agent_id in agents_to_run:
                 if agent_id == "ba":
-                    logger.info(f"[Targeted Regen] Running BA (Olivia) with CR context...")
+                    logger.info("[Targeted Regen] Running BA (Olivia) with CR context...")
                     await self._run_ba_with_context(execution_id, project_id, business_requirements, cr_context, results)
                     
                 elif agent_id == "architect":
-                    logger.info(f"[Targeted Regen] Running Architect (Marcus) with CR context...")
+                    logger.info("[Targeted Regen] Running Architect (Marcus) with CR context...")
                     await self._run_architect_with_context(execution_id, project_id, results, cr_context)
                     
                 elif agent_id in ["apex", "lwc", "admin", "qa", "devops", "data", "trainer"]:
@@ -2154,7 +2270,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     await self._run_sds_expert_with_context(execution_id, project_id, agent_id, results, cr_context)
             
             # Re-generate SDS document
-            logger.info(f"[Targeted Regen] Generating new SDS document...")
+            logger.info("[Targeted Regen] Generating new SDS document...")
             try:
                 sds_path = self._generate_word_sds(project, results["artifacts"], execution_id)
                 results["sds_path"] = sds_path
@@ -2167,7 +2283,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             # Create new SDS version
             new_version = self._create_sds_version_for_cr(project, execution, sds_path, change_request)
             
-            logger.info(f"[Targeted Regen] ========== COMPLETE ==========")
+            logger.info("[Targeted Regen] ========== COMPLETE ==========")
             logger.info(f"[Targeted Regen] New SDS version: {new_version}")
             logger.info(f"[Targeted Regen] Total tokens: {results['metrics']['total_tokens']}")
             
@@ -2240,7 +2356,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         results: Dict
     ):
         """Run BA agent with CR context."""
-        logger.info(f"[Targeted Regen] BA: Starting Use Case generation with CR context")
+        logger.info("[Targeted Regen] BA: Starting Use Case generation with CR context")
         
         # Add CR context to requirements
         input_data = {
@@ -2274,7 +2390,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         cr_context: str
     ):
         """Run Architect agent with CR context."""
-        logger.info(f"[Targeted Regen] Architect: Starting with CR context")
+        logger.info("[Targeted Regen] Architect: Starting with CR context")
         
         # Run design phase with CR context
         design_input = {
@@ -2482,7 +2598,7 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         if SDS_EXPERTS:
             logger.info(f"[Phase 4] SDS Expert Agents to execute: {SDS_EXPERTS}")
         else:
-            logger.info(f"[Phase 4] No SDS Expert Agents selected - skipping Phase 4")
+            logger.info("[Phase 4] No SDS Expert Agents selected - skipping Phase 4")
 
         common_context = {
             "project": {
@@ -2600,14 +2716,14 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 sm.transition_to("waiting_expert_validation")
             except Exception as e:
                 logger.warning(f"[StateMachine] transition failed: {e}")
-            logger.info(f"[Phase 4] ⏸️ Paused at after_expert_specs gate")
+            logger.info("[Phase 4] ⏸️ Paused at after_expert_specs gate")
             return results
 
         # ========================================
         # PHASE 5: Emma Write_SDS - Generate Professional SDS Document
         # ========================================
         sds_markdown = ""
-        logger.info(f"[Phase 5] Emma Research Analyst - Writing SDS Document")
+        logger.info("[Phase 5] Emma Research Analyst - Writing SDS Document")
         self._update_progress(execution, "research_analyst", "running", 85, "Writing SDS Document...")
         try:
             sm.transition_to("sds_phase5_running")
@@ -2756,13 +2872,13 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 sm.transition_to("waiting_sds_validation")
             except Exception as e:
                 logger.warning(f"[StateMachine] transition failed: {e}")
-            logger.info(f"[Phase 5] ⏸️ Paused at after_sds_generation gate")
+            logger.info("[Phase 5] ⏸️ Paused at after_sds_generation gate")
             return results
 
         # ========================================
         # PHASE 6: Export SDS to DOCX/PDF
         # ========================================
-        logger.info(f"[Phase 6] Exporting SDS Document")
+        logger.info("[Phase 6] Exporting SDS Document")
         self._update_progress(execution, "pm", "running", 94, "Exporting SDS Document...")
 
         md_path = f"/tmp/sds_{execution_id}.md"
@@ -2929,9 +3045,9 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                 results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
                 architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
                 self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
-                logger.info(f"[Architecture Resume] Marcus revision completed")
+                logger.info("[Architecture Resume] Marcus revision completed")
             else:
-                logger.warning(f"[Architecture Resume] Marcus revision failed, keeping original")
+                logger.warning("[Architecture Resume] Marcus revision failed, keeping original")
 
             # Re-validate with Emma
             self._update_progress(execution, "research_analyst", "running", 68,

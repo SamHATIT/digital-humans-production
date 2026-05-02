@@ -327,7 +327,7 @@ class BusinessAnalystAgent:
         logger.info(f"BusinessAnalystAgent prompt_size={len(prompt)} chars")
 
         # Call LLM
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+        content, tokens_used, input_tokens, model_used, provider_used, cost_usd = self._call_llm(
             prompt, self.SYSTEM_PROMPT, execution_id=execution_id
         )
 
@@ -426,7 +426,7 @@ class BusinessAnalystAgent:
         Call LLM via llm_service or direct Anthropic fallback.
 
         Returns:
-            tuple of (content, tokens_used, input_tokens, model_used, provider_used)
+            tuple of (content, tokens_used, input_tokens, model_used, provider_used, cost_usd)
         """
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service (BA tier)")
@@ -438,13 +438,15 @@ class BusinessAnalystAgent:
                 temperature=0.4,
                 execution_id=execution_id,
             )
-            self._total_cost += response.get("cost_usd", 0.0)
+            cost_usd = response.get("cost_usd", 0.0)
+            self._total_cost += cost_usd
             return (
                 response["content"],
                 response["tokens_used"],
                 response.get("input_tokens", 0),
                 response["model"],
                 response["provider"],
+                cost_usd,
             )
     def _parse_response(self, content: str, br_id: str, br_ids: list, batch_mode: bool) -> tuple:
         """

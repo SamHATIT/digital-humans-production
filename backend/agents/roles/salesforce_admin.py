@@ -348,7 +348,6 @@ FIX THESE ISSUES.
     logger.info(f"Raj BUILD mode - generating metadata for {task_id}...")
     start_time = time.time()
 
-    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.2,
                                          execution_id=execution_id)
@@ -356,7 +355,7 @@ FIX THESE ISSUES.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get("model", "unknown")
-        cost_usd = response.get("cost_usd", 0.0)
+        response.get("cost_usd", 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()

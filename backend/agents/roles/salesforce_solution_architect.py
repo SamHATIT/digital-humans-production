@@ -707,7 +707,7 @@ class SolutionArchitectAgent:
                 if ui_components:
                     line += f"\n- **UI Components**: {', '.join(ui_components)}"
                 if auto_details:
-                    line += f"\n- **Automations**:"
+                    line += "\n- **Automations**:"
                     for ad in auto_details[:4]:
                         line += f"\n  - {ad}"
                 if criteria:

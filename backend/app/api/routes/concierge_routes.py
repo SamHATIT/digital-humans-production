@@ -13,7 +13,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Request, Response, HTTPException
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 

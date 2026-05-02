@@ -38,7 +38,7 @@ def log_llm_interaction(
         The ID of the created record, or None if logging failed.
     """
     if not DB_AVAILABLE:
-        print(f"⚠️ [LLM Logger] Database not available, skipping log")
+        print("⚠️ [LLM Logger] Database not available, skipping log")
         return None
     
     try:

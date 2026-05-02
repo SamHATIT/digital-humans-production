@@ -485,7 +485,7 @@ class ResearchAnalystAgent:
         logger.info(f"ANALYZE mode: {len(use_cases)} UCs, prompt size: {len(prompt)} chars")
 
         # Call LLM
-        content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
+        content, tokens_used, input_tokens, model_used, provider_used, cost_usd = self._call_llm(
             prompt, system_prompt, max_tokens=32000, temperature=0.3,
             execution_id=execution_id
         )
@@ -574,7 +574,7 @@ class ResearchAnalystAgent:
 
             logger.info(f"[Coverage] Score {score}% < 95% — calling LLM for fix_instructions")
 
-            content, llm_tokens, input_tokens, llm_model, llm_provider = self._call_llm(
+            content, llm_tokens, input_tokens, llm_model, llm_provider, llm_cost_usd = self._call_llm(
                 prompt, system_prompt, max_tokens=32000, temperature=0.3,
                 execution_id=execution_id
             )
@@ -813,7 +813,7 @@ class ResearchAnalystAgent:
         Call LLM service with fallback to direct Anthropic API.
 
         Returns:
-            (content, tokens_used, input_tokens, model_used, provider_used)
+            (content, tokens_used, input_tokens, model_used, provider_used, cost_usd)
         """
         if LLM_SERVICE_AVAILABLE:
             response = generate_llm_response(
@@ -829,9 +829,10 @@ class ResearchAnalystAgent:
             input_tokens = response.get("input_tokens", 0)
             model_used = response.get("model", "")
             provider_used = response.get("provider", "")
-            self._total_cost += response.get("cost_usd", 0.0)
-            logger.info(f"Using {provider_used} / {model_used}")
-            return content, tokens_used, input_tokens, model_used, provider_used
+            cost_usd = response.get("cost_usd", 0.0)
+            self._total_cost += cost_usd
+            logger.info(f"Using {provider_used} / {model_used} (cost: ${cost_usd:.4f})")
+            return content, tokens_used, input_tokens, model_used, provider_used, cost_usd
 
         # Fallback to direct Anthropic
         logger.info("Calling Anthropic API directly...")
@@ -851,7 +852,9 @@ class ResearchAnalystAgent:
         tokens_used = response.usage.input_tokens + response.usage.output_tokens
         input_tokens = response.usage.input_tokens
         fallback_model = os.environ.get("ANTHROPIC_FALLBACK_MODEL", "claude-sonnet-4-5-20250929")
-        return content, tokens_used, input_tokens, fallback_model, "anthropic"
+        # COST-001: fallback path doesn't compute cost_usd (Anthropic SDK direct,
+        # no router pricing). Caller should track via tokens if needed.
+        return content, tokens_used, input_tokens, fallback_model, "anthropic", 0.0
 
     def _log_interaction(
         self,

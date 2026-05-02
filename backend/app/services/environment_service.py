@@ -534,7 +534,7 @@ def get_environment_service(db: Session) -> EnvironmentService:
         if not client_id_cred:
             return {"success": False, "error": "No client ID credential found"}
         
-        client_id = decrypt_credential(client_id_cred.encrypted_value)
+        decrypt_credential(client_id_cred.encrypted_value)
         
         # For JWT, would need private key - simplified for now
         try:
