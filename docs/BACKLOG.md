@@ -3,100 +3,148 @@
 **Dernière mise à jour** : 2026-05-02 (post E2E #144 recovery, exec 148 COMPLETED)
 
 Le suivi détaillé des sessions est dans `CHANGELOG.md`. Ce fichier liste **uniquement
-les actions futures** (priorisées par bloquant pour le launch puis dette technique).
+les actions futures** + l'état des phases du Master Plan V4 (cible : ouverture early
+access publique).
 
 ---
 
-## P0 — Pre-launch bloquants (côté Sam)
+## 🎯 État Master Plan V4 — par phase
 
-| ID | Description | Notes |
-|----|-------------|-------|
-| LEGAL-001 | Validation juriste CGV (300-500 €, 1-2h) | Le contenu boilerplate FR+EN est livré (Mod 28), reste à faire valider par un juriste avant ouverture publique. |
-| LEGAL-002 | Compléter SIRET + adresse siège | `[À COMPLÉTER]` placeholders dans Mentions Légales actuellement. |
-| BIZ-001 | Décision tier Free Studio : ouvert ou "Bientôt" au launch | Si fermé, le bouton "My Studio" du marketing renvoie vers un trou. Si ouvert, /signup est en prod et fonctionne. |
+Référence : `MASTER_PLAN_V4.md` (26 avr 2026, fichiers projet).
 
-## P1 — Phase 3 finalisation Stripe
+| Phase | Description | État | Reste à faire |
+|---|---|---|---|
+| **0** | Sécurité (audit secrets + manager) | ❌ **NON DÉMARRÉE** | Tout : audit `.env`, choix Doppler/Infisical, migration secrets, `docs/SECURITY.md` |
+| **1** | SDS templating (lots A→D + merge main) | ✅ **CLOSE** | RAS — exec 148 valide la chaîne complète (12 sections, 347 K HTML rendu, mode patch) |
+| **2** | Site marketing complet | ✅ **QUASI CLOSE** | Mods 1→30 appliqués + pages légales + a11y/SEO 100/100/100. Reste : MARKETING-EX2-001 (2e exemple SDS) |
+| **3** | Modèle de crédits + Stripe | ✅ **DEV CLOSE** | STRIPE-001/002/003/004 livrés. Reste : bascule prod réelle (rotation secrets test→live + recréation produits) — action humaine |
+| **4** | Plateforme refonte UI Studio | ⚠️ **MAJORITAIREMENT FAIT** | Sprint A5 mergé (`8bc569c`). CreditCounter en place. Reste : **atelier cinématique agents (S4.1 / O3)** + sidebar agents rim-only |
+| **5** | Onboarding + passerelle site→plateforme | ⚠️ **PARTIEL** | SignupPage présente. Reste : flow onboarding tier-aware (Free vs Pro), pre-fill projet depuis CTA marketing |
+| **6** | Galerie SDS industries | ⚠️ **2/3 DONE pour lancement** | LogiFleet ✅, Pharma (Essais Cliniques exec 148) ✅. Reste **Télécom + Retail** (recommandation O4 pour lancement) — Service Client Omnicanal exec 144 peut servir de base Télécom |
 
-| ID | Description | Notes |
-|----|-------------|-------|
-| STRIPE-001 | Reset crédits mensuel sur `invoice.payment_succeeded` | Webhook handler à étendre dans `stripe_service.py`. |
-| STRIPE-002 | Grace period 5j sur `invoice.payment_failed` | Avant downgrade automatique en free. |
-| STRIPE-003 | Mod 24 — wiring frontend Stripe | Utile uniquement quand Pro/Team passent de "Bientôt" à actif. |
-| STRIPE-004 | Bascule prod Stripe | Rotation secrets test → live + recréation produits live. |
-
-## P1 — Journal publication
-
-| ID | Description | Notes |
-|----|-------------|-------|
-| JOURNAL-001 | Configurer `JOURNAL_WEBHOOK_SECRET` dans .env | Le webhook code est sur `feature/journal-publication` (commit `8fe4082`). |
-| JOURNAL-002 | Configurer le webhook côté Ghost admin | Pointer vers `https://app.digital-humans.fr/api/webhooks/journal/rebuild?secret=...`. |
-| JOURNAL-003 | Test endpoint `/webhooks/journal/health` puis `/rebuild` | Vérifier rebuild et /var/www/journal/ généré. |
-| JOURNAL-004 | Merger `feature/journal-publication` dans main | Quand stable. |
-
-## P2 — Dettes techniques (post-launch acceptable)
-
-| ID | Description | Notes |
-|----|-------------|-------|
-| REVISION-001 | Marcus revision via mode `patch` (par section) au lieu de `fix_gaps` (regenere tout) | Code patch déjà écrit dans `salesforce_solution_architect.py:441` (`get_patch_prompt`), pas branché dans `pm_orchestrator_service_v2.py:880-935`. Mapping `CATEGORY_TO_SECTION = {DATA_MODEL → data_model, AUTOMATION → automation_design, UI → ui_components}`. Cause de la régression Rev1→Rev2 documentée E2E #143 (64.8% → 54.8%). |
-| COST-001 | Propager `cost_usd` des autres agents (Emma, Olivia, ...) | Marcus déjà fait en feb 14 (commit `7aa5db9`). Reste : Emma, Olivia, Aisha, Lucas, Elena. Capture actuelle ~22% du coût réel. |
-| P10 | BaseAgent : contrat commun pour les 11 agents | Pas de classe parent commune actuellement (`_call_llm`/`execution_id`/logging dupliqués). |
-| LINT-001 | Nettoyage F541 (56) + F841 (21) + F401 (4) cosmétiques | `ruff --fix --unsafe-fixes` sur app/ + agents/. Risque très faible. |
-| BUNDLE-001 | Bundle 16 MB site marketing : split lazy-load post-launch | Dette tech qui bloque le score Lighthouse Performance à 25/100 (les 4 autres scores sont à 100). |
-
-## P2 — UX améliorations restantes
-
-| ID | Description | Notes |
-|----|-------------|-------|
-| UX-003 | Coverage gaps frontend : afficher description, pas que severity | Frontend lit `gap.severity` mais pas `gap.what_is_missing` ni `gap.fix_instruction`. Vu E2E #143. |
-| UX-004 | Active Agent : `.find()` → `.filter()` pour agents parallèles | `ExecutionMonitoringPage.tsx:544`. Permet d'afficher Diego + Zara + Raj simultanément en phase BUILD. |
-
-## P3 — E2E tests
-
-| ID | Description | Notes |
-|----|-------------|-------|
-| E2E-144 | Lancer E2E #144 | Précédé d'une revue prompt Marcus + Emma (déjà préparée dans `MARCUS_PROMPTS_V4_SPEC.md` et `PROMPT_REWRITE_SPEC_E2E144.md`). Worker actuellement OFF. |
-| E2E-145 | Validation patch mode (post-REVISION-001) | Une fois REVISION-001 livré, valider que Rev2 ne régresse plus. |
-
-## P3 — Cleanup git (5 min)
-
-| ID | Description | Notes |
-|----|-------------|-------|
-| GIT-001 | Supprimer branche locale + remote `feature/tier-based-routing` | Mergée dans main au commit `2f72f5c`. |
-| GIT-002 | Statuer sur `feat/platform-studio` | Conserver pour historique Sprint A5 ou supprimer (mergée dans main au commit `8bc569c`). |
+**Items P0 côté Sam (action humaine, pas dev)** :
+- **LEGAL-001** — Validation juriste CGV (300-500 €, 1-2h). Boilerplate FR+EN livré (Mod 28).
+- **LEGAL-002** — Compléter SIRET + adresse siège (placeholders dans Mentions Légales).
+- **BIZ-001** — Décision tier Free : ouvert ou "Bientôt" au launch (impact /signup).
+- **Arbitrages MP V4 §2** : O1 (planning ouverture), O2 (palier Mid), O3 (cinématique agents). Séance 60-90 min recommandée.
 
 ---
 
-## Nouveaux items E2E #144 — 2 mai 2026
+## 🚧 Pour finaliser le Master Plan V4 — items prioritaires
 
-| ID | Priorité | Description |
-|----|----------|-------------|
-| REVISION-001-WORKER | P0 prochain E2E | Toujours restart **worker + backend** après patch orchestrator. Le 2 mai, restart backend seul a fait que le worker ARQ a tourné l'ancien code (REVISION-001 HITL pas testé, fallback fix_gaps a tourné à la place). Documenter dans `HOTFIXES_E2E_TEST.md`. |
-| AGENT-FK-001 | P1 | Populer `agent_deliverables.agent_id` (FK vers `agents.id`) dans `_save_deliverable` côté pm_orchestrator. Actuellement NULL pour TOUS les deliverables depuis exec 142+. Band-aid OUTER JOIN posé dans `DeliverableService.get_deliverable_previews` (commit `9262a96`), mais le vrai fix est au write site. |
-| MARKETING-EX2-001 | P2 | Intégrer un 2e exemple SDS sur le site marketing : "Essais Cliniques E2E" (pharmacovigilance, exec 148). Donne un contraste vertical avec LogiFleet (logistique). Décision format à prendre : (a) HTML statique copié vers `/var/www/dh-preview/sds/exec_148.html` et linké depuis bundle marketing, (b) lien live vers `app.digital-humans.fr/api/deliverables/705/render`. Probablement (a) pour maîtriser l'évolution. À faire après Mod 23 Pricing. |
-| DOCX-OBSOLETE-001 | P2 | Supprimer Phase 6 `_generate_sds_document` dans `pm_orchestrator_service_v2.py:2900-2925`. Depuis iter 8, le SDS est rendu en HTML in-app via `tools/build_sds.py` et l'utilisateur peut imprimer en PDF via le navigateur. Le `.docx` généré + populer `executions.sds_document_path` est dead code. |
-| ELENA-TIMEOUT-001 | P2 | Le timeout 10-min de Phase 4 a marqué Elena `failed: Skipped: Timeout` à 13:21 alors que son LLM call (118K tokens output) a effectivement réussi 30s plus tard. Soit allonger le timeout pour Sonnet long output, soit cancel le LLM call cleanly pour ne pas orphan le travail terminé. |
-| JORDAN-PROMPT-001 | P3 | Prompt Jordan ne contraint pas le format de `monitoring.alerting`. LLM produit alternativement dict (exec 146), clé différente `alerting_thresholds` (exec 147), ou liste (exec 148, qui a planté Phase 5). Template `cicd_deployment.html.j2` rendu défensif (commit `a5ba624`), mais le vrai fix est de Pydantic-valider la sortie Jordan. |
-| GHOST-001 | P3 | Configurer un SMTP réel (Mailgun/Postmark) pour Ghost puis réactiver `security__staffDeviceVerification`. Désactivé en hotfix le 2 mai (commit `b728a69`) parce que mail Direct ne livre pas à Gmail, ce qui bloque le reset password Owner. |
-| UI-001 | ✅ DONE | "No deliverables found" alors que les deliverables existent. Fix INNER → OUTER JOIN (commit `9262a96`). |
-| UI-002 | P3 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
-| UI-003 | P3 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1"). |
-| UI-004 | P3 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
+### P0 — Bloquants ouverture early access
+
+| ID | Phase | Description | Estimation |
+|----|----|-------------|-----------|
+| LEGAL-001 | — | Validation juriste CGV | Sam, 300-500 € |
+| LEGAL-002 | — | Compléter SIRET + adresse | Sam, 30 min |
+| BIZ-001 | — | Décision tier Free ouvert/fermé au launch | Sam, arbitrage |
+| STRIPE-PROD-001 | 3 | Bascule prod Stripe (suivre `docs/STRIPE_PROD_CHECKLIST.md`) — rotation `sk_test_*` → `sk_live_*`, recréation produits Pro/Team en mode live, smoke test paiement réel | 1h, après BIZ-001 tranché |
+| SECURITY-001 | 0 | Audit `grep -r` sur secrets en clair sur le VPS + `/opt/digital-humans/` + `/root/workspace/` | 30 min |
+| SECURITY-002 | 0 | Choisir + installer secrets manager (Doppler ou Infisical, gratuit jusqu'à 5 users) | 30 min |
+| SECURITY-003 | 0 | Migrer secrets actuels (Anthropic, OpenAI, Stripe, SendGrid) vers le manager | 1-2h |
+| SECURITY-004 | 0 | Bascule services FastAPI pour lire via le manager au startup, `.env` minimal | 1-2h |
+| SECURITY-005 | 0 | `docs/SECURITY.md` : procédure rotation, checklist déploiement | 30 min |
+
+### P1 — Compléter Phase 6 galerie pour lancement
+
+| ID | Phase | Description | Estimation |
+|----|----|-------------|-----------|
+| MARKETING-EX2-001 | 6 | Intégrer SDS Essais Cliniques (exec 148) sur site marketing — choix format : (a) HTML statique copié vers `/var/www/dh-preview/sds/exec_148.html`, (b) lien live `/api/deliverables/705/render`. Recommandation (a). | 1-2h |
+| MARKETING-EX3-001 | 6 | SDS Télécom — base : exec 144 (Service Client Omnicanal Agentforce) déjà COMPLETED. Revue qualité + page dédiée site. | 2-3h |
+| MARKETING-EX4-001 | 6 | SDS Retail — pas encore lancé. Préparer brief enrichi → pipeline Studio → SDS HTML → page galerie. | 4-6h |
+
+### P1 — Compléter Phase 4 plateforme
+
+| ID | Phase | Description | Estimation |
+|----|----|-------------|-----------|
+| STUDIO-S4.1 | 4 | Atelier cinématique agents plateforme (sujet O3) — décision casting / théâtre / orchestre / carte d'ensemble. Mockups statiques + validation Sam. | 2-3h atelier + 1 session impl |
+| STUDIO-RIM-AGENTS | 4 | Sidebar gauche agents rim-only avec accent par acte, conformément brief §12 — actuellement absent du code. | 1 session après S4.1 |
+
+### P1 — Phase 5 onboarding
+
+| ID | Phase | Description | Estimation |
+|----|----|-------------|-----------|
+| ONBOARDING-001 | 5 | Flow onboarding tier-aware au signup : Free → Sophie chat direct, Pro → wizard projet complet, Team → contact sales | 1-2 sessions |
+| ONBOARDING-002 | 5 | Pre-fill projet depuis CTA marketing (passerelle site→plateforme avec context preserved) | 1 session |
 
 ---
 
-## Bugs latents — Status snapshot 1er mai 2026
+## 🔧 Dette technique post-launch acceptable
 
-| ID | Status | Resolution |
-|----|--------|------------|
-| F821 (22 erreurs runtime du 18 avr) | ✅ FIXED | Tous corrigés entre le 18 avril et le 1er mai (audit ruff confirmé). |
-| F823 (1 latent) | ✅ FIXED | Commit `1281e9a` du 1er mai. Pré-init défensive + noqa documenté. |
-| F402 (1 latent) | ✅ FIXED | Commit `1281e9a` du 1er mai. Renommage variable de loop. |
-| Studio en prod legacy purple/cyan | ✅ FIXED | Sprint A5.1 → A5.4 mergé dans main au commit `8bc569c` du 1er mai. Charte ink/bone/brass cohérente avec le marketing. |
-| SignupPage absente du Studio | ✅ FIXED | Commit `9dab8cb` du 1er mai sur feat/platform-studio (mergé dans main). |
-| Page /pricing legacy "Starter/Pro/Enterprise" | ✅ FIXED | Refactor freemium 4-tier (commit `e538605`) + Mod 23 (commit `d679652`) + A5.4 Pricing.tsx refonte. |
-| Pages légales /cgv /legal /privacy 404 | ✅ FIXED | Mod 28 (commit `cf86231`) du 1er mai, contenu boilerplate FR+EN livré. |
-| Lighthouse mobile a11y 86, SEO 91 | ✅ FIXED | Mod 29 (commit `3366d29`) du 1er mai, scores 100/100/100. |
-| Console error 404 /favicon.ico | ✅ FIXED | Mod 30 (commit `18698e5`) du 1er mai. |
-| Stripe webhook backend manquant | ✅ DONE | Phase 3 S3.3 (commit `b8e4f82`) du 29 avril. |
-| Marcus régression Rev2 (E2E #143) | ⏳ KNOWN | Voir REVISION-001 P2. Code patch écrit, pas branché. |
-| Cost tracking 22% capture | ⏳ KNOWN | Voir COST-001 P2. |
+### P2 — E2E #144 follow-ups (2 mai 2026)
+
+| ID | Description | Notes |
+|----|-------------|-------|
+| REVISION-001-WORKER | Toujours restart **worker + backend** après patch orchestrator. Le 2 mai, restart backend seul a fait que le worker ARQ a tourné l'ancien code (REVISION-001 HITL pas testé en pratique, fallback fix_gaps). À documenter dans `HOTFIXES_E2E_TEST.md`. |
+| AGENT-FK-001 | Populer `agent_deliverables.agent_id` (FK vers `agents.id`) dans `_save_deliverable` côté pm_orchestrator. Actuellement NULL pour TOUS les deliverables depuis exec 142+. Band-aid OUTER JOIN posé dans `DeliverableService.get_deliverable_previews` (commit `9262a96`), mais le vrai fix est au write site. |
+| DOCX-OBSOLETE-001 | Supprimer Phase 6 `_generate_sds_document` dans `pm_orchestrator_service_v2.py:2900-2925`. Depuis iter 8, le SDS est rendu en HTML in-app via `tools/build_sds.py`, l'utilisateur peut imprimer en PDF via le navigateur. Le `.docx` + `executions.sds_document_path` est dead code. |
+| ELENA-TIMEOUT-001 | Timeout 10-min Phase 4 marque Elena `failed: Skipped: Timeout` alors que son LLM call (118K tokens output) réussit après. Soit allonger timeout pour Sonnet long output, soit cancel le LLM call cleanly. |
+| JORDAN-PROMPT-001 | Prompt Jordan ne contraint pas le format `monitoring.alerting`. LLM produit alternativement dict (exec 146), `alerting_thresholds` (exec 147), liste (exec 148 → plante). Template défensif posé (`a5ba624`), vrai fix = Pydantic-valider la sortie Jordan. |
+| GHOST-001 | SMTP réel (Mailgun/Postmark) pour Ghost puis réactiver `security__staffDeviceVerification`. Désactivé en hotfix le 2 mai (`b728a69`) — mail Direct ne livre pas à Gmail, ce qui bloque reset password Owner. |
+
+### P2 — Bugs UI execution monitor
+
+| ID | Description |
+|----|-------------|
+| UI-002 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
+| UI-003 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1" / "revision 2"). |
+| UI-004 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
+
+### P2 — Dette technique de la refonte V3
+
+| ID | Description |
+|----|-------------|
+| REVISION-001 | Mode `patch` est ÉCRIT et BRANCHÉ (commits `d6c1799`, `2c9659e`, `54577f5`) — AUTO-REVISE Phase 3.3 et HITL. Reste à valider en E2E qu'il s'exécute (E2E #144 a tombé en fallback fix_gaps à cause du worker non restart, voir REVISION-001-WORKER). |
+| COST-001 | `cost_usd` 6-tuple : Marcus + Emma + Olivia ✅ (commit `d6c1799`). Reste : Aisha, Lucas, Elena, Jordan. Capture actuelle ~50% du coût réel (était 22% avant). |
+| P10 | BaseAgent class pour les 11 agents (`_call_llm`/`execution_id`/logging dupliqués). Sprint dédié post-launch. |
+| BUNDLE-001 | Bundle 16 MB site marketing : split lazy-load post-launch. Lighthouse Perf 25/100 (a11y/SEO/best-practices à 100). |
+
+### P3 — UX / qualité
+
+| ID | Description |
+|----|-------------|
+| UX-003 | Coverage gaps frontend : afficher `gap.what_is_missing` + `gap.fix_instruction`, pas que `gap.severity`. |
+| UX-004 | Active Agent : `.find()` → `.filter()` pour agents parallèles (ExecutionMonitoringPage.tsx:544). Permet d'afficher Diego + Zara + Raj simultanément en BUILD. |
+
+### P3 — Cleanup git
+
+| ID | Description |
+|----|-------------|
+| GIT-CLEANUP-001 | Supprimer branches mergées : `feat/sds-templating`, `feat/platform-studio`, `feature/journal-publication`, etc. (15+ branches stale). `git branch -a` montre l'inventaire. |
+
+---
+
+## ✅ Fait depuis le 1er mai 2026
+
+Snapshot des items clos ces 2 derniers jours.
+
+| ID | Phase | Resolution |
+|----|----|------------|
+| STRIPE-001 | 3 | ✅ DONE — `_handle_invoice_paid` reset crédits sur `subscription_cycle` (commit `74c4a0d`, 2 mai) |
+| STRIPE-002 | 3 | ✅ DONE — `_handle_invoice_failed` log + dunning natif Stripe (commit `74c4a0d`) |
+| STRIPE-003 | 3 | ✅ DONE — Mod 24 frontend wiring `Pricing.tsx` + `BillingSuccess/Cancel.tsx` + helper `startStripeCheckout` (commit `74c4a0d`) |
+| STRIPE-004 | 3 | ✅ DONE — `docs/STRIPE_PROD_CHECKLIST.md` (181 lignes, 8 étapes + rollback 2 min) |
+| JOURNAL-001/2/3/4 | — | ✅ DONE — Webhook live, Ghost owner reset, 5 webhooks configurés (commit `fb9155e`, tag `v2026.05-journal-live`) |
+| REVISION-001 (code) | 1 | ✅ DONE — Mode `patch` AUTO-REVISE + HITL + `CATEGORY_TO_SECTION` mapping (commits `d6c1799`, `2c9659e`, `54577f5`). Validation E2E pending (REVISION-001-WORKER). |
+| COST-001 (Emma + Olivia) | — | ✅ DONE — `_call_llm` 6-tuple + cost_usd (commit `d6c1799`). Reste Aisha/Lucas/Elena/Jordan. |
+| LINT-001 | — | ✅ DONE — 81 → 0 warnings ruff (commit `d6c1799`) |
+| SDS template alerting | 1 | ✅ DONE — Rendu défensif dict OR list (commit `a5ba624`) |
+| UI-001 | 4 | ✅ DONE — INNER → OUTER JOIN + Optional agent_id (commit `9262a96`) |
+| Open SDS | 4 | ✅ DONE — Endpoint `/api/deliverables/{id}/render` + bouton "Open SDS" frontend (commit `511abfa`) |
+| SDS Pharma exemple | 6 | ✅ DONE — Essais Cliniques E2E #144, exec 148 COMPLETED, SDS HTML 347 K rendu, status APPROVED |
+
+---
+
+## 📦 Backlog parking lot (post-launch, V4 §11)
+
+Hors scope V4. À traiter post-lancement ou si bande passante.
+
+- Spec gouvernance Team tier (RC pro, audit log SFDX, chiffrement credentials, procédure révocation)
+- Palier Mid 299-399 € (à évaluer après 3-6 mois de data Pro)
+- Documentation API publique (Stripe-style) pour Enterprise + intégrations partenaires
+- Programme partenaires / revendeurs (agences Salesforce, intégrateurs)
+- Internationalisation site/plateforme (FR-only actuellement, EN à prévoir)
+- RAG live (mise à jour automatique sur nouvelles releases Salesforce)
+- P3 split-brain résiduel + P7 transactions (refonte technique V3 résidus)
+- E2E #145 ciblé pour valider REVISION-001 mode patch en HITL (post worker restart)
