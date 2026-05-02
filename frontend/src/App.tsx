@@ -19,6 +19,8 @@ const BuildMonitoringPage     = lazy(() => import('./pages/BuildMonitoringPage')
 const ProjectDetailPage       = lazy(() => import('./pages/ProjectDetailPage'));
 const AgentTesterPage         = lazy(() => import('./pages/AgentTesterPage'));
 const Pricing                 = lazy(() => import('./pages/Pricing'));
+const BillingSuccess          = lazy(() => import('./pages/BillingSuccess'));
+const BillingCancel           = lazy(() => import('./pages/BillingCancel'));
 
 /**
  * Loading fallback minimal Studio — affiché pendant le chunk loading.
@@ -51,6 +53,22 @@ function App() {
             element={
               <AppShell variant="public">
                 <Pricing />
+              </AppShell>
+            }
+          />
+          <Route
+            path="/billing/success"
+            element={
+              <AppShell variant="public">
+                <BillingSuccess />
+              </AppShell>
+            }
+          />
+          <Route
+            path="/billing/cancel"
+            element={
+              <AppShell variant="public">
+                <BillingCancel />
               </AppShell>
             }
           />

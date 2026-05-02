@@ -138,6 +138,61 @@ function FeatureValue({ value }: { value: boolean | string }) {
   );
 }
 
+/**
+ * Mod 24 — Helper pret a brancher pour declencher un checkout Stripe.
+ *
+ * Etat actuel : NON BRANCHE. Le bouton Pro ouvre toujours un modal "Bientot",
+ * Team / Enterprise ouvrent un mailto. Quand l\'ouverture publique de Pro/Team
+ * est decidee, il suffira de remplacer dans handleCta :
+ *   - `setShowProModal(true)` par `startStripeCheckout(\'pro\')`
+ *   - le mailto Team par `startStripeCheckout(\'team\')`
+ *
+ * Le backend `POST /api/billing/checkout` :
+ *   - exige un Bearer token (utilisateur doit etre logge)
+ *   - retourne `{url}` = URL Stripe Checkout hosted
+ *   - redirige vers `/billing/success` ou `/billing/cancel` apres paiement
+ *
+ * Si pas de token : redirige vers /signup (l\'utilisateur sera reoriente
+ * vers le checkout apres signup, a implementer dans SignupPage si besoin).
+ */
+async function startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    // Pas logge → on envoie vers signup, le checkout reprendra apres login
+    sessionStorage.setItem('post_signup_checkout_tier', tier);
+    window.location.href = '/signup';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/billing/checkout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ tier }),
+    });
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      console.error('[Stripe checkout] HTTP', res.status, detail);
+      alert('Le checkout Stripe est indisponible. Reessayez dans un instant ou contactez-nous.');
+      return;
+    }
+
+    const { url } = await res.json();
+    if (!url) {
+      console.error('[Stripe checkout] reponse sans url');
+      return;
+    }
+    window.location.href = url;
+  } catch (err) {
+    console.error('[Stripe checkout] erreur reseau', err);
+    alert('Le checkout Stripe est indisponible. Reessayez dans un instant ou contactez-nous.');
+  }
+}
+
 export default function Pricing() {
   const { t, lang } = useLang();
   const [showProModal, setShowProModal] = useState(false);
@@ -146,8 +201,13 @@ export default function Pricing() {
     if (tier === 'free') {
       window.location.href = '/login';
     } else if (tier === 'pro') {
+      // Mod 24 : pour activer le checkout Stripe, remplacer la ligne suivante par :
+      //   startStripeCheckout('pro');
       setShowProModal(true);
     } else {
+      // Mod 24 : pour activer le checkout Stripe sur Team, remplacer ce bloc par :
+      //   if (tier === 'team') { startStripeCheckout('team'); return; }
+      // Pour Enterprise on garde toujours le mailto (on-premise, pas de Stripe).
       const subject = encodeURIComponent(
         tier === 'team' ? 'Team plan inquiry' : 'Enterprise plan inquiry',
       );

@@ -226,12 +226,10 @@ def handle_webhook_event(event: stripe.Event, db: Session) -> Dict[str, Any]:
         return _handle_subscription_deleted(obj, db)
 
     if event_type == "invoice.payment_succeeded":
-        # TODO Phase 3.4 : reset monthly credits via CreditService
-        return {"handled": False, "type": event_type, "note": "TODO credit reset"}
+        return _handle_invoice_paid(obj, db)
 
     if event_type == "invoice.payment_failed":
-        # TODO Phase 3.4 : start grace period, notify user
-        return {"handled": False, "type": event_type, "note": "TODO grace period"}
+        return _handle_invoice_failed(obj, db)
 
     logger.debug("Stripe event ignored: %s", event_type)
     return {"handled": False, "type": event_type, "note": "ignored"}
@@ -299,3 +297,118 @@ def _handle_subscription_deleted(sub: Dict[str, Any], db: Session) -> Dict[str, 
                 user.id, sub.get("id"))
     return {"handled": True, "type": "customer.subscription.deleted",
             "user_id": user.id, "new_tier": "free"}
+
+
+def _handle_invoice_paid(invoice: Dict[str, Any], db: Session) -> Dict[str, Any]:
+    """STRIPE-001 — Reset monthly credits on subscription renewal.
+
+    Triggered by ``invoice.payment_succeeded``. Stripe sends this event:
+      - on the initial subscription payment (billing_reason="subscription_create")
+      - on every monthly renewal       (billing_reason="subscription_cycle")
+      - on one-shot charges            (billing_reason="manual" / "subscription_update")
+
+    We only reset credits on **subscription_cycle** : the initial credits
+    are already provisioned by ``subscription.created`` flow, and one-shot
+    overage purchases must NOT reset the included quota.
+    """
+    # Local import to avoid any circular dependency with credit_service.
+    from app.services.credit_service import CreditService, CreditError
+
+    customer_id    = invoice.get("customer")
+    billing_reason = invoice.get("billing_reason")
+    invoice_id     = invoice.get("id")
+    subscription   = invoice.get("subscription")
+
+    if not subscription:
+        logger.info("Invoice %s has no subscription (billing_reason=%s), skip credit reset",
+                    invoice_id, billing_reason)
+        return {"handled": False, "type": "invoice.payment_succeeded",
+                "reason": "not a subscription invoice",
+                "billing_reason": billing_reason}
+
+    if billing_reason == "subscription_create":
+        logger.info("Invoice %s is initial signup (sub=%s), skip credit reset",
+                    invoice_id, subscription)
+        return {"handled": True, "type": "invoice.payment_succeeded",
+                "reason": "initial signup, credits set by subscription.created",
+                "billing_reason": billing_reason}
+
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if not user:
+        logger.warning("No user found for invoice %s, customer %s",
+                       invoice_id, customer_id)
+        return {"handled": False, "type": "invoice.payment_succeeded",
+                "reason": "user not found"}
+
+    try:
+        balance = CreditService(db).reset_monthly(user.id)
+        logger.info(
+            "[STRIPE-001] User %s credits reset on renewal "
+            "(invoice=%s, sub=%s, billing_reason=%s, refilled=%s)",
+            user.id, invoice_id, subscription, billing_reason,
+            balance.included_credits,
+        )
+        return {
+            "handled": True, "type": "invoice.payment_succeeded",
+            "user_id": user.id, "invoice_id": invoice_id,
+            "billing_reason": billing_reason,
+            "credits_refilled": balance.included_credits,
+        }
+    except CreditError as exc:
+        logger.error("[STRIPE-001] Credit reset failed for user %s: %s",
+                     user.id, exc)
+        return {"handled": False, "type": "invoice.payment_succeeded",
+                "reason": f"credit reset failed: {exc}",
+                "user_id": user.id}
+
+
+def _handle_invoice_failed(invoice: Dict[str, Any], db: Session) -> Dict[str, Any]:
+    """STRIPE-002 — Mark a failed payment for grace period handling.
+
+    Triggered by ``invoice.payment_failed``. Stripe automatically retries
+    failed payments according to the dunning configuration (default :
+    3 retries spread over ~3 weeks). After all retries fail, Stripe fires
+    ``customer.subscription.deleted`` which downgrades the user to free
+    via :func:`_handle_subscription_deleted`.
+
+    For now we only log and surface the event. A custom 5-day grace period
+    would require a DB migration to add ``users.grace_period_until`` and
+    a daily cron to enforce it. That logic is **deferred** : Stripe's native
+    dunning already provides a 3-week buffer which is more permissive than
+    our spec (5 days) anyway, and downgrade-to-free is handled cleanly by
+    ``customer.subscription.deleted`` at the end of the dunning cycle.
+
+    TODO (post-launch) : if business calls for a stricter 5-day grace,
+    add ``grace_period_until`` column and a cron job in ``scripts/cron/``.
+    """
+    customer_id      = invoice.get("customer")
+    invoice_id       = invoice.get("id")
+    attempt_count    = invoice.get("attempt_count")
+    next_attempt     = invoice.get("next_payment_attempt")
+    amount_due       = invoice.get("amount_due")
+    subscription     = invoice.get("subscription")
+
+    user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+    if not user:
+        logger.warning("[STRIPE-002] No user found for failed invoice %s, customer %s",
+                       invoice_id, customer_id)
+        return {"handled": False, "type": "invoice.payment_failed",
+                "reason": "user not found"}
+
+    logger.warning(
+        "[STRIPE-002] Payment failed for user %s (email=%s, tier=%s) "
+        "— invoice=%s sub=%s amount_due=%s attempt=%s next_retry=%s. "
+        "Stripe dunning will retry; subscription stays active until "
+        "customer.subscription.deleted fires.",
+        user.id, user.email, user.subscription_tier,
+        invoice_id, subscription, amount_due, attempt_count, next_attempt,
+    )
+
+    return {
+        "handled": True, "type": "invoice.payment_failed",
+        "user_id": user.id, "invoice_id": invoice_id,
+        "attempt_count": attempt_count,
+        "next_payment_attempt": next_attempt,
+        "note": "logged, dunning handled by Stripe",
+    }
+
