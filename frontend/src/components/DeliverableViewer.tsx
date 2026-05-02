@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { X, ChevronDown, ChevronUp, FileText, Loader2 } from 'lucide-react';
 import { api } from '../services/api';
 import MermaidRenderer, { extractMermaidBlocks } from './MermaidRenderer';
-import SDSPreview from './SDSPreview';
 import StructuredRenderer from './StructuredRenderer';
 
 interface DeliverablePreview {
@@ -175,22 +174,34 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                         {new Date(d.created_at).toLocaleString()}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleExpand(d.id)}
-                      className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brass/10 text-brass hover:bg-brass/20 transition-colors"
-                    >
-                      {isExpanded ? (
-                        <>
-                          <ChevronUp className="w-3.5 h-3.5" />
-                          Collapse
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="w-3.5 h-3.5" />
-                          View details
-                        </>
-                      )}
-                    </button>
+                    {(d.deliverable_type.includes('sds_document') || d.deliverable_type.includes('write_sds')) ? (
+                      <a
+                        href={`/api/deliverables/${d.id}/render`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brass text-ink hover:bg-brass/90 transition-colors"
+                      >
+                        Open SDS
+                        <span aria-hidden="true">↗</span>
+                      </a>
+                    ) : (
+                      <button
+                        onClick={() => handleExpand(d.id)}
+                        className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brass/10 text-brass hover:bg-brass/20 transition-colors"
+                      >
+                        {isExpanded ? (
+                          <>
+                            <ChevronUp className="w-3.5 h-3.5" />
+                            Collapse
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="w-3.5 h-3.5" />
+                            View details
+                          </>
+                        )}
+                      </button>
+                    )}
                   </div>
 
                   {/* Preview (always visible) */}
@@ -215,10 +226,8 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                       const isSDS = d.deliverable_type.includes('sds') || d.deliverable_type.includes('write_sds');
                       const isJSON = text.trimStart().startsWith('{') || text.trimStart().startsWith('[');
 
-                      // SDS markdown → SDSPreview with TOC
-                      if (isSDS && text.length > 500) {
-                        return <SDSPreview content={text} title={formatDeliverableType(d.deliverable_type)} />;
-                      }
+                      // SDS deliverables now have their own "Open SDS" button (opens /render)
+                      // so this branch won't fire — we keep the JSON path for everything else.
                       // JSON deliverables → StructuredRenderer (tables, badges, etc.)
                       if (isJSON) {
                         return (

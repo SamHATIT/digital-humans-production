@@ -3,6 +3,7 @@ Deliverables API routes.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -161,3 +162,52 @@ def delete_deliverable(
         )
 
     return None
+
+@router.get("/{deliverable_id}/render", response_class=HTMLResponse)
+def render_deliverable_html(
+    deliverable_id: int,
+    db: Session = Depends(get_db)
+):
+    """Render the deliverable as standalone HTML (for SDS documents).
+    
+    Unwraps the JSON wrapper produced by Emma's _execute_write_sds and
+    returns the inner HTML directly with Content-Type: text/html so the
+    browser renders it instead of showing it as text.
+    """
+    import json
+    service = DeliverableService(db)
+    deliverable = service.get_full_deliverable(deliverable_id)
+    
+    if not deliverable:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Deliverable {deliverable_id} not found"
+        )
+    
+    raw = deliverable.content or ""
+    
+    # Try to unwrap the JSON wrapper {"content": {"raw_html": "..."}, ...}
+    html = raw
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            inner = parsed.get("content", {})
+            if isinstance(inner, dict):
+                # Prefer raw_html, fallback raw_markdown (which since iter 8 also contains HTML)
+                html = inner.get("raw_html") or inner.get("raw_markdown") or raw
+    except (json.JSONDecodeError, TypeError):
+        # Content is not JSON-wrapped — return as-is
+        pass
+    
+    # If the content is already a complete HTML document, return it directly
+    if html.lstrip().lower().startswith("<!doctype html") or html.lstrip().lower().startswith("<html"):
+        return HTMLResponse(content=html)
+    
+    # Otherwise wrap in a minimal HTML shell (for markdown/text content)
+    wrapped = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><title>Deliverable {deliverable_id}</title>
+<style>body{{font-family:system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;line-height:1.6}}
+pre{{background:#f4f4f4;padding:1rem;border-radius:4px;overflow-x:auto}}</style></head>
+<body><pre>{html}</pre></body></html>"""
+    return HTMLResponse(content=wrapped)
+
