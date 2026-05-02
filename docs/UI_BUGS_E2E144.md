@@ -2,7 +2,7 @@
 
 Date détection : 2026-05-02 lors de l'execution 148 (project 100 "Essais Cliniques E2E #144")
 
-## UI-001 — "No deliverables found for this phase" alors que le deliverable existe en DB
+## UI-001 — "No deliverables found for this phase" ✅ FIXED 2026-05-02 alors que le deliverable existe en DB
 **Phase concernée** : 1 (Sophie/PM), 2 (Olivia/BA), probablement aussi 3 (Marcus) et 4 (Emma)
 
 **Symptôme** : Page `/execution/{id}/monitor` affiche "No deliverables found for this phase" 
@@ -60,3 +60,24 @@ pre-launch public Pro/Team (ne pas livrer aux utilisateurs Pro avec ces 2 bugs v
 **À investiguer** :
 - CSS layout dans `ExecutionMonitoringPage.tsx`
 - Probablement `position: sticky` avec un mauvais `top` ou un container manquant
+
+
+---
+
+## Resolution UI-001 (2026-05-02)
+
+**Root cause** : `DeliverableService.get_deliverable_previews()` used INNER JOIN on
+`AgentDeliverable.agent_id == Agent.id`. The orchestrator never populates
+`agent_deliverables.agent_id` (NULL for ALL deliverables since exec 142+),
+so the INNER JOIN excluded everything → API returned `[]` → frontend
+showed "No deliverables found".
+
+**Fix** :
+- `backend/app/services/deliverable_service.py` : `outerjoin` instead of `join`
+  + fallback agent_name derivation from `deliverable_type` prefix
+- `backend/app/schemas/deliverable.py` : `agent_id: Optional[int] = None`
+  on AgentDeliverablePreview and AgentDeliverableResponse
+
+**Backlog AGENT-FK-001** : the orchestrator should populate `agent_id` at
+write time (in `_save_deliverable`). The read-side outerjoin is a band-aid;
+the proper fix is at the write site so foreign keys are populated as intended.

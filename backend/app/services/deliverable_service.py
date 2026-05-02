@@ -80,7 +80,10 @@ class DeliverableService:
         execution_id: int
     ) -> List[AgentDeliverablePreview]:
         """Get previews of all deliverables for an execution."""
-        deliverables = self.db.query(AgentDeliverable, Agent).join(
+        # UI-001 fix: outerjoin so deliverables with agent_id NULL are still listed
+        # (the orchestrator currently doesn't populate agent_id when saving — backlog
+        # AGENT-FK-001 to fix at write time; this read-side fix unblocks the UI now).
+        deliverables = self.db.query(AgentDeliverable, Agent).outerjoin(
             Agent,
             AgentDeliverable.agent_id == Agent.id
         ).filter(
@@ -89,10 +92,23 @@ class DeliverableService:
 
         previews = []
         for deliverable, agent in deliverables:
+            # Derive agent name from deliverable_type prefix when FK is NULL
+            if agent is not None:
+                agent_name_value = agent.name
+            else:
+                prefix = deliverable.deliverable_type.split('_')[0] if deliverable.deliverable_type else 'unknown'
+                agent_name_value = {
+                    'pm': 'Sophie (PM)', 'ba': 'Olivia (BA)',
+                    'architect': 'Marcus (Architect)', 'research': 'Emma (Research Analyst)',
+                    'data': 'Aisha (Data Migration)', 'qa': 'Elena (QA Tester)',
+                    'devops': 'Jordan (DevOps)', 'trainer': 'Lucas (Trainer)',
+                    'apex': 'Diego (Apex Dev)', 'lwc': 'Zara (LWC Dev)',
+                    'admin': 'Raj (Admin)',
+                }.get(prefix, prefix.capitalize())
             preview = AgentDeliverablePreview(
                 id=deliverable.id,
                 agent_id=deliverable.agent_id,
-                agent_name=agent.name,
+                agent_name=agent_name_value,
                 deliverable_type=deliverable.deliverable_type,
                 content_preview=deliverable.content[:500] if deliverable.content else "",
                 content_size=len(deliverable.content) if deliverable.content else 0,

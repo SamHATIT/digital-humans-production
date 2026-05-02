@@ -32,7 +32,7 @@ class AgentDeliverableResponse(AgentDeliverableBase):
     """Schema for Agent Deliverable response."""
     id: int
     execution_id: int
-    agent_id: int
+    agent_id: Optional[int] = None
     execution_agent_id: Optional[int] = None
     output_file_id: Optional[int] = None
     created_at: datetime
@@ -45,7 +45,7 @@ class AgentDeliverableResponse(AgentDeliverableBase):
 class AgentDeliverablePreview(BaseModel):
     """Schema for Agent Deliverable preview (truncated content)."""
     id: int
-    agent_id: int
+    agent_id: Optional[int] = None
     agent_name: str
     deliverable_type: str
     content_preview: str  # First 500 chars
