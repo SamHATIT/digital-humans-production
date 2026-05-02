@@ -1,0 +1,81 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topbar, footer, article_cover %}
+{% block body %}
+{{ topbar('journal') }}
+
+<article style="--rubric-color: {{ post.rubric.color }};">
+
+<header class="j-article-hero">
+  <div class="j-article-hero__inner">
+    <div class="j-article-hero__crumbs">
+      <span class="crumb-num">{{ post.num }}</span>
+      <span class="crumb-sep">·</span>
+      <a href="/journal/{{ post.rubric.id }}" class="crumb-rubric">{{ post.rubric.title|upper }}</a>
+      <span class="crumb-sep">·</span>
+      <span class="crumb-date">{{ post.date_label }}</span>
+    </div>
+    <h1 class="j-article-hero__title">{{ post.title }}</h1>
+    {% if post.deck %}<p class="j-article-hero__deck">{{ post.deck }}</p>{% endif %}
+    <div class="j-byline">
+      <div class="j-byline__avatar"
+           {% if post.author.avatar %}style="background-image: url('{{ post.author.avatar }}'); border-color: {{ post.rubric.color }};"{% endif %}
+           >{% if not post.author.avatar %}{{ post.author.initials }}{% endif %}</div>
+      <div>
+        <div class="j-byline__name"><a href="/journal/by/{{ post.author.slug }}">{{ post.author.name }}</a></div>
+        <div class="j-byline__meta">{{ post.author.role|upper }} · {{ post.read_label|upper }}</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+{% if post.feature_image %}
+<div class="j-article-cover">
+  <div class="j-article-cover__inner">
+    <img src="{{ post.feature_image }}" alt="{{ post.feature_image_alt|default(post.title) }}" style="width: 100%; height: auto; display: block;" />
+    {% if post.feature_image_caption %}<div style="font-family: var(--mono); font-size: 10px; color: var(--bone-4); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 10px;">{{ post.feature_image_caption|safe }}</div>{% endif %}
+  </div>
+</div>
+{% else %}
+<div class="j-article-cover">
+  <div class="j-article-cover__inner">
+    {{ article_cover(post.num, post.rubric.id, post.rubric.color, post.rubric.title, height=420, big=true) }}
+  </div>
+</div>
+{% endif %}
+
+<section class="j-article-body">
+  <div class="j-article-body__inner">
+    {{ post.html|safe }}
+
+    <div class="j-article-body__rule"></div>
+    <div class="j-article-body__filed">
+      <div>
+        <div class="j-article-body__filed-label">Filed under</div>
+        <div class="j-article-body__filed-value">{{ post.rubric.title }}{% if post.tag_chips %} · {{ post.tag_chips|join(' · ') }}{% endif %}</div>
+      </div>
+      <a class="j-article-body__filed-share" href="https://digital-humans.fr/journal/{{ post.slug }}" onclick="navigator.clipboard.writeText(this.href); event.preventDefault(); this.textContent='Copied ✓';">Share · copy link ↗</a>
+    </div>
+  </div>
+</section>
+
+{% if related %}
+<section class="j-related">
+  <div class="j-related__inner">
+    <div class="j-related__label">Related · from {{ post.rubric.title }}</div>
+    <div class="j-related__grid">
+      {% for x in related %}
+      <a href="/journal/{{ x.slug }}" class="j-related__card" style="--rubric-color: {{ x.rubric.color }};">
+        <div class="j-related__num">{{ x.num }}</div>
+        <div class="j-related__title">{{ x.title }}</div>
+        <div class="j-related__deck">{{ x.deck }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+</article>
+
+{{ footer() }}
+{% endblock %}

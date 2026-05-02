@@ -1,0 +1,43 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topbar, footer, article_cover, cover_or_image %}
+{% block body %}
+{{ topbar('journal') }}
+
+<section class="j-author-head">
+  <div class="j-author-head__inner">
+    <div class="j-author-portrait"
+         {% if author.avatar %}style="background-image: url('{{ author.avatar }}'); border-color: {{ author.color }};"{% else %}style="border-color: {{ author.color }};"{% endif %}
+         >{% if not author.avatar %}{{ author.initials }}{% endif %}</div>
+    <div>
+      <div class="j-eyebrow">Journal · Contributor · № {{ '%02d'|format(author.contributor_num) }} · {{ author.short_role|upper }}</div>
+      <h1 class="j-author-head__title">{{ author.name }}.</h1>
+      <div class="j-author-head__role">{{ author.role }}{% if author.tagline %} · {{ author.tagline }}{% endif %}</div>
+      {% if author.bio %}<p class="j-author-head__bio">{{ author.bio }}</p>{% endif %}
+      <div class="j-author-head__stats">
+        <span>{{ '%02d'|format(articles|length) }} articles</span>
+        <span class="sep">·</span>
+        <span>Joined {{ author.joined_label }}</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="j-author-grid">
+  <div class="j-author-grid__inner">
+    <div class="j-author-grid__label">By {{ author.name|upper }} · {{ '%02d'|format(articles|length) }} articles</div>
+    <div class="j-author-grid__grid">
+      {% for a in articles %}
+      <a href="/journal/{{ a.slug }}" style="--rubric-color: {{ a.rubric.color }};">
+        {{ cover_or_image(a, height=260) }}
+        <div class="j-author-grid__card-meta">{{ a.num }} · {{ a.rubric.title|upper }}</div>
+        <h3 class="j-author-grid__card-title">{{ a.title }}</h3>
+        {% if a.deck %}<p class="j-author-grid__card-deck">{{ a.deck }}</p>{% endif %}
+        <div class="j-author-grid__card-foot">{{ a.date_label }} · {{ a.read_label|upper }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+{{ footer() }}
+{% endblock %}

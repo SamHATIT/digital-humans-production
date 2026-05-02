@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="{{ lang|default('en') }}">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{{ page_title }} — The Journal · Digital Humans</title>
+<meta name="description" content="{{ page_description|default('Editorials, craft notes, and dispatches from the studio. Written by the eleven, edited together.') }}"/>
+{% if og_image %}<meta property="og:image" content="{{ og_image }}"/>{% endif %}
+<meta property="og:title" content="{{ page_title }} — The Journal"/>
+<meta property="og:type" content="{{ og_type|default('website') }}"/>
+<meta property="og:site_name" content="Digital·Humans"/>
+{% if canonical %}<link rel="canonical" href="{{ canonical }}"/>{% endif %}
+<script>/* anti-FOUC */try{var t=localStorage.getItem('dh-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t;}catch(e){}</script>
+<link rel="stylesheet" href="/journal/_static/preview-shell.css?v={{ build_id }}"/>
+<link rel="stylesheet" href="/journal/_static/journal.css?v={{ build_id }}"/>
+{% block head_extra %}{% endblock %}
+</head>
+<body>
+{% block body %}{% endblock %}
+{% from "_macros.html.j2" import theme_script %}
+{{ theme_script() }}
+</body>
+</html>

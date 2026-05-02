@@ -1,0 +1,61 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topbar, footer %}
+{% block body %}
+{{ topbar('journal') }}
+
+<article style="--rubric-color: {{ post.rubric.color }};">
+
+<header class="j-article-hero">
+  <div class="j-article-hero__inner">
+    <div class="j-article-hero__crumbs">
+      <span class="crumb-num">{{ post.num }}</span>
+      <span class="crumb-sep">·</span>
+      <a href="/journal/archive" class="crumb-rubric">{{ post.rubric.title|upper }}</a>
+      <span class="crumb-sep">·</span>
+      <span class="crumb-rubric">NEWSLETTER</span>
+      <span class="crumb-sep">·</span>
+      <span class="crumb-date">{{ post.date_label }}</span>
+    </div>
+    <h1 class="j-article-hero__title">{{ post.title }}</h1>
+    {% if post.deck %}<p class="j-article-hero__deck">{{ post.deck }}</p>{% endif %}
+  </div>
+</header>
+
+<section class="j-article-body">
+  <div class="j-article-body__inner">
+    <p style="font-family: var(--mono); font-size: 11px; color: var(--bone-4); letter-spacing: 0.14em; text-transform: uppercase; margin: 0;">Newsletter archive · rendered as sent</p>
+  </div>
+  <div class="j-newsletter-frame">
+    <iframe srcdoc="{{ post.html_iframe|e }}" sandbox="allow-same-origin allow-popups" loading="lazy" title="{{ post.title }}"></iframe>
+  </div>
+  <div class="j-article-body__inner">
+    <div class="j-article-body__filed">
+      <div>
+        <div class="j-article-body__filed-label">Filed under</div>
+        <div class="j-article-body__filed-value">{{ post.rubric.title }} · Newsletter</div>
+      </div>
+      <a class="j-article-body__filed-share" href="https://digital-humans.fr/journal/{{ post.slug }}" onclick="navigator.clipboard.writeText(this.href); event.preventDefault(); this.textContent='Copied ✓';">Share · copy link ↗</a>
+    </div>
+  </div>
+</section>
+
+<script>
+// Auto-resize iframe to its content height
+(function(){
+  var iframes = document.querySelectorAll('.j-newsletter-frame iframe');
+  iframes.forEach(function(iframe){
+    iframe.addEventListener('load', function(){
+      try {
+        var doc = iframe.contentDocument || iframe.contentWindow.document;
+        if (doc && doc.body) {
+          var h = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+          iframe.style.height = (h + 20) + 'px';
+        }
+      } catch(e) {}
+    });
+  });
+})();
+</script>
+
+{{ footer() }}
+{% endblock %}

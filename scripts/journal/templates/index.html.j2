@@ -1,0 +1,70 @@
+{% extends "base.html.j2" %}
+{% from "_macros.html.j2" import topbar, footer, article_cover, cover_or_image %}
+{% block body %}
+{{ topbar('journal') }}
+
+{# ─── Masthead ─────────────────────────────────────────────── #}
+<section class="j-masthead">
+  <div class="j-masthead__inner">
+    <div class="j-eyebrow">№ — Journal</div>
+    <h1 class="j-title-xl">The Journal.</h1>
+    <p class="j-deck">Editorials, craft notes, and dispatches from the studio. Written by the eleven, edited together.</p>
+    <nav class="j-subnav" aria-label="Rubrics">
+      <span class="j-subnav__item is-active">All · {{ '%03d'|format(posts_total) }}</span>
+      {% for r in rubrics %}
+        <a href="/journal/{{ r.id }}" class="j-subnav__item" style="--rubric-color: {{ r.color }};">{{ r.title }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+</section>
+
+{# ─── Featured (most recent post) ─────────────────────────── #}
+{% if featured %}
+<section class="j-featured" style="--rubric-color: {{ featured.rubric.color }};">
+  <div class="j-featured__inner">
+    <a href="/journal/{{ featured.slug }}" aria-label="Read {{ featured.title }}">
+      {{ cover_or_image(featured, height=460, big=true) }}
+    </a>
+    <div>
+      <div class="j-featured__meta">{{ featured.num }} · {{ featured.rubric.title|upper }}</div>
+      <h2 class="j-featured__title"><a href="/journal/{{ featured.slug }}">{{ featured.title }}</a></h2>
+      <p class="j-featured__deck">{{ featured.deck }}</p>
+      <div class="j-featured__rule"></div>
+      <div class="j-featured__byline">
+        <span><strong><a href="/journal/by/{{ featured.author.slug }}">{{ featured.author.name|upper }}</a></strong> · {{ featured.author.role|upper }}</span>
+        <span>·</span><span>{{ featured.date_label }}</span><span>·</span><span>{{ featured.read_label|upper }}</span>
+      </div>
+      <a href="/journal/{{ featured.slug }}" class="j-featured__cta">Read the editorial →</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{# ─── All articles list ───────────────────────────────────── #}
+<section class="j-list">
+  <div class="j-list__inner">
+    <div class="j-list__head">
+      <span>All articles · {{ '%03d'|format(posts_total) }} on file</span>
+      <span>Sorted by date ↓</span>
+    </div>
+    {% for a in posts %}
+    <article class="j-list__row" style="--rubric-color: {{ a.rubric.color }};">
+      <span class="j-list__num">{{ a.num }}</span>
+      <div>
+        <h3 class="j-list__title"><a href="/journal/{{ a.slug }}">{{ a.title }}</a></h3>
+        <div class="j-list__deck">{{ a.deck }}</div>
+      </div>
+      <div class="j-list__author">
+        <a href="/journal/by/{{ a.author.slug }}">{{ a.author.name|upper }}</a>
+        <small>{{ a.author.role|upper }}</small>
+      </div>
+      <span class="j-list__date">{{ a.date_label }}</span>
+      <span class="j-list__read">{{ a.read_label|upper }}</span>
+    </article>
+    {% endfor %}
+    <div class="j-list__archive-cta"><a href="/journal/archive">Open the archive →</a></div>
+  </div>
+</section>
+
+{{ footer() }}
+{% endblock %}
