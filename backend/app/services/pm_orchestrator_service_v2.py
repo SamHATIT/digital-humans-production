@@ -3047,27 +3047,134 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
             previous_design = results["artifacts"].get("ARCHITECTURE", {}).get("content", {})
 
-            revision_result = await self._run_agent(
-                agent_id="architect",
-                mode="fix_gaps",
-                input_data={
-                    "current_solution": previous_design,
-                    "coverage_gaps": critical_gaps,
-                    "uncovered_use_cases": uncovered_ucs,
-                    "iteration": revision_count,
-                    "previous_score": extra_data.get("coverage_score", 0),
-                },
-                execution_id=execution_id,
-                project_id=project_id
-            )
+            # REVISION-001 -- Mode patch (par section) au lieu de fix_gaps (regenere tout)
+            # Identique a la boucle AUTO-REVISE (Phase 3.3, score < 70%) pour coherence
+            # entre les 2 chemins de revision (HITL et auto).
+            gaps_by_section = {}
+            unmapped_gaps = []
+            for gap in critical_gaps:
+                category = gap.get("category", "")
+                section_key = CATEGORY_TO_SECTION.get(category)
+                if section_key:
+                    gaps_by_section.setdefault(section_key, []).append(gap)
+                else:
+                    unmapped_gaps.append(gap)
 
-            if revision_result.get("success"):
-                results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
-                architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
-                self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
-                logger.info("[Architecture Resume] Marcus revision completed")
+            if unmapped_gaps:
+                unmapped_cats = sorted({g.get("category", "?") for g in unmapped_gaps})
+                logger.info(
+                    f"[REVISION-001][HITL] {len(unmapped_gaps)} gaps with unmapped categories "
+                    f"({unmapped_cats}) skipped this revision"
+                )
+
+            if not gaps_by_section:
+                # Rien de patchable -> fallback fix_gaps (filet de securite)
+                logger.warning(
+                    "[REVISION-001][HITL] No mappable gaps for patch mode "
+                    "-> fallback to fix_gaps (regenere tout)"
+                )
+                revision_result = await self._run_agent(
+                    agent_id="architect",
+                    mode="fix_gaps",
+                    input_data={
+                        "current_solution": previous_design,
+                        "coverage_gaps": critical_gaps,
+                        "uncovered_use_cases": uncovered_ucs,
+                        "iteration": revision_count,
+                        "previous_score": extra_data.get("coverage_score", 0),
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+                if revision_result.get("success"):
+                    results["artifacts"]["ARCHITECTURE"] = revision_result["output"]
+                    architect_tokens += revision_result["output"]["metadata"].get("tokens_used", 0)
+                    self._save_deliverable(execution_id, "architect", "solution_design_revised", revision_result["output"])
+                    logger.info("[Architecture Resume] Marcus fallback fix_gaps revision completed")
+                else:
+                    logger.warning("[Architecture Resume] Marcus fallback fix_gaps revision failed, keeping original")
             else:
-                logger.warning("[Architecture Resume] Marcus revision failed, keeping original")
+                # Mode patch : un appel par section impactee.
+                logger.info(
+                    f"[REVISION-001][HITL] Patching {len(gaps_by_section)} section(s): "
+                    f"{list(gaps_by_section.keys())} ({sum(len(g) for g in gaps_by_section.values())} gaps)"
+                )
+                arch_artifact = results["artifacts"].get("ARCHITECTURE", {})
+                if not isinstance(previous_design, dict):
+                    logger.error(
+                        "[REVISION-001][HITL] previous_design is not a dict (type=%s) - aborting patch",
+                        type(previous_design).__name__,
+                    )
+                else:
+                    patched_solution = dict(previous_design)
+                    any_patch_success = False
+
+                    for section_key, section_gaps in gaps_by_section.items():
+                        current_section = patched_solution.get(section_key, {})
+
+                        patch_result = await self._run_agent(
+                            agent_id="architect",
+                            mode="patch",
+                            input_data={
+                                "section_key": section_key,
+                                "current_section": current_section,
+                                "fix_instructions": section_gaps,
+                            },
+                            execution_id=execution_id,
+                            project_id=project_id,
+                        )
+
+                        if patch_result.get("success"):
+                            patched_section = patch_result["output"].get("content", {})
+                            if isinstance(patched_section, dict):
+                                if section_key in patched_section and isinstance(patched_section[section_key], dict):
+                                    patched_solution[section_key] = patched_section[section_key]
+                                else:
+                                    patched_solution[section_key] = patched_section
+                            else:
+                                logger.warning(
+                                    f"[REVISION-001][HITL] Patch result for {section_key} "
+                                    f"is not a dict, skipping merge"
+                                )
+                                continue
+
+                            architect_tokens += patch_result["output"].get("metadata", {}).get("tokens_used", 0)
+                            self._save_deliverable(
+                                execution_id, "architect",
+                                f"solution_design_revised_patch_{section_key}",
+                                patch_result["output"],
+                            )
+                            any_patch_success = True
+                            logger.info(
+                                f"[REVISION-001][HITL] Patched section '{section_key}' "
+                                f"({len(section_gaps)} gaps) successfully"
+                            )
+                        else:
+                            logger.warning(
+                                f"[REVISION-001][HITL] Patch failed for section '{section_key}' "
+                                f"- keeping previous version"
+                            )
+
+                    if any_patch_success:
+                        # Reconstituer l'artifact ARCHITECTURE avec le solution patche.
+                        results["artifacts"]["ARCHITECTURE"] = {
+                            "content": patched_solution,
+                            "metadata": arch_artifact.get("metadata", {}) if isinstance(arch_artifact, dict) else {},
+                        }
+                        self._save_deliverable(
+                            execution_id, "architect",
+                            "solution_design_revised",
+                            {"content": patched_solution, "metadata": arch_artifact.get("metadata", {}) if isinstance(arch_artifact, dict) else {}},
+                        )
+                        logger.info(
+                            f"[Architecture Resume] Marcus revision completed "
+                            f"({len(gaps_by_section)} sections patched)"
+                        )
+                    else:
+                        logger.error(
+                            f"[REVISION-001][HITL] All {len(gaps_by_section)} section patches failed "
+                            f"- keeping original architecture"
+                        )
 
             # Re-validate with Emma
             self._update_progress(execution, "research_analyst", "running", 68,
