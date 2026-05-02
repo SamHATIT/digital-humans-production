@@ -1,6 +1,6 @@
 # Backlog — Digital Humans Production
 
-**Dernière mise à jour** : 2026-05-01 (post-merge `v2026.05-may-1-consolidation`)
+**Dernière mise à jour** : 2026-05-02 (post E2E #144 recovery, exec 148 COMPLETED)
 
 Le suivi détaillé des sessions est dans `CHANGELOG.md`. Ce fichier liste **uniquement
 les actions futures** (priorisées par bloquant pour le launch puis dette technique).
@@ -63,6 +63,24 @@ les actions futures** (priorisées par bloquant pour le launch puis dette techni
 |----|-------------|-------|
 | GIT-001 | Supprimer branche locale + remote `feature/tier-based-routing` | Mergée dans main au commit `2f72f5c`. |
 | GIT-002 | Statuer sur `feat/platform-studio` | Conserver pour historique Sprint A5 ou supprimer (mergée dans main au commit `8bc569c`). |
+
+---
+
+## Nouveaux items E2E #144 — 2 mai 2026
+
+| ID | Priorité | Description |
+|----|----------|-------------|
+| REVISION-001-WORKER | P0 prochain E2E | Toujours restart **worker + backend** après patch orchestrator. Le 2 mai, restart backend seul a fait que le worker ARQ a tourné l'ancien code (REVISION-001 HITL pas testé, fallback fix_gaps a tourné à la place). Documenter dans `HOTFIXES_E2E_TEST.md`. |
+| AGENT-FK-001 | P1 | Populer `agent_deliverables.agent_id` (FK vers `agents.id`) dans `_save_deliverable` côté pm_orchestrator. Actuellement NULL pour TOUS les deliverables depuis exec 142+. Band-aid OUTER JOIN posé dans `DeliverableService.get_deliverable_previews` (commit `9262a96`), mais le vrai fix est au write site. |
+| MARKETING-EX2-001 | P2 | Intégrer un 2e exemple SDS sur le site marketing : "Essais Cliniques E2E" (pharmacovigilance, exec 148). Donne un contraste vertical avec LogiFleet (logistique). Décision format à prendre : (a) HTML statique copié vers `/var/www/dh-preview/sds/exec_148.html` et linké depuis bundle marketing, (b) lien live vers `app.digital-humans.fr/api/deliverables/705/render`. Probablement (a) pour maîtriser l'évolution. À faire après Mod 23 Pricing. |
+| DOCX-OBSOLETE-001 | P2 | Supprimer Phase 6 `_generate_sds_document` dans `pm_orchestrator_service_v2.py:2900-2925`. Depuis iter 8, le SDS est rendu en HTML in-app via `tools/build_sds.py` et l'utilisateur peut imprimer en PDF via le navigateur. Le `.docx` généré + populer `executions.sds_document_path` est dead code. |
+| ELENA-TIMEOUT-001 | P2 | Le timeout 10-min de Phase 4 a marqué Elena `failed: Skipped: Timeout` à 13:21 alors que son LLM call (118K tokens output) a effectivement réussi 30s plus tard. Soit allonger le timeout pour Sonnet long output, soit cancel le LLM call cleanly pour ne pas orphan le travail terminé. |
+| JORDAN-PROMPT-001 | P3 | Prompt Jordan ne contraint pas le format de `monitoring.alerting`. LLM produit alternativement dict (exec 146), clé différente `alerting_thresholds` (exec 147), ou liste (exec 148, qui a planté Phase 5). Template `cicd_deployment.html.j2` rendu défensif (commit `a5ba624`), mais le vrai fix est de Pydantic-valider la sortie Jordan. |
+| GHOST-001 | P3 | Configurer un SMTP réel (Mailgun/Postmark) pour Ghost puis réactiver `security__staffDeviceVerification`. Désactivé en hotfix le 2 mai (commit `b728a69`) parce que mail Direct ne livre pas à Gmail, ce qui bloque le reset password Owner. |
+| UI-001 | ✅ DONE | "No deliverables found" alors que les deliverables existent. Fix INNER → OUTER JOIN (commit `9262a96`). |
+| UI-002 | P3 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
+| UI-003 | P3 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1"). |
+| UI-004 | P3 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
 
 ---
 
