@@ -17,6 +17,10 @@ services:
       
       # Mode production
       NODE_ENV: production
+
+      # Désactivation device verification (mail=Direct ne peut pas envoyer
+      # les emails de vérif vers Gmail). À retirer une fois SMTP configuré.
+      security__staffDeviceVerification: "false"
       
     volumes:
       - ghost_content:/var/lib/ghost/content
