@@ -204,8 +204,8 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                     )}
                   </div>
 
-                  {/* Preview (always visible) */}
-                  {!isExpanded && d.content_preview && (
+                  {/* Preview (always visible) — hidden for SDS docs (Open SDS button replaces it) */}
+                  {!isExpanded && d.content_preview && !(d.deliverable_type.includes('sds_document') || d.deliverable_type.includes('write_sds')) && (
                     <p className="mt-3 text-sm text-bone-4 line-clamp-3 whitespace-pre-wrap">
                       {d.content_preview}
                     </p>
