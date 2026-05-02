@@ -132,8 +132,9 @@
 {% endif %}{% if devops.monitoring.alerting %}<tr>
 <td>alerting</td>
 <td><table class='tbl tbl-kv tbl-nested'><tbody>
-{% for k, v in devops.monitoring.alerting.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>
-{% endfor %}</tbody></table></td>
+{% if devops.monitoring.alerting is mapping %}{% for k, v in devops.monitoring.alerting.items() %}<tr><td><span class='key'>{{ k | humanize }}</span></td><td>{% if v is iterable and v is not string %}{{ v | join(', ') | etext }}{% else %}{{ v | etext }}{% endif %}</td></tr>
+{% endfor %}{% else %}{% for item in devops.monitoring.alerting %}<tr><td><span class='key'>Alert {{ loop.index }}</span></td><td>{% if item is mapping %}{% for k2, v2 in item.items() %}<strong>{{ k2 | humanize }}</strong>: {% if v2 is iterable and v2 is not string %}{{ v2 | join(', ') | etext }}{% else %}{{ v2 | etext }}{% endif %}<br>{% endfor %}{% else %}{{ item | etext }}{% endif %}</td></tr>
+{% endfor %}{% endif %}</tbody></table></td>
 </tr>
 {% endif %}</tbody></table>
 <h2 id='sub-12-7' class='sec-h2'><span>12.7 Testing Strategy</span></h2>
