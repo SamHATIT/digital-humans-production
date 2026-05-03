@@ -49,6 +49,18 @@ function SignupInner() {
   })();
   const tierMeta = TIER_META[requestedTier];
 
+  // ONBOARDING-003 — industry intent coming from a marketing CTA
+  // (e.g. /signup?tier=free&intent=pharma). Whitelisted to known industries
+  // so a malicious value can't slip through to /projects/new.
+  const KNOWN_INTENTS = new Set([
+    'logistics', 'pharma', 'healthcare', 'telecom',
+    'b2b', 'energy', 'retail', 'agentforce',
+  ]);
+  const requestedIntent = (() => {
+    const raw = searchParams.get('intent');
+    return raw && KNOWN_INTENTS.has(raw) ? raw : null;
+  })();
+
   const [name, setName]                       = useState('');
   const [email, setEmail]                     = useState('');
   const [password, setPassword]               = useState('');
@@ -90,6 +102,9 @@ function SignupInner() {
       // We pre-store the tier flag so the future /verify-signup can pass it
       // to the WelcomeBanner once the account is materialised.
       sessionStorage.setItem('onboarding:pendingTier', requestedTier);
+      if (requestedIntent) {
+        sessionStorage.setItem('onboarding:pendingIntent', requestedIntent);
+      }
       await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang);
       setMailSent(true);
     } catch (err) {
@@ -216,7 +231,22 @@ function SignupInner() {
                     <p className="font-mono text-[11px] tracking-[0.04em] uppercase text-bone-2 leading-relaxed">{error}</p>
                   </div>
                 )}
+                {/* UI-005 — proéminent: l'API ne dit pas "déjà inscrit" (anti-enumeration),
+                    mais l'UX doit signaler la possibilité au user qui sait. */}
                 <div className="mt-8 pt-6 border-t border-bone/10">
+                  <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-3">
+                    {t('Already have an account?', 'Vous avez déjà un compte ?')}
+                  </p>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-brass/40 hover:border-brass hover:bg-brass/5 font-mono text-[11px] tracking-cta uppercase text-brass transition-colors"
+                  >
+                    {t('Sign in instead', 'Se connecter plutôt')}
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+
+                <div className="mt-6 pt-6 border-t border-bone/10">
                   <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-3">
                     {t('Didn\'t receive it?', 'Pas reçu ?')}
                   </p>
