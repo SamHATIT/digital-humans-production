@@ -1,10 +1,28 @@
 # Backlog — Digital Humans Production
 
-**Dernière mise à jour** : 2026-05-02 (post E2E #144 recovery, exec 148 COMPLETED)
+**Dernière mise à jour** : 2026-05-02 (O1 tranché, plan d'exécution 3 vagues)
 
 Le suivi détaillé des sessions est dans `CHANGELOG.md`. Ce fichier liste **uniquement
 les actions futures** + l'état des phases du Master Plan V4 (cible : ouverture early
 access publique).
+
+---
+
+## 🎬 Décisions actées (2 mai 2026)
+
+**O1 — Planning d'ouverture par palier (tranché par Sam)** :
+- **Free** (Sophie + Olivia chat) → ouverture dès que le site marketing complet + tunnel
+  signup + email verification + passerelle Studio sont validés bout-en-bout
+- **Pro 49 €/mois** → ouverture dès que le SDS est validé à 100% (qualité + UX cohérente)
+- **Team 1 490 €/mois** → ouverture dès que SDS + BUILD sont validés bout-en-bout
+
+**O2 — Palier Mid 299-399 €** : différé. Sera réévalué après 3-6 mois de data Pro.
+
+**O3 — Cinématique agents plateforme** : 3-4 mockups HTML statiques en cours de
+production. Sam choisit, on implémente derrière (STUDIO-S4.1 + STUDIO-RIM-AGENTS).
+
+**LEGAL-001/002, BIZ-001, STRIPE-PROD-001** : différés. Sam s'en occupe quand la
+structure juridique est montée et quand on est prêt à ouvrir Pro/Team.
 
 ---
 
@@ -27,6 +45,39 @@ Référence : `MASTER_PLAN_V4.md` (26 avr 2026, fichiers projet).
 - **LEGAL-002** — Compléter SIRET + adresse siège (placeholders dans Mentions Légales).
 - **BIZ-001** — Décision tier Free : ouvert ou "Bientôt" au launch (impact /signup).
 - **Arbitrages MP V4 §2** : O1 (planning ouverture), O2 (palier Mid), O3 (cinématique agents). Séance 60-90 min recommandée.
+
+---
+
+## 🌊 Plan d'exécution — 3 vagues (séquence validée 2 mai)
+
+Ordre choisi par Sam : **B avant A** parce que les changements UX (Vague B) doivent
+être validés à chaud, sinon la Vague A sécurité (qui modifie comment les services
+lisent leurs secrets) ajoute une couche de validation supplémentaire pas souhaitable.
+
+### Vague O3 — Mockups cinématique agents (préalable, en cours)
+3-4 directions HTML statiques (casting / théâtre / orchestre / carte d'ensemble) →
+Sam choisit → bascule vers STUDIO-S4.1 + STUDIO-RIM-AGENTS dans la Vague B.
+
+### Vague B — Plateforme + Onboarding (séquentiel, 2-3 sessions)
+Pendant que Sam réfléchit aux mockups, exécution séquentielle (zones chaudes : 
+AuthContext + SignupPage + Pricing.tsx).
+- ONBOARDING-001 — flow signup tier-aware
+- ONBOARDING-002 — email verification au signup
+- ONBOARDING-003 — pre-fill projet depuis CTA marketing
+- STUDIO-S4.1 — implémentation du mockup retenu après choix Sam
+- STUDIO-RIM-AGENTS — sidebar agents rim-only
+
+### Vague C — Galerie SDS + dette agents (parallèle, 3 worktrees)
+- **wt-marketing-sds** : MARKETING-EX2-001 + EX3-001 + EX4-001 (bundle preview isolé)
+- **wt-orchestrator-cleanup** : AGENT-FK-001 + DOCX-OBSOLETE-001 + BUILD-AGENT-AVATARS
+- **wt-agents-cost** : COST-001 (Aisha/Lucas/Elena/Jordan)
+
+### Vague A — Sécurité + cleanup final (en dernier, 1 session)
+Bouclage propre une fois les autres vagues validées en prod.
+- SECURITY-001..005 (audit + Doppler/Infisical + migration + bascule + docs)
+- GIT-CLEANUP-001 (branches stale)
+- UI-002/003/004 (cosmetic)
+- REVISION-001-WORKER (documenter dans HOTFIXES_E2E_TEST.md)
 
 ---
 
@@ -87,6 +138,7 @@ Référence : `MASTER_PLAN_V4.md` (26 avr 2026, fichiers projet).
 
 | ID | Description |
 |----|-------------|
+| BUILD-AGENT-AVATARS | Pendant la phase BUILD, ce sont les anciens avatars qui défilent au lieu des nouveaux portraits photo (cohérents avec ceux du site marketing et de la sidebar Studio). Vu par Sam le 2 mai. À fixer dans Vague C en cohérence avec STUDIO-RIM-AGENTS. |
 | UI-002 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
 | UI-003 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1" / "revision 2"). |
 | UI-004 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
