@@ -146,6 +146,7 @@ Bouclage propre une fois les autres vagues validées en prod.
 | UI-002 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
 | UI-003 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1" / "revision 2"). |
 | UI-004 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
+| UI-005 | La vue 'Check your inbox' (post signup-request) ne signale pas qu'un compte peut déjà exister. C'est volontaire côté API (anti-enumeration), mais l'UX doit afficher un lien proéminent **'Tu penses avoir déjà un compte ? Se connecter →'** sur la vue mailSent. Aujourd'hui le lien existe seulement en bas du form initial. Vu par Sam le 3 mai après son test ONBOARDING-002. |
 
 ### P2 — Dette technique de la refonte V3
 
