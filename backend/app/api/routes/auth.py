@@ -38,13 +38,22 @@ async def register(request: Request, response: Response, user_data: UserCreate, 
             detail="Email already registered"
         )
 
+    # Resolve the requested tier (ONBOARDING-001) — only `free` is self-serve
+    # for now. Pro/Team need a Stripe checkout flow which doesn't bypass /register
+    # (so we don't trust an arbitrary `requested_tier=pro` from the wire).
+    SELF_SERVE_TIERS = {"free"}
+    resolved_tier = "free"
+    if user_data.requested_tier and user_data.requested_tier in SELF_SERVE_TIERS:
+        resolved_tier = user_data.requested_tier
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
         email=user_data.email,
         name=user_data.name,
         hashed_password=hashed_password,
-        is_active=True
+        is_active=True,
+        subscription_tier=resolved_tier,
     )
 
     db.add(new_user)

@@ -199,7 +199,10 @@ export default function Pricing() {
 
   const handleCta = (tier: Tier) => {
     if (tier === 'free') {
-      window.location.href = '/login';
+      // ONBOARDING-001: Free tier is self-serve — go straight to /signup
+      // and pre-select Free in the SignupPage hero so the user knows what
+      // they're getting (and so /register sets subscription_tier='free').
+      window.location.href = '/signup?tier=free';
     } else if (tier === 'pro') {
       // Mod 24 : pour activer le checkout Stripe, remplacer la ligne suivante par :
       //   startStripeCheckout('pro');

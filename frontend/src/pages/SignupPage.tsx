@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
 import { auth } from '../services/api';
 import { LangProvider, useLang } from '../contexts/LangContext';
@@ -18,9 +18,30 @@ import LangToggle from '../components/layout/LangToggle';
  * Free tier is created by default server-side; a Stripe customer is also created
  * best-effort so the user can upgrade in one click later.
  */
+// Tier metadata used by the hero left column to show the user what they
+// just chose on /pricing. Only `free` is self-serve for now (ONBOARDING-001).
+const TIER_META: Record<string, { label: string; tagline: { en: string; fr: string } }> = {
+  free: {
+    label: 'Free',
+    tagline: {
+      en: 'Sophie and Olivia, on the house. Up to 1 project, SDS only.',
+      fr: 'Sophie et Olivia, gracieusement. 1 projet, SDS uniquement.',
+    },
+  },
+};
+
 function SignupInner() {
   const navigate = useNavigate();
   const { t } = useLang();
+  const [searchParams] = useSearchParams();
+
+  // ONBOARDING-001 — tier coming from /pricing (?tier=free). Anything else
+  // is silently coerced to free; the backend validates again.
+  const requestedTier = (() => {
+    const raw = searchParams.get('tier');
+    return raw && raw in TIER_META ? raw : 'free';
+  })();
+  const tierMeta = TIER_META[requestedTier];
 
   const [name, setName]                       = useState('');
   const [email, setEmail]                     = useState('');
@@ -57,8 +78,11 @@ function SignupInner() {
 
     setIsLoading(true);
     try {
-      await auth.register(email.trim(), name.trim(), password);
+      await auth.register(email.trim(), name.trim(), password, requestedTier);
       await auth.login(email.trim(), password);
+      // After signup, land on the dashboard with a one-time welcome banner
+      // (sessionStorage flag, displayed on next render — handled by Dashboard).
+      sessionStorage.setItem('onboarding:justSignedUp', requestedTier);
       navigate('/');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
@@ -107,6 +131,19 @@ function SignupInner() {
           </p>
           <p className="mt-3 font-serif italic text-3xl text-bone leading-tight max-w-md">
             Digital · Humans
+          </p>
+
+          {/* Tier badge — what the user just chose on /pricing */}
+          <div className="mt-8 inline-flex items-center gap-3 border border-brass/30 bg-brass/5 px-4 py-2.5">
+            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+              {t('Starting tier', 'Tier de départ')}
+            </span>
+            <span className="font-serif italic text-base text-brass">
+              {tierMeta.label}
+            </span>
+          </div>
+          <p className="mt-3 font-mono text-[11px] leading-relaxed text-bone-3 max-w-sm">
+            {t(tierMeta.tagline.en, tierMeta.tagline.fr)}
           </p>
         </div>
 

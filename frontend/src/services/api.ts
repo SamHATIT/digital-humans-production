@@ -78,10 +78,15 @@ export const auth = {
     return apiCall('/api/auth/me', { method: 'GET' });
   },
 
-  register: async (email: string, name: string, password: string) => {
+  register: async (email: string, name: string, password: string, requestedTier?: string) => {
     return apiCall('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, name, password }),
+      body: JSON.stringify({
+        email,
+        name,
+        password,
+        ...(requestedTier ? { requested_tier: requestedTier } : {}),
+      }),
     });
   },
 };

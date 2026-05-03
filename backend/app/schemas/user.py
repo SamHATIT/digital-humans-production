@@ -13,8 +13,15 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    """Schema for creating a new user."""
+    """Schema for creating a new user.
+
+    The optional ``requested_tier`` carries the tier the user clicked on
+    in /pricing. We honour it ONLY for ``free`` for now (the other tiers
+    are not self-serve yet — see BIZ-001 in BACKLOG.md). Anything else
+    falls back to ``free`` server-side.
+    """
     password: str = Field(..., min_length=8, max_length=100)
+    requested_tier: str | None = Field(default=None, max_length=20)
 
 
 class UserLogin(BaseModel):

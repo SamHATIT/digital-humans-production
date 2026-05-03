@@ -4,6 +4,7 @@ import { ArrowRight, AlertTriangle, Loader2, Activity } from 'lucide-react';
 import { api, projects } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import StudioPlaceholderCover from '../components/layout/StudioPlaceholderCover';
+import WelcomeBanner from '../components/onboarding/WelcomeBanner';
 
 interface ProjectRow {
   id: number;
@@ -169,6 +170,9 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* ONBOARDING-001 — one-time welcome banner shown right after signup */}
+      <WelcomeBanner />
+
       {/* Hero */}
       <section className="mb-16">
         <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">

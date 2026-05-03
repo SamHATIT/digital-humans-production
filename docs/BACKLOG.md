@@ -18,8 +18,12 @@ access publique).
 
 **O2 — Palier Mid 299-399 €** : différé. Sera réévalué après 3-6 mois de data Pro.
 
-**O3 — Cinématique agents plateforme** : 3-4 mockups HTML statiques en cours de
-production. Sam choisit, on implémente derrière (STUDIO-S4.1 + STUDIO-RIM-AGENTS).
+**O3 — Cinématique agents plateforme** : ✅ **TRANCHÉ — direction Théâtre retenue**
+(2 mai). Cohérence narrative totale avec le site (actes I-V déjà présents, livrables à
+chaque acte). Les 4 mockups restent disponibles à `/mockups-o3/` pour skins futurs
+(ex. casting pour version on-premise). Implémentation : STUDIO-S4.1 (composant Stage
++ Curtain + ActorRow) puis STUDIO-RIM-AGENTS (sidebar agents rim-only avec spotlight
+brass sur agent actif).
 
 **LEGAL-001/002, BIZ-001, STRIPE-PROD-001** : différés. Sam s'en occupe quand la
 structure juridique est montée et quand on est prêt à ouvrir Pro/Team.
