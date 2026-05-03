@@ -120,8 +120,9 @@ Bouclage propre une fois les autres vagues validées en prod.
 
 | ID | Phase | Description | Estimation |
 |----|----|-------------|-----------|
-| ONBOARDING-001 | 5 | Flow onboarding tier-aware au signup : Free → Sophie chat direct, Pro → wizard projet complet, Team → contact sales | 1-2 sessions |
-| ONBOARDING-002 | 5 | Pre-fill projet depuis CTA marketing (passerelle site→plateforme avec context preserved) | 1 session |
+| ONBOARDING-001 | 5 | ✅ DONE — Flow tier-aware Free self-serve (commit `25f226b`) |
+| ONBOARDING-002 | 5 | ✅ DONE — Verify-then-create email verification (commit `17ee65d`) |
+| ONBOARDING-003 | 5 | ✅ DONE — Marketing CTA → wizard avec industrie pré-remplie (commit `8aa5e02`) |
 
 ---
 
