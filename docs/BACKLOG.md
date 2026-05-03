@@ -189,6 +189,8 @@ Snapshot des items clos ces 2 derniers jours.
 | UI-001 | 4 | ✅ DONE — INNER → OUTER JOIN + Optional agent_id (commit `9262a96`) |
 | Open SDS | 4 | ✅ DONE — Endpoint `/api/deliverables/{id}/render` + bouton "Open SDS" frontend (commit `511abfa`) |
 | SDS Pharma exemple | 6 | ✅ DONE — Essais Cliniques E2E #144, exec 148 COMPLETED, SDS HTML 347 K rendu, status APPROVED |
+| ONBOARDING-001 | 5 | ✅ DONE — Signup tier-aware Free self-serve (Pricing→Signup query string, badge tier, WelcomeBanner) (commit `25f226b`) |
+| ONBOARDING-002 | 5 | ✅ DONE — Verify-then-create (JWT 30 min payload, anti-enumeration) (commit `17ee65d`) — couvre la remarque Sam : ne plus créer de compte avant validation email |
 
 ---
 
