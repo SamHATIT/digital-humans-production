@@ -35,6 +35,8 @@ class RateLimits:
     # Auth endpoints - strict to prevent brute force
     AUTH_LOGIN = "5/minute"
     AUTH_REGISTER = "3/minute"
+    AUTH_SIGNUP_REQUEST = "3/minute"   # ONBOARDING-002 — same envelope as register (one form click).
+    AUTH_SIGNUP_CONFIRM = "10/minute"  # ONBOARDING-002 — token redemption can be retried (e.g. user clicks link twice).
     AUTH_PASSWORD_RESET = "3/minute"
     
     # Standard API endpoints

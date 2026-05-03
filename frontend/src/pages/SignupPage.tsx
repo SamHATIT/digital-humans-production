@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, ArrowRight, MailCheck } from 'lucide-react';
 import { auth } from '../services/api';
 import { LangProvider, useLang } from '../contexts/LangContext';
 import LangToggle from '../components/layout/LangToggle';
@@ -31,9 +31,15 @@ const TIER_META: Record<string, { label: string; tagline: { en: string; fr: stri
 };
 
 function SignupInner() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const navigate = useNavigate();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [searchParams] = useSearchParams();
+
+  // ONBOARDING-002 — when the verify-email is sent, swap the right column
+  // for a "check your inbox" view. The form data stays available so we can
+  // offer a "resend" button without forcing the user to re-type.
+  const [mailSent, setMailSent] = useState(false);
 
   // ONBOARDING-001 — tier coming from /pricing (?tier=free). Anything else
   // is silently coerced to free; the backend validates again.
@@ -78,21 +84,18 @@ function SignupInner() {
 
     setIsLoading(true);
     try {
-      await auth.register(email.trim(), name.trim(), password, requestedTier);
-      await auth.login(email.trim(), password);
-      // After signup, land on the dashboard with a one-time welcome banner
-      // (sessionStorage flag, displayed on next render — handled by Dashboard).
-      sessionStorage.setItem('onboarding:justSignedUp', requestedTier);
-      navigate('/');
+      // ONBOARDING-002: verify-then-create. We send the email; no DB row
+      // until the user clicks the link. Backend returns 202 with a generic
+      // message in ALL cases (incl. email-already-used) for anti-enumeration.
+      // We pre-store the tier flag so the future /verify-signup can pass it
+      // to the WelcomeBanner once the account is materialised.
+      sessionStorage.setItem('onboarding:pendingTier', requestedTier);
+      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang);
+      setMailSent(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
       const lower = msg.toLowerCase();
-      if (lower.includes('email') && lower.includes('registered')) {
-        setError(t(
-          'This email is already registered. Try signing in instead.',
-          'Cet e-mail est déjà associé à un compte. Connectez-vous plutôt.',
-        ));
-      } else if (lower.includes('rate limit') || lower.includes('too many')) {
+      if (lower.includes('rate limit') || lower.includes('too many')) {
         setError(t(
           'Too many signup attempts. Please wait a moment and try again.',
           'Trop de tentatives. Patientez quelques instants avant de réessayer.',
@@ -103,6 +106,20 @@ function SignupInner() {
           'Échec de la création du compte. Veuillez réessayer.',
         ));
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Resend: same payload, same endpoint. Rate limited server-side.
+  const handleResend = async () => {
+    setError('');
+    setIsLoading(true);
+    try {
+      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang);
+    } catch {
+      // Silent — anti-enumeration. The user already has the original mail (or not).
+    } finally {
       setIsLoading(false);
     }
   };
@@ -168,6 +185,64 @@ function SignupInner() {
 
         <div className="flex-1 flex items-center justify-center px-6 lg:px-12 pb-12">
           <div className="w-full max-w-[440px] bg-ink-2 border border-bone/5 px-8 py-10">
+            {mailSent ? (
+              /* ONBOARDING-002 — "check your inbox" view */
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brass/10 border border-brass/30 mb-6">
+                  <MailCheck className="w-6 h-6 text-brass" aria-hidden />
+                </div>
+                <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
+                  {t('Check your inbox', 'Consultez vos e-mails')}
+                </p>
+                <h1 className="mt-3 font-serif italic text-3xl text-bone leading-tight">
+                  {t('One last step.', 'Un dernier pas.')}
+                </h1>
+                <p className="mt-5 font-mono text-[12px] leading-relaxed text-bone-2">
+                  {t(
+                    'We just sent a confirmation link to',
+                    'Nous venons d\'envoyer un lien de confirmation à',
+                  )}
+                </p>
+                <p className="mt-1 font-mono text-[13px] text-brass break-all">{email}</p>
+                <p className="mt-5 font-mono text-[11px] leading-relaxed text-bone-3">
+                  {t(
+                    'Open it to finish creating your account. The link is valid for 30 minutes.',
+                    'Ouvrez-le pour finaliser la création de votre compte. Le lien est valable 30 minutes.',
+                  )}
+                </p>
+                {error && (
+                  <div role="alert" className="mt-5 flex items-start gap-3 bg-ink-3 border border-error/40 px-4 py-3 text-left">
+                    <AlertTriangle className="w-4 h-4 text-error mt-[2px] shrink-0" />
+                    <p className="font-mono text-[11px] tracking-[0.04em] uppercase text-bone-2 leading-relaxed">{error}</p>
+                  </div>
+                )}
+                <div className="mt-8 pt-6 border-t border-bone/10">
+                  <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4 mb-3">
+                    {t('Didn\'t receive it?', 'Pas reçu ?')}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-bone/15 hover:border-brass/40 font-mono text-[11px] tracking-cta uppercase text-bone-2 hover:text-bone transition-colors disabled:opacity-50"
+                  >
+                    {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                    {t('Resend the link', 'Renvoyer le lien')}
+                  </button>
+                  <p className="mt-4 font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                    {t('Wrong address?', 'Mauvaise adresse ?')}{' '}
+                    <button
+                      type="button"
+                      onClick={() => { setMailSent(false); setError(''); }}
+                      className="text-brass hover:underline"
+                    >
+                      {t('Edit', 'Corriger')}
+                    </button>
+                  </p>
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="mb-8">
               <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
                 {t('Get started · Free tier', 'Démarrer · Offre gratuite')}
@@ -357,19 +432,21 @@ function SignupInner() {
                   </>
                 )}
               </button>
-            </form>
+                </form>
 
-            <div className="mt-8 pt-6 border-t border-bone/5">
-              <Link
-                to="/login"
-                className="font-mono text-[11px] tracking-[0.04em] uppercase text-bone-3 hover:text-brass transition-colors"
-              >
-                {t(
-                  'Already have an account? Sign in →',
-                  'Déjà un compte ? Se connecter →',
-                )}
-              </Link>
-            </div>
+                <div className="mt-8 pt-6 border-t border-bone/5">
+                  <Link
+                    to="/login"
+                    className="font-mono text-[11px] tracking-[0.04em] uppercase text-bone-3 hover:text-brass transition-colors"
+                  >
+                    {t(
+                      'Already have an account? Sign in →',
+                      'Déjà un compte ? Se connecter →',
+                    )}
+                  </Link>
+                </div>
+            </>
+            )}
           </div>
         </div>
 

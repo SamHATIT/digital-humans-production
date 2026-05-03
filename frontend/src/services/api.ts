@@ -79,6 +79,8 @@ export const auth = {
   },
 
   register: async (email: string, name: string, password: string, requestedTier?: string) => {
+    // ⚠️ Legacy single-step signup. Kept for back-compat — new UI uses
+    // signupRequest + signupConfirm instead (ONBOARDING-002).
     return apiCall('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({
@@ -87,6 +89,34 @@ export const auth = {
         password,
         ...(requestedTier ? { requested_tier: requestedTier } : {}),
       }),
+    });
+  },
+
+  signupRequest: async (
+    email: string,
+    name: string,
+    password: string,
+    requestedTier?: string,
+    lang?: string,
+  ) => {
+    // ONBOARDING-002 — step 1: send the verification email. No account yet.
+    return apiCall('/api/auth/signup-request', {
+      method: 'POST',
+      body: JSON.stringify({
+        email,
+        name,
+        password,
+        ...(requestedTier ? { requested_tier: requestedTier } : {}),
+        ...(lang ? { lang } : {}),
+      }),
+    });
+  },
+
+  signupConfirm: async (token: string) => {
+    // ONBOARDING-002 — step 2: redeem the token, get an access token back.
+    return apiCall('/api/auth/signup-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
     });
   },
 };

@@ -24,6 +24,24 @@ class UserCreate(UserBase):
     requested_tier: str | None = Field(default=None, max_length=20)
 
 
+class SignupRequest(BaseModel):
+    """Schema for the first step of signup (ONBOARDING-002).
+
+    The user fills the form, we generate a verify-token and email the link.
+    Nothing is persisted in the users table at this point.
+    """
+    email: EmailStr
+    name: str = Field(..., min_length=1, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
+    requested_tier: str | None = Field(default=None, max_length=20)
+    lang: str | None = Field(default="fr", max_length=4)
+
+
+class SignupConfirm(BaseModel):
+    """Schema for the second step — redeeming the verify-token."""
+    token: str = Field(..., min_length=20)
+
+
 class UserLogin(BaseModel):
     """Schema for user login."""
     email: EmailStr

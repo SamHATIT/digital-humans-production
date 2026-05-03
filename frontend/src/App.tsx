@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import VerifySignupPage from './pages/VerifySignupPage';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -48,6 +49,7 @@ function App() {
           {/* ─── Public Routes ─── */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/verify-signup" element={<VerifySignupPage />} />
           <Route
             path="/pricing"
             element={
