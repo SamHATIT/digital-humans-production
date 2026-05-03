@@ -113,7 +113,7 @@ Bouclage propre une fois les autres vagues validées en prod.
 
 | ID | Phase | Description | Estimation |
 |----|----|-------------|-----------|
-| STUDIO-S4.1 | 4 | Atelier cinématique agents plateforme (sujet O3) — décision casting / théâtre / orchestre / carte d'ensemble. Mockups statiques + validation Sam. | 2-3h atelier + 1 session impl |
+| STUDIO-S4.1 | 4 | ✅ DONE — Cinématique Théâtre (mockup 02 retenu). Composant `TheatreStage.tsx` : agents organisés par acte sur planches de scène, rideau top, footlights bottom, spotlight brass-halo + scale-up sur agent actif, photos pleine couleur si actif sinon grayscale dégradés. Couvre BUILD-AGENT-AVATARS (avatars Studio canoniques `/avatars/large/{slug}.png`). Branché dans ExecutionMonitoringPage à côté de StudioTimeline. |
 | STUDIO-RIM-AGENTS | 4 | Sidebar gauche agents rim-only avec accent par acte, conformément brief §12 — actuellement absent du code. | 1 session après S4.1 |
 
 ### P1 — Phase 5 onboarding
@@ -142,11 +142,11 @@ Bouclage propre une fois les autres vagues validées en prod.
 
 | ID | Description |
 |----|-------------|
-| BUILD-AGENT-AVATARS | Pendant la phase BUILD, ce sont les anciens avatars qui défilent au lieu des nouveaux portraits photo (cohérents avec ceux du site marketing et de la sidebar Studio). Vu par Sam le 2 mai. À fixer dans Vague C en cohérence avec STUDIO-RIM-AGENTS. |
+| BUILD-AGENT-AVATARS | ✅ DONE — couvert par STUDIO-S4.1 : TheatreStage charge les avatars depuis `/avatars/large/{slug}.png` via `STUDIO_ENSEMBLE`. À valider en condition réelle BUILD quand on en lancera un. Original:, ce sont les anciens avatars qui défilent au lieu des nouveaux portraits photo (cohérents avec ceux du site marketing et de la sidebar Studio). Vu par Sam le 2 mai. À fixer dans Vague C en cohérence avec STUDIO-RIM-AGENTS. |
 | UI-002 | ELAPSED affiche toujours `—` même quand l'execution tourne. useEffect manquant probablement. |
 | UI-003 | "first take" reste affiché en sidebar pendant une révision en cours (devrait passer à "revision 1" / "revision 2"). |
 | UI-004 | Sidebar (BOX OFFICE / REVISIONS / STATE / ACTS) se chevauche avec le main content au scroll. |
-| UI-005 | La vue 'Check your inbox' (post signup-request) ne signale pas qu'un compte peut déjà exister. C'est volontaire côté API (anti-enumeration), mais l'UX doit afficher un lien proéminent **'Tu penses avoir déjà un compte ? Se connecter →'** sur la vue mailSent. Aujourd'hui le lien existe seulement en bas du form initial. Vu par Sam le 3 mai après son test ONBOARDING-002. |
+| UI-005 | ✅ DONE — Lien proéminent 'Vous avez déjà un compte ? · Se connecter plutôt' dans la vue mailSent (commit en cours). API reste anti-enumeration. Original: C'est volontaire côté API (anti-enumeration), mais l'UX doit afficher un lien proéminent **'Tu penses avoir déjà un compte ? Se connecter →'** sur la vue mailSent. Aujourd'hui le lien existe seulement en bas du form initial. Vu par Sam le 3 mai après son test ONBOARDING-002. |
 
 ### P2 — Dette technique de la refonte V3
 

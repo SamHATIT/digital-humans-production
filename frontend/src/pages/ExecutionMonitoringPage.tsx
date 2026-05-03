@@ -21,6 +21,7 @@ import StudioTimeline, {
   type StepStatus,
   type StudioTimelineEntry,
 } from '../components/studio/StudioTimeline';
+import TheatreStage from '../components/studio/TheatreStage';
 import AgentLivePreview from '../components/studio/AgentLivePreview';
 import ExecutionMetricsStudio from '../components/studio/ExecutionMetricsStudio';
 import ChatSidebarStudio from '../components/studio/ChatSidebarStudio';
@@ -200,6 +201,25 @@ export default function ExecutionMonitoringPage() {
   const { stage, isHitl } = pageStateFor(progress);
   const { agent: activeAgent, task, output, progress: agentProgress } = activeAgentFrom(progress);
   const timeline = useMemo(() => timelineFromProgress(progress), [progress]);
+
+  // STUDIO-S4.1 — collapse the timeline (one entry per step) into a
+  // per-agent status map for the Theatre sidebar (one slot per agent).
+  // When an agent has multiple steps (e.g. Marcus design + revise),
+  // the most-progressive status wins: failed > current > waiting_hitl
+  // > completed > pending.
+  const statusByAgent = useMemo(() => {
+    const RANK: Record<StepStatus, number> = {
+      failed: 5, current: 4, waiting_hitl: 3, completed: 2, pending: 1,
+    };
+    const map: Record<string, StepStatus> = {};
+    for (const step of timeline) {
+      const prev = map[step.agentId];
+      if (!prev || RANK[step.status] > RANK[prev]) {
+        map[step.agentId] = step.status;
+      }
+    }
+    return map;
+  }, [timeline]);
 
   // Configurable gate fetch.
   useEffect(() => {
@@ -457,6 +477,10 @@ export default function ExecutionMonitoringPage() {
                 )?.extra_data?.revision_count ?? 0
               }
               startedAt={null}
+            />
+            <TheatreStage
+              statusByAgent={statusByAgent}
+              activeAgentId={activeAgent?.id ?? null}
             />
             <StudioTimeline
               steps={timeline}
