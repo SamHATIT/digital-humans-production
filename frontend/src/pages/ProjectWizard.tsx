@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2, Upload, X, FileText } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
@@ -89,6 +89,17 @@ export default function ProjectWizard() {
   const [error, setError] = useState<string | null>(null);
   const [tier, setTier] = useState<BillingTier | null>(null);
 
+  // ONBOARDING-003 — industry hint coming from the marketing CTA chain.
+  // Whitelisted against INDUSTRY_OPTIONS so a malicious value can't slip
+  // through. When present, we pre-select the industry on first mount and
+  // greet the user above the stepper.
+  const [searchParams] = useSearchParams();
+  const intentIndustry = (() => {
+    const raw = searchParams.get('intent');
+    if (!raw) return null;
+    return INDUSTRY_OPTIONS.find((opt) => opt.value === raw) ? raw : null;
+  })();
+
   // Identifier l'utilisateur pour la clé de draft localStorage
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +144,11 @@ export default function ProjectWizard() {
         }
       } catch {
         // ignore corrupt draft
+      }
+      // ONBOARDING-003 — apply intent AFTER draft restore so the marketing
+      // CTA wins over a stale draft (the user explicitly clicked a tile).
+      if (intentIndustry && !cancelled) {
+        setData((prev) => ({ ...prev, industry: intentIndustry }));
       }
     };
     load();
@@ -304,8 +320,37 @@ export default function ProjectWizard() {
     [t],
   );
 
+  // ONBOARDING-003 — greeting only shown the first time the user lands here
+  // from a marketing CTA. Read & clear a one-shot session flag so a refresh
+  // or a return-visit doesn't re-trigger it.
+  const showIntentGreeting = !!intentIndustry && !projectId;
+  const intentLabel = INDUSTRY_OPTIONS.find((o) => o.value === intentIndustry);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {showIntentGreeting && intentLabel && (
+        <div className="mb-10 relative bg-ink-2 border border-brass/30 px-6 py-5 flex items-start gap-5">
+          <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-brass" aria-hidden />
+          <div className="flex-1 min-w-0">
+            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-brass">
+              {t('Welcome to the studio', 'Bienvenue dans le studio')}
+            </p>
+            <p className="mt-1.5 font-serif italic text-2xl text-bone leading-snug">
+              {t(
+                `Let's start with your ${lang === 'fr' ? intentLabel.fr : intentLabel.en} project.`,
+                `On commence par votre projet ${intentLabel.fr}.`,
+              )}
+            </p>
+            <p className="mt-2 font-mono text-[12px] leading-relaxed text-bone-3 max-w-2xl">
+              {t(
+                `We've pre-filled the industry — adjust anything you need below, then walk through the five acts at your pace.`,
+                `Le secteur est pré-sélectionné — ajustez ce que vous voulez ci-dessous, puis avancez à votre rythme dans les cinq actes.`,
+              )}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-12">
         {/* Sidebar gauche : stepper + crédits */}
         <aside className="lg:sticky lg:top-24 lg:self-start space-y-10">

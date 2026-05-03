@@ -50,6 +50,15 @@ function VerifyInner() {
         sessionStorage.setItem('onboarding:justSignedUp', pendingTier);
         sessionStorage.removeItem('onboarding:pendingTier');
 
+        // ONBOARDING-003 — if a marketing intent was carried through the
+        // signup flow, hand it off to the Dashboard which will redirect
+        // straight into /projects/new with the industry pre-filled.
+        const pendingIntent = sessionStorage.getItem('onboarding:pendingIntent');
+        if (pendingIntent) {
+          sessionStorage.setItem('onboarding:justSignedUpIntent', pendingIntent);
+          sessionStorage.removeItem('onboarding:pendingIntent');
+        }
+
         setStatus('success');
         // Small delay so the user reads the success message.
         setTimeout(() => navigate('/'), 1500);

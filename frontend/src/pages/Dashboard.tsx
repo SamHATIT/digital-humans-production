@@ -118,6 +118,18 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // ONBOARDING-003 — if the user just signed up via a marketing CTA with
+  // an industry intent, deep-link straight into the wizard with the
+  // industry pre-selected. The flag is one-shot (set by VerifySignupPage,
+  // cleared here) so a refresh doesn't re-trigger the redirect.
+  useEffect(() => {
+    const intent = sessionStorage.getItem('onboarding:justSignedUpIntent');
+    if (intent) {
+      sessionStorage.removeItem('onboarding:justSignedUpIntent');
+      navigate(`/projects/new?intent=${encodeURIComponent(intent)}`, { replace: true });
+    }
+  }, [navigate]);
+
   useEffect(() => {
     let cancelled = false;
 
