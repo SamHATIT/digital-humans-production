@@ -59,7 +59,7 @@ class WorkerSettings:
     functions = [execute_sds_task, resume_architecture_task, execute_build_task]
     on_startup = startup
     on_shutdown = shutdown
-    max_jobs = 3  # Max concurrent executions
+    max_jobs = 10  # Max concurrent executions (P3 done : SFDX no longer blocks event loop)
     job_timeout = 3600  # 1 hour max per execution
     health_check_interval = 30
     queue_name = "digital-humans"

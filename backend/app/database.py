@@ -11,6 +11,10 @@ from app.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
+    pool_size=20,        # Stable pool size (default was 5)
+    max_overflow=20,     # Allow burst up to 40 connections (default was 10)
+    pool_recycle=3600,   # Recycle connections after 1h to avoid stale handles
+    pool_timeout=30,     # Fail fast if pool exhausted (default 30s, kept explicit)
     echo=settings.DEBUG
 )
 
