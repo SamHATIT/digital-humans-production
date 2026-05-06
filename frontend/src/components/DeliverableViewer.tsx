@@ -223,7 +223,7 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                     ) : (() => {
                       const text = fullContents[d.id] || d.content_preview;
                       const hasMermaid = extractMermaidBlocks(text).some(b => b.type === 'mermaid');
-                      const isSDS = d.deliverable_type.includes('sds') || d.deliverable_type.includes('write_sds');
+//                       const isSDS = d.deliverable_type.includes('sds') || d.deliverable_type.includes('write_sds');
                       const isJSON = text.trimStart().startsWith('{') || text.trimStart().startsWith('[');
 
                       // SDS deliverables now have their own "Open SDS" button (opens /render)

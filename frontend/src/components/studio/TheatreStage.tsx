@@ -107,7 +107,7 @@ function Actor({
     >
       <div
         className={[
-          'relative w-12 h-12 rounded-full overflow-hidden border-[1.5px] transition-all duration-300',
+          'relative w-11 h-14 rounded-none overflow-hidden border transition-all duration-300',
           photoClass,
         ].join(' ')}
       >
@@ -120,7 +120,7 @@ function Actor({
           /* Pulsing aura on top of the photo */
           <motion.span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-full"
+            className="pointer-events-none absolute inset-0"
             style={{
               boxShadow: '0 0 18px 2px rgba(245,242,236,0.18) inset',
             }}

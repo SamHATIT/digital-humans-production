@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Star } from 'lucide-react';
+import { Clock, Star } from 'lucide-react';
 import { api } from '../../services/api';
 import { useLang } from '../../contexts/LangContext';
+import { useExecutionTracker } from '../../contexts/ExecutionTrackerContext';
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${Math.max(0, Math.round(seconds))}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
+}
 
 /**
  * Backend `/api/billing/balance` shape (CreditService.get_balance) :
@@ -78,14 +89,26 @@ export default function CreditCounter() {
     : 0;
   const ratio = quota > 0 ? Math.min(1, Math.max(0, remaining / quota)) : 0;
 
+  // Active execution tracker → live elapsed counter (1s tick)
+  const { active } = useExecutionTracker();
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (!active?.startedAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [active?.startedAt]);
+  const elapsedSec = active?.startedAt
+    ? Math.max(0, (now - new Date(active.startedAt).getTime()) / 1000)
+    : null;
+
   return (
     <div className="hidden md:flex items-center gap-3 px-3 py-1.5 border border-brass/30">
       <Star className="w-3.5 h-3.5 text-brass" />
-      <div className="flex flex-col leading-tight">
+      <div className="flex flex-col leading-tight min-w-[88px]">
         <span className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-3">
           {t('Credits', 'Crédits')}
         </span>
-        <span className="font-mono text-sm text-brass">
+        <span className="font-mono text-sm text-brass whitespace-nowrap">
           {loading
             ? '— —'
             : error
@@ -94,14 +117,28 @@ export default function CreditCounter() {
                 ? `${remaining.toLocaleString()} / ${quota.toLocaleString()}`
                 : remaining.toLocaleString()}
         </span>
+        {quota > 0 && !error && (
+          <div className="mt-1 w-full h-[2px] bg-bone/15 overflow-hidden" aria-hidden>
+            <div
+              className="h-full bg-sage transition-[width] duration-500"
+              style={{ width: `${ratio * 100}%` }}
+            />
+          </div>
+        )}
       </div>
-      {quota > 0 && !error && (
-        <div className="w-16 h-[3px] bg-ink-3 overflow-hidden" aria-hidden>
-          <div
-            className="h-full bg-brass transition-[width] duration-500"
-            style={{ width: `${ratio * 100}%` }}
-          />
-        </div>
+      {elapsedSec !== null && (
+        <span className="flex items-center gap-2 pl-2">
+          <span className="w-px h-6 bg-brass/20" aria-hidden />
+          <Clock className="w-3 h-3 text-brass/70" />
+          <span className="flex flex-col leading-tight min-w-[64px]">
+            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+              {t('Elapsed', 'Écoulé')}
+            </span>
+            <span className="font-mono text-sm text-bone-2 whitespace-nowrap">
+              {formatElapsed(elapsedSec)}
+            </span>
+          </span>
+        </span>
       )}
     </div>
   );

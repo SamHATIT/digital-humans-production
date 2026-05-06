@@ -16,6 +16,7 @@ import {
   getAgentById,
   type StudioAgent,
 } from '../lib/agents';
+import { useExecutionTracker } from '../contexts/ExecutionTrackerContext';
 import AgentStage from '../components/studio/AgentStage';
 import StudioTimeline, {
   type StepStatus,
@@ -23,7 +24,6 @@ import StudioTimeline, {
 } from '../components/studio/StudioTimeline';
 import TheatreStage from '../components/studio/TheatreStage';
 import AgentLivePreview from '../components/studio/AgentLivePreview';
-import ExecutionMetricsStudio from '../components/studio/ExecutionMetricsStudio';
 import ChatSidebarStudio from '../components/studio/ChatSidebarStudio';
 import CurtainOverlay from '../components/studio/CurtainOverlay';
 import DeliverableViewer from '../components/DeliverableViewer';
@@ -197,6 +197,32 @@ export default function ExecutionMonitoringPage() {
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed';
   const canDownload = isCompleted && !!progress?.sds_document_path;
+
+  // ─── Track this execution so the header CreditCounter can show elapsed.
+  // We don't have a backend-issued started_at on ExecutionProgress yet, so we
+  // use a localStorage proxy (per-execution_id) : first time we see this exec
+  // running, we stamp the time and keep it stable across refreshes.
+  const { setActiveExecution } = useExecutionTracker();
+  useEffect(() => {
+    if (!id) return;
+    const key = `dh_exec_started_${id}`;
+    let startedAt = window.localStorage.getItem(key);
+    const isLive = !!progress && status !== 'completed' && status !== 'failed' && status !== 'cancelled';
+    if (isLive && !startedAt) {
+      startedAt = new Date().toISOString();
+      window.localStorage.setItem(key, startedAt);
+    }
+    if (isLive && startedAt) {
+      setActiveExecution({ executionId: id, startedAt });
+    } else if (!isLive) {
+      // Done / failed → drop the elapsed badge from the header.
+      setActiveExecution(null);
+      if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+        window.localStorage.removeItem(key);
+      }
+    }
+    return () => setActiveExecution(null);
+  }, [id, status, progress, setActiveExecution]);
 
   const { stage, isHitl } = pageStateFor(progress);
   const { agent: activeAgent, task, output, progress: agentProgress } = activeAgentFrom(progress);
@@ -466,31 +492,19 @@ export default function ExecutionMonitoringPage() {
         )}
 
         {/* Theatre layout : timeline / stage / sidebar */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-3 space-y-6">
-            <ExecutionMetricsStudio
-              budget={budget}
-              executionState={progress?.execution_state}
-              revisionCount={
-                progress?.agent_progress?.find(
-                  (a) => a.agent_name?.includes('Emma') || a.agent_name?.includes('Research'),
-                )?.extra_data?.revision_count ?? 0
-              }
-              startedAt={null}
-            />
-            <TheatreStage
-              statusByAgent={statusByAgent}
-              activeAgentId={activeAgent?.id ?? null}
-            />
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_280px] gap-5 items-start">
+          {/* ─── Col gauche : Acts of the performance ─── */}
+          <aside className="space-y-4">
             <StudioTimeline
               steps={timeline}
               onSelect={handleSelectStep}
               selectedId={null}
               title={t('SDS · The score', 'SDS · La partition')}
             />
-          </div>
+          </aside>
 
-          <div className="lg:col-span-9 space-y-6">
+          {/* ─── Col centre : Hero + Live Preview + Deliverables + status ─── */}
+          <div className="space-y-5 min-w-0">
             <AgentStage
               agent={activeAgent}
               currentTask={task}
@@ -581,6 +595,14 @@ export default function ExecutionMonitoringPage() {
               />
             )}
           </div>
+
+          {/* ─── Col droite : TheatreStage avec les vraies photos ─── */}
+          <aside className="space-y-4">
+            <TheatreStage
+              statusByAgent={statusByAgent}
+              activeAgentId={activeAgent?.id ?? null}
+            />
+          </aside>
         </div>
       </main>
 

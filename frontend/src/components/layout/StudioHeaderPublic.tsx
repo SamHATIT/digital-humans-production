@@ -16,11 +16,15 @@ export default function StudioHeaderPublic() {
         <div className="flex items-center justify-between h-16 gap-6">
           {/* Logo */}
           <Link to="/" className="flex flex-col leading-tight group">
-            <span className="font-serif italic text-xl text-bone group-hover:text-brass transition-colors">
-              Digital · Humans
+            <span className="font-serif text-xl leading-none">
+              <span className="text-bone">Digital</span>
+              <span className="text-bone mx-0.5">·</span>
+              <em className="not-italic">
+                <span className="italic text-brass">Humans</span>
+              </em>
             </span>
-            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
-              Autonomous Studio · Est MMXXV
+            <span className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 leading-tight">
+              Autonomous<br />Studio · Est MMXXV
             </span>
           </Link>
 

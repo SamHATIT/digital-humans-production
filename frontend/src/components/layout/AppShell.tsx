@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { LangProvider } from '../../contexts/LangContext';
+import { ExecutionTrackerProvider } from '../../contexts/ExecutionTrackerContext';
 import StudioHeader from './StudioHeader';
 import StudioHeaderPublic from './StudioHeaderPublic';
 import StudioFooter from './StudioFooter';
@@ -22,11 +23,13 @@ interface AppShellProps {
 export default function AppShell({ children, variant = 'app' }: AppShellProps) {
   return (
     <LangProvider>
-      <div className="min-h-screen flex flex-col bg-ink text-bone">
-        {variant === 'public' ? <StudioHeaderPublic /> : <StudioHeader />}
-        <main className="flex-1">{children}</main>
-        <StudioFooter />
-      </div>
+      <ExecutionTrackerProvider>
+        <div className="min-h-screen flex flex-col bg-ink text-bone">
+          {variant === 'public' ? <StudioHeaderPublic /> : <StudioHeader />}
+          <main className="flex-1">{children}</main>
+          <StudioFooter />
+        </div>
+      </ExecutionTrackerProvider>
     </LangProvider>
   );
 }

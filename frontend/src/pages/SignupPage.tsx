@@ -32,7 +32,7 @@ const TIER_META: Record<string, { label: string; tagline: { en: string; fr: stri
 
 function SignupInner() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const navigate = useNavigate();
+  const _navigate = useNavigate(); void _navigate;
   const { t, lang } = useLang();
   const [searchParams] = useSearchParams();
 

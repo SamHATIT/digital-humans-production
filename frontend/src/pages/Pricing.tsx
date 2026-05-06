@@ -155,7 +155,7 @@ function FeatureValue({ value }: { value: boolean | string }) {
  * Si pas de token : redirige vers /signup (l\'utilisateur sera reoriente
  * vers le checkout apres signup, a implementer dans SignupPage si besoin).
  */
-async function startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
+export async function _startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
   const token = localStorage.getItem('token');
   if (!token) {
     // Pas logge → on envoie vers signup, le checkout reprendra apres login
