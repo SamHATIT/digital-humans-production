@@ -22,6 +22,16 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # RAG Service
 try:
@@ -233,7 +243,7 @@ async def get_project_data_sources(project_id: int, db) -> list:
 # ============================================================================
 # DATA MIGRATION AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class DataMigrationAgent:
+class DataMigrationAgent(BaseAgent):
     """
     Aisha (Data Migration) Agent - Spec + Build modes.
 
@@ -252,11 +262,13 @@ class DataMigrationAgent:
         python salesforce_data_migration.py --mode spec --input input.json --output output.json
     """
 
+    # P10 : identité (single source of truth)
+    agent_id = 'aisha'
+    agent_type = 'data'
+    display_name = 'Aisha (Data Migration)'
+
     VALID_MODES = ("spec", "build")
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

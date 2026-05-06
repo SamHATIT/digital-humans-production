@@ -22,6 +22,16 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # LLM Logger for debugging (INFRA-002)
 try:
@@ -232,7 +242,7 @@ Output ONLY valid JSON, no markdown fences."""
 # ============================================================================
 # BUSINESS ANALYST AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class BusinessAnalystAgent:
+class BusinessAnalystAgent(BaseAgent):
     """
     Olivia (Business Analyst) Agent - Use Case Generation from BRs.
 
@@ -251,6 +261,11 @@ class BusinessAnalystAgent:
         python salesforce_business_analyst.py --input input.json --output output.json
     """
 
+    # P10 : identité (single source of truth)
+    agent_id = 'olivia'
+    agent_type = 'ba'
+    display_name = 'Olivia (BA)'
+
     VALID_MODES = ("generate_uc",)
 
     SYSTEM_PROMPT = (
@@ -259,9 +274,6 @@ class BusinessAnalystAgent:
         "Output ONLY valid JSON."
     )
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

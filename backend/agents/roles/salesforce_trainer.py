@@ -23,6 +23,16 @@ try:
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
 
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 # RAG Service
 try:
     from app.services.rag_service import get_salesforce_context
@@ -70,12 +80,14 @@ def get_delivery_prompt(solution_design: str, training_strategy: str) -> str:
 # ============================================================================
 # TRAINER AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class TrainerAgent:
+class TrainerAgent(BaseAgent):
     """
     Lucas (Trainer) Agent - Training Strategy + Delivery Materials.
 
     P3 refactoring: importable class replacing subprocess-only script.
     Used by agent_executor.py for direct invocation (no subprocess overhead).
+
+    P10 (May 2026): inherits from BaseAgent — __init__/cost tracking factorisés.
 
     Modes:
         - sds_strategy: Training & Adoption Strategy for SDS document
@@ -89,11 +101,14 @@ class TrainerAgent:
         python salesforce_trainer.py --mode sds_strategy --input input.json --output output.json
     """
 
+    # P10 : identité (sourcée comme single source of truth)
+    agent_id = "lucas"
+    agent_type = "trainer"
+    display_name = "Lucas (Trainer)"
+
     VALID_MODES = ("sds_strategy", "delivery")
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
+    # __init__ factorisé dans BaseAgent (config + _total_cost = 0.0)
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

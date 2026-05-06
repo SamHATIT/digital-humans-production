@@ -29,6 +29,16 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # RAG Service
 try:
@@ -338,7 +348,7 @@ def generate_coverage_report_programmatic(solution_design: dict, use_cases: list
 # ============================================================================
 # RESEARCH ANALYST AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class ResearchAnalystAgent:
+class ResearchAnalystAgent(BaseAgent):
     """
     Emma (Research Analyst) Agent - 3 modes.
 
@@ -361,11 +371,13 @@ class ResearchAnalystAgent:
     generate_coverage_report_programmatic) are preserved for direct import.
     """
 
+    # P10 : identité (single source of truth)
+    agent_id = 'emma'
+    agent_type = 'research_analyst'
+    display_name = 'Emma (Research Analyst)'
+
     VALID_MODES = ("analyze", "validate", "write_sds")
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

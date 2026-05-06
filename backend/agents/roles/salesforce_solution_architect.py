@@ -35,6 +35,15 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # RAG Service
 try:
@@ -468,7 +477,7 @@ def get_patch_prompt(section_key: str, current_section: dict, fix_instructions: 
 # ============================================================================
 # SOLUTION ARCHITECT AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class SolutionArchitectAgent:
+class SolutionArchitectAgent(BaseAgent):
     """
     Marcus (Solution Architect) Agent - 6 modes (design, as_is, gap, wbs, fix_gaps, patch).
 
@@ -494,10 +503,12 @@ class SolutionArchitectAgent:
     direct import by tests.
     """
 
-    VALID_MODES = ("design", "as_is", "gap", "wbs", "fix_gaps", "patch")
+    # P10 : identité (single source of truth)
+    agent_id = 'marcus'
+    agent_type = 'architect'
+    display_name = 'Marcus (Solution Architect)'
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
+    VALID_MODES = ("design", "as_is", "gap", "wbs", "fix_gaps", "patch")
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -22,6 +22,16 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # RAG Service
 try:
@@ -139,7 +149,7 @@ sf project deploy start --manifest manifest/package.xml --target-org $1
 # ============================================================================
 # DEVOPS AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class DevOpsAgent:
+class DevOpsAgent(BaseAgent):
     """
     Jordan (DevOps) Agent - Spec + Deploy modes.
 
@@ -158,11 +168,13 @@ class DevOpsAgent:
         python salesforce_devops.py --mode spec --input input.json --output output.json
     """
 
+    # P10 : identité (single source of truth)
+    agent_id = 'jordan'
+    agent_type = 'devops'
+    display_name = 'Jordan (DevOps)'
+
     VALID_MODES = ("spec", "deploy")
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """

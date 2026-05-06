@@ -102,3 +102,6 @@ docs/refonte/index.html.pre_*
 # SDS templating outputs (générés par tools/build_sds.py)
 docs/sds/rendered.html
 docs/sds/rendered_*.html
+
+# Local rollback backups (e.g. *.pre-baseagent, *.pre-tuning, *.pre-tracker)
+*.pre-*

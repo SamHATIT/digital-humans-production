@@ -26,6 +26,16 @@ try:
     LLM_SERVICE_AVAILABLE = True
 except ImportError:
     LLM_SERVICE_AVAILABLE = False
+# P10 — héritage BaseAgent (factorisation init/cost/logging)
+try:
+    from agents.base import BaseAgent
+except ImportError:
+    # Fallback CLI mode si le repo root n'est pas sur sys.path
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+    from agents.base import BaseAgent
+
 
 # RAG Service
 try:
@@ -873,7 +883,7 @@ def _parse_build_v2_response(content: str, phase: int) -> dict:
 # ============================================================================
 # ADMIN AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
-class AdminAgent:
+class AdminAgent(BaseAgent):
     """
     Raj (Salesforce Admin) Agent - Spec + Build + Build_v2 modes.
 
@@ -898,11 +908,13 @@ class AdminAgent:
     phased_build_executor.py and tests.
     """
 
+    # P10 : identité (single source of truth)
+    agent_id = 'raj'
+    agent_type = 'admin'
+    display_name = 'Raj (Admin)'
+
     VALID_MODES = ("spec", "build", "build_v2")
 
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or {}
-        self._total_cost = 0.0
 
     def run(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
         """
