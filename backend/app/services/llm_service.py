@@ -164,6 +164,11 @@ def generate_llm_response(
             logger.debug("Resolved tier=%s for execution=%s", resolved_tier, execution_id)
 
     try:
+        # Garde budgetaire AVANT l'appel — arret dur (mod37, P1.1)
+        if execution_id and db_session:
+            from app.services.budget_service import BudgetService
+            BudgetService(db_session).check_budget(execution_id)
+
         response = router.generate(
             prompt=prompt,
             agent_type=agent_type,

@@ -16,6 +16,8 @@
 #
 # Résout findings : N21, N22, N23, N28, N31, N33, N35, N41, N42, N43, N45, N86.
 #
+# Updated: 2026-05-31 (mod38) — Opus 4.7 → 4.8 (claude-opus-4-8, sorti 28-05, vérifié via /v1/models).
+#
 # Profile actif : sélectionné via env var DH_DEPLOYMENT_PROFILE (default: cloud).
 
 active_profile: "${DH_DEPLOYMENT_PROFILE}"   # cloud | on-premise | freemium — defaults to "cloud" if unset
@@ -78,9 +80,7 @@ profiles:
     build_enabled: true
     orchestrator: "anthropic/claude-opus"
     worker:       "anthropic/claude-sonnet"
-    fallback_chain:
-      "anthropic/claude-opus":   "anthropic/claude-sonnet"
-      "anthropic/claude-sonnet": "anthropic/claude-haiku"
+    fallback_chain: {}   # mod38 : aucun fallback cross-modele en cloud — une panne LLM remonte en erreur franche (pas de degradation silencieuse vers Sonnet/Haiku)
 
     # Tier-based overrides — appliqués UNIQUEMENT quand subscription_tier
     # est passé dans le LLMRequest (sera branché en Phase 3 backend, en
@@ -161,8 +161,9 @@ providers:
         model_id: "claude-sonnet-4-6"
         display_name: "Claude Sonnet 4.6"
       claude-opus:
-        model_id: "claude-opus-4-7"
-        display_name: "Claude Opus 4.7"
+        model_id: "claude-opus-4-8"
+        supports_temperature: false   # mod39 : Opus 4.x — sampling params (temperature/top_p/top_k) deprecies (400 si envoyes)
+        display_name: "Claude Opus 4.8"
 
   openai:
     enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.

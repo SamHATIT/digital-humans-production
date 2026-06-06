@@ -105,7 +105,7 @@ def reload_pricing():
 
 
 # Default limits
-DEFAULT_EXECUTION_LIMIT_USD = 50.0
+DEFAULT_EXECUTION_LIMIT_USD = 30.0  # mod37 : abaissé pour le test 4-projets
 DEFAULT_PROJECT_LIMIT_USD = 200.0
 DEFAULT_MONTHLY_LIMIT_USD = 500.0
 

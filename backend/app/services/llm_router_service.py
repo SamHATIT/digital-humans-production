@@ -487,8 +487,12 @@ class LLMRouterService:
             # dans un patch suivant si on veut profiter du raisonnement).
             #
             # Reference : https://platform.claude.com/docs/en/about-claude/models/whats-new-claude-4-7
-            is_opus_47_plus = model_id.startswith("claude-opus-4-7")
-            if not is_opus_47_plus and request.temperature <= 1.0:
+            # mod39 : sampling params pilotes par un flag capability YAML
+            # (supports_temperature, defaut True) plutot qu'un match de version
+            # — robuste pour toutes les futures versions de modele.
+            _mname = provider_str.split("/", 1)[1] if "/" in provider_str else provider_str
+            _mcfg = self.providers.get("anthropic", {}).get("models", {}).get(_mname, {})
+            if _mcfg.get("supports_temperature", True) and request.temperature <= 1.0:
                 kw["temperature"] = request.temperature
             return kw
 
