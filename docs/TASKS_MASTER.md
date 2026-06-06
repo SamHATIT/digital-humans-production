@@ -106,3 +106,11 @@
 - Limites : 15% d'arêtes INFERRED (conf. 0.57) à vérifier ; communautés non nommées (pas de passe LLM) ; 3630 nœuds isolés = bruit AST.
 - Artefacts : `graphify-out/{graph.json, GRAPH_REPORT.md, manifest.json}`. Rebuild sans coût : `graphify update .`.
 
+
+---
+
+## 7. DÉCOUVERT pendant la consolidation (2026-06-06)
+
+| ID | Prio | Description | Statut |
+|----|------|-------------|--------|
+| DOCBUILD-VERIFYPAGE | 🟡 P2 | Le hook post-commit qui rebuild la doc admin **échoue** : `VerifySignupPage` est dans `App.tsx` mais absent de `frontend_pages.yaml` (garde-fou `collect_frontend_pages` → BuildError). La doc admin ne se régénère plus depuis l'ajout de ce composant (onboarding). Fix = enregistrer la page dans `frontend_pages.yaml` avec ses métadonnées. | ❌ |
