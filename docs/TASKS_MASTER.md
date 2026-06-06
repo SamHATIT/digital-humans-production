@@ -123,5 +123,6 @@ _Notés le 2026-06-06, à creuser après lecture du document de consolidation._
 
 | ID | Sujet | Notes |
 |----|-------|-------|
+| RND-REFS (6 juin) | Références vérifiées pour la session R&D | Source primaire « MALFADS » INTROUVABLE (vidéo probablement générée par IA, chiffres 97/95/1,3s non fiables). Pattern réel = LLaMAR (Planner/Actor/Corrector/Verifier, arXiv 2407.10031), MetaGPT, ChatDev, CAMEL, CoALA. Caveats clés : comm O(N²) entre agents (≠ « plus rapide »), mémoire active vs passive (chute 40-60% sur tâches décisionnelles). Mémoire partagée « Team Mind » = piste centrale, recoupe RND-MEMORY-SKILLS. |
 | RND-MEMORY-SKILLS | Système de mémoire incrémentale & auto-apprentissage | Analyser comment un agent (Hermes / Claude Code) construit une mémoire incrémentale et **se crée des skills** après avoir résolu un problème (boucle d'auto-apprentissage). À creuser ensemble. |
 | RND-MULTIAGENT-4 | MALFADS — multi-agent 4 agents | Multi-Agent LLM Framework for Autonomous Decision Systems : agents Planner / Memory / Execution / Evaluation + principe de « cognitive fragmentation ». Source : vidéo explainer YouTube (LBo40Co4G2k). À faire : retrouver le papier académique original — les chiffres de la vidéo (97% / 95% / 1,3s) sont non vérifiés. |
