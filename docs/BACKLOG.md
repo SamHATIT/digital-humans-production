@@ -1,5 +1,8 @@
 # Backlog — Digital Humans Production
 
+> ⚠️ **Source unique des tâches : [`TASKS_MASTER.md`](TASKS_MASTER.md)** (depuis 2026-06-06).
+> Ce BACKLOG reste comme détail historique des sessions ; le suivi actif des tâches vit dans TASKS_MASTER.
+
 **Dernière mise à jour** : 2026-05-02 (O1 tranché, plan d'exécution 3 vagues)
 
 Le suivi détaillé des sessions est dans `CHANGELOG.md`. Ce fichier liste **uniquement

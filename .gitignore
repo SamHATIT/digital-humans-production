@@ -75,11 +75,9 @@ agents/backups/
 # Compiled files
 *.pyc
 *.pyo
--e 
 # Exception pour les fichiers de suivi du projet
 !PROGRESS.log
 !features.json
--e 
 # RAG resources (too large for git)
 data/rag/
 backend/.env.pre-refonte-backup
@@ -105,3 +103,6 @@ docs/sds/rendered_*.html
 
 # Local rollback backups (e.g. *.pre-baseagent, *.pre-tuning, *.pre-tracker)
 *.pre-*
+
+# Graphify code-graph output (regenerable: graphify update .)
+graphify-out/
