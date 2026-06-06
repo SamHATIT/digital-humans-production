@@ -143,6 +143,6 @@ _(aucune)_
 - VPS : `72.61.161.222`, Ubuntu 24.04
 - Repo : `/root/workspace/digital-humans-production`
 - Deploy : `/var/www/digital-humans.fr/docs/refonte/`
-- Branche : `feature/docs-refonte`
+- Branche : `main` (refonte mergée — `feature/docs-refonte` stale, cf. GIT-CLEANUP-001)
 - Python venv : `backend/venv/` (Jinja2 + chromadb)
 - URL live : `https://digital-humans.fr/docs/refonte/`
