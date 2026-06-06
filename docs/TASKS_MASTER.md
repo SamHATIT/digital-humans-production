@@ -124,4 +124,4 @@ _Notés le 2026-06-06, à creuser après lecture du document de consolidation._
 | ID | Sujet | Notes |
 |----|-------|-------|
 | RND-MEMORY-SKILLS | Système de mémoire incrémentale & auto-apprentissage | Analyser comment un agent (Hermes / Claude Code) construit une mémoire incrémentale et **se crée des skills** après avoir résolu un problème (boucle d'auto-apprentissage). À creuser ensemble. |
-| RND-MULTIAGENT-4 | Framework multi-agent à 4 agents | Autre framework multi-agent (4 agents) repéré par Sam — à explorer ensemble. (Préciser le nom/source à la reprise.) |
+| RND-MULTIAGENT-4 | MALFADS — multi-agent 4 agents | Multi-Agent LLM Framework for Autonomous Decision Systems : agents Planner / Memory / Execution / Evaluation + principe de « cognitive fragmentation ». Source : vidéo explainer YouTube (LBo40Co4G2k). À faire : retrouver le papier académique original — les chiffres de la vidéo (97% / 95% / 1,3s) sont non vérifiés. |
