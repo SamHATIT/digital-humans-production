@@ -114,3 +114,14 @@
 | ID | Prio | Description | Statut |
 |----|------|-------------|--------|
 | DOCBUILD-VERIFYPAGE | 🟡 P2 | Le hook post-commit qui rebuild la doc admin **échoue** : `VerifySignupPage` est dans `App.tsx` mais absent de `frontend_pages.yaml` (garde-fou `collect_frontend_pages` → BuildError). La doc admin ne se régénère plus depuis l'ajout de ce composant (onboarding). Fix = enregistrer la page dans `frontend_pages.yaml` avec ses métadonnées. | ❌ |
+
+---
+
+## 8. Sujets à explorer / R&D (à reprendre avec Sam)
+
+_Notés le 2026-06-06, à creuser après lecture du document de consolidation._
+
+| ID | Sujet | Notes |
+|----|-------|-------|
+| RND-MEMORY-SKILLS | Système de mémoire incrémentale & auto-apprentissage | Analyser comment un agent (Hermes / Claude Code) construit une mémoire incrémentale et **se crée des skills** après avoir résolu un problème (boucle d'auto-apprentissage). À creuser ensemble. |
+| RND-MULTIAGENT-4 | Framework multi-agent à 4 agents | Autre framework multi-agent (4 agents) repéré par Sam — à explorer ensemble. (Préciser le nom/source à la reprise.) |
