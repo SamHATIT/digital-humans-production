@@ -39,7 +39,7 @@
 | SDS-OMNICHANNEL-LOOP | P1 | Générer SDS Omnichannel Loop. Idem. | ❌ |
 | BR-FOOTGUN-FIX | P1 | Corriger l'emplacement du brief (`business_requirements`) sur les 3 projets ci-dessus. Footgun : brief dans `description` → 0 BR extraite. | ❌ |
 | TEST-4-PARALLEL | P1 | Test d'exécution 4-parallèle. | ❌ |
-| MOD40-CAPABILITY | P2 | Resolver de capacités au startup (auto-config params modèle via `GET /v1/models/{id}`, niveaux effort). À faire APRÈS STREAM-001. | ❌ |
+| MOD40-CAPABILITY | P2 | Resolver de capacités au startup (auto-config params modèle via `GET /v1/models/{id}`, niveaux effort). À faire APRÈS STREAM-001. | ✅ **posé (opt-in)** (`feat/MOD40-CAPABILITY`) : module `capability_resolver.py` (list/latest par famille, `/v1/models/{id}` capabilities → flags, cache disque+TTL, fallback YAML, jamais d'exception) + warmup câblé dans le router, **gate `DH_MOD40_CAPABILITY_RESOLVER`=off/warn/apply** (off par défaut = no-op total). Pas de bascule auto du model_id (seulement WARNING pin obsolète). Preuve : 17 checks unitaires mockés verts (`backend/tests/services/test_capability_resolver.py`) + YAML/py_compile OK. À activer par Sam. |
 | SDS-148-QA-EMPTY | P2 | SDS Pharma exec 148 : section QA vide (même bug raccord). Différé, non bloquant. | 🟡 |
 | SITE-155-PUBLISH | P2 | Publier Claim Resolver (exec 155) sur le site — il est COMPLETED mais affiché "bientôt". | ❌ |
 
