@@ -41,6 +41,13 @@
 
 ---
 
+## 0bis. ⚠️ INCIDENT RÉSOLU + À DURCIR (8 juin)
+
+- 🔴 **WORKER-DOWN (cause racine du "0 BR depuis 155")** : le worker ARQ (`digital-humans-worker.service`) était **mort depuis le 31 mai 18:12 UTC** (sortie propre, juste après le canary 155 — son dernier job). Aucun job traité pendant 1 semaine → aucune extraction de BR possible sur AUCUN projet. **Relancé le 8 juin** (✅ actif). L'unit a pourtant `Restart=always` → mort restée = probable `systemctl stop` manuel/déploiement. **À durcir** : élucider la cause du stop ; **réactiver le monitoring** (workflow N8N désactivé — un worker mort 1 semaine sans alerte = vrai trou). Ne PAS toucher le worker tant qu'un SDS tourne.
+- ✅ **WIZARD-EXEC-TRIGGER** : le wizard studio créait le projet puis allait sur br-validation **sans démarrer d'exécution** → 0 BR. Corrigé (`ProjectWizard.tsx`) : `executions.start()` après création + navigation avec `?executionId=`. Build + déployé sur `/var/www/app-studio` (backup `app-studio.bak-pre-wizard`). Vérifié : exéc 158 (projet 103) → 25 BR extraites.
+
+---
+
 ## 1. NOUVELLES TÂCHES (post-2 mai, absentes des docs)
 
 | ID | Prio | Description | Statut |
