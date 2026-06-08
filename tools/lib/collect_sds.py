@@ -18,6 +18,70 @@ from typing import Any
 
 import psycopg2
 import psycopg2.extras
+from pydantic import BaseModel, ConfigDict, field_validator
+
+
+# ─── JORDAN-PROMPT-001 : forme canonique de devops.monitoring ──────────────
+def _join_scalar(value: Any) -> str:
+    """Aplati une valeur simple en chaîne lisible (listes → 'a, b')."""
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(v) for v in value if v not in (None, ""))
+    return str(value)
+
+
+def _flatten_to_str_list(value: Any) -> list[str]:
+    """Normalise dict / list / scalaire vers une liste de chaînes lisibles.
+
+    Jordan (devops) émet `monitoring.alerting` tantôt en dict, tantôt en liste
+    (de dicts ou de scalaires) selon l'exécution. On aplatit tout vers la même
+    forme (`list[str]`) pour que le template SDS reste symétrique et déterministe.
+    """
+    if value in (None, ""):
+        return []
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [f"{k.replace('_', ' ')}: {_join_scalar(v)}" for k, v in value.items()]
+    if isinstance(value, (list, tuple)):
+        out: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                out.append("; ".join(
+                    f"{k.replace('_', ' ')}: {_join_scalar(v)}" for k, v in item.items()
+                ))
+            elif item in (None, ""):
+                continue
+            else:
+                out.append(_join_scalar(item))
+        return out
+    return [str(value)]
+
+
+class MonitoringSpec(BaseModel):
+    """Contrainte Pydantic sur la sortie `monitoring` de Jordan (JORDAN-PROMPT-001).
+
+    Remplace le template défensif (double branche dict/list dans
+    `cicd_deployment.html.j2`) : la normalisation se fait ici, en amont du rendu,
+    pour garantir une forme canonique quelle que soit l'exécution source.
+    Les clés inconnues sont conservées (`extra='allow'`).
+    """
+    model_config = ConfigDict(extra="allow")
+
+    post_deployment_checks: list[str] = []
+    ongoing_monitoring: list[str] = []
+    alerting: list[str] = []
+
+    @field_validator("post_deployment_checks", "ongoing_monitoring", "alerting", mode="before")
+    @classmethod
+    def _coerce_str_list(cls, v: Any) -> list[str]:
+        return _flatten_to_str_list(v)
+
+
+def normalize_monitoring(raw: Any) -> dict[str, Any]:
+    """Applique MonitoringSpec à la sortie brute de Jordan, robuste aux non-dicts."""
+    if not isinstance(raw, dict):
+        raw = {}
+    return MonitoringSpec(**raw).model_dump()
 
 
 # ─── Connexion DB ──────────────────────────────────────────────────────────
@@ -678,7 +742,8 @@ def collect_devops(execution_id: int) -> dict[str, Any]:
         "deployment_sequence": data.get("deployment_sequence", []) or [],
         "ci_cd_pipeline": data.get("ci_cd_pipeline", {}) or {},
         "rollback_plan": data.get("rollback_plan", {}) or {},
-        "monitoring": data.get("monitoring", {}) or {},
+        # JORDAN-PROMPT-001 : alerting/checks normalisés en list[str] via Pydantic.
+        "monitoring": normalize_monitoring(data.get("monitoring")),
         "testing_strategy": data.get("testing_strategy", {}) or {},
         "release_schedule": data.get("release_schedule", {}) or {},
         "_parse_error": err,
