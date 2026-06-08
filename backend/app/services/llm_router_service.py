@@ -498,41 +498,33 @@ class LLMRouterService:
 
         try:
             messages = [{"role": "user", "content": request.prompt}]
-            response = await async_client.messages.create(**_build_kwargs(messages))
+            # STREAM-001 : appel streaming unique (remplace create() + boucle de
+            # continuation). Le streaming supprime le timeout non-streaming Anthropic
+            # (~10 min), ce qui autorise un max_tokens eleve et une production en UN
+            # seul appel -- fin des raccords (seams) qui corrompaient les gros JSON
+            # des sections experts (QA/formation vides sur exec 148/155).
+            async with async_client.messages.stream(**_build_kwargs(messages)) as stream:
+                final = await stream.get_final_message()
 
-            content = response.content[0].text
-            tokens_in = response.usage.input_tokens
-            tokens_out = response.usage.output_tokens
-            stop_reason = response.stop_reason
-            # Phase 3.5 : capture cache stats si dispo (présent uniquement si cache utilisé)
-            cache_read = getattr(response.usage, "cache_read_input_tokens", 0) or 0
-            cache_create = getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+            content = "".join(
+                b.text for b in final.content if getattr(b, "type", None) == "text"
+            )
+            tokens_in = final.usage.input_tokens
+            tokens_out = final.usage.output_tokens
+            stop_reason = final.stop_reason
+            cache_read = getattr(final.usage, "cache_read_input_tokens", 0) or 0
+            cache_create = getattr(final.usage, "cache_creation_input_tokens", 0) or 0
 
-            # CRIT-02 port : auto-continue if truncated
+            # Filet de securite : la continuation par stitching est volontairement
+            # supprimee (source de corruption). Si la reponse est encore tronquee
+            # malgre un max_tokens eleve, on loggue fort plutot que de stitcher.
             continuations = 0
-            while stop_reason == "max_tokens" and continuations < self.MAX_CONTINUATIONS:
-                continuations += 1
+            if stop_reason == "max_tokens":
                 logger.warning(
-                    "Response truncated, continuing (%d/%d) — model=%s",
-                    continuations, self.MAX_CONTINUATIONS, model_id,
+                    "STREAM-001: reponse tronquee a max_tokens=%d (model=%s) -- "
+                    "augmenter max_tokens si la section est incomplete.",
+                    request.max_tokens, model_id,
                 )
-                cont_messages = [
-                    {"role": "user", "content": request.prompt},
-                    {"role": "assistant", "content": content},
-                    {"role": "user", "content": "Continue from where you left off. Do not repeat what you already wrote."},
-                ]
-                try:
-                    cont_resp = await async_client.messages.create(**_build_kwargs(cont_messages))
-                    cont_text = cont_resp.content[0].text
-                    stop_reason = cont_resp.stop_reason
-                    content += "\n" + cont_text
-                    tokens_in += cont_resp.usage.input_tokens
-                    tokens_out += cont_resp.usage.output_tokens
-                    cache_read += getattr(cont_resp.usage, "cache_read_input_tokens", 0) or 0
-                    cache_create += getattr(cont_resp.usage, "cache_creation_input_tokens", 0) or 0
-                except Exception as cont_err:
-                    logger.error("Continuation %d failed: %s", continuations, cont_err)
-                    break
 
             latency_ms = int((time.time() - start_time) * 1000)
             cost_usd = self._calculate_cost(provider_str, tokens_in, tokens_out)
