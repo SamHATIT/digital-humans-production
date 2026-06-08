@@ -145,3 +145,30 @@ _Notés le 2026-06-06, à creuser après lecture du document de consolidation._
 | RND-REFS (6 juin) | Références vérifiées pour la session R&D | Source primaire « MALFADS » INTROUVABLE (vidéo probablement générée par IA, chiffres 97/95/1,3s non fiables). Pattern réel = LLaMAR (Planner/Actor/Corrector/Verifier, arXiv 2407.10031), MetaGPT, ChatDev, CAMEL, CoALA. Caveats clés : comm O(N²) entre agents (≠ « plus rapide »), mémoire active vs passive (chute 40-60% sur tâches décisionnelles). Mémoire partagée « Team Mind » = piste centrale, recoupe RND-MEMORY-SKILLS. |
 | RND-MEMORY-SKILLS | Système de mémoire incrémentale & auto-apprentissage | Analyser comment un agent (Hermes / Claude Code) construit une mémoire incrémentale et **se crée des skills** après avoir résolu un problème (boucle d'auto-apprentissage). À creuser ensemble. |
 | RND-MULTIAGENT-4 | MALFADS — multi-agent 4 agents | Multi-Agent LLM Framework for Autonomous Decision Systems : agents Planner / Memory / Execution / Evaluation + principe de « cognitive fragmentation ». Source : vidéo explainer YouTube (LBo40Co4G2k). À faire : retrouver le papier académique original — les chiffres de la vidéo (97% / 95% / 1,3s) sont non vérifiés. |
+
+---
+
+## 9. SESSION 8 juin (PM) — Test boucle d'amélioration Marcus + bugs assemblage SDS (exec 159, projet 103 « Réclamations Télécom »)
+
+**Contexte :** test de la boucle d'amélioration d'architecture (refus de l'archi v1 par Sam) + premier SDS complet de bout en bout. Compte admin = tier **free → tout sur Sonnet** (Marcus inclus). Snapshots disque : `/root/dh_arch_snapshots/{exec159_before,exec159_after,exec159_sds}/` + `BASELINE_compare.json`.
+
+### ✅ Validé (positif)
+- **Boucle d'amélioration = ciblage CORRECT.** Comparaison v1 (deliv 728) vs v2 (732) : seules `data_model` + `automation_design` ont changé, **les 10 autres sections byte-identiques**. Marcus ne « refait plus tout ». Patches ciblés (730 data_model, 731 automation_design). v1 préservée (pas écrasée). *L'inquiétude de Sam est levée.*
+
+### 🐞 Bugs confirmés (à corriger) — TOUS de la même famille : troncature JSON par `max_tokens` + parseurs non tolérants
+
+| ID | Prio | Description | Preuve / emplacement | Statut |
+|----|------|-------------|----------------------|--------|
+| FIX-PARSE-001 | 🔴 P1 | `_parse_raw_markdown_json` renvoie `unrecoverable` sur un JSON tronqué au lieu de fermer les structures ouvertes → sections expert vides alors que le contenu existe en base. **Le plus rentable + rétroactif.** | `tools/lib/collect_sds.py` (fonction `_parse_raw_markdown_json`, étape « 5 » de récup défaillante). **PROUVÉ** : fermeture des structures récupère Aisha 98,9% (54701/55322) et Elena 98,5% (49493/50240). Fix → **re-render SDS exec 159 remplit Aisha+Elena sans réexécution.** Smoke test = vérifier les 2 sections présentes. | À FAIRE (reco : démarrer par là, branche dédiée) |
+| FIX-MAXTOKENS-002 | 🔴 P1 | Specs expert tronquées en fin de JSON car `max_tokens` trop bas / pas de streaming sur ces chemins. Empêche la récidive. | Aisha `salesforce_data_migration.py:341` (=16000), Elena `salesforce_qa_tester.py:642` (=16000). **+ chemin patch archi** : `salesforce_solution_architect.py:574` — ajouter `'patch'` à `max_out = 64000 if mode in (...)` (sinon `else 16000` → troncature data_model patch). Autres `max_tokens=16000` repérés : apex 236/251/454/469, trainer 270, devops 236, admin 263/362, lwc 397/412/577, pm 371. | À FAIRE |
+| PATCH-MERGE-001 | 🟠 P2 | Le patch `automation_design` ne renvoie que `flows` (20, ex-30) et **supprime** `apex_triggers`/`scheduled_jobs`/`platform_events` (le merge remplace au lieu de fusionner). | Template `marcus_architect/patch` (`get_patch_prompt`, `salesforce_solution_architect.py:450`) + logique de merge. Imposer le renvoi de la section COMPLÈTE et/ou deep-merge. | À FAIRE |
+| FIX-EMPTY-001 | 🟠 P2 | Jordan/DevOps : appel LLM (interaction 1368) renvoie **chaîne vide, 0 token, `success=true`** → deliverable `{raw_markdown: ""}` stocké en silence. | `salesforce_devops.py`. Retry sur réponse vide + échouer bruyamment au lieu de stocker du vide. | À FAIRE |
+| FEAT-LANG-001 | 🟠 P2/produit | Brief FR → toutes les specs en EN. Aucune directive de langue transmise aux agents ; template SDS figé `lang="en"`. | Injecter la langue du projet dans les system prompts agents + rendre `lang` dynamique dans `sds_shell.html.j2`. (Elena avait glissé un bout de FR « Ma facture du mois dernier est incorrecte » → le brief FR transparaît mais l'agent rédige EN par défaut.) | À FAIRE |
+| OBSERV-001 | 🟡 P3 | Appels Sonnet très longs sans aucun log (WBS = **806 s / 173K tokens**, gap 457s) → indiscernable d'un worker planté (on a failli redémarrer un run sain). | Ajouter un heartbeat log (1 ligne / 30-60s) pendant les appels streaming. + **réactiver le monitoring N8N** (rien n'a détecté la mort du worker la semaine passée). | À FAIRE |
+| TIER-PROOF | 🟡 note | Compte admin = free → SDS sur Sonnet (Marcus inclus), sorties énormes/lentes. Pour la vraie démo qualité, **basculer le compte en Team/Enterprise** pour repasser Marcus sur Opus. | — | À FAIRE (Sam) |
+
+**Reco d'enchaînement quand reprise :** FIX-PARSE-001 (+ re-render 159 = preuve) → FIX-MAXTOKENS-002 (racine) → FIX-EMPTY-001 / PATCH-MERGE-001 → FEAT-LANG-001. Ne rien éditer pendant qu'une exécution tourne.
+
+**Non-bug noté :** « Diagram render error » dans le monitor = chunk périmé après mon déploiement studio (ancien `flowDiagram-…-C9tKmZNI.js` supprimé). Fix utilisateur = **Ctrl+Shift+R**. Pas de tâche.
+
+**Réf. preuves :** exec 159 ; deliverables 728 (sol v1) / 732 (sol v2) / 741 (Aisha 55K) / 743 (Elena 50K) / 744 (Jordan vide 424o) / 745 (SDS assemblé HTML 377K) ; llm_interactions 1364 (wbs 806s) / 1365 (aisha) / 1367 (elena) / 1368 (jordan 0 token).
