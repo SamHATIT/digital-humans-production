@@ -1,5 +1,7 @@
 # TASKS MASTER — vue unique des tâches Digital Humans
 
+> **▶ PROCHAINE ACTION (8 juin)** : Sam crée les 3 projets R&D (Pipeline Tuner / Grid Foresight / Omnichannel Loop) — brief dans `business_requirements` (le wizard studio Acte II le fait déjà correctement). Puis Claude enchaîne le **batch Vague 2** (TEST-4-PARALLEL + EX3 Télécom + EX4 Retail + re-run 148 + publish 155) = preuve finale STREAM-001 / Elena-timeout.
+
 **Généré** : 2026-06-06 — consolidation factuelle (audit croisé docs ↔ git ↔ DB ↔ working tree).
 **Vocation** : remplacer le suivi éclaté (BACKLOG.md, 2× STATUS.md, NEXT_SESSION_TODO, SESSION_NEXT_TODO, 4× TODO_*, PROGRESS.log) par une source unique.
 **Méthode statut** : ✅ vérifié fait · 🟡 partiel / à valider · ❌ à faire · ⚠️ incohérence détectée.
