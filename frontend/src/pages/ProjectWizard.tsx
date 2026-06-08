@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, Loader2, Upload, X, FileText } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
-import { auth, projects } from '../services/api';
+import { auth, projects, executions } from '../services/api';
 import StudioInput from '../components/studio/StudioInput';
 import StudioTextarea from '../components/studio/StudioTextarea';
 import StudioSelect from '../components/studio/StudioSelect';
@@ -298,7 +298,17 @@ export default function ProjectWizard() {
       }
       const newId: number | undefined = result?.id ?? result?.project_id;
       if (newId) {
-        navigate(`/br-validation/${newId}`);
+        // Demarrer l'execution (Phase 1 = extraction des BR par Sophie), puis ouvrir la
+        // validation avec l'executionId. Sans ce demarrage, br-validation affiche 0 BR
+        // (rien ne declenche l'extraction).
+        try {
+          const exec = await executions.start(newId, STUDIO_ENSEMBLE.map((a) => a.id));
+          const execId: number | undefined = exec?.execution_id;
+          navigate(execId ? `/br-validation/${newId}?executionId=${execId}` : `/br-validation/${newId}`);
+        } catch {
+          // Demarrage KO : on ouvre quand meme la page (l'utilisateur verra l'etat / pourra relancer).
+          navigate(`/br-validation/${newId}`);
+        }
       } else {
         navigate('/');
       }
