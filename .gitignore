@@ -106,3 +106,4 @@ docs/sds/rendered_*.html
 
 # Graphify code-graph output (regenerable: graphify update .)
 graphify-out/
+backend/config/.mod40_models_cache.json
