@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Any
 from sqlalchemy.orm import Session
 
 from app.models.project import Project
+from app.models.user import User
 from app.models.execution import Execution
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
@@ -137,6 +138,18 @@ class SophieChatService:
         logger.info(f"[Sophie Chat] Loaded {len(history)} messages from history")
         return history
     
+    def _resolve_subscription_tier(self, project_id: int) -> str:
+        """Tier de l'abonne proprietaire du projet (free par defaut) -- routing tier-aware."""
+        try:
+            project = self.db.query(Project).filter(Project.id == project_id).first()
+            if project and getattr(project, "user_id", None):
+                user = self.db.query(User).filter(User.id == project.user_id).first()
+                if user and user.subscription_tier:
+                    return user.subscription_tier
+        except Exception as e:
+            logger.warning(f"[Sophie Chat] tier resolution failed: {e}")
+        return "free"
+
     async def chat(
         self,
         project_id: int,
@@ -170,12 +183,15 @@ class SophieChatService:
             # Call Claude via LLM router (profile-aware)
             logger.info("[Sophie Chat] Calling Claude (agent_type=sophie)...")
             
+            subscription_tier = self._resolve_subscription_tier(project_id)
+            logger.info(f"[Sophie Chat] subscription_tier={subscription_tier} (routing tier-aware)")
             response = generate_llm_response(
                 prompt=full_prompt,
-                agent_type="sophie",  # Uses ORCHESTRATOR tier = Claude Opus
+                agent_type="sophie",  # tier-aware: free->Sonnet, payant->Opus (voir llm_routing.yaml)
                 system_prompt=system_prompt,
                 max_tokens=1500,
                 temperature=0.7,
+                subscription_tier=subscription_tier,
             )
             
             assistant_message = response["content"]
