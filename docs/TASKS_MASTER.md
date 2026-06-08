@@ -79,7 +79,7 @@
 | ELENA-TIMEOUT-001 | Timeout 10min Phase 4 marque Elena failed alors que le LLM réussit après. Recouvert par STREAM-001. | ❌ |
 | JORDAN-PROMPT-001 | Sortie `monitoring.alerting` non contrainte (dict/list selon exec). Template défensif posé ; vrai fix = Pydantic. | 🟡 |
 | GHOST-001 | SMTP réel (Postmark) pour Ghost + réactiver staffDeviceVerification. | ❌ |
-| COST-001 | cost_usd 6-tuple : Marcus/Emma/Olivia ✅ ; reste Aisha/Lucas/Elena/Jordan. | 🟡 |
+| COST-001 | cost_usd 6-tuple : Marcus/Emma/Olivia ✅ ; reste Aisha/Lucas/Elena/Jordan. | ✅ **fait** (`fix/COST-001`) : `cost_usd` (= `_total_cost`, déjà accumulé via BaseAgent) ajouté aux blocs metadata qui l'omettaient — Elena/spec (673), Aisha/build (500), Jordan/deploy (352). Lucas + modes spec d'Aisha/Jordan l'avaient déjà (vérifié). Tous les blocs de sortie des 4 experts portent désormais `cost_usd` (preuve : scan 7/7 blocs OK + py_compile). |
 | BUNDLE-001 | Bundle marketing 16MB, split lazy-load. Perf Lighthouse 25/100. | ❌ |
 | P4-FAT-CONTROLLER | `PMOrchestratorServiceV2` = god node n°1 (66 arêtes, Graphify). Non traité. | ❌ |
 | UI-002/003/004 | ELAPSED "—", "first take" figé, sidebar chevauche au scroll. | ❌ |
