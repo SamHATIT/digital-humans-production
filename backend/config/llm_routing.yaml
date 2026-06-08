@@ -153,6 +153,12 @@ providers:
     enabled: true
     api_key_env: "ANTHROPIC_API_KEY"
     timeout_seconds: 600
+    # MOD40 : ces model_id/flags peuvent être validés/réglés au démarrage par le
+    # capability resolver (app/services/capability_resolver.py). Opt-in strict via
+    # l'env DH_MOD40_CAPABILITY_RESOLVER = off (défaut) | warn | apply.
+    #   warn  → loggue un WARNING si un model_id épinglé n'est plus le dernier de sa famille.
+    #   apply → met aussi à jour les flags (ex. supports_temperature) depuis l'API.
+    # La bascule du model_id reste TOUJOURS manuelle (décision Sam).
     models:
       claude-haiku:
         model_id: "claude-haiku-4-5-20251001"

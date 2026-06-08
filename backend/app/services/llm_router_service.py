@@ -264,6 +264,18 @@ class LLMRouterService:
                     "models": providers_config["anthropic"].get("models", {}),
                 }
                 logger.info("Anthropic provider initialized")
+
+                # MOD40 : resolver de capacités au démarrage. Opt-in strict via
+                # DH_MOD40_CAPABILITY_RESOLVER (off par défaut → no-op total, aucun
+                # appel réseau). Mute le dict `models` partagé sync/async en mode apply.
+                try:
+                    from app.services.capability_resolver import warm_anthropic_capabilities
+                    warm_anthropic_capabilities(
+                        self.providers["anthropic"]["client"],
+                        self.providers["anthropic"]["models"],
+                    )
+                except Exception as _mod40_exc:  # défensif : ne bloque jamais le démarrage
+                    logger.warning("[MOD40] warmup ignoré: %s", _mod40_exc)
             else:
                 logger.warning("%s not set, Anthropic disabled", api_key_env)
 
