@@ -143,7 +143,7 @@ Use Cases for this batch:
                 prompt=batch_prompt,
                 agent_type="research",
                 system_prompt=section_system_prompt,
-                max_tokens=16384,
+                max_tokens=32000,  # STREAM-001 : un seul appel streaming, plus de troncature/raccords
             )
 
             if response.get("success") is not False and response.get("content"):
