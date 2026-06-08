@@ -1511,11 +1511,19 @@ class PMOrchestratorServiceV2:
             logger.warning(f"[CircuitBreaker] check failed: {e}")
 
         # Dynamic timeout based on agent/mode
-        timeout_seconds = 600  # Default 10 min (experts need time with large context)
+        timeout_seconds = 600  # Default 10 min
         if agent_id == "research_analyst":
             timeout_seconds = 3600  # 60 min for all Emma modes (large projects)
         elif agent_id == "architect":
             timeout_seconds = 900  # 15 min for architecture
+        elif agent_id in ("qa", "data", "trainer", "devops"):
+            # ELENA-TIMEOUT-001 : Phase 4 SDS experts (Elena/Aisha/Lucas/Jordan)
+            # produisent de grosses sections avec un large contexte. STREAM-001 a
+            # supprime le timeout HTTP interne d'Anthropic (~10 min) qui marquait
+            # Elena "failed" alors que le LLM repondait apres ; mais ce wrapper
+            # asyncio.wait_for externe est independant du streaming et coupait
+            # toujours a 600s. On l'aligne sur les autres agents a gros contexte.
+            timeout_seconds = 1200  # 20 min for SDS expert sections
 
         try:
             from app.services.agent_executor import MIGRATED_AGENTS
