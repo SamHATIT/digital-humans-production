@@ -94,6 +94,11 @@ profiles:
     # Les autres tiers (free, team, enterprise) ne sont pas listés ici car
     # ils utilisent les mappings tier→provider standard sans override agent-level.
     tier_overrides:
+      # Free tier (8 juin) — Sophie/Olivia en Sonnet : jamais Opus, jamais Haiku.
+      # Opus est reserve aux tiers PAYANTS (Pro et au-dessus). Maitrise des couts demo publique.
+      free:
+        orchestrator_default: "anthropic/claude-sonnet"
+        # worker deja en Sonnet via le mapping cloud standard
       pro:
         # Par défaut : tous les orchestrators tournent en Sonnet pour le tier Pro
         orchestrator_default: "anthropic/claude-sonnet"
@@ -125,10 +130,9 @@ profiles:
   freemium:
     build_enabled: false
     orchestrator: "anthropic/claude-sonnet"
-    worker:       "anthropic/claude-haiku"
+    worker:       "anthropic/claude-sonnet"   # 8 juin : Haiku elimine — jamais sous Sonnet (image free tier)
     fallback_chain:
-      "anthropic/claude-sonnet": "anthropic/claude-haiku"
-      "anthropic/claude-haiku":  "anthropic/claude-haiku"   # no-op fallback (pas de local dispo)
+      "anthropic/claude-sonnet": "anthropic/claude-sonnet"   # no-op : aucune degradation silencieuse vers Haiku
 
 # =============================================================================
 # Providers — connexion aux APIs / endpoints
