@@ -92,7 +92,7 @@
 | ID | Description | Statut |
 |----|-------------|--------|
 | DEADCODE-BACKUPS | Supprimer `backups_20251219_114242/` (196K, vieux pm_orchestrator_service_v2.py + BuildPhaseService). Scanné par Graphify, pollue le graphe, résidu P1 split-brain. | ✅ **fait** (`chore/DEADCODE-BACKUPS`) : `git rm -r backups_20251219_114242/` (3 fichiers, 196K). Aucune référence code (seulement des mentions descriptives en doc). |
-| GIT-CLEANUP-001 | 40+ branches stale (locales `feat/*` mergées + `claude/*` refonte). | ❌ |
+| GIT-CLEANUP-001 | 40+ branches stale (locales `feat/*` mergées + `claude/*` refonte). | 🟡 **préparé** (`chore/GIT-CLEANUP-001`) : inventaire `docs/GIT_CLEANUP_001.md` + script `scripts/git_cleanup_001.sh`. Analyse : 58 branches, **4 mergées dans main = suppression sûre** (feat/platform-studio, feat/stream-001, feature/freemium-realignment, feature/journal-publication) ; 53 non mergées = arbitrage Sam (risque de perte). L'agent n'exécute PAS la suppression (irréversible, non relisible) — script à lancer par Sam (`--apply`, recalcule la liste mergée dynamiquement). |
 | DOC-ARCHIVE | Archiver les docs périmés (6 mois) : `NEXT_SESSION_TODO.md`, `SESSION_NEXT_TODO.md`, `docs/TODO_AUDIT_TRACABILITE.md`, `TODO_CORRECTIONS_POST_TEST.md`, `TODO_FIX_METADATA_RAG.md`, `TODO_REFONTE_ARCHITECTURE_V2.md`, `PROGRESS.log`. `docs/BACKLOG_TECH.md` (8 lignes, vide) à supprimer ou remplir. | ❌ |
 
 ---
