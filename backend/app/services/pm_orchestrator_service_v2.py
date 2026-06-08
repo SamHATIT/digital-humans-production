@@ -1793,9 +1793,14 @@ class PMOrchestratorServiceV2:
             if isinstance(content, dict) and "metadata" in content:
                 content_metadata = content.get("metadata")
             
+            # AGENT-FK-001 : résout la clé string ("qa", "data" ...) vers agents.id (FK).
+            # Retombe sur None si non résolvable (pas de régression vs comportement legacy).
+            from app.services.agent_pk_resolver import resolve_agent_pk
+            agent_pk = resolve_agent_pk(self.db, agent_id)
+
             deliverable = AgentDeliverable(
                 execution_id=execution_id,
-                agent_id=None,  # FK to agents table - NULL like V1 (agent_id string not compatible with Integer FK)
+                agent_id=agent_pk,  # AGENT-FK-001: FK agents.id résolu depuis la clé agent
                 deliverable_type=f"{agent_id}_{deliverable_type}",  # Include agent name in type for clarity
                 content=content_json,
                 content_metadata=content_metadata,  # JSONB column accepts dict directly

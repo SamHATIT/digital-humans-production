@@ -463,11 +463,15 @@ class AgentIntegrationService:
         """
         try:
             db = SessionLocal()
-            
+
+            # AGENT-FK-001 : résout la clé string vers agents.id (FK), None si échec.
+            from app.services.agent_pk_resolver import resolve_agent_pk
+            agent_pk = resolve_agent_pk(db, agent_id)
+
             # Create deliverable record
             deliverable = AgentDeliverable(
                 execution_id=execution_id,
-                agent_id=None,  # Foreign key to agents table (optional for now)
+                agent_id=agent_pk,  # AGENT-FK-001: FK agents.id résolu depuis la clé agent
                 deliverable_type=agent_output.get("deliverable_type", f"{agent_id}_output"),
                 content=json.dumps(agent_output.get("content", {}), ensure_ascii=False),
                 content_metadata=agent_output.get("metadata", {})
