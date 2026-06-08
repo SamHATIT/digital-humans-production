@@ -74,7 +74,7 @@
 
 | ID | Description | Statut |
 |----|-------------|--------|
-| AGENT-FK-001 | `agent_deliverables.agent_id` NULL depuis exec 142+. Band-aid OUTER JOIN posé (9262a96) ; vrai fix au write site. | 🟡 band-aid |
+| AGENT-FK-001 | `agent_deliverables.agent_id` NULL depuis exec 142+. Band-aid OUTER JOIN posé (9262a96) ; vrai fix au write site. | ✅ **fix posé** (`fix/AGENT-FK-001`) : nouveau resolver `agent_pk_resolver.resolve_agent_pk(db, key)` (clé/alias → `agents_registry` → name → `agents.id`), branché sur les **2 write sites** (`pm_orchestrator_service_v2._save_deliverable` + `agent_integration._save_agent_deliverable`), fallback None sans régression. Preuve : 13 clés orchestrateur résolues vers un `agents.id` valide (croisé DB live) + py_compile. Band-aid OUTER JOIN conservé pour les 589 lignes historiques (backfill = mutation DB, gate Sam). |
 | DOCX-OBSOLETE-001 | Supprimer Phase 6 `_generate_sds_document` (dead code depuis SDS HTML). | ❌ |
 | ELENA-TIMEOUT-001 | Timeout 10min Phase 4 marque Elena failed alors que le LLM réussit après. Recouvert par STREAM-001. | ❌ |
 | JORDAN-PROMPT-001 | Sortie `monitoring.alerting` non contrainte (dict/list selon exec). Template défensif posé ; vrai fix = Pydantic. | 🟡 |
