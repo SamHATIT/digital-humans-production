@@ -33,7 +33,7 @@
 
 | ID | Prio | Description | Statut |
 |----|------|-------------|--------|
-| STREAM-001 | 🔴 P0 | Passer `_call_anthropic` en **streaming**. Fix systémique des 3 bugs canary (extraction BR, corruption JSON sections experts aux raccords, timeout Elena 600s). Confirmé absent de `llm_service.py`. | ❌ |
+| STREAM-001 | 🔴 P0 | `_call_anthropic` en **streaming** (remplace create()+continuation, fin des raccords corrompus). | 🟡 **mergé main + déployé** (04ea3c5), preuve unit OK (Opus 4.8 32k, stop=end_turn, 0 continuation). Validation finale = batch Vague 2. Suivi mineur : constante MAX_CONTINUATIONS morte. |
 | SDS-PIPELINE-TUNER | P1 | Générer SDS Pipeline Tuner. Aucune exec. Brief → `business_requirements` (PAS `description`). | ❌ |
 | SDS-GRID-FORESIGHT | P1 | Générer SDS Grid Foresight. Idem. | ❌ |
 | SDS-OMNICHANNEL-LOOP | P1 | Générer SDS Omnichannel Loop. Idem. | ❌ |

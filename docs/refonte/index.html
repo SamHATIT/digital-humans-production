@@ -517,7 +517,7 @@ flowchart LR
           <td>Project Manager</td>
           <td>1 — BR extraction</td>
           <td>—</td>
-          <td>Claude Opus 4.7</td>
+          <td>Claude Opus 4.8</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -545,7 +545,7 @@ flowchart LR
           <td>Business Analyst</td>
           <td>2 — Use Cases</td>
           <td>—</td>
-          <td>Claude Opus 4.7</td>
+          <td>Claude Opus 4.8</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -573,7 +573,7 @@ flowchart LR
           <td>Research Analyst</td>
           <td>2.5 / 3.3 / 4.5 / 5</td>
           <td>—</td>
-          <td>Claude Opus 4.7</td>
+          <td>Claude Opus 4.8</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -601,7 +601,7 @@ flowchart LR
           <td>Solution Architect</td>
           <td>3 — Architecture</td>
           <td>—</td>
-          <td>Claude Opus 4.7</td>
+          <td>Claude Opus 4.8</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -828,7 +828,7 @@ flowchart LR
       <tr><th>Tier</th><th>Modèle</th><th>Pricing (in/out per M tokens)</th><th>Agents</th></tr>
       <tr>
         <td><code>orchestrator</code></td>
-        <td>Claude Opus 4.7</td>
+        <td>Claude Opus 4.8</td>
         <td>$5 / $25</td>
         <td>Marcus, Olivia, Sophie, Emma
         </td>
@@ -1300,7 +1300,7 @@ flowchart LR
           <td><strong>ARQ Worker</strong></td>
           <td><code>digital-humans-worker</code></td>
           <td>—</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">inactive</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="5">
@@ -2353,7 +2353,7 @@ flowchart LR
   <div id="api" class="section">
     <h2>API Reference</h2>
     <p class="section-desc">API REST FastAPI. Préfixe par défaut <code>/api/v1</code>. Auth JWT sur tous les endpoints sauf <code>auth</code> et endpoints publics. Les endpoints ci-dessous sont extraits en direct du code (parsing AST des décorateurs <code>@router.method</code>).</p>
-    <p class="section-desc"><strong>180 endpoints</strong> répartis sur 28 modules · <span class="muted">fichiers non groupés : backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py</span>.</p>
+    <p class="section-desc"><strong>183 endpoints</strong> répartis sur 28 modules · <span class="muted">fichiers non groupés : backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py</span>.</p>
 
 
     <h3>Projets <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 6 endpoints · <code>backend/app/api/routes/projects.py</code></span></h3>
@@ -3342,7 +3342,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>Deliverables <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 9 endpoints · <code>backend/app/api/routes/deliverables.py</code></span></h3>
+    <h3>Deliverables <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 10 endpoints · <code>backend/app/api/routes/deliverables.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -3509,6 +3509,24 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>summary</dt>
                 <dd>Delete deliverable.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/deliverables.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
+          <td><code>/api/v1/deliverables/{deliverable_id}/render</code></td>
+          <td><code>render_deliverable_html</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Render the deliverable as standalone HTML (for SDS documents).</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/deliverables.py</code></dd>
               </dl>
@@ -4315,7 +4333,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>Authentification <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 3 endpoints · <code>backend/app/api/routes/auth.py</code></span></h3>
+    <h3>Authentification <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 5 endpoints · <code>backend/app/api/routes/auth.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -4329,7 +4347,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/api/v1/auth/register</code></td>
+          <td><code>/api/v1/register</code></td>
           <td><code>register</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -4347,7 +4365,43 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/api/v1/auth/login</code></td>
+          <td><code>/api/v1/signup-request</code></td>
+          <td><code>signup_request</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>First step of the verify-then-create signup flow (ONBOARDING-002).</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/auth.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/api/v1/signup-confirm</code></td>
+          <td><code>signup_confirm</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Second step — redeem the verify-token, create the user, log them in.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/auth.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/api/v1/login</code></td>
           <td><code>login</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -4365,7 +4419,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/v1/auth/me</code></td>
+          <td><code>/api/v1/me</code></td>
           <td><code>get_current_user_profile</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -5966,7 +6020,7 @@ flowchart LR
     <p class="section-desc">React 18 + Vite + TailwindCSS. Router <code>react-router-dom</code>, auth via <code>ProtectedRoute</code> (JWT).</p>
 
     <h3>Pages</h3>
-    <p class="section-desc"><strong>3 pages</strong> (14 routes React) · <span class="muted">YAML orphelins : AgentTesterPage, BRValidationPage, BuildMonitoringPage, Dashboard, ExecutionMonitoringPage, ExecutionPage, NewProject, Pricing, ProjectDetailPage, ProjectWizard, Projects</span>.</p>
+    <p class="section-desc"><strong>4 pages</strong> (17 routes React) · <span class="muted">YAML orphelins : AgentTesterPage, BRValidationPage, BuildMonitoringPage, Dashboard, ExecutionMonitoringPage, ExecutionPage, NewProject, Pricing, ProjectDetailPage, ProjectWizard, Projects</span>.</p>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -6015,8 +6069,26 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>VerifySignupPage</strong></td>
+          <td><code>/verify-signup</code></td>
+          <td>Page publique de verification e-mail (verify-then-create, ONBOARDING-002) — confirme le token JWT 30 min et finalise la creation du compte avant insertion en base.</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>accès</dt>
+                <dd><span class="tag tag-neutral">public</span></dd>
+                <dt>fichier</dt>
+                <dd><code>frontend/src/pages/VerifySignupPage.tsx</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><strong>AppShell</strong></td>
-          <td><code>/pricing</code> <br><code>/</code> <br><code>/projects</code> <br><code>/project/:projectId</code> <br><code>/agent-tester</code> <br><code>/projects/new</code> <br><code>/wizard</code> <br><code>/wizard/:projectId</code> <br><code>/br-validation/:projectId</code> <br><code>/execution/:projectId</code> <br><code>/execution/:executionId/monitor</code> <br><code>/execution/:executionId/build</code></td>
+          <td><code>/pricing</code> <br><code>/billing/success</code> <br><code>/billing/cancel</code> <br><code>/</code> <br><code>/projects</code> <br><code>/project/:projectId</code> <br><code>/agent-tester</code> <br><code>/projects/new</code> <br><code>/wizard</code> <br><code>/wizard/:projectId</code> <br><code>/br-validation/:projectId</code> <br><code>/execution/:projectId</code> <br><code>/execution/:executionId/monitor</code> <br><code>/execution/:executionId/build</code></td>
           <td>Layout wrapper pour les pages (variant=protected/public) — fournit StudioHeader + container, géré globalement dans App.tsx, pas une route à part entière</td>
         </tr>
         <tr class="tbl-row-detail">
@@ -6028,7 +6100,7 @@ flowchart LR
                 <dt>fichier</dt>
                 <dd><code>frontend/src/pages/AppShell.tsx</code></dd>
                 <dt>routes</dt>
-                <dd>12 routes pointent vers ce composant</dd>
+                <dd>14 routes pointent vers ce composant</dd>
               </dl>
             </div>
           </td>
