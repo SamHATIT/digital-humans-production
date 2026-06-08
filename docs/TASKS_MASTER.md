@@ -50,8 +50,8 @@
 | ID | Description | Statut |
 |----|-------------|--------|
 | LEGAL-001 | Validation juriste CGV (300-500€). Boilerplate FR+EN livré. | ❌ Sam |
-| LEGAL-002 | Compléter SIRET + adresse siège (placeholders Mentions Légales). | ❌ Sam |
-| BIZ-001 | Décision tier Free ouvert/fermé au launch. | ❌ Sam |
+| LEGAL-002 | Compléter SIRET + adresse siège (placeholders Mentions Légales). | ✅ FAIT (Sam, 8 juin) |
+| BIZ-001 | Décision tier Free ouvert/fermé au launch. | ✅ TRANCHÉ : Free **ouvert** au launch |
 | STRIPE-PROD-001 | Bascule prod Stripe (`docs/STRIPE_PROD_CHECKLIST.md`) : rotation sk_test→sk_live, recréation produits. | ❌ après BIZ-001 |
 | SECURITY-001..005 | Audit secrets + manager (Doppler/Infisical) + migration + bascule services + `docs/SECURITY.md`. Phase 0 NON démarrée. **Note : secret Stripe partagé en chat phase sandbox → rotation obligatoire.** | ❌ |
 
