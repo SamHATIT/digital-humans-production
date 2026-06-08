@@ -6,6 +6,16 @@
 
 ---
 
+## ✅ FAIT — session 8 juin 2026
+
+**Vague 1 — toutes mergées `main` + déployées** (push `20dc447`, /health 200) : ELENA-TIMEOUT-001, JORDAN-PROMPT-001, AGENT-FK-001, BR-FOOTGUN-FIX (garde-fou), MOD40-CAPABILITY, COST-001, DEADCODE-BACKUPS. GIT-CLEANUP-001 préparé (script ; Sam lance `--apply`).
+**Data** : backfill `agent_id` (554 lignes legacy, 35 system NULL) ✅ · MOD40 activé en `warn` ✅.
+**Routage modèle / free tier** (push `67facb4`) : free → **Sonnet** (Sophie+Olivia), **Opus réservé au payant** (Marcus dès Pro, Team plein) — `tier_overrides.free` cloud, vérifié via `_select_provider`. Profil `freemium` : **Haiku éliminé** (worker→Sonnet, repli no-op). Chat in-app `sophie_chat_service` passe le `subscription_tier` du user (free→Sonnet live). Concierge public : déjà Sonnet.
+**Site marketing** : bundle mod41 — bullet free « Haiku 4.5 model » → « Sonnet 4.6 model » (EN+FR), live (`GOOD-mod41-free-sonnet`).
+**Repo** : STREAM-001 mergé+déployé (`04ea3c5`) · mods 37-39 commités · display_name YAML 4.7→4.8 corrigé · DOCBUILD-VERIFYPAGE corrigé (`b2a7478`).
+
+---
+
 ## 0. ÉCARTS DE STATUT DÉTECTÉS (à arbitrer en priorité)
 
 ### A. Marqué « à faire » alors que c'est FAIT
@@ -75,7 +85,7 @@
 | ID | Description | Statut |
 |----|-------------|--------|
 | AGENT-FK-001 | `agent_deliverables.agent_id` NULL depuis exec 142+. Band-aid OUTER JOIN posé (9262a96) ; vrai fix au write site. | ✅ **fix posé** (`fix/AGENT-FK-001`) : nouveau resolver `agent_pk_resolver.resolve_agent_pk(db, key)` (clé/alias → `agents_registry` → name → `agents.id`), branché sur les **2 write sites** (`pm_orchestrator_service_v2._save_deliverable` + `agent_integration._save_agent_deliverable`), fallback None sans régression. Preuve : 13 clés orchestrateur résolues vers un `agents.id` valide (croisé DB live) + py_compile. Band-aid OUTER JOIN conservé pour les 589 lignes historiques (backfill = mutation DB, gate Sam). — **Backfill data fait (8 juin)** : 554 lignes legacy résolues (deliverable_type→agents.id), 35 `system_metadata` laissées NULL (correct). |
-| DOCX-OBSOLETE-001 | Supprimer Phase 6 `_generate_sds_document` (dead code depuis SDS HTML). | ❌ |
+| DOCX-OBSOLETE-001 | Supprimer Phase 6 `_generate_sds_document`. | ⚠️ **ANNULÉ** (vérif agent 8 juin) : PAS du dead code — encore câblé au bouton download frontend. Ne pas supprimer. |
 | ELENA-TIMEOUT-001 | Timeout 10min Phase 4 marque Elena failed alors que le LLM réussit après. Recouvert par STREAM-001. | 🟡 **fix posé** (`fix/ELENA-TIMEOUT-001`) : STREAM-001 supprime le timeout HTTP interne Anthropic, mais le wrapper externe `asyncio.wait_for(600s)` restait indépendant → experts SDS (qa/data/trainer/devops) passés à 1200s. py_compile OK. Reste : déploiement + validation batch Vague 2 (Sam). |
 | JORDAN-PROMPT-001 | Sortie `monitoring.alerting` non contrainte (dict/list selon exec). Template défensif posé ; vrai fix = Pydantic. | ✅ **fix posé** (`fix/JORDAN-PROMPT-001`) : modèle Pydantic `MonitoringSpec` dans `collect_sds.py` normalise `alerting`/checks → `list[str]` (gère dict, list[dict], list[str], scalaire, None, non-dict) ; template `cicd_deployment.html.j2` simplifié (suppression double branche dict/list, `dot_join` symétrique). Preuve : 7 cas de normalisation + parse Jinja + rendu, tous verts. |
 | GHOST-001 | SMTP réel (Postmark) pour Ghost + réactiver staffDeviceVerification. | ❌ |
@@ -113,7 +123,7 @@
 
 | ID | Prio | Description | Statut |
 |----|------|-------------|--------|
-| DOCBUILD-VERIFYPAGE | 🟡 P2 | Le hook post-commit qui rebuild la doc admin **échoue** : `VerifySignupPage` est dans `App.tsx` mais absent de `frontend_pages.yaml` (garde-fou `collect_frontend_pages` → BuildError). La doc admin ne se régénère plus depuis l'ajout de ce composant (onboarding). Fix = enregistrer la page dans `frontend_pages.yaml` avec ses métadonnées. | ❌ |
+| DOCBUILD-VERIFYPAGE | 🟡 P2 | Le hook post-commit qui rebuild la doc admin **échoue** : `VerifySignupPage` est dans `App.tsx` mais absent de `frontend_pages.yaml` (garde-fou `collect_frontend_pages` → BuildError). La doc admin ne se régénère plus depuis l'ajout de ce composant (onboarding). Fix = enregistrer la page dans `frontend_pages.yaml`. | ✅ **fait** (`b2a7478`) — page enregistrée, hook post-commit rebuild OK (vérifié 8 juin). |
 
 ---
 
