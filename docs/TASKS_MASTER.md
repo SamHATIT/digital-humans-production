@@ -37,7 +37,7 @@
 | SDS-PIPELINE-TUNER | P1 | Générer SDS Pipeline Tuner. Aucune exec. Brief → `business_requirements` (PAS `description`). | ❌ |
 | SDS-GRID-FORESIGHT | P1 | Générer SDS Grid Foresight. Idem. | ❌ |
 | SDS-OMNICHANNEL-LOOP | P1 | Générer SDS Omnichannel Loop. Idem. | ❌ |
-| BR-FOOTGUN-FIX | P1 | Corriger l'emplacement du brief (`business_requirements`) sur les 3 projets ci-dessus. Footgun : brief dans `description` → 0 BR extraite. | ❌ |
+| BR-FOOTGUN-FIX | P1 | Corriger l'emplacement du brief (`business_requirements`) sur les 3 projets ci-dessus. Footgun : brief dans `description` → 0 BR extraite. | ✅ **garde-fou code posé** (`fix/BR-FOOTGUN-FIX`) : `resolve_brief_text()` dans l'orchestrateur — privilégie `business_requirements` → `requirements_text` → repli `description` (>120 car.) avec WARNING explicite, évite le 0 BR silencieux. Preuve : 5 cas testés OK + WARNING déclenché. NB : la **correction des données** des 3 projets SDS (déplacer le brief en base) reste une mutation DB côté Sam. |
 | TEST-4-PARALLEL | P1 | Test d'exécution 4-parallèle. | ❌ |
 | MOD40-CAPABILITY | P2 | Resolver de capacités au startup (auto-config params modèle via `GET /v1/models/{id}`, niveaux effort). À faire APRÈS STREAM-001. | ❌ |
 | SDS-148-QA-EMPTY | P2 | SDS Pharma exec 148 : section QA vide (même bug raccord). Différé, non bloquant. | 🟡 |

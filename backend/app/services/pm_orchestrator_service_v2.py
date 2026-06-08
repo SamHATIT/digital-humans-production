@@ -131,6 +131,52 @@ PARALLEL_MODE = {
     "build_agents": False,  # Phase BUILD: Sequential for now (sandbox 2-user limit)
 }
 
+# BR-FOOTGUN-FIX : le brief DOIT vivre dans `business_requirements`.
+# En-dessous de ce seuil, `description` n'est pas considéré comme un brief.
+BR_BRIEF_MIN_CHARS = 120
+
+
+def resolve_brief_text(
+    business_requirements: Optional[str],
+    requirements_text: Optional[str],
+    description: Optional[str],
+    project_id=None,
+    execution_id=None,
+) -> str:
+    """Retourne le texte du brief pour l'extraction des BR (BR-FOOTGUN-FIX).
+
+    Footgun fréquent : l'opérateur place le brief dans `description` en laissant
+    `business_requirements` vide → Sophie extrait 0 BR, silencieusement. Garde-fou :
+      1. privilégie `business_requirements`, puis `requirements_text` ;
+      2. si les deux sont vides mais que `description` contient un texte
+         substantiel (>= BR_BRIEF_MIN_CHARS), loggue un WARNING explicite et
+         retombe sur `description` pour éviter l'échec silencieux à 0 BR ;
+      3. sinon retourne "" en signalant l'absence de brief exploitable.
+    """
+    br = (business_requirements or "").strip()
+    if br:
+        return br
+    rt = (requirements_text or "").strip()
+    if rt:
+        logger.info("[BR-FOOTGUN] business_requirements vide — repli sur requirements_text")
+        return rt
+    desc = (description or "").strip()
+    if len(desc) >= BR_BRIEF_MIN_CHARS:
+        logger.warning(
+            "[BR-FOOTGUN] brief absent de business_requirements/requirements_text mais "
+            "description contient %d caractères (projet=%s, exec=%s). Repli sur description "
+            "pour éviter 0 BR — PLACER LE BRIEF DANS business_requirements.",
+            len(desc), project_id, execution_id,
+        )
+        return desc
+    logger.warning(
+        "[BR-FOOTGUN] aucun brief exploitable (business_requirements/requirements_text/"
+        "description vides ou trop courts) — l'extraction des BR retournera probablement 0 "
+        "(projet=%s, exec=%s).",
+        project_id, execution_id,
+    )
+    return ""
+
 # Note: Resume capability is limited to Phase 1 (BR validation pause/resume)
 # Full phase-by-phase resume was attempted but removed due to complexity
 
@@ -344,7 +390,13 @@ class PMOrchestratorServiceV2:
                 br_result = await self._run_agent(
                     agent_id="pm",
                     mode="extract_br",
-                    input_data={"requirements": project.business_requirements or project.requirements_text or ""},
+                    input_data={"requirements": resolve_brief_text(
+                        project.business_requirements,
+                        getattr(project, "requirements_text", None),
+                        project.description,
+                        project_id=project_id,
+                        execution_id=execution_id,
+                    )},  # BR-FOOTGUN-FIX: garde-fou brief business_requirements vs description
                     execution_id=execution_id,
                     project_id=project_id
                 )
