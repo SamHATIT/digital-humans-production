@@ -672,6 +672,7 @@ class QATesterAgent(BaseAgent):
             "content": {"raw_markdown": content},
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),  # COST-001
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),

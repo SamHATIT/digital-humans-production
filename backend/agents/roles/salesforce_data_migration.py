@@ -499,6 +499,7 @@ FIX THESE ISSUES.
             "content": {"raw_response": content, "files": files, "file_count": len(files)},
             "metadata": {
                 "tokens_used": tokens_used,
+                "cost_usd": getattr(self, '_total_cost', 0.0),  # COST-001
                 "model": model_used,
                 "provider": provider_used,
                 "execution_time_seconds": round(execution_time, 2),
