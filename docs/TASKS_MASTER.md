@@ -77,7 +77,7 @@
 | AGENT-FK-001 | `agent_deliverables.agent_id` NULL depuis exec 142+. Band-aid OUTER JOIN posé (9262a96) ; vrai fix au write site. | 🟡 band-aid |
 | DOCX-OBSOLETE-001 | Supprimer Phase 6 `_generate_sds_document` (dead code depuis SDS HTML). | ❌ |
 | ELENA-TIMEOUT-001 | Timeout 10min Phase 4 marque Elena failed alors que le LLM réussit après. Recouvert par STREAM-001. | ❌ |
-| JORDAN-PROMPT-001 | Sortie `monitoring.alerting` non contrainte (dict/list selon exec). Template défensif posé ; vrai fix = Pydantic. | 🟡 |
+| JORDAN-PROMPT-001 | Sortie `monitoring.alerting` non contrainte (dict/list selon exec). Template défensif posé ; vrai fix = Pydantic. | ✅ **fix posé** (`fix/JORDAN-PROMPT-001`) : modèle Pydantic `MonitoringSpec` dans `collect_sds.py` normalise `alerting`/checks → `list[str]` (gère dict, list[dict], list[str], scalaire, None, non-dict) ; template `cicd_deployment.html.j2` simplifié (suppression double branche dict/list, `dot_join` symétrique). Preuve : 7 cas de normalisation + parse Jinja + rendu, tous verts. |
 | GHOST-001 | SMTP réel (Postmark) pour Ghost + réactiver staffDeviceVerification. | ❌ |
 | COST-001 | cost_usd 6-tuple : Marcus/Emma/Olivia ✅ ; reste Aisha/Lucas/Elena/Jordan. | 🟡 |
 | BUNDLE-001 | Bundle marketing 16MB, split lazy-load. Perf Lighthouse 25/100. | ❌ |
