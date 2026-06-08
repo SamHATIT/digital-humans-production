@@ -10,7 +10,7 @@
 
 ### A. Marqué « à faire » alors que c'est FAIT
 - ⚠️ **P10 BaseAgent** — BACKLOG le classe en "P2 dette, sprint post-launch". Réalité : **fait**, commit `258c5c3`, tag `v2026.05-p10-baseagent`. → corriger BACKLOG.
-- ⚠️ **Galerie Télécom (MARKETING-EX3-001)** — BACKLOG : "reste Télécom". Réalité : exec **144** (Service Client Omnicanal) est COMPLETED ; le SDS Télécom existe. Reste seulement la page site, pas la génération.
+- ✅ **Galerie Télécom — correction (8 juin)** : l'exec 144 que j'avais citée date de **février, AVANT la refonte des agents** → artefact legacy, non représentatif du système actuel, inutilisable pour la galerie. Le BACKLOG avait raison : Télécom nécessite une vraie exécution post-refonte (cf. EX3 ci-dessous). Premier SDS post-refonte = LogiFleet (146).
 - ⚠️ **SDS Claim Resolver (exec 155)** — absent de tous les docs (postérieur). Réalité : **COMPLETED le 31/05** (canary $9.75/40min). SDS entier non tracké, marqué "bientôt" sur le site live alors qu'il est prêt.
 
 ### B. Travail récent NON COMMITÉ / NON POUSSÉ — risque de perte (priorité absolue)
@@ -65,7 +65,7 @@
 | STUDIO-S4.1 | Cinématique Théâtre (TheatreStage.tsx). | ✅ (68c3b19) |
 | STUDIO-RIM-AGENTS | Sidebar agents rim-only, accent par acte. | ❌ |
 | MARKETING-EX2-001 | SDS Pharma (148) sur site marketing. | 🟡 (SDS prêt, page à faire) |
-| MARKETING-EX3-001 | SDS Télécom — base exec 144 COMPLETED ; reste revue + page. | 🟡 (génération faite) |
+| MARKETING-EX3-001 | SDS Télécom — **à générer** (exec 144 est pre-refonte, inutilisable). Nouvelle exécution post-refonte requise, comme Retail. | ❌ (dépend de STREAM-001 + BR-FOOTGUN) |
 | MARKETING-EX4-001 | SDS Retail — pas lancé. | ❌ |
 
 ---
