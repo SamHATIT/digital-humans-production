@@ -649,7 +649,7 @@ modes:
   patch:
     description: "Apply targeted fixes to a specific section of the architecture"
     config:
-      max_tokens: 16000
+      max_tokens: 64000
       temperature: 0.2
     prompt: |
       # ARCHITECTURE PATCH — $section_key

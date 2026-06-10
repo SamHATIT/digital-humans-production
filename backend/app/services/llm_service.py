@@ -69,6 +69,65 @@ def invalidate_tier_cache(execution_id: Optional[int] = None) -> None:
     _resolve_tier_for_execution.cache_clear()
 
 
+# ---------------------------------------------------------------------------
+# FEAT-LANG-001 — directive de langue projet injectee dans le system prompt
+# ---------------------------------------------------------------------------
+# Probleme : brief FR -> toutes les specs sorties en EN (aucune directive de
+# langue transmise aux agents). Resolution par execution_id -> project.language,
+# cachee comme le tier (le langage d'un projet ne change pas en cours de run).
+
+_LANGUAGE_NAMES = {
+    "fr": "French (francais)",
+    "de": "German (Deutsch)",
+    "es": "Spanish (espanol)",
+    "it": "Italian (italiano)",
+    "pt": "Portuguese (portugues)",
+    "nl": "Dutch (Nederlands)",
+}
+
+
+@lru_cache(maxsize=512)
+def _resolve_language_for_execution(execution_id: int) -> Optional[str]:
+    """Look up project.language from execution_id. None = pas de directive."""
+    if not execution_id:
+        return None
+    try:
+        from app.database import SessionLocal
+        from app.models.execution import Execution
+        from app.models.project import Project
+
+        db = SessionLocal()
+        try:
+            execution = db.query(Execution).filter(Execution.id == execution_id).first()
+            if not execution or not execution.project_id:
+                return None
+            project = db.query(Project).filter(Project.id == execution.project_id).first()
+            if not project:
+                return None
+            lang = (getattr(project, "language", None) or "").lower().strip()
+            return lang or None
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning("Language resolution failed for execution %s: %s", execution_id, e)
+        return None
+
+
+def _apply_language_directive(system_prompt: Optional[str], execution_id: Optional[int]) -> Optional[str]:
+    """Append une directive de langue au system prompt si project.language != en."""
+    lang = _resolve_language_for_execution(execution_id) if execution_id else None
+    if not lang or lang in ("en", "en-us", "en-gb"):
+        return system_prompt
+    lang_name = _LANGUAGE_NAMES.get(lang, lang)
+    directive = (
+        f"LANGUAGE DIRECTIVE: Write ALL deliverable content (titles, descriptions, "
+        f"summaries, explanatory text, test case descriptions, documentation) in {lang_name}. "
+        f"KEEP in English: Salesforce API names, code, JSON keys, field api_names, "
+        f"class/method names, and technical identifiers."
+    )
+    return f"{system_prompt}\n\n{directive}" if system_prompt else directive
+
+
 class LLMProvider(str, Enum):
     """Kept for backward-compat with agent imports (`from ... import LLMProvider`)."""
     OPENAI = "openai"
@@ -169,6 +228,9 @@ def generate_llm_response(
             from app.services.budget_service import BudgetService
             BudgetService(db_session).check_budget(execution_id)
 
+        # FEAT-LANG-001 : directive de langue projet
+        system_prompt = _apply_language_directive(system_prompt, execution_id)
+
         response = router.generate(
             prompt=prompt,
             agent_type=agent_type,
@@ -232,6 +294,9 @@ async def generate_llm_response_async(
         if resolved_tier:
             clean_kwargs["subscription_tier"] = resolved_tier
             logger.debug("Resolved tier=%s for execution=%s (async)", resolved_tier, execution_id)
+
+    # FEAT-LANG-001 : directive de langue projet
+    system_prompt = _apply_language_directive(system_prompt, execution_id)
 
     return await router.generate_async(
         prompt=prompt,
