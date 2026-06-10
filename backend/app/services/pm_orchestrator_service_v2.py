@@ -189,6 +189,32 @@ ZOMBIE_TIMEOUT_HOURS = 2       # RUNNING executions older than this are zombies
 ABANDONED_TIMEOUT_HOURS = 24   # WAITING_* executions older than this are abandoned
 
 
+
+def _merge_patched_section(current: dict, patched: dict, section_key: str, logger_=None) -> dict:
+    """PATCH-MERGE-001 — merge preservant les cles.
+
+    Le patch LLM est cense renvoyer la section COMPLETE, mais peut omettre des
+    cles top-level (exec 159 : automation_design v2 a perdu apex_triggers/
+    scheduled_jobs/platform_events — seul flows etait renvoye). Semantique :
+    - cle presente dans le patch  -> le patch fait foi (remplace)
+    - cle absente du patch        -> on conserve la valeur courante
+    """
+    if not isinstance(current, dict) or not current:
+        return patched
+    merged = dict(patched)
+    preserved = []
+    for key, value in current.items():
+        if key not in merged:
+            merged[key] = value
+            preserved.append(key)
+    if preserved and logger_ is not None:
+        logger_.warning(
+            f"[PATCH-MERGE-001] {section_key}: patch incomplet — cles preservees "
+            f"depuis la version courante : {preserved}"
+        )
+    return merged
+
+
 class PMOrchestratorServiceV2:
     """
     Refactored orchestrator with atomic BR workflow
@@ -1055,9 +1081,10 @@ class PMOrchestratorServiceV2:
                                         # soit un wrapper {section_key: {...}}.
                                         if isinstance(patched_section, dict):
                                             if section_key in patched_section and isinstance(patched_section[section_key], dict):
-                                                patched_solution[section_key] = patched_section[section_key]
-                                            else:
-                                                patched_solution[section_key] = patched_section
+                                                patched_section = patched_section[section_key]
+                                            patched_solution[section_key] = _merge_patched_section(
+                                                patched_solution.get(section_key, {}), patched_section, section_key, logger
+                                            )
                                         else:
                                             logger.warning(
                                                 f"[REVISION-001] Patch result for {section_key} "
@@ -3206,9 +3233,10 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                             patched_section = patch_result["output"].get("content", {})
                             if isinstance(patched_section, dict):
                                 if section_key in patched_section and isinstance(patched_section[section_key], dict):
-                                    patched_solution[section_key] = patched_section[section_key]
-                                else:
-                                    patched_solution[section_key] = patched_section
+                                    patched_section = patched_section[section_key]
+                                patched_solution[section_key] = _merge_patched_section(
+                                    patched_solution.get(section_key, {}), patched_section, section_key, logger
+                                )
                             else:
                                 logger.warning(
                                     f"[REVISION-001][HITL] Patch result for {section_key} "
