@@ -385,20 +385,36 @@ class DevOpsAgent(BaseAgent):
         """
         if LLM_SERVICE_AVAILABLE:
             logger.debug("Calling LLM via llm_service (Anthropic)")
-            response = generate_llm_response(
-                prompt=prompt,
-                agent_type="devops",
-                max_tokens=max_tokens,
-                temperature=temperature,
-                execution_id=execution_id,
-            )
-            self._total_cost += response.get('cost_usd', 0.0)
-            return (
-                response.get('content', ''),
-                response.get('tokens_used', 0),
-                response.get('input_tokens', 0),
-                response.get('model', 'unknown'),
-                response.get('provider', 'anthropic'),
+            # FIX-EMPTY-001 : retry sur reponse vide (interaction 1368 = "", 0 token,
+            # success=true -> deliverable vide stocke en silence). 2 tentatives max,
+            # puis echec BRUYANT au lieu de stocker {raw_markdown: ""}.
+            last_response = {}
+            for attempt in range(1, 3):
+                response = generate_llm_response(
+                    prompt=prompt,
+                    agent_type="devops",
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    execution_id=execution_id,
+                )
+                self._total_cost += response.get('cost_usd', 0.0)
+                if (response.get('content') or '').strip():
+                    return (
+                        response.get('content', ''),
+                        response.get('tokens_used', 0),
+                        response.get('input_tokens', 0),
+                        response.get('model', 'unknown'),
+                        response.get('provider', 'anthropic'),
+                    )
+                last_response = response
+                logger.warning(
+                    f"DevOpsAgent: reponse LLM VIDE (tentative {attempt}/2, "
+                    f"model={response.get('model', 'unknown')}, tokens={response.get('tokens_used', 0)}) — retry"
+                )
+            raise RuntimeError(
+                "DevOpsAgent (FIX-EMPTY-001): reponse LLM vide apres 2 tentatives "
+                f"(model={last_response.get('model', 'unknown')}, execution_id={execution_id}) "
+                "— echec explicite plutot que deliverable vide silencieux"
             )
     def _parse_files(self, content: str) -> Dict[str, str]:
         """Parse deployment files from LLM response using code block patterns."""

@@ -498,6 +498,77 @@ def collect_gap_analysis(execution_id: int) -> dict[str, Any]:
     }
 
 
+
+# ─── FIX-PARSE-001 : recuperation robuste de JSON tronque ──────────────────
+_VALID_JSON_ESCAPES = set('"\\/bfnrtu')
+_DANGLING_KEY_RE = re.compile(r',?\s*"(?:[^"\\]|\\.)*"\s*:?\s*$')
+
+
+def _sanitize_invalid_escapes(s: str) -> str:
+    """Supprime le backslash des sequences d'echappement invalides (ex: \\')
+    a l'interieur des strings JSON — observe sur exec 159 (Elena)."""
+    out: list[str] = []
+    i, n, in_str = 0, len(s), False
+    while i < n:
+        c = s[i]
+        if in_str:
+            if c == '\\':
+                if i + 1 < n and s[i + 1] in _VALID_JSON_ESCAPES:
+                    out.append(c); out.append(s[i + 1]); i += 2; continue
+                i += 1; continue  # escape invalide : drop le backslash, garde le char
+            if c == '"':
+                in_str = False
+            out.append(c); i += 1
+        else:
+            if c == '"':
+                in_str = True
+            out.append(c); i += 1
+    return ''.join(out)
+
+
+def _close_truncated_json(s: str) -> tuple[dict | None, int]:
+    """Scan string-aware : enregistre les points surs (fin de token, hors string)
+    avec un snapshot de la pile d'ouvertures, puis essaie de fermer en ordre
+    LIFO depuis la fin en reculant. Retourne (data|None, pos_de_coupe)."""
+    stack: list[str] = []
+    in_str = esc = False
+    safe: list[tuple[int, tuple[str, ...]]] = []
+    for i, c in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == '"':
+                in_str = False
+                safe.append((i + 1, tuple(stack)))
+            continue
+        if c == '"':
+            in_str = True
+        elif c in '{[':
+            stack.append(c); safe.append((i + 1, tuple(stack)))
+        elif c in '}]':
+            if stack:
+                stack.pop()
+            safe.append((i + 1, tuple(stack)))
+        elif c == ',':
+            safe.append((i, tuple(stack)))
+    if not in_str:
+        safe.append((len(s), tuple(stack)))
+    closer = {'{': '}', '[': ']'}
+    for tried, (pos, st) in enumerate(reversed(safe)):
+        if tried > 400:
+            break
+        base = s[:pos].rstrip().rstrip(',')
+        for cand in (base, _DANGLING_KEY_RE.sub('', base)):
+            full = cand + ''.join(closer[o] for o in reversed(st))
+            try:
+                return json.loads(full, strict=False), pos
+            except Exception:
+                pass
+    return None, 0
+
+
 # ─── Parser JSON tolerant pour les deliverables wrapped en raw_markdown ───
 def _parse_raw_markdown_json(md: str) -> tuple[dict, str | None]:
     """Parse un JSON entoure de fences ```json...``` avec recuperation tolerante.
@@ -580,37 +651,17 @@ def _parse_raw_markdown_json(md: str) -> tuple[dict, str | None]:
             return json.loads(cleaned, strict=False), None
         except json.JSONDecodeError as e:
             last_err = e
-    # 4. Tronque au point d'erreur + ferme les structures
+    # 4. FIX-PARSE-001 : sanitise les escapes invalides puis retente
+    cleaned = _sanitize_invalid_escapes(cleaned)
     try:
-        truncated = cleaned[:last_err.pos]
-        last_safe = max(truncated.rfind(','), truncated.rfind('}'), truncated.rfind(']'))
-        if last_safe > 0:
-            truncated = truncated[:last_safe]
-        # Compter struct ouvertes
-        opens_brace = opens_bracket = 0
-        in_str = False
-        esc = False
-        for c in truncated:
-            if esc:
-                esc = False; continue
-            if c == '\\':
-                esc = True; continue
-            if c == '"':
-                in_str = not in_str
-            elif not in_str:
-                if c == '[': opens_bracket += 1
-                elif c == ']': opens_bracket -= 1
-                elif c == '{': opens_brace += 1
-                elif c == '}': opens_brace -= 1
-        truncated = truncated.rstrip().rstrip(',')
-        # Heuristique : refermer brackets puis braces (assume nested order)
-        candidate = truncated + (']' * opens_bracket) + ('}' * opens_brace)
-        try:
-            return json.loads(candidate, strict=False), f"partial-recovery: truncated at pos {last_err.pos}"
-        except Exception:
-            pass
-    except Exception:
+        return json.loads(cleaned, strict=False), "recovered: invalid escapes sanitized"
+    except json.JSONDecodeError:
         pass
+    # 5. Fermeture LIFO string-aware des structures ouvertes (JSON tronque)
+    data, pos = _close_truncated_json(cleaned)
+    if data is not None:
+        pct = 100.0 * pos / max(len(cleaned), 1)
+        return data, f"partial-recovery: closed open structures at pos {pos}/{len(cleaned)} ({pct:.1f}%)"
     return {}, "unrecoverable"
 
 
