@@ -52,6 +52,8 @@ class Project(Base):
     # ========================================
     name = Column(String(200), nullable=False)
     description = Column(Text)
+    # FEAT-LANG-001 : langue du projet (colonne DB existante, default 'fr')
+    language = Column(String(10), default="fr")
     project_code = Column(String(50))  # Internal project code (e.g., "PRJ-2025-001")
     
     # Client information

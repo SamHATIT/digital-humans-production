@@ -114,7 +114,7 @@ def collect_execution_metadata(execution_id: int) -> dict[str, Any]:
         cur.execute("""
             SELECT e.id AS exec_id, e.status::text, e.started_at, e.completed_at,
                    e.total_cost AS cost_usd,
-                   p.id AS project_id, p.name, p.description, p.business_requirements
+                   p.id AS project_id, p.name, p.description, p.business_requirements, p.language
             FROM executions e
             JOIN projects p ON p.id = e.project_id
             WHERE e.id = %s
@@ -136,6 +136,7 @@ def collect_execution_metadata(execution_id: int) -> dict[str, Any]:
             "name": row["name"],
             "description": row["description"] or "",
             "business_requirements": row["business_requirements"] or "",
+            "language": (row["language"] or "en").lower(),
         },
     }
 
