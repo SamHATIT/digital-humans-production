@@ -515,7 +515,22 @@ class LLMRouterService:
             # (~10 min), ce qui autorise un max_tokens eleve et une production en UN
             # seul appel -- fin des raccords (seams) qui corrompaient les gros JSON
             # des sections experts (QA/formation vides sur exec 148/155).
+            # OBSERV-001 : heartbeat pendant le streaming — les appels longs
+            # (806s/173K tokens sur exec 159) etaient indiscernables d'un worker
+            # plante (on a failli tuer un run sain). 1 ligne de log / 30s.
             async with async_client.messages.stream(**_build_kwargs(messages)) as stream:
+                _hb_last = time.time()
+                _hb_chars = 0
+                async for _text in stream.text_stream:
+                    _hb_chars += len(_text)
+                    _hb_now = time.time()
+                    if _hb_now - _hb_last >= 30:
+                        logger.info(
+                            "[HEARTBEAT] streaming actif: %ds ecoules, ~%d chars recus "
+                            "(model=%s, max_tokens=%d)",
+                            int(_hb_now - start_time), _hb_chars, model_id, request.max_tokens,
+                        )
+                        _hb_last = _hb_now
                 final = await stream.get_final_message()
 
             content = "".join(
