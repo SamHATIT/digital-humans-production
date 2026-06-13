@@ -172,3 +172,8 @@ _Notés le 2026-06-06, à creuser après lecture du document de consolidation._
 **Non-bug noté :** « Diagram render error » dans le monitor = chunk périmé après mon déploiement studio (ancien `flowDiagram-…-C9tKmZNI.js` supprimé). Fix utilisateur = **Ctrl+Shift+R**. Pas de tâche.
 
 **Réf. preuves :** exec 159 ; deliverables 728 (sol v1) / 732 (sol v2) / 741 (Aisha 55K) / 743 (Elena 50K) / 744 (Jordan vide 424o) / 745 (SDS assemblé HTML 377K) ; llm_interactions 1364 (wbs 806s) / 1365 (aisha) / 1367 (elena) / 1368 (jordan 0 token).
+
+## FIX-SOPHIE-BR-001 + parses preventifs (13 juin)
+- FIX-SOPHIE-BR-001 (merge b0a84a0) : extract_br tronquait a max_tokens=8000 sur brief dense -> 0 BR silencieux (success=true). Fix: 32000 + parsing via clean_llm_json_response. LIFO close string-aware ajoute a json_cleaner (gere Unterminated string, cas non couvert par repair_truncated_json). Exec 160 (projet 104 Retail) recuperee SANS reexecution: 25 BRs en DB.
+- FIX-PARSE-ADMIN-001 + FIX-PARSE-QA-001 (merge 961222f) : durcissement preventif des 2 derniers parses LLM naifs. Raj recupere les JSON tronques; Elena SIGNALE (issue critique) au lieu de skip silencieux.
+- Cause modele: compte admin = free tier (Sonnet). Pour quality proof runs -> upgrade Team/Enterprise.
