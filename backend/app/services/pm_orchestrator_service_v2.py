@@ -127,7 +127,7 @@ VALIDATION_GATES = [
 # ORCH-02: Parallel execution configuration
 # Set to True to run agents in parallel, False for sequential
 PARALLEL_MODE = {
-    "sds_experts": True,    # Phase 4: Elena, Jordan, Lucas, Aisha (no dependencies)
+    "sds_experts": False,    # Phase 4: Elena, Jordan, Lucas, Aisha (no dependencies)
     "build_agents": False,  # Phase BUILD: Sequential for now (sandbox 2-user limit)
 }
 
