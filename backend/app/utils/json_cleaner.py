@@ -170,6 +170,79 @@ def escape_control_chars_in_strings(s: str) -> str:
     return ''.join(result)
 
 
+
+_VALID_JSON_ESCAPES = set('"\\/bfnrtu')
+_DANGLING_KEY_RE = re.compile(r',?\s*"(?:[^"\\]|\\.)*"\s*:?\s*$')
+
+
+def _sanitize_invalid_escapes(s: str) -> str:
+    """Supprime le backslash des sequences d'echappement invalides dans les strings."""
+    out = []
+    i, n, in_str = 0, len(s), False
+    while i < n:
+        c = s[i]
+        if in_str:
+            if c == '\\':
+                if i + 1 < n and s[i + 1] in _VALID_JSON_ESCAPES:
+                    out.append(c); out.append(s[i + 1]); i += 2; continue
+                i += 1; continue
+            if c == '"':
+                in_str = False
+            out.append(c); i += 1
+        else:
+            if c == '"':
+                in_str = True
+            out.append(c); i += 1
+    return ''.join(out)
+
+
+def _close_truncated_json_lifo(s):
+    """Ferme un JSON tronque meme coupe EN PLEIN MILIEU d'une string.
+
+    Scan string-aware : enregistre les points surs (token termine, hors string)
+    avec un snapshot de la pile d'ouvertures, puis recule depuis la fin pour
+    trouver le dernier point fermable en LIFO. Gere le cas que repair_truncated_json
+    ne gere pas (Unterminated string). Retourne (data|None, pos_de_coupe).
+    """
+    stack = []
+    in_str = esc = False
+    safe = []
+    for i, c in enumerate(s):
+        if in_str:
+            if esc:
+                esc = False
+            elif c == '\\':
+                esc = True
+            elif c == '"':
+                in_str = False
+                safe.append((i + 1, tuple(stack)))
+            continue
+        if c == '"':
+            in_str = True
+        elif c in '{[':
+            stack.append(c); safe.append((i + 1, tuple(stack)))
+        elif c in '}]':
+            if stack:
+                stack.pop()
+            safe.append((i + 1, tuple(stack)))
+        elif c == ',':
+            safe.append((i, tuple(stack)))
+    if not in_str:
+        safe.append((len(s), tuple(stack)))
+    closer = {'{': '}', '[': ']'}
+    for tried, (pos, st) in enumerate(reversed(safe)):
+        if tried > 400:
+            break
+        base = s[:pos].rstrip().rstrip(',')
+        for cand in (base, _DANGLING_KEY_RE.sub('', base)):
+            full = cand + ''.join(closer[o] for o in reversed(st))
+            try:
+                return json.loads(full, strict=False), pos
+            except Exception:
+                pass
+    return None, 0
+
+
 def clean_llm_json_response(raw_response: str) -> Tuple[Optional[Any], Optional[str]]:
     """
     Nettoie une réponse LLM contenant du JSON.
@@ -242,8 +315,18 @@ def clean_llm_json_response(raw_response: str) -> Tuple[Optional[Any], Optional[
         parsed = json.loads(text_repaired)
         logger.info("JSON parsed after repair + trailing comma fix")
         return parsed, None
-    except json.JSONDecodeError as e:
-        return None, f"JSON parse error at position {e.pos}: {e.msg}"
+    except json.JSONDecodeError:
+        pass
+
+    # Etape 8: fermeture LIFO string-aware (gere la coupe en plein milieu d'une
+    # string, cas non couvert par repair_truncated_json). Filet ultime.
+    sanitized = _sanitize_invalid_escapes(text)
+    data, pos = _close_truncated_json_lifo(sanitized)
+    if data is not None:
+        pct = 100.0 * pos / max(len(sanitized), 1)
+        logger.warning(f"JSON recovered via LIFO close at {pos}/{len(sanitized)} ({pct:.1f}%)")
+        return data, None
+    return None, "JSON parse error: unrecoverable even after LIFO close"
 
 
 def safe_parse_agent_response(raw_response: str, agent_id: str = "unknown", mode: str = "unknown") -> dict:

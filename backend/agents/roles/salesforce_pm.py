@@ -357,7 +357,9 @@ class PMAgent(BaseAgent):
             )
             deliverable_type = "business_requirements_extraction"
             agent_role = "PM - BR Extraction"
-            max_tokens = 8000
+            # FIX-SOPHIE-BR-001 : 8000 tronquait les briefs denses (~25 BRs).
+            # Streaming (STREAM-001) en place -> pas de risque timeout.
+            max_tokens = 32000
             temperature = 0.3
         else:  # consolidate_sds
             prompt = get_consolidate_sds_prompt(input_content)
@@ -470,21 +472,19 @@ class PMAgent(BaseAgent):
     def _parse_response(self, mode: str, content: str) -> Any:
         """Parse LLM response based on mode."""
         if mode == "extract_br":
-            try:
-                clean_content = content.strip()
-                if clean_content.startswith("```"):
-                    clean_content = clean_content.split("\n", 1)[1] if "\n" in clean_content else clean_content[3:]
-                if clean_content.endswith("```"):
-                    clean_content = clean_content[:-3]
-                clean_content = clean_content.strip()
-
-                parsed = json.loads(clean_content)
+            # FIX-SOPHIE-BR-001 : parsing robuste (gere backticks, trailing commas,
+            # JSON tronque y compris coupe en plein milieu d'une string via LIFO close).
+            from app.utils.json_cleaner import clean_llm_json_response
+            parsed, err = clean_llm_json_response(content)
+            if parsed is not None and isinstance(parsed, dict):
                 br_count = len(parsed.get("business_requirements", []))
-                logger.info(f"Extracted {br_count} Business Requirements")
+                if err:
+                    logger.warning(f"extract_br: recovered {br_count} BRs ({err})")
+                else:
+                    logger.info(f"Extracted {br_count} Business Requirements")
                 return parsed
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON parse error in extract_br response: {e}")
-                return {"raw": content, "parse_error": str(e)}
+            logger.error(f"JSON parse error in extract_br response (unrecoverable): {err}")
+            return {"raw": content, "parse_error": err or "unrecoverable"}
         else:
             # For SDS, content is markdown - store as-is
             mermaid_count = content.count("```mermaid")
