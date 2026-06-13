@@ -786,8 +786,17 @@ class PMOrchestratorServiceV2:
             else:
                 logger.info(f"[Phase 3.2] Using raw UCs ({len(design_use_cases)} UCs)")
             
+            # FEAT-CONSTRAINTS-TO-MARCUS : on passe le brief BRUT (qui contient les
+            # contraintes/impératifs, ex: Agentforce) que Sophie ne propage pas.
             design_input_base = {
                 "project_summary": br_result["output"]["content"].get("project_summary", ""),
+                "client_brief": resolve_brief_text(
+                    project.business_requirements,
+                    getattr(project, "requirements_text", None),
+                    project.description,
+                    project_id=project_id,
+                    execution_id=execution_id,
+                ),
                 "uc_digest": design_uc_digest,
                 "use_cases": design_use_cases,
                 "as_is": results["artifacts"].get("AS_IS", {}).get("content", {})

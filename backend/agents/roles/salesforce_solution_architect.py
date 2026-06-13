@@ -76,7 +76,7 @@ PROMPT_SERVICE = PromptService()
 # ============================================================================
 # PROMPT 1: SOLUTION DESIGN (UC -> Architecture)
 # ============================================================================
-def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None, previous_design: dict = None, design_focus: str = None, data_model_context: dict = None) -> str:
+def get_design_prompt(use_cases: list, project_summary: str, rag_context: str = "", uc_digest: dict = None, coverage_gaps: list = None, uncovered_use_cases: list = None, revision_request: str = None, previous_design: dict = None, design_focus: str = None, data_model_context: dict = None, client_brief: str = "") -> str:
     """
     Generate design prompt with UC Digest (from Emma) or raw UCs as fallback.
     UC Digest provides pre-analyzed, structured information about ALL use cases.
@@ -286,10 +286,25 @@ Set these sections to EMPTY (they are already generated):
 
     rag_section = f"\n## SALESFORCE BEST PRACTICES (RAG)\n{rag_context}\n---\n" if rag_context else ""
 
+    # FEAT-CONSTRAINTS-TO-MARCUS : brief brut verbatim — porte les contraintes
+    # et impératifs (ex: "Solution avec Agentforce") que l'extraction de Sophie
+    # ne propage pas. L'architecte DOIT les respecter.
+    brief_section = ""
+    if client_brief and client_brief.strip():
+        brief_section = (
+            "\n## ORIGINAL CLIENT BRIEF (verbatim)\n"
+            "You MUST honor every constraint, mandated tool/product and imperative "
+            "stated below. If the brief names a specific Salesforce product or approach "
+            "(e.g. Agentforce, Einstein, a given integration), the architecture MUST use it "
+            "and the design must reflect it explicitly.\n\n"
+            + client_brief.strip() + "\n---\n"
+        )
+
     # Try external prompt first
     return PROMPT_SERVICE.render("marcus_architect", "design", {
         "revision_context": revision_context,
         "project_summary": project_summary,
+        "brief_section": brief_section,
         "uc_text": uc_text,
         "rag_section": rag_section,
     })
@@ -647,7 +662,8 @@ class SolutionArchitectAgent(BaseAgent):
                 revision_request=revision_request,
                 previous_design=previous_design,
                 design_focus=design_focus,
-                data_model_context=data_model_context
+                data_model_context=data_model_context,
+                client_brief=input_data.get('client_brief', '')
             )
             return prompt, "solution_design", "ARCH"
 
