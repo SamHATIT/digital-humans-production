@@ -21,6 +21,7 @@ modes:
 
       ## PROJECT CONTEXT
       $project_summary
+      $brief_section
 
       ## USE CASES TO ARCHITECT
       $uc_text
