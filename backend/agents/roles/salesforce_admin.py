@@ -848,18 +848,21 @@ def _parse_build_v2_response(content: str, phase: int) -> dict:
         "files": {}
     }
 
-    # Try to extract JSON block
+    # FIX-PARSE-ADMIN-001 : parsing robuste (gere troncature via LIFO close).
+    from app.utils.json_cleaner import clean_llm_json_response
     json_match = re.search(r'```json\s*\n(.*?)\n```', content, re.DOTALL)
     if json_match:
-        try:
-            json_data = json.loads(json_match.group(1))
+        json_data, perr = clean_llm_json_response(json_match.group(1))
+        if json_data is not None and isinstance(json_data, dict):
             result["operations"] = json_data.get("operations", [])
             result["phase"] = json_data.get("phase", phase)
             result["phase_name"] = json_data.get("phase_name", "")
             result["target_object"] = json_data.get("target_object", "")
             result["success"] = len(result["operations"]) > 0
-        except json.JSONDecodeError as e:
-            logger.warning(f"[Raj] JSON parse error: {e}")
+            if perr:
+                logger.warning(f"[Raj] JSON recovered after issue: {perr}")
+        else:
+            logger.warning(f"[Raj] JSON parse error (unrecoverable): {perr}")
 
     # Also extract any XML files (for flows, layouts)
     xml_files = _parse_xml_files(content)
@@ -869,13 +872,13 @@ def _parse_build_v2_response(content: str, phase: int) -> dict:
 
     # If no JSON but we have the raw content, try to parse it directly
     if not result["operations"] and not result["files"]:
-        try:
-            # Maybe the whole response is JSON
-            json_data = json.loads(content.strip())
+        # FIX-PARSE-ADMIN-001 : recovery robuste sur la reponse entiere
+        json_data, perr = clean_llm_json_response(content)
+        if json_data is not None and isinstance(json_data, dict):
             result["operations"] = json_data.get("operations", [])
             result["success"] = len(result["operations"]) > 0
-        except (json.JSONDecodeError, ValueError):
-            pass
+            if perr:
+                logger.warning(f"[Raj] whole-response JSON recovered after issue: {perr}")
 
     return result
 

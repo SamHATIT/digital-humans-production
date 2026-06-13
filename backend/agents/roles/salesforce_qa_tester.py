@@ -147,8 +147,27 @@ def structural_validation(files: dict, phase: int) -> dict:
     if phase == 1:
         for path, content in files.items():
             if path.endswith('.json') or content.strip().startswith('{'):
+                # FIX-PARSE-QA-001 : parser robuste. Un artefact JSON tronque ne doit
+                # PAS etre saute en silence — Elena le SIGNALE (c'est un defaut QA reel).
+                plan = None
                 try:
                     plan = json.loads(content)
+                except json.JSONDecodeError:
+                    from app.utils.json_cleaner import clean_llm_json_response
+                    plan, perr = clean_llm_json_response(content)
+                    if plan is not None:
+                        issues.append({
+                            "file": path,
+                            "severity": "critical",
+                            "issue": f"Artefact JSON tronque/malforme (recupere partiellement: {perr}) — a regenerer"
+                        })
+                    else:
+                        issues.append({
+                            "file": path,
+                            "severity": "critical",
+                            "issue": f"Artefact JSON invalide et irrecuperable: {perr}"
+                        })
+                if isinstance(plan, dict):
                     objects_seen = set()
                     for op in plan.get("operations", []):
                         if op.get("type") == "create_object":
@@ -169,8 +188,6 @@ def structural_validation(files: dict, phase: int) -> dict:
                                     "severity": "critical",
                                     "issue": f"Champ reference objet inexistant: {obj}"
                                 })
-                except json.JSONDecodeError:
-                    pass  # Not JSON, skip
 
     # Phase 2: Apex
     if phase == 2:
