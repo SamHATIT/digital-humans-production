@@ -361,9 +361,26 @@ def collect_business_requirements(execution_id: int) -> dict[str, Any]:
         }
     """
     content = _load_deliverable(execution_id, "pm_br_extraction")
+
+    # FIX-SDS-BR-RECOVERY : si le deliverable a echoue au parsing (extract_br
+    # tronque -> content = {"raw": "<json tronque>", "parse_error": ...}), la cle
+    # business_requirements est absente et la section II du SDS s'affiche vide
+    # alors que les BRs existent (table + UCs en aval). On recupere alors depuis
+    # le raw avec le parser tolerant (meme logique que FIX-PARSE-001).
+    brs = content.get("business_requirements", [])
+    if not brs and isinstance(content.get("raw"), str) and content["raw"].strip():
+        recovered, _err = _close_truncated_json(_sanitize_invalid_escapes(content["raw"]))
+        if isinstance(recovered, dict) and recovered.get("business_requirements"):
+            return {
+                "project_summary": recovered.get("project_summary", content.get("project_summary", "")),
+                "business_requirements": recovered.get("business_requirements", []),
+                "constraints": recovered.get("constraints", content.get("constraints", [])),
+                "assumptions": recovered.get("assumptions", content.get("assumptions", [])),
+            }
+
     return {
         "project_summary": content.get("project_summary", ""),
-        "business_requirements": content.get("business_requirements", []),
+        "business_requirements": brs,
         "constraints": content.get("constraints", []),
         "assumptions": content.get("assumptions", []),
     }
