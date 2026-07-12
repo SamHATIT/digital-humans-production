@@ -41,7 +41,7 @@ def _load_state() -> dict:
 def _scope_for(agent_type: str, state: dict) -> Optional[str]:
     scope = state.get("scope", {})
     at = (agent_type or "").lower()
-    for name in ("full", "review", "short"):
+    for name in ("full", "review", "design", "short"):
         if at in [s.lower() for s in scope.get(name, [])]:
             return name
     return None
@@ -65,11 +65,14 @@ def _build_block(scope_name: str) -> str:
         lines.append("- Any integration using SOAP login() or the Username-Password OAuth Flow (both retiring).")
         lines.append("- File downloads generated via data: URIs (blocked by Lightning Web Security).")
         lines.append("- Metadata/code targeting an API version below 67.0 without a declared project target_api_version.")
+    elif scope_name == "design":
+        lines += [f"- {d}" for d in state.get("directives_design", [])]
+        lines += [f"- {n}" for n in state.get("naming", [])]
     elif scope_name == "short":
         lines += [f"- {n}" for n in state.get("naming", [])]
 
     rets = state.get("scheduled_retirements", [])
-    if rets and scope_name in ("full", "short"):
+    if rets and scope_name in ("full", "design", "short"):
         parts = [r.get("feature", "?") + " (" + r.get("release", "?") + ")" for r in rets]
         lines.append("Scheduled retirements to design around: " + "; ".join(parts))
 

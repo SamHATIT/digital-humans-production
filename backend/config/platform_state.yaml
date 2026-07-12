@@ -1,35 +1,43 @@
-# ============================================================================
-# PLATFORM STATE - single source of truth for Salesforce platform currency
-# Maintained ONLY via the release-watch loop (GUIDELINE_RAG_VEILLE_SF.md §3.2)
-# Every change = dedicated commit + CHANGELOG entry.
-# ============================================================================
 platform_state:
-  reference_release: "Summer 26"
+  reference_release: Summer 26
   api_version: 67.0
-  effective_date: "2026-06-13"
-  updated: "2026-07-12"
-
-  # Full directives - injected for code-generating and deploy agents
+  effective_date: '2026-06-13'
+  updated: '2026-07-13'
   directives:
-    - "Database operations run in USER MODE by default (Summer 26). Do not add redundant manual FLS/CRUD checks that user mode already enforces. Use AccessLevel.SYSTEM_MODE explicitly and justify in a comment when system mode is genuinely required."
-    - "Apex classes without a sharing declaration default to WITH SHARING (Summer 26). Never write without sharing unless functionally required, and document the reason in a class-level comment."
-    - "SOAP login() (API 31.0-64.0) retires in Summer 27. Never generate integrations authenticating via SOAP username/password. Use OAuth with External Client Apps and JWT."
-    - "Username-Password OAuth Flow retires in Winter 27. Never generate integrations using this flow via Connected Apps."
-    - "Lightning Web Security blocks data: URIs for downloads. Generate files via supported APIs, never via data: URI links."
-    - "LWC State Managers are GA (Summer 26). Prefer them over ad-hoc pubsub or LMS for shared component state on the same page."
-    - "Target API version for all generated metadata, Apex and LWC: 67.0 unless the project explicitly declares another target_api_version."
-
-  # Short block - injected for architecture/analysis agents
+  - Database operations run in USER MODE by default (Summer 26). Do not add redundant manual FLS/CRUD checks that user mode already enforces. Use AccessLevel.SYSTEM_MODE explicitly and justify in a comment
+    when system mode is genuinely required.
+  - Apex classes without a sharing declaration default to WITH SHARING (Summer 26). Never write without sharing unless functionally required, and document the reason in a class-level comment.
+  - SOAP login() (API 31.0-64.0) retires in Summer 27. Never generate integrations authenticating via SOAP username/password. Use OAuth with External Client Apps and JWT.
+  - Username-Password OAuth Flow retires in Winter 27. Never generate integrations using this flow via Connected Apps.
+  - 'Lightning Web Security blocks data: URIs for downloads. Generate files via supported APIs, never via data: URI links.'
+  - LWC State Managers are GA (Summer 26). Prefer them over ad-hoc pubsub or LMS for shared component state on the same page.
+  - 'Target API version for all generated metadata, Apex and LWC: 67.0 unless the project explicitly declares another target_api_version.'
   naming:
-    - "Sales Cloud is now Agentforce Sales; Service Cloud is now Agentforce Service; Data Cloud is now Data 360. Accept legacy names in input, use current names in deliverables."
-    - "Chatter is disabled by default in new orgs since Summer 26; Slack channels are the default collaboration surface."
-
+  - Sales Cloud is now Agentforce Sales; Service Cloud is now Agentforce Service; Data Cloud is now Data 360. Accept legacy names in input, use current names in deliverables.
+  - Chatter is disabled by default in new orgs since Summer 26; Slack channels are the default collaboration surface.
   scheduled_retirements:
-    - {feature: "SOAP login() (API 31.0-64.0)", release: "Summer 27"}
-    - {feature: "Username-Password OAuth Flow", release: "Winter 27"}
-
-  # Agent scoping (agent_type strings as used by llm_routing/AGENT_COLLECTIONS)
+  - feature: SOAP login() (API 31.0-64.0)
+    release: Summer 27
+  - feature: Username-Password OAuth Flow
+    release: Winter 27
   scope:
-    full: [apex_developer, lwc_developer, admin, devops, qa_engineer, data_migration]
-    review: [qa_tester]
-    short: [solution_architect, business_analyst, pm_orchestrator]
+    full:
+    - apex_developer
+    - lwc_developer
+    - admin
+    - devops
+    - qa_engineer
+    - data_migration
+    review:
+    - qa_tester
+    design:
+    - solution_architect
+    - business_analyst
+    short:
+    - pm_orchestrator
+  directives_design:
+  - 'Architect security on the user-mode-by-default paradigm (Summer 26): database operations honor FLS and sharing natively. Do not prescribe manual FLS/CRUD check layers in SDS security sections; identify
+    and justify any explicit system-mode path instead.'
+  - 'Sharing architecture: Apex classes default to WITH SHARING (Summer 26). Any without-sharing service layer must be an explicit, documented architectural decision in the SDS.'
+  - 'Integration architecture: never design integrations on SOAP login() (retires Summer 27) or the Username-Password OAuth Flow (retires Winter 27). Specify External Client Apps with OAuth/JWT.'
+  - 'LWC architecture: prefer State Managers (GA, Summer 26) for shared page-level state over ad-hoc pubsub/LMS. Never specify file downloads via data: URIs (blocked by Lightning Web Security).'
