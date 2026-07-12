@@ -168,8 +168,9 @@ providers:
         model_id: "claude-haiku-4-5-20251001"
         display_name: "Claude Haiku 4.5"
       claude-sonnet:
-        model_id: "claude-sonnet-4-6"
-        display_name: "Claude Sonnet 4.6"
+        model_id: "claude-sonnet-5"
+        supports_temperature: false   # mod41 (2026-07-02) : Sonnet 5 — temperature deprecee (400 si envoyee), meme regime qu'Opus 4.7+. Bascule manuelle validee par Sam. Thinking adaptatif laisse ON (carte qualite).
+        display_name: "Claude Sonnet 5"
       claude-opus:
         model_id: "claude-opus-4-8"
         supports_temperature: false   # mod39 : Opus 4.x — sampling params (temperature/top_p/top_k) deprecies (400 si envoyes)
