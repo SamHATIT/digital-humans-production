@@ -5,6 +5,15 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-07-12 — RAG V2 / anti-obsolescence (session Gates 0, 0bis, 1-pilote)
+
+- **Gate 0** : golden set 50 queries + baseline retrieval v1 (hit@5 92% global, APEX 83%, ARCH 75%) → kill switch : ré-ingestion complète abandonnée, pipeline v2 recentré sur contenu neuf (~9 270 pages Summer 26 / API 67)
+- **Gate 0bis (mergé badf5b8)** : platform_state.yaml + injection PLATFORM STATE dans llm_service (sync+async, pattern FEAT-LANG-001) — scopes full/review/short par agent_type ; test réel Sonnet 5 : `with sharing` généré. ⚠️ restart backend requis pour activation.
+- **Gate 1 pilote** : PARSE = docling (53 tables reconstruites, 0 header intercalé vs pypdf 31 ; 2,3 s/page CPU) ; Zparse clos ; qualité Haiku validée pour METADATA/SCORE ; 3 fixes identifiés (métadonnées multi-signaux, cache ≥2 048 tokens, seuil drop <3) ; plan coût full run <10 € (contexte déterministe 77% du volume, appel combiné, Batch API)
+- **Régularisations** : commit rétroactif mod41 (Sonnet 5, 972c09d) ; golden set versionné docs/ (5bd942f) ; journal RAG V2 (docs/RAG_V2_JOURNAL.md)
+- **Infra** : bundle CA DigiCert pour CDN Salesforce (sf_watcher/) ; venv pipeline docling (/opt/.../pipeline_venv, ⚠️ torch CUDA 5,5 Go à remplacer par CPU-only dans l image container) ; découverte : digital-humans.fr sert dh-preview (bascule GOOD-mod33), fallback SPA intercepte les URLs de fichiers inconnues (backlog nginx)
+
+
 ## [2026-05-01] Session consolidation — Sprint 1+2 marketing + tier-routing complete + merges main
 
 Tag : `v2026.05-may-1-consolidation` (post-merge main)
