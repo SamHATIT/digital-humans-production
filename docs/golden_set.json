@@ -1,0 +1,606 @@
+{
+  "version": "1.0",
+  "created": "2026-07-12",
+  "queries": [
+    {
+      "id": "APEX-01",
+      "query": "bulkified trigger handler pattern with recursion guard",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "TriggerHandler",
+        "bulk",
+        "recursion",
+        "static"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-02",
+      "query": "Queueable vs Batchable Apex governor limits comparison",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "Queueable",
+        "Batchable",
+        "governor",
+        "limits"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-03",
+      "query": "Apex test class HttpCalloutMock implementation",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "HttpCalloutMock",
+        "Test.setMock",
+        "callout",
+        "respond"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-04",
+      "query": "selective SOQL query indexed fields query performance",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "selective",
+        "index",
+        "query plan",
+        "filter"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-05",
+      "query": "Database operations in user mode AccessLevel Apex",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "user mode",
+        "AccessLevel",
+        "Database",
+        "USER_MODE"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "APEX-06",
+      "query": "with sharing without sharing inherited sharing class security defaults",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "with sharing",
+        "without sharing",
+        "inherited",
+        "default"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "APEX-07",
+      "query": "publish platform event from Apex EventBus",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "EventBus",
+        "publish",
+        "platform event",
+        "after commit"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-08",
+      "query": "future method limitations callout asynchronous Apex",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "@future",
+        "callout",
+        "asynchronous",
+        "limits"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-09",
+      "query": "custom metadata types vs custom settings Apex access",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "custom metadata",
+        "custom settings",
+        "getInstance",
+        "__mdt"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-10",
+      "query": "Apex REST service RestResource annotation request response",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "@RestResource",
+        "HttpGet",
+        "RestRequest",
+        "urlMapping"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-11",
+      "query": "savepoint rollback transaction control DML Apex",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "Savepoint",
+        "rollback",
+        "Database.setSavepoint",
+        "transaction"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "APEX-12",
+      "query": "prevent SOQL injection dynamic queries escapeSingleQuotes",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "escapeSingleQuotes",
+        "injection",
+        "dynamic SOQL",
+        "bind"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-01",
+      "query": "lightning-record-edit-form custom validation before submit",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "lightning-record-edit-form",
+        "validation",
+        "submit",
+        "fields"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-02",
+      "query": "refreshApex wire adapter imperative apex call",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "refreshApex",
+        "@wire",
+        "imperative",
+        "cacheable"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-03",
+      "query": "parent child component communication CustomEvent LWC",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "CustomEvent",
+        "dispatchEvent",
+        "parent",
+        "detail"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-04",
+      "query": "Lightning Message Service publish subscribe channel",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "MessageContext",
+        "publish",
+        "subscribe",
+        "messageChannel"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-05",
+      "query": "LWC State Managers shared state across components",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "State Manager",
+        "state",
+        "reactive",
+        "shared"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "LWC-06",
+      "query": "lightning-datatable inline edit row actions",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "lightning-datatable",
+        "draft values",
+        "row action",
+        "columns"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-07",
+      "query": "NavigationMixin navigate to record page LWC",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "NavigationMixin",
+        "standard__recordPage",
+        "navigate",
+        "pageReference"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-08",
+      "query": "lightning accApi module open Agentforce panel from component",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "accApi",
+        "Agentforce",
+        "panel",
+        "module"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "LWC-09",
+      "query": "LWC lifecycle hooks connectedCallback renderedCallback order",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "connectedCallback",
+        "renderedCallback",
+        "lifecycle",
+        "disconnectedCallback"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "LWC-10",
+      "query": "Lightning Web Security data URI download restrictions file generation",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "Lightning Web Security",
+        "data:",
+        "download",
+        "blocked"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "FLOW-01",
+      "query": "record-triggered flow vs apex trigger decision criteria",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "record-triggered",
+        "trigger",
+        "criteria",
+        "order of execution"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-02",
+      "query": "platform event-triggered flow subscriber configuration",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "platform event",
+        "subscribe",
+        "flow",
+        "event-triggered"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-03",
+      "query": "scheduled paths record-triggered flow configuration",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "scheduled path",
+        "record-triggered",
+        "time",
+        "batch"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-04",
+      "query": "flow bulkification collection processing avoid loops DML",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "bulkification",
+        "collection",
+        "loop",
+        "DML"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-05",
+      "query": "external services OpenAPI enum picklist flow action",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "external service",
+        "enum",
+        "OpenAPI",
+        "picklist"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "FLOW-06",
+      "query": "flow fault path error handling best practices",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "fault",
+        "error handling",
+        "fault path",
+        "flow"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-07",
+      "query": "subflow input output variables reusability",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "subflow",
+        "input variable",
+        "output",
+        "reusable"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "FLOW-08",
+      "query": "approval process vs flow orchestration approvals",
+      "agent_type": "admin",
+      "expected_keywords": [
+        "approval",
+        "orchestration",
+        "approval process",
+        "steps"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-01",
+      "query": "junction object many-to-many relationship data model design",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "junction",
+        "many-to-many",
+        "master-detail",
+        "relationship"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-02",
+      "query": "sharing model external users Experience Cloud security",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "sharing set",
+        "external",
+        "Experience Cloud",
+        "sharing"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-03",
+      "query": "record types business processes page layout assignment design",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "record type",
+        "business process",
+        "page layout",
+        "picklist"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-04",
+      "query": "large data volumes skinny tables indexing strategy",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "large data volumes",
+        "skinny table",
+        "index",
+        "LDV"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-05",
+      "query": "integration patterns request reply fire and forget batch sync",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "request and reply",
+        "fire and forget",
+        "integration pattern",
+        "batch"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-06",
+      "query": "multi-agent orchestration subagents orchestrator Agent Builder",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "multi-agent",
+        "subagent",
+        "orchestrator",
+        "Agent Builder"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "ARCH-07",
+      "query": "person accounts vs contacts B2C data model considerations",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "person account",
+        "B2C",
+        "contact",
+        "record type"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "ARCH-08",
+      "query": "field level security permission sets profiles strategy",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "field-level security",
+        "permission set",
+        "profile",
+        "FLS"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-01",
+      "query": "data loader upsert external ID field mapping",
+      "agent_type": "data_migration",
+      "expected_keywords": [
+        "upsert",
+        "external ID",
+        "Data Loader",
+        "mapping"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-02",
+      "query": "metadata API deploy component dependencies order",
+      "agent_type": "devops",
+      "expected_keywords": [
+        "Metadata API",
+        "deploy",
+        "dependencies",
+        "package.xml"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-03",
+      "query": "sandbox data seeding masking sensitive data strategy",
+      "agent_type": "data_migration",
+      "expected_keywords": [
+        "sandbox",
+        "masking",
+        "seeding",
+        "sensitive"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-04",
+      "query": "change sets vs metadata API vs unlocked packages comparison",
+      "agent_type": "devops",
+      "expected_keywords": [
+        "change set",
+        "unlocked package",
+        "Metadata API",
+        "deployment"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-05",
+      "query": "destructiveChanges.xml delete metadata components deployment",
+      "agent_type": "devops",
+      "expected_keywords": [
+        "destructiveChanges",
+        "delete",
+        "deploy",
+        "components"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "DATA-06",
+      "query": "Bulk API 2.0 ingest job large data volumes",
+      "agent_type": "data_migration",
+      "expected_keywords": [
+        "Bulk API",
+        "ingest",
+        "job",
+        "batch"
+      ],
+      "release_sensitive": false
+    },
+    {
+      "id": "VER-01",
+      "query": "Apex user mode default database operations release update Summer 26",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "user mode",
+        "default",
+        "release update",
+        "Summer"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "VER-02",
+      "query": "SOAP login retirement API versions OAuth external client apps migration",
+      "agent_type": "devops",
+      "expected_keywords": [
+        "SOAP",
+        "login()",
+        "retirement",
+        "external client app"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "VER-03",
+      "query": "LWC State Manager generally available Summer 26",
+      "agent_type": "lwc_developer",
+      "expected_keywords": [
+        "State Manager",
+        "GA",
+        "Summer",
+        "component"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "VER-04",
+      "query": "Chatter disabled by default new orgs Slack channels collaboration",
+      "agent_type": "solution_architect",
+      "expected_keywords": [
+        "Chatter",
+        "disabled",
+        "default",
+        "Slack"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "VER-05",
+      "query": "Data 360 dataspace clause SOQL data lake objects query",
+      "agent_type": "apex_developer",
+      "expected_keywords": [
+        "dataspace",
+        "Data 360",
+        "DLO",
+        "SOQL"
+      ],
+      "release_sensitive": true
+    },
+    {
+      "id": "VER-06",
+      "query": "username-password OAuth flow retirement Winter 27 connected app",
+      "agent_type": "devops",
+      "expected_keywords": [
+        "username-password",
+        "OAuth",
+        "retirement",
+        "external client app"
+      ],
+      "release_sensitive": true
+    }
+  ]
+}
