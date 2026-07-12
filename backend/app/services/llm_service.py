@@ -231,6 +231,10 @@ def generate_llm_response(
         # FEAT-LANG-001 : directive de langue projet
         system_prompt = _apply_language_directive(system_prompt, execution_id)
 
+        # GATE-0BIS : directive etat plateforme Salesforce (GUIDELINE_RAG_VEILLE_SF §3.2)
+        from app.services.platform_state import apply_platform_state
+        system_prompt = apply_platform_state(system_prompt, agent_type)
+
         response = router.generate(
             prompt=prompt,
             agent_type=agent_type,
@@ -297,6 +301,8 @@ async def generate_llm_response_async(
 
     # FEAT-LANG-001 : directive de langue projet
     system_prompt = _apply_language_directive(system_prompt, execution_id)
+    from app.services.platform_state import apply_platform_state
+    system_prompt = apply_platform_state(system_prompt, agent_type)
 
     return await router.generate_async(
         prompt=prompt,
