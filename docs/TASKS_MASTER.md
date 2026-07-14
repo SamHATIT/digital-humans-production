@@ -177,3 +177,15 @@ _Notés le 2026-06-06, à creuser après lecture du document de consolidation._
 - FIX-SOPHIE-BR-001 (merge b0a84a0) : extract_br tronquait a max_tokens=8000 sur brief dense -> 0 BR silencieux (success=true). Fix: 32000 + parsing via clean_llm_json_response. LIFO close string-aware ajoute a json_cleaner (gere Unterminated string, cas non couvert par repair_truncated_json). Exec 160 (projet 104 Retail) recuperee SANS reexecution: 25 BRs en DB.
 - FIX-PARSE-ADMIN-001 + FIX-PARSE-QA-001 (merge 961222f) : durcissement preventif des 2 derniers parses LLM naifs. Raj recupere les JSON tronques; Elena SIGNALE (issue critique) au lieu de skip silencieux.
 - Cause modele: compte admin = free tier (Sonnet). Pour quality proof runs -> upgrade Team/Enterprise.
+
+## EMMA-COV-001 — Faux positifs du coverage report (catégorie automation)
+**Détecté** : E2E #165 (projet 106 CRM DH, 14/07/2026). Verdict round 2 = NEEDS_MINOR_REVISION
+avec 5 critical_gaps automation, dont 3 CONTREDITS par le design révisé (record-triggered flow,
+scheduled batch et classe de service présents dans automation_design) et 2 hors brief
+(screen flow, validation rule — la cohérence Tier/MRR est portée par le trigger, choix
+d'architecture explicite). Cause probable : matching par type générique d'artefact au lieu
+d'une vérification contre le contenu réel des sections + le périmètre du brief.
+**Impact** : révisions inutiles potentielles = coût + risque de scope creep en BUILD.
+**Piste** : le checker automation d'Emma doit vérifier la présence par contenu (regex/JSON path
+sur automation_design) et borner ses exigences aux exigences du brief/UC, pas à une taxonomie.
+Priorité : moyenne (avant septembre).
