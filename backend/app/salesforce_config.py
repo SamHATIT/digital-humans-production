@@ -13,9 +13,9 @@ class SalesforceConfig:
 
     # Org Details
     org_alias: str = "digital-humans-dev"
-    username: str = "shatit715@agentforce.com"
-    org_id: str = "00DgL00000FzQzTUAV"
-    instance_url: str = "https://orgfarm-8de2d5ba1d-dev-ed.develop.my.salesforce.com"
+    username: str = "shatit.1f62a5011548@agentforce.com"
+    org_id: str = "00Dfj00000VIwy9EAD"
+    instance_url: str = "https://orgfarm-2b37d18797-dev-ed.develop.my.salesforce.com"
     api_version: str = "67.0"
 
     # Paths (centralized via config.py settings)
