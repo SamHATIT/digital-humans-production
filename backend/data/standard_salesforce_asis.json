@@ -1,14 +1,14 @@
 {
   "_metadata": {
-    "last_updated": "2026-02",
-    "salesforce_release": "Spring '26 (API 63.0)",
+    "last_updated": "2026-07",
+    "salesforce_release": "Summer '26 (API 67.0)",
     "description": "Standard Salesforce Developer Edition baseline for greenfield gap analysis",
     "source": "standard_greenfield"
   },
   "organization": {
     "edition": "Developer Edition",
-    "api_version": "63.0",
-    "release": "Spring '25",
+    "api_version": "67.0",
+    "release": "Summer '26",
     "custom_objects": 0,
     "apex_classes": 0,
     "apex_triggers": 0,

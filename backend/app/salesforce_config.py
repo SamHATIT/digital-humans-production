@@ -16,7 +16,7 @@ class SalesforceConfig:
     username: str = "shatit715@agentforce.com"
     org_id: str = "00DgL00000FzQzTUAV"
     instance_url: str = "https://orgfarm-8de2d5ba1d-dev-ed.develop.my.salesforce.com"
-    api_version: str = "65.0"
+    api_version: str = "67.0"
 
     # Paths (centralized via config.py settings)
     sfdx_project_path: str = field(default_factory=lambda: str(settings.SFDX_PROJECT_PATH))
