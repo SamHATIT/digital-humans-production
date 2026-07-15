@@ -5,6 +5,17 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-07-15 — BUILD v2 phase 1 : review / génération / deploy débloqués (exec 165, projet 107)
+
+Contexte : exec 165 (projet 107 « CRM Digital·Humans ») plantait en phase 1 BUILD, laissant le projet coincé en `BUILD_IN_PROGRESS` (bouton grisé).
+
+- **FIX-REVIEW-MAXTOKENS** (commit `e3ac72e`) : review Elena `max_tokens` 4000→16000 + guard troncature. La review d'un plan de 234 opérations (~102K car.) était tronquée (`stop_reason=max_tokens`) → `_parse_review_json` retombait sur un FAIL générique (issues/feedback vides) → 3 retries identiques → phase 1 failed. Le guard marque désormais une review tronquée comme problème d'infra, pas comme faux FAIL QA. `salesforce_qa_tester.py` (backup `.pre-fix-review-maxtokens`).
+- **FEEDBACK-LOOP retry non-aveugle** (commits `f11e911` executor + `3150d65` admin) : le `feedback_for_developer` d'Elena est propagé `generate_phase_batches` → `_generate_single_batch` → `generate_build_v2(previous_feedback=…)` et injecté dans le prompt Raj. Avant, sur FAIL le retry régénérait à l'identique (feedback ignoré). Backups `.pre-feedback-loop`.
+- **FIX-BUILDV2-MAXTOKENS** (commit `3150d65`) : Raj `generate_build_v2` `max_tokens` 8000→16000 (troncatures STREAM-001 sur les gros plans phase 1), aligné sur les générateurs frères (`generate_build`, spec déjà à 16000).
+- **Validation** : rerun exec 165 → review Elena **verdict PASS** (85 s, 0 troncature) ; génération Raj **0 STREAM-001**. Le pipeline va proprement jusqu'à la review.
+- **CONFIG projet 107 — câblage org Salesforce** : 107 avait été créé sans org (106, premier essai, abandonné). Renseigné `sf_username=shatit.1f62a5011548@agentforce.com`, `sf_instance_url=…orgfarm-2b37d18797-dev-ed…`, `sf_org_id=00Dfj00000VIwy9EAD`. Vérifié : `create_sf_admin_service(107)` OK, `jordan.sf_admin_service`/`sfdx_service` OK, org `connectedStatus: Connected ». Débloque « SF Admin service not initialized ». ⚠️ `git_service` reste None (`git_repo_url`/`GIT_TOKEN` à câbler pour phases 2-6).
+- **Non bloquant identifié** : LLM logger casse sur `task_id > varchar(50)` (log-only, pollue les logs à chaque batch) — backlog.
+
 ## 2026-07-12 — RAG V2 / anti-obsolescence (session Gates 0, 0bis, 1-pilote)
 
 - **Gate 0** : golden set 50 queries + baseline retrieval v1 (hit@5 92% global, APEX 83%, ARCH 75%) → kill switch : ré-ingestion complète abandonnée, pipeline v2 recentré sur contenu neuf (~9 270 pages Summer 26 / API 67)
