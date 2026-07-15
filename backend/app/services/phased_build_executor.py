@@ -229,13 +229,14 @@ class PhasedBuildExecutor:
         }
         
         retry_count = 0
+        retry_feedback = ""
         
         while retry_count < self.MAX_RETRIES:
             try:
                 # Step 1: Generate batches
                 await self._update_phase_status(phase_num, phase_name, PhaseStatus.GENERATING)
                 
-                batches = await self.generate_phase_batches(agent, tasks, phase_num)
+                batches = await self.generate_phase_batches(agent, tasks, phase_num, retry_feedback)
                 result["batches"] = batches
                 result["total_batches"] = len(batches)
                 
@@ -264,7 +265,8 @@ class PhasedBuildExecutor:
                 if review_result.get("verdict") == "FAIL":
                     retry_count += 1
                     logger.warning(f"[PhasedBuild] Phase {phase_num} review FAIL, retry {retry_count}/{self.MAX_RETRIES}")
-                    result["retry_feedback"] = review_result.get("feedback_for_developer")
+                    retry_feedback = review_result.get("feedback_for_developer", "") or ""
+                    result["retry_feedback"] = retry_feedback
                     
                     if retry_count >= self.MAX_RETRIES:
                         result["error"] = f"Review failed after {self.MAX_RETRIES} retries"
@@ -335,7 +337,8 @@ class PhasedBuildExecutor:
         self,
         agent: str,
         tasks: List[Dict],
-        phase: int
+        phase: int,
+        retry_feedback: str = ""
     ) -> List[Dict]:
         """
         Génère les sous-lots pour une phase.
@@ -363,7 +366,7 @@ class PhasedBuildExecutor:
             
             try:
                 batch_result = await self._generate_single_batch(
-                    agent, batch_tasks, phase, context
+                    agent, batch_tasks, phase, context, retry_feedback
                 )
                 
                 if batch_result:
@@ -468,7 +471,8 @@ class PhasedBuildExecutor:
         agent: str,
         tasks: List[Dict],
         phase: int,
-        context: str
+        context: str,
+        retry_feedback: str = ""
     ) -> Optional[Dict]:
         """Génère un seul lot via l'agent approprié."""
         # Import agent modules dynamically
@@ -484,7 +488,8 @@ class PhasedBuildExecutor:
                     target=target,
                     task_description=description,
                     context={"existing_context": context},
-                    execution_id=str(self.execution_id)
+                    execution_id=str(self.execution_id),
+                    previous_feedback=retry_feedback
                 )
                 return result if result.get("success") else None
                 
