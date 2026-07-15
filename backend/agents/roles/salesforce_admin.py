@@ -720,7 +720,8 @@ def generate_build_v2(
     task_description: str,
     context: dict,
     execution_id: str,
-    rag_context: str = ""
+    rag_context: str = "",
+    previous_feedback: str = ""
 ) -> dict:
     """
     Generate BUILD v2 output (JSON plan for Tooling API).
@@ -772,6 +773,13 @@ def generate_build_v2(
     if rag_context:
         prompt += f"\n\n## SALESFORCE BEST PRACTICES\n{rag_context[:2000]}\n"
 
+    if previous_feedback:
+        prompt += (
+            "\n\n## RETOUR DE REVUE PRECEDENTE (Elena) -- A CORRIGER IMPERATIVEMENT\n"
+            f"{previous_feedback}\n"
+            "Regenere le plan en corrigeant explicitement ces problemes.\n"
+        )
+
     logger.info(f"Raj BUILD v2 Phase {phase} - {target}...")
     start_time = time.time()
 
@@ -781,7 +789,7 @@ def generate_build_v2(
         response = generate_llm_response(
             prompt=prompt,
             agent_type="admin",
-            max_tokens=8000,
+            max_tokens=16000,  # FIX-BUILDV2-MAXTOKENS: 8000 tronquait les gros plans phase 1
             temperature=0.2,
             execution_id=execution_id
         )
@@ -795,7 +803,7 @@ def generate_build_v2(
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=8000
+            max_tokens=16000
         )
         content = resp.choices[0].message.content
         tokens_used = resp.usage.total_tokens
