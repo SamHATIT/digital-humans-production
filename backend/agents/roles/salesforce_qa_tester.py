@@ -469,12 +469,13 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
     tokens_used = 0
     input_tokens = 0
     review_text = "{}"
+    stop_reason = None
 
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
             prompt=prompt,
             agent_type="qa_tester",
-            max_tokens=4000,
+            max_tokens=16000,  # FIX-REVIEW-MAXTOKENS: 4000 tronquait la review des gros plans (exec 165 phase 1)
             temperature=0.1,
             execution_id=execution_id,
         )
@@ -483,10 +484,26 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get('model', 'unknown')
         cost_usd = response.get('cost_usd', 0.0)
+        stop_reason = response.get('stop_reason')
     execution_time = round(time.time() - start_time, 2)
+
+    # Guard troncature (STREAM-001): une review coupee a max_tokens n'est PAS un vrai FAIL QA.
+    review_truncated = (stop_reason == "max_tokens")
+    if review_truncated:
+        logger.error(
+            "REVIEW-TRUNC: Elena review tronquee a max_tokens (model=%s, out_tokens=%s). "
+            "Verdict non fiable -- augmenter max_tokens.", model_used, tokens_used,
+        )
 
     # Parse response
     review_data = _parse_review_json(review_text)
+    if review_truncated:
+        review_data["verdict"] = "FAIL"
+        review_data["truncated"] = True
+        review_data["feedback_for_developer"] = (
+            "Review tronquee (max_tokens atteint) -- l'avis QA n'a pas pu etre produit en entier. "
+            "Probleme d'infrastructure (limite de tokens), pas un defaut du code genere."
+        )
 
     verdict = review_data.get("verdict", "FAIL").upper()
     logger.info(f"  Verdict: {verdict}")
