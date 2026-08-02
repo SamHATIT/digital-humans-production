@@ -333,6 +333,19 @@ class PhasedBuildExecutor:
     # BATCH GENERATION
     # ═══════════════════════════════════════════════════════════════
     
+    def _publish_batch_progress(self, phase: int, done: int, total: int) -> None:
+        """Publie l'avancement des lots en DB (lecture directe par l'interface)."""
+        try:
+            from sqlalchemy import text
+            self.db.execute(text("""
+                UPDATE build_phase_executions
+                SET completed_batches = :done, total_batches = :total
+                WHERE execution_id = :exec_id AND phase_number = :phase
+            """), {"done": done, "total": total, "exec_id": self.execution_id, "phase": phase})
+            self.db.commit()
+        except Exception as e:
+            logger.warning("[BATCHPROG] publication avancement echouee (non bloquant): %s", e)
+
     async def generate_phase_batches(
         self,
         agent: str,
@@ -360,6 +373,9 @@ class PhasedBuildExecutor:
         task_batches = self._create_task_batches(tasks, phase)
         
         logger.info(f"[PhasedBuild] Generating {len(task_batches)} batches for phase {phase}")
+        # FIX-BATCHPROG-001 (02/08) : publier l'avancement lot par lot. Sans cela
+        # l'interface affiche 0/0 pendant toute la phase (20-25 min) et parait figee.
+        self._publish_batch_progress(phase, 0, len(task_batches))
         
         for i, batch_tasks in enumerate(task_batches):
             logger.debug(f"[PhasedBuild] Generating batch {i+1}/{len(task_batches)}")
@@ -371,6 +387,7 @@ class PhasedBuildExecutor:
                 
                 if batch_result:
                     batches.append(batch_result)
+                    self._publish_batch_progress(phase, len(batches), len(task_batches))
                     
                     # Update context with this batch's output
                     self.context_registry.register_batch_output(phase, batch_result)
