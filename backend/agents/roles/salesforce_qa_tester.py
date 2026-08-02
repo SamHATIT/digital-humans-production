@@ -459,8 +459,19 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         criteria_text = str(validation_criteria) if validation_criteria else "Code should be functional and follow best practices"
 
     # Try external prompt via PromptService, fallback to constant
+    # FIX-REVIEW-CLIP-001 (02/08) : le clip a 80000 caracteres amputait le plan
+    # remis a Elena (plan CRM ~168000 car.) ; elle rejetait alors "JSON tronque"
+    # alors que la sortie de Raj etait complete. Limite portee a 600000 car.
+    # (~150K tokens) avec avertissement explicite si le clip s'applique quand meme.
+    _MAX_REVIEW_CHARS = 600000
+    if len(code_content) > _MAX_REVIEW_CHARS:
+        logger.warning(
+            "REVIEW-CLIP: contenu tronque pour la review (%d > %d car.) — "
+            "le verdict peut signaler un JSON incomplet a tort.",
+            len(code_content), _MAX_REVIEW_CHARS,
+        )
     prompt = PROMPT_SERVICE.render("elena_qa", "code_review", {
-        "code_content": code_content[:80000],
+        "code_content": code_content[:_MAX_REVIEW_CHARS],
         "task_info": json.dumps(task_info, indent=2),
         "validation_criteria": criteria_text,
     })
