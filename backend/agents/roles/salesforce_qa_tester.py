@@ -475,7 +475,7 @@ def generate_test(input_data: dict, execution_id: str) -> dict:
         response = generate_llm_response(
             prompt=prompt,
             agent_type="qa_tester",
-            max_tokens=16000,  # FIX-REVIEW-MAXTOKENS: 4000 tronquait la review des gros plans (exec 165 phase 1)
+            max_tokens=32000,  # FIX-REVIEW-MAXTOKENS-2 (02/08): review d'un plan 64K a besoin de marge: 4000 tronquait la review des gros plans (exec 165 phase 1)
             temperature=0.1,
             execution_id=execution_id,
         )

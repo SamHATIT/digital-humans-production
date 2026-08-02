@@ -789,7 +789,7 @@ def generate_build_v2(
         response = generate_llm_response(
             prompt=prompt,
             agent_type="admin",
-            max_tokens=16000,  # FIX-BUILDV2-MAXTOKENS: 8000 tronquait les gros plans phase 1
+            max_tokens=64000,  # FIX-BUILDV2-MAXTOKENS-2 (02/08): 16000 tronquait le plan CRM (182 etapes, JSON coupe ~order 182, Elena FAIL x3). Streaming STREAM-001 actif => appel unique, pas de stitching.
             temperature=0.2,
             execution_id=execution_id
         )

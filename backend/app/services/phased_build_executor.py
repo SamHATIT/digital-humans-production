@@ -674,6 +674,50 @@ class PhasedBuildExecutor:
         
         return 1  # Simple validation rule
     
+
+    # FIX-TASKVIS-001 (02/08) : le BUILD v2 raisonne en 6 phases techniques alors
+    # que task_executions est peuple depuis les groupes du WBS. Sans passerelle,
+    # les taches restent PENDING pendant toute la phase et l'interface parait figee.
+    PHASE_TASK_KEYWORDS = {
+        1: ["modele de donnees", "donnees", "data model", "initialisation", "environnement", "depot"],
+        2: ["apex", "trigger", "batch", "scheduler", "service"],
+        3: ["interface", "lwc", "lightning", "reporting", "ui"],
+        4: ["flow", "automatisation declarative", "process"],
+        5: ["securite", "validation", "owd", "partage", "permission", "integration"],
+        6: ["migration", "documentation", "deploiement", "test"],
+    }
+
+    def _sync_task_visibility(self, phase: int, status) -> None:
+        """Reflete l'avancement des phases BUILD v2 sur task_executions (affichage)."""
+        try:
+            from sqlalchemy import text
+            status_str = status.value if hasattr(status, "value") else str(status)
+            if status_str in ("generating", "aggregating", "reviewing", "deploying"):
+                target = "RUNNING"
+            elif status_str == "completed":
+                target = "COMPLETED"
+            elif status_str == "failed":
+                target = "FAILED"
+            else:
+                return
+            kws = self.PHASE_TASK_KEYWORDS.get(phase, [])
+            if not kws:
+                return
+            cond = " OR ".join([f"LOWER(COALESCE(phase_name,'')) LIKE :kw{i}" for i in range(len(kws))])
+            params = {f"kw{i}": f"%{k}%" for i, k in enumerate(kws)}
+            params["exec_id"] = self.execution_id
+            params["target"] = target
+            res = self.db.execute(text(f"""
+                UPDATE task_executions SET status = CAST(:target AS taskstatus)
+                WHERE execution_id = :exec_id AND ({cond})
+                  AND status <> CAST(:target AS taskstatus)
+            """), params)
+            self.db.commit()
+            if res.rowcount:
+                logger.info("[TASKVIS] phase %s -> %s : %d taches mises a jour", phase, target, res.rowcount)
+        except Exception as e:
+            logger.warning("[TASKVIS] synchro affichage echouee (non bloquant): %s", e)
+
     async def _update_phase_status(
         self,
         phase: int,
@@ -696,6 +740,8 @@ class PhasedBuildExecutor:
             
             agent = PHASE_CONFIGS.get(phase, {})
             agent_id = agent.agent if hasattr(agent, 'agent') else "unknown"
+
+            self._sync_task_visibility(phase, status)
             
             self.db.execute(query, {
                 "exec_id": self.execution_id,
