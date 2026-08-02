@@ -3618,6 +3618,24 @@ class BuildPhaseService:
             logger.error(f"Failed to parse WBS content: {e}")
             return None
     
+    # FIX-TASKVIS-001 : correspondance groupe WBS -> phase technique BUILD v2.
+    _WBS_PHASE_RULES = [
+        (1, ["modele de donnees", "modèle de données", "data model", "initialisation", "environnement", "depot", "dépôt", "validation", "owd"]),
+        (2, ["apex", "trigger", "batch", "scheduler", "test"]),
+        (3, ["interface", "lwc", "lightning", "reporting"]),
+        (4, ["flow", "declarative", "déclarative"]),
+        (5, ["securite", "sécurité", "permission", "partage"]),
+        (6, ["migration", "documentation", "deploiement", "déploiement"]),
+    ]
+
+    def _build_phase_for_wbs(self, wbs_name: str) -> str:
+        """Devine la phase BUILD v2 (1-6) d'un groupe WBS, defaut 6."""
+        low = (wbs_name or "").lower()
+        for num, kws in self._WBS_PHASE_RULES:
+            if any(k in low for k in kws):
+                return f"Phase {num}"
+        return "Phase 6"
+
     def _extract_tasks_from_wbs(self, wbs_data: Dict) -> List[Dict]:
         """
         Extrait les tâches du WBS parsé.
@@ -3627,6 +3645,10 @@ class BuildPhaseService:
         if "phases" in wbs_data and isinstance(wbs_data["phases"], list):
             for phase in wbs_data["phases"]:
                 phase_name = phase.get("name", "Unknown Phase")
+                # FIX-TASKVIS-001 (02/08) : prefixer le groupe WBS par sa phase BUILD v2.
+                # L'interface de suivi filtre les taches d'une phase en cherchant
+                # "phase N" dans phase_name ; sans ce prefixe le panneau reste vide.
+                phase_name = f"{self._build_phase_for_wbs(phase_name)} \u00b7 {phase_name}"
                 for task in phase.get("tasks", []):
                     task["phase_name"] = phase_name
                     tasks.append(task)
