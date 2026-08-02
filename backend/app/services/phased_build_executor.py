@@ -657,8 +657,26 @@ class PhasedBuildExecutor:
                     phase = 3
                 elif assigned_agent in ("aisha", "data"):
                     phase = 6
+                elif assigned_agent in ("jordan", "devops"):
+                    # FIX-ROUTING-001 (02/08) : infrastructure, packaging, deploiement.
+                    # Sans cette branche ces taches tombaient en phase 1 et Raj les
+                    # modelisait en objets Salesforce (Depot_Git__c, Strategie_Branche__c...).
+                    phase = 6
+                elif assigned_agent in ("lucas", "trainer"):
+                    # Documentation et supports de formation : jamais du modele de donnees.
+                    phase = 6
+                elif assigned_agent in ("elena", "qa", "qa_tester"):
+                    # Tests et scenarios UAT : rattaches a la logique metier.
+                    phase = 2
                 else:
-                    phase = 1  # Default
+                    # FIX-ROUTING-001 : defaut = phase 6 (fin de chaine, documentaire)
+                    # et NON phase 1. Un type de tache inconnu ne doit jamais devenir
+                    # un objet de donnees par defaut.
+                    logger.warning(
+                        "[ROUTING] tache non classee (type=%r agent=%r) -> phase 6 par defaut",
+                        task_type, assigned_agent,
+                    )
+                    phase = 6
             
             # Classify validation rules
             if "validation_rule" in task_type:
