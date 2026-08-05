@@ -446,8 +446,14 @@ class PhasedBuildExecutor:
         classes = []
         
         for task in tasks:
-            task_type = task.get("task_type", "")
-            name = task.get("class_name") or task.get("name", "")
+            # FIX-TASKTYPE-001 (05/08) : ligne exacte du crash de l'execution 165.
+            # get(k, "") ne rend "" que si la cle est ABSENTE ; ici elle existait a
+            # None (task_type non persiste en amont, corrige dans
+            # pm_orchestrator_service_v2.prepare_build_phase). Meme idiome `or ""`
+            # que group_tasks_by_phase. Conserve pour les 413 lignes deja NULL en
+            # base, qui doivent pouvoir etre rejouees sans crash.
+            task_type = (task.get("task_type") or "")
+            name = (task.get("class_name") or task.get("name") or "")
             
             if "test" in task_type.lower() or "test" in name.lower():
                 # This is a test, find its target
@@ -472,7 +478,9 @@ class PhasedBuildExecutor:
         vrs_by_object = {}
         
         for task in tasks:
-            task_type = task.get("task_type", "")
+            # FIX-TASKTYPE-001 (05/08) : meme defaut latent qu'en phase 2, jamais
+            # declenche car aucune execution n'a atteint la phase 4 a ce jour.
+            task_type = (task.get("task_type") or "")
             if "flow" in task_type.lower():
                 flows.append([task])
             else:
