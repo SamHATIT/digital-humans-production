@@ -107,3 +107,7 @@ docs/sds/rendered_*.html
 # Graphify code-graph output (regenerable: graphify update .)
 graphify-out/
 backend/config/.mod40_models_cache.json
+
+# Scripts operationnels de relance BUILD (usage manuel, non produit)
+backend/relaunch_build.py
+backend/requeue_build.py
