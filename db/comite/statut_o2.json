@@ -1,0 +1,23 @@
+{
+  "maj": "2026-08-05",
+  "source_prealimentation": "session/2026-08-05-decisions-accordees — recherche croisee git (log --all --grep), docs/TASKS_MASTER.md (registre unique du depot), docs/BACKLOG.md et etat reel du serveur. Etats poses uniquement lorsqu'une trace existe ; sinon '?' avec la liste de ce qui a ete cherche.",
+  "limite_de_la_preuve": "Un etat 'fait' signifie ici : correctif commite, fusionne dans main, et declare prouve par le registre du depot au moment ou il a ete pose. Il ne signifie PAS reverifie de bout en bout en production durant cette session. Sam tranche.",
+  "chantiers": [
+    {"id": "FIX-PARSE-001", "nature": "bug", "etat": "fait",
+     "note": "Commit 666e02d (10/06), fusionne par 5fa1420, present dans main et dans la branche de session (verifie par git merge-base --is-ancestor). TASKS_MASTER.md ligne 162 : FAIT, preuve citee — Aisha 100 % / Elena 99,9 % recuperes, SDS exec 159 re-rendu 428K (+51K) sans reexecution. Fichier : tools/lib/collect_sds.py, fonction _parse_raw_markdown_json."},
+    {"id": "FIX-MAXTOKENS-002", "nature": "bug", "etat": "fait",
+     "note": "Commit 397ed4a (10/06), fusionne par 5fa1420, present dans main. TASKS_MASTER.md ligne 163 : FAIT — Aisha/Elena spec portees a 64K et mode patch Marcus a 64K. Reserve inscrite dans le registre : les autres max_tokens=16000 reperes (apex, trainer, devops, admin, lwc, pm) ont ete laisses tels quels, hors perimetre minimal."},
+    {"id": "PATCH-MERGE-001", "nature": "bug", "etat": "fait",
+     "note": "Commit ad158de (10/06), fusionne par 73dd681, present dans main. TASKS_MASTER.md ligne 164 : FAIT — merge preservant les cles sur les 2 sites REVISION-001 + YAML patch 64K, teste unitairement. Corrige la suppression de apex_triggers/scheduled_jobs/platform_events par un patch automation_design."},
+    {"id": "FIX-EMPTY-001", "nature": "bug", "etat": "fait",
+     "note": "Commit 31ba2d5 (10/06), fusionne par 5fa1420, present dans main. TASKS_MASTER.md ligne 165 : FAIT — retry x2 puis RuntimeError dans backend/agents/roles/salesforce_devops.py, teste unitairement (mock : retry recupere / vide persistant leve). Fin des deliverables {raw_markdown:''} stockes en silence."},
+    {"id": "FEAT-LANG-001", "nature": "fonctionnalite", "etat": "fait",
+     "note": "Fusionne par 73dd681, present dans main. TASKS_MASTER.md ligne 166 : FAIT — directive de langue injectee dans llm_service (sync et async, cache lru), colonne language ajoutee au modele Project, lang rendu dynamique dans sds_shell. Preuve citee : exec 159 en fr, SDS rendu avec <html lang=fr>."},
+    {"id": "OBSERV-001", "nature": "observabilite", "etat": "fait",
+     "note": "Commit 280d3c8 (10/06), fusionne par 73dd681, present dans main. TASKS_MASTER.md ligne 167 : FAIT — heartbeat de 30 s pendant le streaming LLM (teste, PING_OK) ; monitoring N8N reactive (cause reelle : noeud executeCommand retire par defaut en n8n 2.x, corrige par NODES_EXCLUDE=[]) et digital-humans-worker AJOUTE au perimetre du check, trou qui avait masque la mort du worker. A RELIRE PAR SAM : c'est le chantier le plus directement contredit par la situation du 05/08, ou le silence du worker n'a de nouveau ete detecte par personne."},
+    {"id": "RAG-V2", "nature": "chantier", "etat": "fait",
+     "note": "Commit 02bf92d du 15/07 : 'bascule prod corpus v2 validee (14/07) — drop-in systemd, v1 en backup froid, rollback 30s'. Present dans main. Bascule declaree validee en production, avec chemin de retour arriere documente. Non reverifie sur le corpus actif durant cette session."},
+    {"id": "STRIPE-PROD", "nature": "chantier", "etat": "a_faire",
+     "note": "Seul des huit a ne pas etre engage. docs/TASKS_MASTER.md ligne 74 : 'STRIPE-PROD-001 | Bascule prod Stripe (docs/STRIPE_PROD_CHECKLIST.md) : rotation sk_test vers sk_live, recreation produits' avec la mention explicite 'apres BIZ-001'. Confirme par l'etat du serveur : backend/.env porte encore STRIPE_SECRET_KEY=sk_test_***. Aucun commit ne mentionne STRIPE-PROD. Point d'attention lie, inscrit au registre : le secret Stripe a ete partage en conversation lors de la phase bac a sable, une rotation est donc obligatoire a la bascule (SECURITY-001..005, phase 0 non demarree)."}
+  ]
+}
