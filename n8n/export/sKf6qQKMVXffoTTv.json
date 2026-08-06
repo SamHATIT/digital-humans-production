@@ -169,7 +169,7 @@
           "parameters": [
             {
               "name": "x-api-key",
-              "value": "REDACTED_CLE_API_A_MIGRER_VERS_CREDENTIAL_N8N"
+              "value": "={{$env.ANTHROPIC_API_KEY}}"
             },
             {
               "name": "anthropic-version",
@@ -544,7 +544,7 @@
   "pinData": null,
   "versionId": "52d6cb4d-73cd-458e-82d0-2e2f578bc8b0",
   "activeVersionId": "52d6cb4d-73cd-458e-82d0-2e2f578bc8b0",
-  "versionCounter": 35,
+  "versionCounter": 38,
   "triggerCount": 2,
   "tags": [],
   "shared": [

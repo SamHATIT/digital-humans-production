@@ -20,6 +20,22 @@ n8n export:workflow --all --separate --output=n8n/export --pretty
 n8n import:workflow --separate --input=n8n/export
 ```
 
+## Secrets — résolu le 06/08/2026
+
+La clé d'API Anthropic qui était **en clair dans un nœud** de « Blog - Veille Hebdo »
+a été sortie de la base N8N. Elle vit désormais dans `/etc/n8n/secrets.env`
+(lecture root seule), chargée par le service via `EnvironmentFile`, et le nœud
+la référence par `{{$env.ANTHROPIC_API_KEY}}`.
+
+**La clé n'a pas été changée** : elle n'était jamais sortie du serveur. GitHub
+avait bloqué le premier envoi, et l'export avait été expurgé avant publication.
+Il s'agissait de mauvaise hygiène, pas d'une fuite.
+
+**Pour ajouter un secret** : l'écrire dans `/etc/n8n/secrets.env`, relancer
+`systemctl daemon-reload && systemctl restart n8n`, puis le référencer dans un
+nœud par `{{$env.NOM_DE_LA_VARIABLE}}`. Il ne transitera ni par la base, ni par
+les exports, ni par Git.
+
 **Les cinq workflows dormants** — Lead Scoring, Email Outreach, Follow-up Relances,
 LinkedIn Posts, Veille Concurrence — portent tous « Mistral Nemo » dans leur nom :
 ils appellent le modèle local, désactivé faute de GPU. Il leur manque un repointage
