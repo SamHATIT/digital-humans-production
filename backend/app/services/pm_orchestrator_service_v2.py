@@ -3465,6 +3465,7 @@ class BuildPhaseService:
         from app.models.project import Project, ProjectStatus
         from app.models.execution import Execution, ExecutionStatus
         from app.models.task_execution import TaskExecution, TaskStatus
+        from app.models.wbs_task_type import infer_task_type
         from app.models.agent_deliverable import AgentDeliverable
         
         # 1. Vérifier le projet
@@ -3546,12 +3547,35 @@ class BuildPhaseService:
             assigned = task.get("assigned_agent", task.get("assigned_to", "")).lower()
             agent_id = agent_mapping.get(assigned, assigned)
             
+            # FIX-TASKTYPE-001 (05/08) : le task_type etait perdu a l'insertion.
+            # Le WBS de Marcus le fournit pourtant pour 100% des taches ("dev_apex",
+            # "test_unit", "dev_flow"...), mais il n'etait jamais recopie ici : la
+            # colonne restait NULL (413 lignes sur 476 en base). En aval,
+            # phased_build_executor._group_apex_classes lisait
+            # task.get("task_type", "") — le defaut ne s'applique QUE si la cle est
+            # absente ; ici elle existe a None — puis appelait .lower() dessus, d'ou
+            # 'NoneType' object has no attribute 'lower' et le crash instantane de la
+            # phase 2 (execution 165, premier passage historique en phase 2).
+            # La donnee n'etait donc pas manquante en amont : elle etait perdue ici.
+            # C'est pourquoi le correctif est la persistance, pas un `or ""` defensif :
+            # sans task_type, le regroupement classe/test de la phase 2 serait de toute
+            # facon degrade meme sans crash.
+            # Repli sur infer_task_type() (deja present dans le depot, jamais appele)
+            # si un WBS plus ancien ne portait pas le champ.
+            wbs_task_type = task.get("task_type") or task.get("type")
+            if not wbs_task_type:
+                wbs_task_type = infer_task_type(
+                    task.get("name", task.get("title", "")) or "",
+                    task.get("description", "") or ""
+                ).value
+
             task_exec = TaskExecution(
                 execution_id=execution.id,
                 task_id=task.get("id", task.get("task_id", f"TASK-{created_tasks+1:03d}")),
                 task_name=task.get("name", task.get("title", "Unnamed task")),
                 phase_name=task.get("phase_name", task.get("phase", "Build")),
                 assigned_agent=agent_id,
+                task_type=wbs_task_type,
                 status=TaskStatus.PENDING,
                 depends_on=task.get("dependencies", [])
             )
