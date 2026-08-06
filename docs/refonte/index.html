@@ -629,7 +629,7 @@ flowchart LR
           <td>QA Engineer</td>
           <td>4 — Test specs</td>
           <td>—</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -657,7 +657,7 @@ flowchart LR
           <td>DevOps / CI-CD</td>
           <td>4 — DevOps specs</td>
           <td>Deploy (toutes phases)</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -685,7 +685,7 @@ flowchart LR
           <td>Admin Config</td>
           <td>—</td>
           <td>1,4,5 — Model/Auto/Security</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -713,7 +713,7 @@ flowchart LR
           <td>Apex Developer</td>
           <td>—</td>
           <td>2 — Business logic</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -741,7 +741,7 @@ flowchart LR
           <td>LWC Developer</td>
           <td>—</td>
           <td>3 — UI components</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -769,7 +769,7 @@ flowchart LR
           <td>Data Migration</td>
           <td>4 — Data specs</td>
           <td>6 — Migration scripts</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -797,7 +797,7 @@ flowchart LR
           <td>Trainer</td>
           <td>4 — Training specs</td>
           <td>—</td>
-          <td>Claude Sonnet 4.6</td>
+          <td>Claude Sonnet 5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -835,7 +835,7 @@ flowchart LR
       </tr>
       <tr>
         <td><code>worker</code></td>
-        <td>Claude Sonnet 4.6</td>
+        <td>Claude Sonnet 5</td>
         <td>$3 / $15</td>
         <td>Raj, Diego, Aisha, Jordan, Zara, Elena, Lucas
         </td>
@@ -1300,7 +1300,7 @@ flowchart LR
           <td><strong>ARQ Worker</strong></td>
           <td><code>digital-humans-worker</code></td>
           <td>—</td>
-          <td><span class="tag tag-warning">inactive</span></td>
+          <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="5">
@@ -1518,7 +1518,7 @@ flowchart LR
   </div>
   <div id="database" class="section">
     <h2>Base de données</h2>
-    <p class="section-desc"><strong>46 tables</strong> dans le schema <code>public</code> · <span class="muted">non documentées : chat_logs, credit_balances, credit_transactions, model_pricing, tier_config</span>.</p>
+    <p class="section-desc"><strong>55 tables</strong> dans le schema <code>public</code> · <span class="muted">non documentées : chat_logs, credit_balances, credit_transactions, model_pricing, tier_config, v_deos_blog_articles, v_deos_blog_topics, v_deos_build_phases, v_deos_executions, v_deos_leads, v_deos_projects, v_deos_prospects, v_deos_sections, v_deos_veille</span>.</p>
 
     <h3>Orchestration SDS</h3>
     <table class="tbl-expand">
@@ -6877,6 +6877,56 @@ flowchart TB
         <div class="timeline-date">Prochain</div>
         <div class="timeline-title">Pre-launch business + Stripe finalisation + journal publication</div>
         <div class="timeline-desc"><strong>Pre-launch (Sam)</strong> : validation juriste CGV (300-500 €), SIRET + adresse Mentions Légales, décision tier Free Studio (ouvert ou "Bientôt"). <strong>Phase 3 finalisation Stripe</strong> : reset crédits mensuel sur <code>invoice.payment_succeeded</code>, grace period 5j sur <code>invoice.payment_failed</code>, Mod 24 wiring frontend, bascule prod (rotation secrets + recréation produits live). <strong>Journal publication</strong> : configurer <code>JOURNAL_WEBHOOK_SECRET</code> + webhook Ghost admin, tester <code>/webhooks/journal/health</code>, merger <code>feature/journal-publication</code> dans main. <strong>Dettes post-launch</strong> : REVISION-001 (Marcus revision via mode <code>patch</code>), COST-001 (propager cost_usd Emma/Olivia/...), P10 BaseAgent, nettoyage F541/F841/F401 (81 instances ruff --fix), bundle 16 MB marketing site (split lazy-load). <strong>E2E #144</strong> : revue prompt Marcus + Emma déjà préparée, worker OFF actuel.</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">6 juin 2026</div>
+        <div class="timeline-title">docs(tasks): RND-REFS — references verifiees multi-agent (LLaMAR/MetaGPT/CoALA) + caveats; MALFADS introuvable</div>
+        <div class="timeline-desc"><strong>7 commit(s).</strong> <ul class="journal-commits"><li>docs(tasks): RND-REFS — references verifiees multi-agent (LLaMAR/MetaGPT/CoALA) + caveats; MALFADS introuvable <span class="sha">9c1fc31</span></li><li>docs(tasks): RND-MULTIAGENT-4 identifie = MALFADS (Planner/Memory/Execution/Evaluation) <span class="sha">67379b7</span></li><li>docs(tasks): section 8 R&amp;D — memoire incrementale/skills + framework multi-agent 4 agents <span class="sha">4c52d2b</span></li><li>docs(status): refonte mergée dans main — corrige la mention de branche obsolète <span class="sha">71090ad</span></li><li>fix(docs): register VerifySignupPage in frontend_pages.yaml (debloque rebuild doc admin) + track mod40 spec <span class="sha">b2a7478</span></li><li>docs: TASKS_MASTER.md source unique + archivage 7 docs perimes (6 mois) + gitignore graphify-out <span class="sha">b5fa21e</span></li><li>feat(llm): mods 37-39 — budget hard-stop gate, fallback removal, Opus 4.8 + capability-flag temperature <span class="sha">0299718</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">8 juin 2026</div>
+        <div class="timeline-title">docs(tasks): session 8 juin PM — bugs assemblage SDS exec 159 (FIX-PARSE-001, FIX-MAXTOKENS-002, PATCH-MERGE-0</div>
+        <div class="timeline-desc"><strong>22 commit(s).</strong> <ul class="journal-commits"><li>docs(tasks): session 8 juin PM — bugs assemblage SDS exec 159 (<code>FIX-PARSE-001</code>, <code>FIX-MAXTOKENS-002</code>, <code>PATCH-MERGE-001</code>, <code>FIX-EMPTY-001</code>, <code>FEAT-LANG-001</code>, OBSERV-001) + validation boucle d'amélioration Marcus <span class="sha">2189894</span></li><li>docs(tasks): incident WORKER-DOWN (mort depuis 31/05, relancé) + WIZARD-EXEC-TRIGGER corrigé <span class="sha">d34e227</span></li><li>fix(wizard): demarrer l'execution apres creation (Phase 1 extraction BR) + naviguer avec executionId — corrige le '0 BR' du flux studio <span class="sha">2fa0037</span></li><li>docs(tasks): pointeur PROCHAINE ACTION (creer 3 projets -&gt; batch Vague 2) <span class="sha">dfeca99</span></li><li>docs(tasks): DOC-ARCHIVE marqué fait (docs périmés archivés) <span class="sha">b434296</span></li><li>docs(tasks): bloc session 8 juin (routage free-&gt;Sonnet, chat tier, site mod41) + DOCBUILD fixé + DOCX annulé <span class="sha">9de1756</span></li><li>feat(chat): chat in-app Sophie/Olivia passe le subscription_tier au routeur (free-&gt;Sonnet, payant-&gt;Opus) <span class="sha">67facb4</span></li><li>docs: rebuild admin doc (post-commit hook) <span class="sha">75621ec</span></li><li>feat(routing): free tier -&gt; Sonnet (jamais Opus ni Haiku), Opus reserve au Pro+ ; freemium worker Haiku-&gt;Sonnet + repli no-op <span class="sha">7cab2f4</span></li><li>docs(tasks): backfill agent_id (554 lignes) fait + MOD40 active en warn <span class="sha">a325a72</span></li><li>docs(vague1): rapport de run agent + brouillon LinkedIn (Lane D) <span class="sha">122dbc9</span></li><li>fix(COST-001): cost_usd dans toutes les sorties des experts SDS <span class="sha">8d29ee1</span></li><li>feat(MOD40): capability resolver au démarrage (opt-in, défaut off) <span class="sha">7cdca8a</span></li><li>fix(BR-FOOTGUN-FIX): garde-fou brief business_requirements vs description <span class="sha">88e0ed9</span></li><li>fix(AGENT-FK-001): renseigner agent_deliverables.agent_id au write site <span class="sha">6245677</span></li><li>fix(JORDAN-PROMPT-001): contrainte Pydantic sur monitoring.alerting <span class="sha">2ee4bc3</span></li><li>fix(ELENA-TIMEOUT-001): timeout 1200s pour les experts SDS Phase 4 <span class="sha">560d209</span></li><li>docs: statut STREAM-001 (merge+deploy) + index.html admin regenere par le hook <span class="sha">151d281</span></li><li>docs: STREAM-001 merge/deploy status + AGENT_BRIEF pour delegation Claude Code (correctifs Vague 1) <span class="sha">bfbd565</span></li><li>feat(STREAM-001): _call_anthropic en streaming, supprime la boucle de continuation <span class="sha">08a2775</span></li><li>docs: PLAN_FINAL execution (correctifs d'abord, batch SDS = preuve) + LEGAL-002 fait + BIZ-001 free ouvert <span class="sha">07c3a2e</span></li><li>docs(tasks): correction galerie Telecom — exec 144 est pre-refonte (fev), inutilisable; EX3 a regenerer post-refonte <span class="sha">857ccf7</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">10 juin 2026</div>
+        <div class="timeline-title">feat(FEAT-LANG-001): directive de langue projet injectee dans le system prompt (sync+async, cache lru comme le</div>
+        <div class="timeline-desc"><strong>8 commit(s).</strong> <ul class="journal-commits"><li>docs(tasks): <code>PATCH-MERGE-001</code> + <code>FEAT-LANG-001</code> + OBSERV-001 faits et prouves (3 branches en attente de merge) + note infra N8N (NODES_EXCLUDE, worker dans le perimetre du monitor) <span class="sha">8dcf19f</span></li><li>feat(OBSERV-001): heartbeat log toutes les 30s pendant le streaming LLM (chars recus, duree, modele) — les appels longs (806s/173K) ne ressemblent plus a un worker plante <span class="sha">280d3c8</span></li><li>feat(<code>FEAT-LANG-001</code>): directive de langue projet injectee dans le system prompt (sync+async, cache lru comme le tier) + colonne language exposee dans le modele Project + lang dynamique dans sds_shell — brief FR donnera des specs FR <span class="sha">6b8792f</span></li><li>fix(<code>PATCH-MERGE-001</code>): merge preservant les cles pour les patchs de section (2 sites REVISION-001) + YAML patch 64K — un patch flows-only ne supprime plus apex_triggers/scheduled_jobs/platform_events <span class="sha">ad158de</span></li><li>docs(tasks): <code>FIX-PARSE-001</code> + <code>FIX-MAXTOKENS-002</code> + <code>FIX-EMPTY-001</code> faits et prouves (branche fix/exec159-assembly) + pointeur prochaine action <span class="sha">d8d0ac5</span></li><li>fix(<code>FIX-EMPTY-001</code>): Jordan retry sur reponse LLM vide + RuntimeError apres 2 tentatives — fini les deliverables {raw_markdown:\"\"} silencieux (interaction 1368) <span class="sha">31ba2d5</span></li><li>fix(<code>FIX-MAXTOKENS-002</code>): 64K tokens pour Aisha/Elena spec + mode 'patch' Marcus (streaming STREAM-001 = pas de risque timeout) — empeche la recidive des troncatures exec 159 <span class="sha">397ed4a</span></li><li>fix(<code>FIX-PARSE-001</code>): fermeture LIFO string-aware des JSON tronques + sanitisation escapes invalides — recupere Aisha 100% / Elena 99.9% (exec 159) sans reexecution <span class="sha">666e02d</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">13 juin 2026</div>
+        <div class="timeline-title">fix(FIX-PARSE-ADMIN-001 + FIX-PARSE-QA-001): parsing robuste preventif sur les 2 parses LLM naifs restants</div>
+        <div class="timeline-desc"><strong>6 commit(s).</strong> <ul class="journal-commits"><li>feat(FEAT-CONSTRAINTS-TO-MARCUS): injecte le brief brut (contraintes/imperatifs, ex: Agentforce) dans le prompt design de Marcus via section 'ORIGINAL CLIENT BRIEF'. Le brief vient directement du champ business_requirements (resolve_brief_text), pas de l'extraction de Sophie — donc inperdable. Teste: agentforce absent-&gt;present dans le prompt <span class="sha">38fb080</span></li><li>fix(experts-sequential): PARALLEL_MODE.sds_experts True-&gt;False — supprime le bug 'Event loop is closed' (client async partage entre boucles paralleles) et permet le rendu SDS au fil de l'eau <span class="sha">555bb2f</span></li><li>fix(FIX-SDS-BR-RECOVERY): section II du SDS recupere les BRs depuis le raw tronque quand le deliverable pm_br_extraction a echoue (etait live mais non commite) <span class="sha">1465d5b</span></li><li>docs(tasks): FIX-SOPHIE-BR-001 + parses preventifs admin/qa + exec 160 recuperee (25 BRs) <span class="sha">064caa6</span></li><li>fix(FIX-PARSE-ADMIN-001 + FIX-PARSE-QA-001): parsing robuste preventif sur les 2 parses LLM naifs restants. Raj (_parse_build_v2_response) recupere les JSON tronques via clean_llm_json_response; Elena (structural_validation) SIGNALE un artefact tronque en issue critique au lieu d'un skip silencieux. Testes: valide-&gt;propre, tronque-&gt;recupere/signale <span class="sha">0803098</span></li><li>fix(FIX-SOPHIE-BR-001): extract_br tronquait silencieusement (max_tokens=8000 -&gt; 0 BR sur brief retail dense). max_tokens 8000-&gt;32000 + parsing robuste via clean_llm_json_response (LIFO close string-aware ajoute a json_cleaner, gere Unterminated string). Exec 160 recuperee: 25 BRs sans reexecution <span class="sha">98368b5</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">12 juillet 2026</div>
+        <div class="timeline-title">feat(GATE-0BIS+): scope design pour Marcus/Olivia — directives de conception (user-mode, sharing, retraits, St</div>
+        <div class="timeline-desc"><strong>5 commit(s).</strong> <ul class="journal-commits"><li>feat(GATE-0BIS+): scope design pour Marcus/Olivia — directives de conception (user-mode, sharing, retraits, State Managers) formulees pour l architecture SDS; Sophie reste en short (nomenclature) <span class="sha">16319a7</span></li><li>docs(CHANGELOG): session 12/07 — RAG V2 gates 0/0bis/1-pilote, platform_state, regularisations <span class="sha">8490df1</span></li><li>docs(RAG-V2): journal des decisions Gate 0/0bis/1-pilote (12/07) — parse=docling, cout &lt;10eur, fixes metadata/cache/seuil <span class="sha">1e1f0bb</span></li><li>docs(RAG): golden set benchmark retrieval (50 queries, 13 release-sensitive) — Gate 0 <span class="sha">5bd942f</span></li><li>feat(GATE-0BIS): directive PLATFORM STATE injectee dans les system prompts par agent_type <span class="sha">ae7ed95</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">14 juillet 2026</div>
+        <div class="timeline-title">FIX-ASIS-001: template greenfield + api_version -&gt; Summer '26 (API 67.0), coherent avec platform_state/corp</div>
+        <div class="timeline-desc"><strong>3 commit(s).</strong> <ul class="journal-commits"><li>Backlog EMMA-COV-001 : faux positifs coverage automation (détecté E2E #165) <span class="sha">1a9495a</span></li><li>Org CRM connectée : identifiants nouvelle Dev Edition (00Dfj00000VIwy9EAD, API 67.0) + workspace SFDX déplacé hors legacy /opt (env DH_SFDX_PROJECT_PATH) <span class="sha">6209090</span></li><li><code>FIX-ASIS-001</code>: template greenfield + api_version -&gt; Summer '26 (API 67.0), coherent avec platform_state/corpus (validé Sam 14/07 ; backups .pre-summer26 ; découvert par E2E #164) <span class="sha">ca9c7ea</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">15 juillet 2026</div>
+        <div class="timeline-title">docs(RAG-V2): bascule prod corpus v2 validee (14/07) — drop-in systemd, v1 en backup froid, rollback 30s</div>
+        <div class="timeline-desc"><strong>5 commit(s).</strong> <ul class="journal-commits"><li>docs(changelog): 2026-07-15 BUILD v2 phase 1 fixes + projet 107 org wiring <span class="sha">ffca79a</span></li><li>fix(build): Raj generate_build_v2 accepts review feedback + max_tokens 8000-&gt;16000 <span class="sha">3150d65</span></li><li>feat(build): propagate Elena review feedback into retry regeneration <span class="sha">f11e911</span></li><li>fix(build): raise Elena review max_tokens 4000-&gt;16000 + truncation guard <span class="sha">e3ac72e</span></li><li>docs(RAG-V2): bascule prod corpus v2 validee (14/07) — drop-in systemd, v1 en backup froid, rollback 30s <span class="sha">02bf92d</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">2 aout 2026</div>
+        <div class="timeline-title">FIX-ROUTING-001 + FIX-SCOPE-001</div>
+        <div class="timeline-desc"><strong>5 commit(s).</strong> <ul class="journal-commits"><li><code>FIX-ROUTING-001</code> + <code>FIX-SCOPE-001</code> : les taches devops/trainer/qa tombaient en phase 1 par defaut et Raj les modelisait en objets Salesforce (Depot_Git__c, Strategie_Branche__c, Documentation_Integration_User__c...). Routage explicite devops/trainer-&gt;6, qa-&gt;2, defaut-&gt;6 ; garde-fou de perimetre dans le prompt Raj (retour out_of_scope au lieu d'inventer un objet) <span class="sha">2bf8def</span></li><li><code>FIX-BATCHPROG-001</code> : publication de l'avancement lot par lot (completed_batches/total_batches) — l'interface affichait 0/0 pendant toute la phase <span class="sha">c2a0166</span></li><li>FIX-REVIEW-CLIP-001 (cause racine des echecs BUILD phase 1) : code_content[:80000] amputait le plan remis a Elena (~168000 car.) — elle rejetait 'JSON tronque' sur un livrable complet. Limite 600000 car. + avertissement si clip effectif <span class="sha">1003baa</span></li><li><code>FIX-TASKVIS-001</code> (suite): prefixe 'Phase N' sur les groupes WBS a la creation des taches — l'interface filtre par 'phase N' dans phase_name, le panneau de phase restait vide <span class="sha">d65d13f</span></li><li>FIX-BUILDV2-MAXTOKENS-2: Raj 16k-&gt;64k (plan CRM 182 etapes tronque, Elena FAIL x3) + Elena review 16k-&gt;32k ; <code>FIX-TASKVIS-001</code>: synchro phases BUILD v2 -&gt; task_executions (interface figee a PENDING) ; llm_interactions.task_id varchar(50)-&gt;255 <span class="sha">da7b1d6</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">5 aout 2026</div>
+        <div class="timeline-title">DEC-2026-0803-01</div>
+        <div class="timeline-desc"><strong>2 commit(s).</strong> <ul class="journal-commits"><li><strong>DEC-2026-0716-02</strong> : cinq vues de lecture pour le comite (role deos_ro) <span class="sha">41ff8ac</span></li><li><strong>DEC-2026-0803-01</strong> : correctif du bug NoneType en phase 2 business_logic (agent diego) <span class="sha">120635d</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">6 aout 2026</div>
+        <div class="timeline-title">FIX-TASKTYPE-001 (complement)</div>
+        <div class="timeline-desc"><strong>6 commit(s).</strong> <ul class="journal-commits"><li><code>FIX-TASKTYPE-001</code> (complement) : reparation des taches historiques via infer_task_type. Le correctif de persistance ne couvrait que les insertions futures ; l'execution 165 avait 40 task_type NULL et serait retombee sur le meme crash a la relance. 0 NULL apres passage. <span class="sha">aa1bba7</span></li><li>Compte rendu de session 2026-08-05 : cinq taches, preuves obtenues, et ce qui reste a prouver <span class="sha">c321b90</span></li><li><strong>DEC-2026-0802-03</strong> : note d'analyse sur le BUILD incremental <span class="sha">c337360</span></li><li><strong>DEC-2026-0804-02</strong> : cle statut_o2 — suivi des huit chantiers du lancement <span class="sha">8242763</span></li><li><strong>DEC-2026-0804-01</strong> : fiabilisation de l'export de logs du comite <span class="sha">9859375</span></li><li><strong>DEC-2026-0716-02</strong> : contrat de donnees du poste de pilotage (N0/N1) <span class="sha">cee403f</span></li></ul></div>
       </div>
     </div>
   </div>
