@@ -1,0 +1,148 @@
+{
+  "id": "signauxapec0001",
+  "name": "Signaux Publics - Recrutement Salesforce (APEC)",
+  "active": false,
+  "versionId": "a1b2c3d4-0000-4000-8000-000000000001",
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7,
+              "triggerAtMinute": 45
+            }
+          ]
+        }
+      },
+      "id": "apec-trig",
+      "name": "Chaque matin 7h45",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "path": "signaux-apec-manuel",
+        "options": {}
+      },
+      "id": "apec-hook",
+      "name": "Declencheur manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        480
+      ],
+      "webhookId": "signaux-apec-manuel"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.apec.fr/cms/webservices/rechercheOffre",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"motsCles\":\"salesforce\",\"typeClient\":\"CADRE\",\"sorts\":[{\"type\":\"DATE\",\"direction\":\"DESCENDING\"}],\"pagination\":{\"range\":100,\"startIndex\":0}}",
+        "options": {
+          "timeout": 25000
+        }
+      },
+      "id": "apec-fetch",
+      "name": "Interroger l'APEC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -240,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalise les offres APEC en SIGNAUX de recrutement Salesforce.\n// Une entreprise qui recrute un profil Salesforce investit dans Salesforce\n// MAINTENANT : c'est public, date et verifiable. Bien mieux qu'une liste\n// sectorielle. Aucune donnee personnelle : uniquement des organisations.\nconst MOTS = ['salesforce', 'sales cloud', 'service cloud', 'crm'];\n// Les ESN et cabinets recrutent pour placer : ce sont des PARTENAIRES potentiels,\n// pas des clients finaux. On les marque pour que le Commercial adapte son approche.\nconst ESN = ['capgemini', 'akkodis', 'sopra', 'atos', 'cgi', 'accenture', 'devoteam',\n             'mc2i', 'onepoint', 'inetum', 'talan', 'wavestone', 'alten', 'expleo',\n             'syd groupe', 'sii ', 'astek', 'ausy', 'modis'];\n// Certaines annonces sont diffusees par un SITE D'EMPLOI, pas par l'employeur :\n// l'APEC renvoie alors le diffuseur dans nomCommercial. Contacter \"Handicap Job\"\n// en croyant demarcher un prospect serait une perte de temps. On les marque.\nconst DIFFUSEURS = ['hellowork', 'meteojob', 'direct emploi', 'handicap job',\n                    'collective', 'jobology', 'talent.com', 'indeed', 'regionsjob',\n                    'cadremploi', 'keljob', 'monster'];\nconst sortie = [];\n\nfor (const item of $input.all()) {\n  const res = item.json.resultats || [item.json];\n  for (const o of res) {\n    const titre = (o.intitule || '').toLowerCase();\n    // Le signal doit etre dans l'INTITULE du poste, pas perdu dans le corps\n    // de l'annonce : sinon on remonte des commerciaux ascenseurs.\n    if (!MOTS.some(m => titre.includes(m))) continue;\n\n    const ent = (o.nomCommercial || '').trim();\n    if (!ent) continue;\n\n    const entBas = ent.toLowerCase();\n    const estEsn = ESN.some(e => entBas.includes(e));\n    const estDiffuseur = DIFFUSEURS.some(x => entBas.includes(x));\n    // Salesforce nomme explicitement vaut mieux qu'un CRM generique.\n    const precis = titre.includes('salesforce');\n\n    sortie.push({ json: {\n      signal_type: estDiffuseur ? 'Recrutement SF (employeur a identifier)'\n                 : (estEsn ? 'Recrutement SF (ESN/partenaire)' : 'Recrutement Salesforce'),\n      signal_source: 'APEC',\n      signal_url: 'https://www.apec.fr/candidat/recherche-emploi.html/emploi/detail-offre/' + (o.numeroOffre || ''),\n      signal_date: (o.datePublication || '').slice(0, 10),\n      signal_resume: (o.intitule || '') + ' — ' + (o.lieuTexte || ''),\n      entreprise: ent,\n      echeance: null,\n      reference: 'APEC-' + (o.numeroOffre || ''),\n      // Un diffuseur masque l'employeur : le signal reste vrai mais demande\n      // une recherche supplementaire, donc score minore.\n      score_signal: (precis ? 8 : 6) + (estEsn ? 0 : 1) - (estDiffuseur ? 2 : 0)\n    }});\n  }\n}\nreturn sortie;"
+      },
+      "id": "apec-filter",
+      "name": "Filtrer et normaliser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO signaux_publics (signal_type, signal_source, signal_url, signal_date, signal_resume, entreprise, echeance, reference, score_signal, statut) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'nouveau') ON CONFLICT (reference) DO NOTHING",
+        "options": {
+          "queryReplacement": "={{ $json.signal_type }},{{ $json.signal_source }},{{ $json.signal_url }},{{ $json.signal_date }},{{ $json.signal_resume }},{{ $json.entreprise }},{{ $json.echeance }},{{ $json.reference }},{{ $json.score_signal }}"
+        }
+      },
+      "id": "apec-save",
+      "name": "Enregistrer le signal",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        200,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque matin 7h45": {
+      "main": [
+        [
+          {
+            "node": "Interroger l'APEC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Declencheur manuel": {
+      "main": [
+        [
+          {
+            "node": "Interroger l'APEC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interroger l'APEC": {
+      "main": [
+        [
+          {
+            "node": "Filtrer et normaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer et normaliser": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer le signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
