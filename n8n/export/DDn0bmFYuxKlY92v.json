@@ -1,0 +1,118 @@
+{
+  "updatedAt": "2025-12-29T17:14:54.213Z",
+  "createdAt": "2025-12-29T17:14:54.213Z",
+  "id": "DDn0bmFYuxKlY92v",
+  "name": "Dashboard Acquisition - Metrics",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "acquisition-metrics",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Get Metrics",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "webhookId": "dashboard-metrics-trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 'leads' as metric, COUNT(*) as total, COUNT(*) FILTER (WHERE score >= 70) as qualified, COUNT(*) FILTER (WHERE verified = true) as verified FROM leads UNION ALL SELECT 'outreach', COUNT(*), COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '7 days'), COUNT(DISTINCT lead_id) FROM outreach_emails UNION ALL SELECT 'prospects', COUNT(*), COUNT(*) FILTER (WHERE decision_maker_score >= 7), COUNT(*) FILTER (WHERE status = 'contacted') FROM prospects UNION ALL SELECT 'linkedin_posts', COUNT(*), COUNT(*) FILTER (WHERE status = 'published'), COUNT(*) FILTER (WHERE status = 'draft') FROM linkedin_posts UNION ALL SELECT 'meetings', COUNT(*), COUNT(*) FILTER (WHERE status = 'booked'), COUNT(*) FILTER (WHERE status = 'completed') FROM meeting_requests",
+        "options": {}
+      },
+      "id": "fetch-metrics",
+      "name": "Fetch All Metrics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        450,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $input.all();\nconst dashboard = {};\n\nfor (const item of metrics) {\n  const m = item.json;\n  dashboard[m.metric] = {\n    total: parseInt(m.total),\n    qualified: parseInt(m.qualified),\n    verified: parseInt(m.verified)\n  };\n}\n\n// Calculer les KPIs\nconst kpis = {\n  lead_to_qualified_rate: dashboard.leads?.total > 0 ? \n    Math.round((dashboard.leads.qualified / dashboard.leads.total) * 100) : 0,\n  verification_rate: dashboard.leads?.total > 0 ? \n    Math.round((dashboard.leads.verified / dashboard.leads.total) * 100) : 0,\n  prospect_quality_rate: dashboard.prospects?.total > 0 ? \n    Math.round((dashboard.prospects.qualified / dashboard.prospects.total) * 100) : 0\n};\n\nreturn [{json: {\n  generated_at: new Date().toISOString(),\n  metrics: dashboard,\n  kpis,\n  summary: {\n    total_leads: dashboard.leads?.total || 0,\n    qualified_leads: dashboard.leads?.qualified || 0,\n    emails_sent_7d: dashboard.outreach?.qualified || 0,\n    prospects_enriched: dashboard.prospects?.total || 0,\n    posts_drafted: dashboard.linkedin_posts?.verified || 0,\n    meetings_booked: dashboard.meetings?.qualified || 0\n  }\n}}];"
+      },
+      "id": "aggregate",
+      "name": "Build Dashboard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        650,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Get Metrics": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Metrics": {
+      "main": [
+        [
+          {
+            "node": "Build Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "a273fe4f-0dc7-4696-b290-24d382f84d35",
+  "activeVersionId": "a273fe4f-0dc7-4696-b290-24d382f84d35",
+  "versionCounter": 37,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:14:54.214Z",
+      "createdAt": "2025-12-29T17:14:54.214Z",
+      "role": "workflow:owner",
+      "workflowId": "DDn0bmFYuxKlY92v",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

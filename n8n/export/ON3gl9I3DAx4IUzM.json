@@ -1,0 +1,334 @@
+{
+  "updatedAt": "2026-01-06T09:22:26.927Z",
+  "createdAt": "2025-12-29T17:13:01.333Z",
+  "id": "ON3gl9I3DAx4IUzM",
+  "name": "Veille Concurrence - Mistral Nemo",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Chaque jour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        304
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "run-veille",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        256,
+        512
+      ],
+      "webhookId": "veille-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sources RSS à surveiller (Salesforce ecosystem)\nconst feeds = [\n  {name: 'Salesforce Blog', url: 'https://www.salesforce.com/blog/feed/'},\n  {name: 'Salesforce Ben', url: 'https://www.salesforceben.com/feed/'},\n  {name: 'Admin Hero', url: 'https://adminhero.com/feed/'}\n];\n\nreturn feeds.map(f => ({json: f}));"
+      },
+      "id": "sources",
+      "name": "Define Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "id": "fetch-rss",
+      "name": "Fetch RSS",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        400
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst today = new Date();\nconst yesterday = new Date(today.getTime() - 24*60*60*1000);\n\n// Filtrer les articles des dernières 24h\nconst recent = items.filter(item => {\n  const pubDate = new Date(item.json.pubDate || item.json.isoDate || 0);\n  return pubDate >= yesterday;\n}).slice(0, 5); // Max 5 articles\n\nif (recent.length === 0) {\n  return [{json: {skip: true, message: 'Pas de nouveaux articles'}}];\n}\n\n// Préparer le résumé\nconst articlesText = recent.map(a => `- ${a.json.title}: ${a.json.contentSnippet || a.json.content || ''}`).join('\\n');\n\nconst prompt = `Tu es un analyste veille concurrentielle pour Digital Humans (automatisation Salesforce par IA).\n\nAnalyse ces articles récents de l'écosystème Salesforce:\n${articlesText}\n\nProduis:\n1. Un résumé des tendances clés (3-5 points)\n2. Les opportunités pour Digital Humans\n3. Les menaces potentielles\n4. Actions recommandées\n\nRéponds en JSON:\n{\"trends\": [\"...\"], \"opportunities\": [\"...\"], \"threats\": [\"...\"], \"actions\": [\"...\"]}`;\n\nreturn [{json: {articles_count: recent.length, articles: recent.map(a => ({title: a.json.title, link: a.json.link})), prompt}}];"
+      },
+      "id": "filter",
+      "name": "Filter Recent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        912,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-articles",
+      "name": "Has Articles?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Analyze News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1312,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const filterData = $(\"Filter Recent\").first().json;\nconst r = $json.response || '';\n\nlet analysis = {trends: [], opportunities: [], threats: [], actions: []};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*trends[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = {...analysis, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  date: new Date().toISOString().split('T')[0],\n  articles_count: filterData.articles_count,\n  articles: filterData.articles,\n  analysis\n}}];"
+      },
+      "id": "parse",
+      "name": "Parse Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO veille_reports (report_date, articles_count, articles, trends, opportunities, threats, actions) VALUES ('{{ $json.date }}', {{ $json.articles_count }}, '{{ JSON.stringify($json.articles) }}', '{{ JSON.stringify($json.analysis.trends) }}', '{{ JSON.stringify($json.analysis.opportunities) }}', '{{ JSON.stringify($json.analysis.threats) }}', '{{ JSON.stringify($json.analysis.actions) }}') RETURNING *",
+        "options": {}
+      },
+      "id": "save",
+      "name": "Save Report",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1712,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "shatit@gmail.com",
+        "subject": "=Veille Salesforce - {{ $json.articles_count }} articles analysés",
+        "options": {}
+      },
+      "id": "notify",
+      "name": "Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        304
+      ],
+      "webhookId": "41caf4a5-a5d7-4346-a8f7-c08ccfd5370e",
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque jour": {
+      "main": [
+        [
+          {
+            "node": "Define Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manuel": {
+      "main": [
+        [
+          {
+            "node": "Define Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Sources": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS": {
+      "main": [
+        [
+          {
+            "node": "Filter Recent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Recent": {
+      "main": [
+        [
+          {
+            "node": "Has Articles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Articles?": {
+      "main": [
+        [
+          {
+            "node": "Analyze News",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Analyze News": {
+      "main": [
+        [
+          {
+            "node": "Parse Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Analysis": {
+      "main": [
+        [
+          {
+            "node": "Save Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Report": {
+      "main": [
+        [
+          {
+            "node": "Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Chaque jour": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
+  "activeVersionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
+  "versionCounter": 37,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:13:01.338Z",
+      "createdAt": "2025-12-29T17:13:01.338Z",
+      "role": "workflow:owner",
+      "workflowId": "ON3gl9I3DAx4IUzM",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

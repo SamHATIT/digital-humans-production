@@ -1,0 +1,217 @@
+{
+  "updatedAt": "2026-06-10T14:23:41.000Z",
+  "createdAt": "2026-04-12T12:33:11.778Z",
+  "id": "DJvfp3q9yBQZzvTq",
+  "name": "🔍 Monitoring Services — Alertes (15min)",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Schedule 15min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Check Services",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "command": "python3 -c \"\nimport subprocess, json, datetime\n\nservices = [\n    ('digital-humans-backend','Backend DH'),\n    ('digital-humans-worker','Worker ARQ'),\n    ('digital-humans-frontend','Frontend DH'),\n    ('nginx','Nginx'),\n    ('postgresql','PostgreSQL'),\n    ('n8n','N8N'),\n    ('fail2ban','Fail2ban'),\n    ('mcp-system-server','MCP Server'),\n]\ndown=[]; lines=[]\nfor svc,label in services:\n    r=subprocess.run(['systemctl','is-active',svc],capture_output=True,text=True)\n    ok=r.stdout.strip()=='active'\n    lines.append(('✅ ' if ok else '❌ ')+label+': '+r.stdout.strip())\n    if not ok: down.append(label)\n\nr=subprocess.run(['docker','ps','--format','{{.Names}}|{{.Status}}'],capture_output=True,text=True)\nfor line in r.stdout.strip().split('\\n'):\n    if '|' in line:\n        n,s=line.split('|',1)\n        ok='unhealthy' not in s and 'Exited' not in s\n        lines.append(('✅ ' if ok else '❌ ')+'[Docker] '+n+': '+s[:25])\n        if not ok: down.append('[Docker] '+n)\n\nr=subprocess.run(['free','-m'],capture_output=True,text=True)\nm=r.stdout.split('\\n')[1].split()\npct=round(int(m[2])/int(m[1])*100)\nlines.append('💾 RAM: '+m[2]+'MB/'+m[1]+'MB ('+str(pct)+'%)')\nif pct>90: down.append('RAM critique ('+str(pct)+'%)')\n\nr=subprocess.run(['df','/'],capture_output=True,text=True)\nd=r.stdout.split('\\n')[1].split()\ndpct=int(d[4].replace('%',''))\nlines.append('💿 Disque: '+d[3]+' libres ('+str(dpct)+'% utilisé)')\nif dpct>85: down.append('Disque critique ('+str(dpct)+'%)')\n\nprint(json.dumps({'down':down,'issues':len(down)>0,'lines':chr(10).join(lines),'ts':datetime.datetime.now().strftime('%d/%m %H:%M')}))\n\"\n"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const d=JSON.parse($input.first().json.stdout.trim());return [{json:d}];"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Has Issues?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.issues }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Telegram Alerte",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        -120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "cxAftJvkQkCVjPwI",
+          "name": "Telegram - SamHatit Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "6562956255",
+        "text": "🚨 *ALERTE SERVEUR* — {{ $('Parse').item.json.ts }}\n\n⚠️ *Problèmes détectés :*\n{{ $('Parse').item.json.down.join('\\n') }}\n\n📊 *Statut complet :*\n```\n{{ $('Parse').item.json.lines }}\n```",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Email Alerte",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        880,
+        120
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "du0c1at36SosdTku",
+          "name": "Gmail SMTP - Sam"
+        }
+      },
+      "parameters": {
+        "fromEmail": "shatit@gmail.com",
+        "toEmail": "shatit@gmail.com",
+        "subject": "🚨 [Serveur] Alerte — {{ $('Parse').item.json.down.length }} service(s) en panne",
+        "emailType": "text",
+        "message": "ALERTE SERVEUR — {{ $('Parse').item.json.ts }}\n\nServices en problème :\n{{ $('Parse').item.json.down.join(', ') }}\n\nStatut détaillé :\n{{ $('Parse').item.json.lines }}\n\n--\nMonitoring automatique — Samhatit Consulting"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule 15min": {
+      "main": [
+        [
+          {
+            "node": "Check Services",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Services": {
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse": {
+      "main": [
+        [
+          {
+            "node": "Has Issues?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Issues?": {
+      "main": [
+        [
+          {
+            "node": "Telegram Alerte",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Alerte",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule 15min": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "e2ac61d1-0d6c-4207-a7fa-2aad22cf6f63",
+  "activeVersionId": "e2ac61d1-0d6c-4207-a7fa-2aad22cf6f63",
+  "versionCounter": 11,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-04-12T12:33:11.783Z",
+      "createdAt": "2026-04-12T12:33:11.783Z",
+      "role": "workflow:owner",
+      "workflowId": "DJvfp3q9yBQZzvTq",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

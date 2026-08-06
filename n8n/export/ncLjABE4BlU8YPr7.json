@@ -1,0 +1,242 @@
+{
+  "updatedAt": "2026-01-06T08:52:37.475Z",
+  "createdAt": "2025-12-29T16:42:23.774Z",
+  "id": "ncLjABE4BlU8YPr7",
+  "name": "Lead Scoring - Mistral Nemo",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "score-leads",
+        "responseMode": "lastNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-scoring",
+      "name": "Webhook Scoring",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        256,
+        400
+      ],
+      "webhookId": "score-leads-dh"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, name, company, source, subscribed_newsletter, verified FROM leads WHERE score IS NULL ORDER BY created_at DESC LIMIT 1",
+        "options": {}
+      },
+      "id": "fetch-lead",
+      "name": "Fetch One Lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        464,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\n\nconst prompt = `Tu es un système de scoring de leads B2B. Tu dois répondre UNIQUEMENT avec un objet JSON, rien d'autre.\n\nLead à scorer:\n- Email: ${lead.email}\n- Nom: ${lead.name || \"N/A\"}\n- Company: ${lead.company || \"N/A\"}\n- Source: ${lead.source}\n- Newsletter: ${lead.subscribed_newsletter}\n- Email vérifié: ${lead.verified}\n\nCritères de scoring (total sur 100):\n- Email vérifié = +30 points\n- Company renseignée et pertinente = +20 points\n- Email professionnel (pas gmail/hotmail/yahoo) = +20 points\n- Source website_cta = +15 points, website = +10 points\n- Newsletter souscrite = +10 points\n\nIMPORTANT: Réponds UNIQUEMENT avec ce format JSON exact, sans texte avant ou après:\n{\"score\": <nombre>, \"reason\": \"<explication courte>\"}`;\n\nreturn [{json: {lead_id: lead.id, email: lead.email, prompt: prompt}}];"
+      },
+      "id": "prepare",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Récupérer lead_id depuis le noeud Prepare\nconst prepareData = $(\"Prepare\").first().json;\nconst lead_id = prepareData.lead_id;\nconst email = prepareData.email;\n\n// Parser la réponse Ollama\nconst r = $json.response || \"\";\nlet score = 50, reason = \"Parsing failed\";\n\ntry {\n  // Essayer d'abord le format JSON\n  const jsonMatch = r.match(/\\{[^{}]*score[^{}]*\\}/i);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    score = parseInt(p.score) || 50;\n    reason = String(p.reason || \"\").replace(/[\"']/g, \"\").substring(0, 200);\n  } else {\n    // Fallback: chercher \"Score: XX\" ou \"Score : XX\" dans le texte\n    const scoreMatch = r.match(/score\\s*:?\\s*(\\d+)/i);\n    if (scoreMatch) {\n      score = parseInt(scoreMatch[1]) || 50;\n      reason = \"Score extrait du texte\";\n    }\n  }\n} catch(e) {\n  reason = \"Parsing error\";\n}\n\n// Borner le score entre 1 et 100\nscore = Math.max(1, Math.min(100, score));\n\nreturn [{json: {lead_id, email, score, reason}}];"
+      },
+      "id": "parse",
+      "name": "Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE leads SET score = {{ $json.score }}, score_reason = '{{ $json.reason }}', scored_at = NOW() WHERE id = {{ $json.lead_id }} RETURNING *",
+        "options": {}
+      },
+      "id": "update",
+      "name": "Update",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1264,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Toutes les heures",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        208
+      ],
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "Webhook Scoring": {
+      "main": [
+        [
+          {
+            "node": "Fetch One Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch One Lead": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama": {
+      "main": [
+        [
+          {
+            "node": "Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse": {
+      "main": [
+        [
+          {
+            "node": "Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Toutes les heures": {
+      "main": [
+        [
+          {
+            "node": "Fetch One Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Toutes les heures": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "fd0944e3-5805-44aa-8827-1512417dafb3",
+  "activeVersionId": "fd0944e3-5805-44aa-8827-1512417dafb3",
+  "versionCounter": 52,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T16:42:23.777Z",
+      "createdAt": "2025-12-29T16:42:23.777Z",
+      "role": "workflow:owner",
+      "workflowId": "ncLjABE4BlU8YPr7",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

@@ -1,0 +1,163 @@
+{
+  "updatedAt": "2025-12-29T14:17:46.282Z",
+  "createdAt": "2025-12-29T13:36:08.388Z",
+  "id": "Gb8H5ObXg1FETVb5",
+  "name": "Lead Capture - Website",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-capture",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-1",
+      "name": "Webhook Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "lead-capture-dh"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8002/api/leads",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "id": "http-1",
+      "name": "Save Lead to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Confirmez votre demande - Digital Humans",
+        "emailType": "html",
+        "html": "={{ \n`<!DOCTYPE html>\n<html>\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <style>\n    body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; background: #0f172a; margin: 0; padding: 40px 20px; }\n    .container { max-width: 600px; margin: 0 auto; background: #1e293b; border-radius: 16px; overflow: hidden; border: 1px solid #334155; }\n    .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 40px; text-align: center; border-bottom: 1px solid #334155; }\n    .logo { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; }\n    .logo-cyan { color: #06b6d4; }\n    .logo-white { color: #f1f5f9; }\n    .tagline { color: #64748b; font-size: 14px; margin-top: 8px; }\n    .content { padding: 40px; }\n    .content p { color: #cbd5e1; line-height: 1.7; margin: 0 0 20px; font-size: 16px; }\n    .content p strong { color: #f1f5f9; }\n    .button-container { text-align: center; margin: 30px 0; }\n    .button { display: inline-block; background: linear-gradient(135deg, #06b6d4, #0891b2); color: white !important; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4); }\n    .note { color: #64748b !important; font-size: 14px !important; }\n    .footer { background: #0f172a; padding: 24px 40px; text-align: center; border-top: 1px solid #334155; }\n    .footer p { color: #64748b; font-size: 13px; margin: 4px 0; }\n    .footer a { color: #06b6d4; text-decoration: none; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"header\">\n      <div class=\"logo\"><span class=\"logo-cyan\">Digital-</span><span class=\"logo-white\">Humans.fr</span></div>\n      <div class=\"tagline\">L'IA au service de Salesforce</div>\n    </div>\n    <div class=\"content\">\n      <p>Bonjour${$json.name ? \" <strong>\" + $json.name + \"</strong>\" : \"\"},</p>\n      <p>Merci pour votre intérêt pour Digital Humans !</p>\n      <p>Pour confirmer votre demande de démonstration, veuillez cliquer sur le bouton ci-dessous :</p>\n      <div class=\"button-container\">\n        <a href=\"https://digital-humans.fr/api/leads/verify?token=${$json.verification_token}\" class=\"button\">✅ Confirmer mon email</a>\n      </div>\n      <p class=\"note\">Ce lien expire dans 24 heures.</p>\n      <p>Si vous n'avez pas fait cette demande, ignorez simplement cet email.</p>\n      <p>À très bientôt,<br><strong>L'équipe Digital Humans</strong></p>\n    </div>\n    <div class=\"footer\">\n      <p><a href=\"https://digital-humans.fr\">digital-humans.fr</a></p>\n      <p>© 2025 Digital Humans - Tous droits réservés</p>\n    </div>\n  </div>\n</body>\n</html>`\n}}",
+        "options": {}
+      },
+      "id": "email-1",
+      "name": "Send Verification Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        650,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: 'Verification email sent. Please check your inbox.' }) }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-1",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        850,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Lead": {
+      "main": [
+        [
+          {
+            "node": "Save Lead to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead to DB": {
+      "main": [
+        [
+          {
+            "node": "Send Verification Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Verification Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "c88d55ba-5b2f-4947-898e-06effe75ca9d",
+  "activeVersionId": "c88d55ba-5b2f-4947-898e-06effe75ca9d",
+  "versionCounter": 78,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T13:36:08.391Z",
+      "createdAt": "2025-12-29T13:36:08.391Z",
+      "role": "workflow:owner",
+      "workflowId": "Gb8H5ObXg1FETVb5",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

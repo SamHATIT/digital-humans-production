@@ -1,0 +1,346 @@
+{
+  "updatedAt": "2026-01-06T09:22:05.721Z",
+  "createdAt": "2025-12-29T17:06:11.831Z",
+  "id": "qcL6ZPZHBWlyc47L",
+  "name": "Follow-up Relances - Mistral Nemo",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Chaque jour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        304
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-followup",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        256,
+        512
+      ],
+      "webhookId": "followup-trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT l.id, l.email, l.name, l.company, l.score, o.subject as last_subject, o.sent_at as last_sent, COUNT(o2.id) as total_emails FROM leads l JOIN outreach_emails o ON l.id = o.lead_id LEFT JOIN outreach_emails o2 ON l.id = o2.lead_id WHERE o.sent_at = (SELECT MAX(sent_at) FROM outreach_emails WHERE lead_id = l.id) AND o.sent_at < NOW() - INTERVAL '3 days' AND o.replied_at IS NULL AND (SELECT COUNT(*) FROM outreach_emails WHERE lead_id = l.id) < 3 GROUP BY l.id, l.email, l.name, l.company, l.score, o.subject, o.sent_at ORDER BY l.score DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "fetch-leads",
+      "name": "Fetch Leads to Follow-up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        512,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $input.all();\nif (leads.length === 0) {\n  return [{json: {skip: true, message: 'Aucun lead à relancer'}}];\n}\n\nconst results = [];\nfor (const item of leads) {\n  const lead = item.json;\n  const followupNum = parseInt(lead.total_emails) + 1;\n  \n  const prompt = `Tu es un expert en relance commerciale B2B pour Digital Humans.\n\nÉcris un email de RELANCE ${followupNum} pour ce lead qui n'a pas répondu:\n- Nom: ${lead.name || 'there'}\n- Entreprise: ${lead.company || 'votre entreprise'}\n- Dernier email: \"${lead.last_subject}\"\n- Envoyé il y a: ${Math.floor((Date.now() - new Date(lead.last_sent).getTime()) / 86400000)} jours\n\nL'email doit:\n1. Être très court (max 80 mots)\n2. Faire référence au premier email\n3. Apporter une nouvelle valeur (stat, cas client, nouveauté)\n4. Terminer par une question simple\n5. Ton amical, pas insistant\n\nRéponds UNIQUEMENT en JSON:\n{\"subject\": \"Re: ...\", \"body\": \"...\"}`;\n\n  results.push({json: {lead_id: lead.id, email: lead.email, name: lead.name, company: lead.company, followup_num: followupNum, prompt}});\n}\nreturn results;"
+      },
+      "id": "prepare",
+      "name": "Prepare Follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-leads",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        912,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Generate Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepareData = $(\"Prepare Follow-up\").first().json;\nconst lead_id = prepareData.lead_id;\nconst email = prepareData.email;\nconst name = prepareData.name;\nconst followup_num = prepareData.followup_num;\n\nconst r = $json.response || '';\nlet subject = 'Re: Suite à mon précédent message';\nlet body = 'Bonjour, je me permets de revenir vers vous.';\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*subject[\\s\\S]*body[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    subject = p.subject || subject;\n    body = p.body || body;\n  }\n} catch(e) {}\n\nreturn [{json: {lead_id, email, name, followup_num, subject, body}}];"
+      },
+      "id": "parse",
+      "name": "Parse Follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1504,
+        304
+      ],
+      "webhookId": "a47ca5e6-9126-413a-a658-c0fa8412e32c",
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outreach_emails (lead_id, subject, body, sent_at) VALUES ({{ $json.lead_id }}, '{{ $json.subject }}', 'Follow-up {{ $json.followup_num }}', NOW())",
+        "options": {}
+      },
+      "id": "log-email",
+      "name": "Log Follow-up",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1712,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "response",
+      "name": "Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1904,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Chaque jour": {
+      "main": [
+        [
+          {
+            "node": "Fetch Leads to Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manuel": {
+      "main": [
+        [
+          {
+            "node": "Fetch Leads to Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Leads to Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Prepare Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Generate Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Parse Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Log Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Chaque jour": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "336dc6f6-75ab-47d5-a433-417fcde861e3",
+  "activeVersionId": "336dc6f6-75ab-47d5-a433-417fcde861e3",
+  "versionCounter": 37,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:06:11.833Z",
+      "createdAt": "2025-12-29T17:06:11.833Z",
+      "role": "workflow:owner",
+      "workflowId": "qcL6ZPZHBWlyc47L",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

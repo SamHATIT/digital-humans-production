@@ -1,0 +1,569 @@
+{
+  "updatedAt": "2026-01-07T10:32:35.756Z",
+  "createdAt": "2026-01-06T12:07:21.593Z",
+  "id": "sKf6qQKMVXffoTTv",
+  "name": "Blog - Veille Hebdo (Jeudi 20h)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "blog-veille",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "blog-veille-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 20 * * 4"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Jeudi 20h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fenêtre: 30 derniers jours\nconst now = new Date();\nconst thirtyDaysAgo = new Date(now);\nthirtyDaysAgo.setDate(now.getDate() - 30);\nthirtyDaysAgo.setHours(0, 0, 0, 0);\n\nreturn [{\n  json: {\n    window_start: thirtyDaysAgo.toISOString(),\n    window_end: now.toISOString(),\n    window_days: 30\n  }\n}];"
+      },
+      "id": "calc_window",
+      "name": "Calc Time Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://developer.salesforce.com/blogs/feed",
+        "options": {}
+      },
+      "id": "rss_dev",
+      "name": "SF Developer Blog",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        660,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://admin.salesforce.com/blog/feed",
+        "options": {}
+      },
+      "id": "rss_admin",
+      "name": "SF Admin Blog",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        660,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://www.salesforceben.com/feed/",
+        "options": {}
+      },
+      "id": "rss_ben",
+      "name": "Salesforce Ben",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        660,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://automationchampion.com/feed/",
+        "options": {}
+      },
+      "id": "rss_champion",
+      "name": "Automation Champion",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [
+        660,
+        650
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge",
+      "name": "Merge All RSS",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        880,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const windowStart = new Date($('Calc Time Window').first().json.window_start);\nconst windowEnd = new Date($('Calc Time Window').first().json.window_end);\n\n// Filtrer par date de publication\nconst filtered = $input.all().filter(item => {\n  const pubDate = new Date(item.json.pubDate || item.json.isoDate || item.json.date);\n  return pubDate >= windowStart && pubDate <= windowEnd;\n});\n\n// Dédupliquer par URL\nconst seen = new Set();\nconst unique = filtered.filter(item => {\n  const url = item.json.link || item.json.guid;\n  if (seen.has(url)) return false;\n  seen.add(url);\n  return true;\n});\n\n// Trier par date décroissante\nunique.sort((a, b) => new Date(b.json.pubDate) - new Date(a.json.pubDate));\n\n// Limiter à 15 articles max\nconst articles = unique.slice(0, 15);\n\n// Extraire hostname sans new URL()\nfunction getHostname(url) {\n  const match = url.match(/https?:\\/\\/([^\\/]+)/);\n  return match ? match[1].replace('www.', '') : 'unknown';\n}\n\nreturn [{\n  json: {\n    window: { start: windowStart.toISOString().split('T')[0], end: windowEnd.toISOString().split('T')[0] },\n    total_found: filtered.length,\n    after_dedup: unique.length,\n    articles: articles.map(a => ({\n      title: a.json.title,\n      url: a.json.link,\n      source: getHostname(a.json.link || ''),\n      date: a.json.pubDate,\n      snippet: (a.json.contentSnippet || a.json.content || '').substring(0, 300)\n    }))\n  }\n}];"
+      },
+      "id": "filter_window",
+      "name": "Filter by Date Window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT title, source_url FROM blog_topics WHERE created_at > NOW() - INTERVAL '90 days'",
+        "options": {}
+      },
+      "id": "get_existing",
+      "name": "Get Existing Topics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        600
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "REDACTED_CLE_API_A_MIGRER_VERS_CREDENTIAL_N8N"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-haiku-20240307\",\n  \"max_tokens\": 4000,\n  \"messages\": [{\"role\": \"user\", \"content\": {{ JSON.stringify($json.prompt) }}}]\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "llm_analyze",
+      "name": "LLM Analyse & Sélection",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1320,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Support Ollama (.response) et Anthropic (.content[0].text)\nconst raw = $input.first().json;\nconst response = raw.response || (raw.content && raw.content[0] && raw.content[0].text) || '';\nconst existingUrls = new Set($(\"Get Existing Topics\").all().map(t => t.json.source_url).filter(Boolean));\nconst topics = [];\n\n// Parser chaque ligne JSON\nconst lines = response.split('\\n').filter(l => l.trim().startsWith('{'));\nfor (const line of lines) {\n  try {\n    const topic = JSON.parse(line.trim());\n    if (topic.title && topic.agent && !existingUrls.has(topic.source_url)) {\n      topics.push({\n        title: topic.title,\n        description: topic.description || '',\n        suggested_agent: topic.agent,\n        source_url: topic.source_url || null,\n        source_name: topic.source_name || 'Veille',\n        confidence: topic.confidence || 'medium',\n        status: 'pending'\n      });\n    }\n  } catch (e) {}\n}\n\nconst finalTopics = topics.slice(0, 5);\n\nreturn [{ json: { \n  topics: finalTopics, \n  count: finalTopics.length,\n  window: $(\"Filter by Date Window\").first().json.window,\n  articles_analyzed: $(\"Filter by Date Window\").first().json.articles.length\n} }];"
+      },
+      "id": "parse_dedup",
+      "name": "Parse & Dedup",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has_topics",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        }
+      },
+      "id": "check_topics",
+      "name": "Has Topics?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1760,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO blog_topics (title, description, suggested_agent, source_url, source_name, status, veille_date)\nSELECT v.title, v.description, v.suggested_agent, v.source_url, v.source_name, 'pending', CURRENT_DATE\nFROM (VALUES\n{{ $json.topics.map(t => `  ('${t.title.replace(/'/g, \"''\")}', '${(t.description || '').replace(/'/g, \"''\")}', '${t.suggested_agent}', ${t.source_url ? \"'\" + t.source_url.replace(/'/g, \"''\") + \"'\" : 'NULL'}, '${t.source_name.replace(/'/g, \"''\")}')`).join(',\\n') }}\n) AS v(title, description, suggested_agent, source_url, source_name)\nWHERE NOT EXISTS (\n  SELECT 1 FROM blog_topics bt \n  WHERE bt.source_url = v.source_url \n  OR LOWER(bt.title) = LOWER(v.title)\n)\nRETURNING id, title;",
+        "options": {}
+      },
+      "id": "save_db",
+      "name": "Save to DB",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1980,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "sam@samhatit-consulting.cloud",
+        "subject": "=📝 Veille Blog: {{ $('Parse & Dedup').first().json.count }} sujets ({{ $('Parse & Dedup').first().json.window.start }} → {{ $('Parse & Dedup').first().json.window.end }})",
+        "emailType": "html",
+        "message": "=<h2>🔍 Veille Hebdomadaire - Blog Digital Humans</h2>\n<p><strong>Période:</strong> {{ $('Parse & Dedup').first().json.window.start }} → {{ $('Parse & Dedup').first().json.window.end }}</p>\n<p><strong>Articles analysés:</strong> {{ $('Parse & Dedup').first().json.articles_analyzed }}</p>\n<p><strong>Sujets sélectionnés:</strong> {{ $('Parse & Dedup').first().json.count }}</p>\n\n<h3>📋 Sujets proposés</h3>\n<table style=\"border-collapse:collapse;width:100%;\">\n<tr style=\"background:#1e293b;color:#fff;\"><th style=\"padding:8px;text-align:left;\">Titre</th><th style=\"padding:8px;\">Agent</th><th style=\"padding:8px;\">Source</th></tr>\n{{ $('Parse & Dedup').first().json.topics.map(t => `<tr style=\"border-bottom:1px solid #334155;\"><td style=\"padding:8px;\">${t.title}</td><td style=\"padding:8px;text-align:center;\">${t.suggested_agent}</td><td style=\"padding:8px;\"><a href=\"${t.source_url || '#'}\">${t.source_name}</a></td></tr>`).join('') }}\n</table>\n\n<p style=\"margin-top:20px;\"><a href=\"https://n8n.samhatit-consulting.cloud/webhook/blog-topics-dashboard\" style=\"background:#3B82F6;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;\">✅ Valider les sujets</a></p>",
+        "options": {}
+      },
+      "id": "send_email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        2200,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, topics_count: $('Parse & Dedup').first().json.count, window: $('Parse & Dedup').first().json.window, message: 'Veille terminée' } }}"
+      },
+      "id": "respond_ok",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, topics_count: 0, window: $json.window, message: 'Aucun nouveau sujet trouvé cette semaine' } }}"
+      },
+      "id": "respond_empty",
+      "name": "Respond Empty",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1980,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const filter = $('Filter by Date Window').first().json;\nconst existing = $('Get Existing Topics').all();\n\n// Construire le prompt proprement\nconst articlesText = filter.articles.map((a, i) => \n  `${i+1}. [${a.source}] \"${a.title.replace(/\"/g, \"'\")}\"\n   URL: ${a.url}\n   Extrait: ${(a.snippet || '').substring(0, 200).replace(/\"/g, \"'\")}`\n).join('\\n\\n');\n\nconst existingText = existing.slice(0, 20).map(t => `- ${(t.json.title || '').replace(/\"/g, \"'\")}`).join('\\n');\n\nconst prompt = `Tu es un expert Salesforce chargé de la veille éditoriale pour notre blog.\n\n## CONTEXTE\nPériode analysée: ${filter.window.start} au ${filter.window.end}\nArticles trouvés: ${filter.total_found}\n\n## ARTICLES DE LA SEMAINE\n${articlesText || 'Aucun article trouvé'}\n\n## SUJETS DÉJÀ TRAITÉS (à éviter)\n${existingText || 'Aucun'}\n\n## INSTRUCTIONS\n1. Sélectionne 3-5 sujets NOUVEAUX et PERTINENTS pour notre audience (devs/admins Salesforce)\n2. ÉVITE les sujets trop similaires à ceux déjà traités\n3. PRIVILÉGIE les sources officielles Salesforce\n4. Pour chaque sujet, assigne l'agent le plus pertinent\n\n## AGENTS DISPONIBLES\n- diego-martinez: Apex, triggers, batches, SOQL\n- zara-thompson: LWC, Aura, frontend, UX\n- raj-patel: Admin, Flows, permissions\n- marcus-johnson: Architecture, intégration\n- elena-vasquez: Testing, QA\n- jordan-blake: DevOps, CI/CD, SFDX\n- aisha-okonkwo: Data Cloud, migration\n- lucas-fernandez: Formation, documentation\n- olivia-parker: Business analysis\n- sophie-chen: Gestion projet\n\n## FORMAT JSON (un objet par ligne)\n{\"title\": \"Titre\", \"description\": \"Description\", \"agent\": \"slug-agent\", \"source_url\": \"URL\", \"source_name\": \"Nom\", \"confidence\": \"high|medium\"}\n\nRetourne UNIQUEMENT le JSON, pas d'explication.`;\n\nreturn [{ json: { prompt, articleCount: filter.total_found } }];"
+      },
+      "id": "prep_llm",
+      "name": "Prepare LLM Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Calc Time Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jeudi 9h": {
+      "main": [
+        [
+          {
+            "node": "Calc Time Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calc Time Window": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Topics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SF Developer Blog": {
+      "main": [
+        [
+          {
+            "node": "Merge All RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SF Admin Blog": {
+      "main": [
+        [
+          {
+            "node": "Merge All RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salesforce Ben": {
+      "main": [
+        [
+          {
+            "node": "Merge All RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Automation Champion": {
+      "main": [
+        [
+          {
+            "node": "Merge All RSS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All RSS": {
+      "main": [
+        [
+          {
+            "node": "Filter by Date Window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter by Date Window": {
+      "main": [
+        [
+          {
+            "node": "Prepare LLM Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analyse & Sélection": {
+      "main": [
+        [
+          {
+            "node": "Parse & Dedup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Dedup": {
+      "main": [
+        [
+          {
+            "node": "Has Topics?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Topics?": {
+      "main": [
+        [
+          {
+            "node": "Save to DB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Empty",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to DB": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Topics": {
+      "main": [
+        [
+          {
+            "node": "SF Developer Blog",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SF Admin Blog",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Salesforce Ben",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Automation Champion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare LLM Prompt": {
+      "main": [
+        [
+          {
+            "node": "LLM Analyse & Sélection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Jeudi 9h": {
+      "recurrenceRules": []
+    },
+    "node:Jeudi 20h": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "52d6cb4d-73cd-458e-82d0-2e2f578bc8b0",
+  "activeVersionId": "52d6cb4d-73cd-458e-82d0-2e2f578bc8b0",
+  "versionCounter": 35,
+  "triggerCount": 2,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-01-06T12:07:21.595Z",
+      "createdAt": "2026-01-06T12:07:21.595Z",
+      "role": "workflow:owner",
+      "workflowId": "sKf6qQKMVXffoTTv",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

@@ -1,0 +1,180 @@
+{
+  "updatedAt": "2026-04-12T12:33:12.000Z",
+  "createdAt": "2026-04-12T12:33:12.059Z",
+  "id": "jYY3LtG7zCJpF0xA",
+  "name": "📅 Bilan Hebdomadaire — Lundi 9h",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Schedule Lundi 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 9,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Weekly Data",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "command": "python3 -c \"\nimport subprocess, json, datetime\n\n# SSL certs\nimport ssl, socket\ndomains=['digital-humans.fr','n8n.samhatit-consulting.cloud','samhatit-consulting.cloud']\nssl_info=[]\nfor domain in domains:\n    try:\n        ctx=ssl.create_default_context()\n        with ctx.wrap_socket(socket.socket(),server_hostname=domain) as s:\n            s.settimeout(5); s.connect((domain,443))\n            cert=s.getpeercert()\n            exp=datetime.datetime.strptime(cert['notAfter'],'%b %d %H:%M:%S %Y %Z')\n            days=(exp-datetime.datetime.utcnow()).days\n            ssl_info.append(domain+': '+str(days)+'j restants '+('✅' if days>30 else '⚠️'))\n    except Exception as e:\n        ssl_info.append(domain+': Erreur '+str(e)[:30])\n\n# Disk usage top dirs\nr=subprocess.run(['du','-sh','/root/workspace','/opt/digital-humans/rag','/root/.n8n'],capture_output=True,text=True)\ndisk_dirs=r.stdout.strip()\n\n# System updates available\nr=subprocess.run(['apt','list','--upgradable'],capture_output=True,text=True)\nupdates=len([l for l in r.stdout.split('\\n') if '/' in l and 'Listing' not in l])\n\n# PostgreSQL DB sizes\ntry:\n    r=subprocess.run(['sudo','-u','postgres','psql','-t','-c',\\\"SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database WHERE datname NOT IN ('template0','template1') ORDER BY pg_database_size(datname) DESC;\\\"],capture_output=True,text=True,timeout=10)\n    db_sizes=r.stdout.strip()\nexcept: db_sizes='N/A'\n\n# N8N executions last 7 days\ntry:\n    r=subprocess.run(['sqlite3','/root/.n8n/database.sqlite','SELECT COUNT(*), status FROM execution_entity WHERE startedAt > datetime(\\\"now\\\",\\\"-7 days\\\") GROUP BY status;'],capture_output=True,text=True,timeout=5)\n    n8n_stats=r.stdout.strip() or 'Aucune exécution'\nexcept: n8n_stats='N/A'\n\nresult={\n    'ssl':ssl_info,'disk_dirs':disk_dirs,'updates':updates,\n    'db_sizes':db_sizes,'n8n_stats':n8n_stats,\n    'week':datetime.datetime.now().strftime('Semaine du %d/%m/%Y')\n}\nprint(json.dumps(result))\n\"\n"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Format Weekly",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst d = JSON.parse($input.first().json.stdout.trim());\nconst tg = `📅 *BILAN HEBDOMADAIRE — ${d.week}*\n\n🔐 *Certificats SSL*\n${d.ssl.join('\\n')}\n\n💾 *Utilisation disque (répertoires clés)*\n\\`\\`\\`\n${d.disk_dirs}\n\\`\\`\\`\n\n🗄️ *Bases de données PostgreSQL*\n\\`\\`\\`\n${d.db_sizes}\n\\`\\`\\`\n\n⚙️ *N8N — Exécutions (7 derniers jours)*\n\\`\\`\\`\n${d.n8n_stats}\n\\`\\`\\`\n\n🔄 *Mises à jour système disponibles*\n${d.updates} package(s) à mettre à jour\n\n_Bilan généré automatiquement chaque lundi_`;\n\nreturn [{json: {...d, tg_text: tg}}];\n"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Telegram Bilan",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        -80
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "cxAftJvkQkCVjPwI",
+          "name": "Telegram - SamHatit Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "6562956255",
+        "text": "={{ $json.tg_text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Email Bilan",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        80
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "du0c1at36SosdTku",
+          "name": "Gmail SMTP - Sam"
+        }
+      },
+      "parameters": {
+        "fromEmail": "shatit@gmail.com",
+        "toEmail": "shatit@gmail.com",
+        "subject": "📅 Bilan Hebdomadaire Serveur — {{ $json.week }}",
+        "emailType": "text",
+        "message": "={{ $json.tg_text }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Lundi 9h": {
+      "main": [
+        [
+          {
+            "node": "Weekly Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Data": {
+      "main": [
+        [
+          {
+            "node": "Format Weekly",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Weekly": {
+      "main": [
+        [
+          {
+            "node": "Telegram Bilan",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Bilan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "210ed7bf-3689-43eb-be9e-61949c0cac28",
+  "activeVersionId": null,
+  "versionCounter": 3,
+  "triggerCount": 0,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-04-12T12:33:12.061Z",
+      "createdAt": "2026-04-12T12:33:12.061Z",
+      "role": "workflow:owner",
+      "workflowId": "jYY3LtG7zCJpF0xA",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

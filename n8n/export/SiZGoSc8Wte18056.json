@@ -1,0 +1,153 @@
+{
+  "updatedAt": "2025-12-29T17:37:00.419Z",
+  "createdAt": "2025-12-29T17:23:56.826Z",
+  "id": "SiZGoSc8Wte18056",
+  "name": "Dashboard Acquisition - Web UI",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "dashboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Dashboard Page",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "webhookId": "dashboard-web-ui"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT 'leads' as metric, COUNT(*) as total, COUNT(*) FILTER (WHERE score >= 70) as qualified, COUNT(*) FILTER (WHERE verified = true) as verified, MAX(scored_at) as last_activity FROM leads UNION ALL SELECT 'outreach', COUNT(*), COUNT(*) FILTER (WHERE sent_at > NOW() - INTERVAL '7 days'), COUNT(DISTINCT lead_id), MAX(sent_at) FROM outreach_emails UNION ALL SELECT 'prospects', COUNT(*), COUNT(*) FILTER (WHERE decision_maker_score >= 7), COUNT(*) FILTER (WHERE status = 'contacted'), MAX(enriched_at) FROM prospects UNION ALL SELECT 'linkedin_posts', COUNT(*), COUNT(*) FILTER (WHERE status = 'published'), COUNT(*) FILTER (WHERE status = 'draft'), MAX(generated_at) FROM linkedin_posts UNION ALL SELECT 'meetings', COUNT(*), COUNT(*) FILTER (WHERE status = 'booked'), COUNT(*) FILTER (WHERE status = 'completed'), MAX(requested_at) FROM meeting_requests UNION ALL SELECT 'veille', COUNT(*), 0, 0, MAX(created_at) FROM veille_reports UNION ALL SELECT 'articles', COUNT(*), COUNT(*) FILTER (WHERE status = 'published'), COUNT(*) FILTER (WHERE status = 'draft'), MAX(generated_at) FROM blog_articles",
+        "options": {}
+      },
+      "id": "fetch-metrics",
+      "name": "Fetch All Metrics",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        450,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const metrics = $input.all();\nconst data = {};\n\nfor (const item of metrics) {\n  const m = item.json;\n  data[m.metric] = {\n    total: parseInt(m.total) || 0,\n    qualified: parseInt(m.qualified) || 0,\n    verified: parseInt(m.verified) || 0,\n    last_activity: m.last_activity\n  };\n}\n\nconst leadRate = data.leads?.total > 0 ? Math.round((data.leads.qualified / data.leads.total) * 100) : 0;\nconst verifyRate = data.leads?.total > 0 ? Math.round((data.leads.verified / data.leads.total) * 100) : 0;\n\nconst icons = {\n  leads: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M23 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/></svg>',\n  outreach: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z\"/><polyline points=\"22,6 12,13 2,6\"/></svg>',\n  prospects: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><circle cx=\"12\" cy=\"12\" r=\"6\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/></svg>',\n  linkedin: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z\"/><rect x=\"2\" y=\"9\" width=\"4\" height=\"12\"/><circle cx=\"4\" cy=\"4\" r=\"2\"/></svg>',\n  meetings: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\" ry=\"2\"/><line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"6\"/><line x1=\"8\" y1=\"2\" x2=\"8\" y2=\"6\"/><line x1=\"3\" y1=\"10\" x2=\"21\" y2=\"10\"/></svg>',\n  veille: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14\"/></svg>',\n  articles: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><polyline points=\"14 2 14 8 20 8\"/><line x1=\"16\" y1=\"13\" x2=\"8\" y2=\"13\"/><line x1=\"16\" y1=\"17\" x2=\"8\" y2=\"17\"/></svg>',\n  kpi: '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><line x1=\"18\" y1=\"20\" x2=\"18\" y2=\"10\"/><line x1=\"12\" y1=\"20\" x2=\"12\" y2=\"4\"/><line x1=\"6\" y1=\"20\" x2=\"6\" y2=\"14\"/></svg>'\n};\n\nconst html = `<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Dashboard Acquisition - Digital Humans</title>\n  <link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">\n  <style>\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body { font-family: 'Inter', sans-serif; background: #0f172a; min-height: 100vh; padding: 40px 20px; }\n    .container { max-width: 1200px; margin: 0 auto; }\n    .logo { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }\n    .logo-digital { color: #22d3d3; }\n    .logo-humans { color: white; }\n    h1 { color: white; font-size: 1.8rem; margin-bottom: 8px; margin-top: 20px; }\n    .subtitle { color: #64748b; margin-bottom: 40px; }\n    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 40px; }\n    .card { background: #1e293b; border-radius: 16px; padding: 24px; border: 1px solid #334155; transition: transform 0.2s, border-color 0.2s; }\n    .card:hover { transform: translateY(-2px); border-color: #22d3d3; }\n    .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }\n    .card-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: rgba(34, 211, 211, 0.1); border: 1px solid rgba(34, 211, 211, 0.3); color: #22d3d3; }\n    .card-icon svg { width: 24px; height: 24px; }\n    .card-title { color: white; font-weight: 600; font-size: 1.1rem; }\n    .card-value { font-size: 3rem; font-weight: 700; color: #22d3d3; margin-bottom: 8px; }\n    .card-label { color: #94a3b8; font-size: 0.9rem; }\n    .card-stats { display: flex; gap: 20px; margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155; }\n    .stat { text-align: center; flex: 1; }\n    .stat-value { color: white; font-weight: 600; font-size: 1.2rem; }\n    .stat-label { color: #64748b; font-size: 0.75rem; }\n    .kpi-section { margin-top: 20px; }\n    .kpi-section h2 { color: white; margin-bottom: 20px; font-size: 1.3rem; }\n    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }\n    .kpi-card { background: #1e293b; border-radius: 12px; padding: 24px; text-align: center; border: 1px solid #334155; transition: border-color 0.2s; }\n    .kpi-card:hover { border-color: #22d3d3; }\n    .kpi-value { font-size: 2.5rem; font-weight: 700; color: #22d3d3; }\n    .kpi-label { color: #94a3b8; font-size: 0.85rem; margin-top: 8px; }\n    .refresh { position: fixed; bottom: 20px; right: 20px; background: #22d3d3; color: #0f172a; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.2s; }\n    .refresh:hover { background: #14b8a6; }\n    .timestamp { text-align: center; color: #475569; font-size: 0.8rem; margin-top: 40px; }\n  </style>\n</head>\n<body>\n  <div class=\"container\">\n    <div class=\"logo\"><span class=\"logo-digital\">Digital-</span><span class=\"logo-humans\">Humans.fr</span></div>\n    <h1>Dashboard Acquisition</h1>\n    <p class=\"subtitle\">Métriques en temps réel</p>\n    \n    <div class=\"grid\">\n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.leads}</div>\n          <div class=\"card-title\">Leads</div>\n        </div>\n        <div class=\"card-value\">${data.leads?.total || 0}</div>\n        <div class=\"card-label\">Total capturés</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.leads?.qualified || 0}</div><div class=\"stat-label\">Qualifiés (≥70)</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.leads?.verified || 0}</div><div class=\"stat-label\">Vérifiés</div></div>\n        </div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.outreach}</div>\n          <div class=\"card-title\">Email Outreach</div>\n        </div>\n        <div class=\"card-value\">${data.outreach?.total || 0}</div>\n        <div class=\"card-label\">Emails envoyés</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.outreach?.qualified || 0}</div><div class=\"stat-label\">Cette semaine</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.outreach?.verified || 0}</div><div class=\"stat-label\">Leads contactés</div></div>\n        </div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.prospects}</div>\n          <div class=\"card-title\">Prospects</div>\n        </div>\n        <div class=\"card-value\">${data.prospects?.total || 0}</div>\n        <div class=\"card-label\">Enrichis</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.prospects?.qualified || 0}</div><div class=\"stat-label\">Score ≥7</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.prospects?.verified || 0}</div><div class=\"stat-label\">Contactés</div></div>\n        </div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.linkedin}</div>\n          <div class=\"card-title\">LinkedIn Posts</div>\n        </div>\n        <div class=\"card-value\">${data.linkedin_posts?.total || 0}</div>\n        <div class=\"card-label\">Posts générés</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.linkedin_posts?.qualified || 0}</div><div class=\"stat-label\">Publiés</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.linkedin_posts?.verified || 0}</div><div class=\"stat-label\">En draft</div></div>\n        </div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.meetings}</div>\n          <div class=\"card-title\">Meetings</div>\n        </div>\n        <div class=\"card-value\">${data.meetings?.total || 0}</div>\n        <div class=\"card-label\">Demandes</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.meetings?.qualified || 0}</div><div class=\"stat-label\">Réservés</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.meetings?.verified || 0}</div><div class=\"stat-label\">Complétés</div></div>\n        </div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.veille}</div>\n          <div class=\"card-title\">Veille</div>\n        </div>\n        <div class=\"card-value\">${data.veille?.total || 0}</div>\n        <div class=\"card-label\">Rapports générés</div>\n      </div>\n      \n      <div class=\"card\">\n        <div class=\"card-header\">\n          <div class=\"card-icon\">${icons.articles}</div>\n          <div class=\"card-title\">Articles Blog</div>\n        </div>\n        <div class=\"card-value\">${data.articles?.total || 0}</div>\n        <div class=\"card-label\">Articles générés</div>\n        <div class=\"card-stats\">\n          <div class=\"stat\"><div class=\"stat-value\">${data.articles?.qualified || 0}</div><div class=\"stat-label\">Publiés</div></div>\n          <div class=\"stat\"><div class=\"stat-value\">${data.articles?.verified || 0}</div><div class=\"stat-label\">En draft</div></div>\n        </div>\n      </div>\n    </div>\n    \n    <div class=\"kpi-section\">\n      <h2>KPIs</h2>\n      <div class=\"kpi-grid\">\n        <div class=\"kpi-card\">\n          <div class=\"kpi-value\">${leadRate}%</div>\n          <div class=\"kpi-label\">Taux de qualification</div>\n        </div>\n        <div class=\"kpi-card\">\n          <div class=\"kpi-value\">${verifyRate}%</div>\n          <div class=\"kpi-label\">Taux de vérification</div>\n        </div>\n        <div class=\"kpi-card\">\n          <div class=\"kpi-value\">${data.leads?.qualified || 0}</div>\n          <div class=\"kpi-label\">Leads prêts à contacter</div>\n        </div>\n      </div>\n    </div>\n    \n    <p class=\"timestamp\">Généré le ${new Date().toLocaleString('fr-FR', {timeZone: 'Europe/Paris'})}</p>\n  </div>\n  <button class=\"refresh\" onclick=\"location.reload()\">Rafraîchir</button>\n</body>\n</html>`;\n\nreturn [{json: {html}}];"
+      },
+      "id": "build-html",
+      "name": "Build HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        650,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "response",
+      "name": "Send HTML",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        850,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Dashboard Page": {
+      "main": [
+        [
+          {
+            "node": "Fetch All Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch All Metrics": {
+      "main": [
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML": {
+      "main": [
+        [
+          {
+            "node": "Send HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "1602a71c-c74c-4122-8c0d-b24cdc303a4f",
+  "activeVersionId": "1602a71c-c74c-4122-8c0d-b24cdc303a4f",
+  "versionCounter": 46,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:23:56.829Z",
+      "createdAt": "2025-12-29T17:23:56.829Z",
+      "role": "workflow:owner",
+      "workflowId": "SiZGoSc8Wte18056",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

@@ -1,0 +1,351 @@
+{
+  "updatedAt": "2026-01-06T08:53:30.432Z",
+  "createdAt": "2025-12-29T17:05:04.990Z",
+  "id": "gp5ZBqBhxTPE73y8",
+  "name": "Email Outreach - Mistral Nemo",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Toutes les 6h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        304
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-outreach",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        256,
+        512
+      ],
+      "webhookId": "outreach-trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, name, company, score, score_reason FROM leads WHERE score >= 70 AND verified = true AND id NOT IN (SELECT lead_id FROM outreach_emails WHERE sent_at > NOW() - INTERVAL '7 days') ORDER BY score DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "fetch-leads",
+      "name": "Fetch High Score Leads",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        512,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leads = $input.all();\nif (leads.length === 0) {\n  return [{json: {skip: true, message: 'Aucun lead qualifié'}}];\n}\n\nconst results = [];\nfor (const item of leads) {\n  const lead = item.json;\n  const prompt = `Tu es un expert en copywriting B2B pour Digital Humans, une solution d'automatisation Salesforce par IA.\n\nÉcris un email de prospection personnalisé pour ce lead:\n- Nom: ${lead.name || 'there'}\n- Entreprise: ${lead.company || 'votre entreprise'}\n- Score: ${lead.score}/100\n\nL'email doit:\n1. Être court (max 150 mots)\n2. Avoir un objet accrocheur\n3. Mentionner un pain point Salesforce (implémentation longue, coûts consultants)\n4. Proposer une démo gratuite\n5. Ton professionnel mais chaleureux\n\nRéponds UNIQUEMENT en JSON:\n{\"subject\": \"...\", \"body\": \"...\"}`;\n\n  results.push({json: {lead_id: lead.id, email: lead.email, name: lead.name, company: lead.company, prompt}});\n}\nreturn results;"
+      },
+      "id": "prepare",
+      "name": "Prepare Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-leads",
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        912,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepareData = $(\"Prepare Prompts\").first().json;\nconst lead_id = prepareData.lead_id;\nconst email = prepareData.email;\nconst name = prepareData.name;\nconst company = prepareData.company;\n\nconst r = $json.response || '';\nlet subject = 'Automatisez votre Salesforce avec l IA';\nlet body = 'Bonjour, découvrez Digital Humans.';\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*subject[\\s\\S]*body[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    subject = p.subject || subject;\n    body = p.body || body;\n  }\n} catch(e) {}\n\nreturn [{json: {lead_id, email, name, company, subject, body}}];"
+      },
+      "id": "parse",
+      "name": "Parse Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $json.subject }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1504,
+        304
+      ],
+      "webhookId": "34953291-127f-480f-a4c5-00fcf8fc6911",
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO outreach_emails (lead_id, subject, body, sent_at) VALUES ({{ $json.lead_id }}, '{{ $json.subject }}', '{{ $json.body }}', NOW())",
+        "options": {}
+      },
+      "id": "log-email",
+      "name": "Log Email Sent",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1712,
+        304
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "response",
+      "name": "Response",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1904,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Toutes les 6h": {
+      "main": [
+        [
+          {
+            "node": "Fetch High Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manuel": {
+      "main": [
+        [
+          {
+            "node": "Fetch High Score Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch High Score Leads": {
+      "main": [
+        [
+          {
+            "node": "Prepare Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Prompts": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Parse Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Log Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Email Sent": {
+      "main": [
+        [
+          {
+            "node": "Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Toutes les 6h": {
+      "recurrenceRules": [
+        6
+      ]
+    }
+  },
+  "meta": null,
+  "pinData": {},
+  "versionId": "947020f5-cb3b-4e45-a1b6-01e093cd7b01",
+  "activeVersionId": "947020f5-cb3b-4e45-a1b6-01e093cd7b01",
+  "versionCounter": 38,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:05:04.993Z",
+      "createdAt": "2025-12-29T17:05:04.993Z",
+      "role": "workflow:owner",
+      "workflowId": "gp5ZBqBhxTPE73y8",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

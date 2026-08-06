@@ -1,0 +1,243 @@
+{
+  "updatedAt": "2025-12-29T17:07:11.786Z",
+  "createdAt": "2025-12-29T17:07:11.786Z",
+  "id": "mXsZ1N6ZBV3SZvMw",
+  "name": "LinkedIn Posts - Mistral Nemo",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Chaque semaine",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-linkedin-post",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        500
+      ],
+      "webhookId": "linkedin-post-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const topics = [\n  'Comment l IA transforme les implémentations Salesforce',\n  'Les erreurs courantes dans les projets Salesforce',\n  '5 signes que votre implémentation Salesforce a besoin d aide',\n  'ROI de l automatisation Salesforce',\n  'Pourquoi les projets Salesforce dépassent toujours les budgets',\n  'L avenir du consulting Salesforce avec l IA',\n  'Comment Digital Humans réduit de 80% le temps d implémentation',\n  'Témoignage client: de 6 mois à 2 semaines',\n  'Les 10 agents IA qui révolutionnent Salesforce',\n  'Salesforce + IA = la combinaison gagnante'\n];\n\nconst topic = topics[Math.floor(Math.random() * topics.length)];\nconst tone = ['inspirant', 'éducatif', 'provocateur', 'storytelling'][Math.floor(Math.random() * 4)];\n\nconst prompt = `Tu es un expert LinkedIn en B2B tech/Salesforce. Écris un post LinkedIn engageant.\n\nSujet: ${topic}\nTon: ${tone}\n\nRègles:\n1. Max 1300 caractères\n2. Accroche forte (première ligne cruciale)\n3. Structure aérée avec sauts de ligne\n4. 2-3 émojis max (pertinents)\n5. Call-to-action à la fin\n6. 3-5 hashtags pertinents\n7. Pas de liens\n\nRéponds UNIQUEMENT en JSON:\n{\"post\": \"...\", \"hashtags\": [\"...\"]}`;\n\nreturn [{json: {topic, tone, prompt}}];"
+      },
+      "id": "prepare",
+      "name": "Choose Topic",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Generate Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const topic = $(\"Choose Topic\").first().json.topic;\nconst tone = $(\"Choose Topic\").first().json.tone;\nconst r = $json.response || '';\n\nlet post = 'L IA révolutionne Salesforce. Découvrez comment.';\nlet hashtags = ['#Salesforce', '#IA', '#DigitalTransformation'];\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*post[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    post = p.post || post;\n    hashtags = p.hashtags || hashtags;\n  }\n} catch(e) {}\n\nreturn [{json: {topic, tone, post, hashtags: hashtags.join(' '), generated_at: new Date().toISOString()}}];"
+      },
+      "id": "parse",
+      "name": "Parse Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO linkedin_posts (topic, tone, content, hashtags, generated_at, status) VALUES ('{{ $json.topic }}', '{{ $json.tone }}', '{{ $json.post.replace(/'/g, \"''\") }}', '{{ $json.hashtags }}', NOW(), 'draft') RETURNING *",
+        "options": {}
+      },
+      "id": "save-post",
+      "name": "Save Draft",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1100,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "shatit@gmail.com",
+        "subject": "=Nouveau post LinkedIn à valider: {{ $json.topic }}",
+        "emailFormat": "html",
+        "message": "=<h2>Post LinkedIn généré</h2><p><strong>Sujet:</strong> {{ $(\"Choose Topic\").first().json.topic }}</p><p><strong>Ton:</strong> {{ $(\"Choose Topic\").first().json.tone }}</p><hr><pre>{{ $json.post }}</pre><hr><p><strong>Hashtags:</strong> {{ $json.hashtags }}</p><p><em>Connectez-vous à N8N pour valider ou modifier ce post.</em></p>",
+        "options": {}
+      },
+      "id": "notify",
+      "name": "Notify Sam",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1300,
+        400
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque semaine": {
+      "main": [
+        [
+          {
+            "node": "Choose Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Manuel": {
+      "main": [
+        [
+          {
+            "node": "Choose Topic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose Topic": {
+      "main": [
+        [
+          {
+            "node": "Generate Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Post": {
+      "main": [
+        [
+          {
+            "node": "Parse Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Post": {
+      "main": [
+        [
+          {
+            "node": "Save Draft",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Draft": {
+      "main": [
+        [
+          {
+            "node": "Notify Sam",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Chaque semaine": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "1fef687d-8bec-4f9f-b423-dab3fabafa7b",
+  "activeVersionId": "1fef687d-8bec-4f9f-b423-dab3fabafa7b",
+  "versionCounter": 36,
+  "triggerCount": 2,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:07:11.788Z",
+      "createdAt": "2025-12-29T17:07:11.788Z",
+      "role": "workflow:owner",
+      "workflowId": "mXsZ1N6ZBV3SZvMw",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

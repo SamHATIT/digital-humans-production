@@ -1,0 +1,153 @@
+{
+  "updatedAt": "2025-12-29T17:13:46.015Z",
+  "createdAt": "2025-12-29T17:13:46.015Z",
+  "id": "OfsMV94hE7TXI3rQ",
+  "name": "Meeting Booking - Calendly Integration",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "book-meeting",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Meeting Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "webhookId": "meeting-booking-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\n// Validation\nif (!data.email || !data.name) {\n  return [{json: {success: false, error: 'email et name requis'}}];\n}\n\n// Générer le lien Calendly personnalisé\nconst calendlyBase = 'https://calendly.com/digital-humans/demo-30min';\nconst params = new URLSearchParams({\n  name: data.name,\n  email: data.email,\n  a1: data.company || '' // Custom field\n});\n\nconst bookingLink = `${calendlyBase}?${params.toString()}`;\n\nreturn [{json: {\n  success: true,\n  email: data.email,\n  name: data.name,\n  company: data.company,\n  booking_link: bookingLink,\n  message: 'Lien de réservation généré'\n}}];"
+      },
+      "id": "generate-link",
+      "name": "Generate Booking Link",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO meeting_requests (email, name, company, booking_link, requested_at) VALUES ('{{ $json.email }}', '{{ $json.name }}', '{{ $json.company }}', '{{ $json.booking_link }}', NOW()) ON CONFLICT (email) DO UPDATE SET booking_link = EXCLUDED.booking_link, requested_at = NOW() RETURNING *",
+        "options": {}
+      },
+      "id": "save",
+      "name": "Log Request",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        650,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $('Generate Booking Link').first().json.email }}",
+        "subject": "Réservez votre démo Digital Humans",
+        "emailFormat": "html",
+        "message": "=<h2>Bonjour {{ $('Generate Booking Link').first().json.name }} !</h2><p>Merci de votre intérêt pour Digital Humans.</p><p>Réservez votre créneau de démonstration en cliquant sur le bouton ci-dessous :</p><p style='text-align:center; margin: 30px 0;'><a href='{{ $('Generate Booking Link').first().json.booking_link }}' style='background: #6366f1; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;'>Réserver ma démo (30 min)</a></p><p>À très bientôt !</p><p>Sam HATIT<br>Digital Humans</p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Booking Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        850,
+        400
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Meeting Request": {
+      "main": [
+        [
+          {
+            "node": "Generate Booking Link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Booking Link": {
+      "main": [
+        [
+          {
+            "node": "Log Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Request": {
+      "main": [
+        [
+          {
+            "node": "Send Booking Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "a0188220-2424-4d08-94f3-416a3700aa1b",
+  "activeVersionId": "a0188220-2424-4d08-94f3-416a3700aa1b",
+  "versionCounter": 34,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:13:46.018Z",
+      "createdAt": "2025-12-29T17:13:46.018Z",
+      "role": "workflow:owner",
+      "workflowId": "OfsMV94hE7TXI3rQ",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

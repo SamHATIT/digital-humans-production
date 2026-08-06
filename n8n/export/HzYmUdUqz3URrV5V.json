@@ -1,0 +1,208 @@
+{
+  "updatedAt": "2025-12-29T17:16:03.457Z",
+  "createdAt": "2025-12-29T17:16:03.457Z",
+  "id": "HzYmUdUqz3URrV5V",
+  "name": "Content Articles - Blog Generator",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-article",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Article Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "webhookId": "article-generator-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\nconst topic = data.topic || 'L automatisation Salesforce par IA';\nconst keywords = data.keywords || ['Salesforce', 'IA', 'automatisation'];\nconst tone = data.tone || 'expert';\nconst length = data.length || 'medium'; // short, medium, long\n\nconst wordCount = {short: 500, medium: 1000, long: 2000}[length];\n\nconst prompt = `Tu es un expert en rédaction SEO B2B pour le secteur Salesforce/CRM.\n\nÉcris un article de blog complet sur:\nSujet: ${topic}\nMots-clés SEO: ${keywords.join(', ')}\nTon: ${tone}\nLongueur: ~${wordCount} mots\n\nStructure requise:\n1. Titre accrocheur (H1) avec mot-clé principal\n2. Introduction (hook + problématique)\n3. 3-5 sections (H2) avec contenu substantiel\n4. Exemples concrets ou cas d'usage\n5. Conclusion avec call-to-action\n6. Meta description (155 caractères max)\n\nRéponds en JSON:\n{\n  \"title\": \"...\",\n  \"meta_description\": \"...\",\n  \"content\": \"...(format Markdown avec ## pour H2)...\",\n  \"keywords_used\": [...]\n}`;\n\nreturn [{json: {topic, keywords, tone, length, word_count: wordCount, prompt}}];"
+      },
+      "id": "prepare",
+      "name": "Prepare Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "ollama",
+      "name": "Generate Article",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        650,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const prepData = $(\"Prepare Request\").first().json;\nconst r = $json.response || '';\n\nlet article = {\n  title: prepData.topic,\n  meta_description: '',\n  content: r,\n  keywords_used: prepData.keywords\n};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*title[\\s\\S]*content[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    article = {...article, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {\n  // Si pas de JSON, utiliser la réponse brute comme contenu\n  article.content = r;\n}\n\nreturn [{json: {\n  ...article,\n  topic: prepData.topic,\n  tone: prepData.tone,\n  target_length: prepData.word_count,\n  actual_length: article.content.split(/\\s+/).length,\n  generated_at: new Date().toISOString()\n}}];"
+      },
+      "id": "parse",
+      "name": "Parse Article",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        850,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO blog_articles (topic, title, meta_description, content, keywords, tone, word_count, status, generated_at) VALUES ('{{ $json.topic }}', '{{ $json.title.replace(/'/g, \"''\") }}', '{{ $json.meta_description.replace(/'/g, \"''\") }}', '{{ $json.content.replace(/'/g, \"''\") }}', '{{ JSON.stringify($json.keywords_used) }}', '{{ $json.tone }}', {{ $json.actual_length }}, 'draft', NOW()) RETURNING id, title, word_count",
+        "options": {}
+      },
+      "id": "save",
+      "name": "Save Article",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1050,
+        400
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "shatit@gmail.com",
+        "subject": "=Nouvel article généré: {{ $('Parse Article').first().json.title }}",
+        "emailFormat": "html",
+        "message": "=<h2>Article généré</h2><p><strong>Titre:</strong> {{ $('Parse Article').first().json.title }}</p><p><strong>Meta:</strong> {{ $('Parse Article').first().json.meta_description }}</p><p><strong>Mots:</strong> {{ $('Parse Article').first().json.actual_length }}</p><hr><div>{{ $('Parse Article').first().json.content.replace(/\\n/g, '<br>').substring(0, 2000) }}...</div><hr><p><em>Article complet sauvegardé en base. À relire avant publication.</em></p>",
+        "options": {}
+      },
+      "id": "notify",
+      "name": "Notify",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1250,
+        400
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Article Request": {
+      "main": [
+        [
+          {
+            "node": "Prepare Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Request": {
+      "main": [
+        [
+          {
+            "node": "Generate Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Article": {
+      "main": [
+        [
+          {
+            "node": "Parse Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Article": {
+      "main": [
+        [
+          {
+            "node": "Save Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Article": {
+      "main": [
+        [
+          {
+            "node": "Notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "1bd33f91-63d4-48a5-9616-c94c5b1ae4de",
+  "activeVersionId": "1bd33f91-63d4-48a5-9616-c94c5b1ae4de",
+  "versionCounter": 37,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:16:03.459Z",
+      "createdAt": "2025-12-29T17:16:03.459Z",
+      "role": "workflow:owner",
+      "workflowId": "HzYmUdUqz3URrV5V",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

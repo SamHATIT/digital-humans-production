@@ -1,0 +1,217 @@
+{
+  "updatedAt": "2025-12-29T17:09:38.502Z",
+  "createdAt": "2025-12-29T17:09:38.502Z",
+  "id": "FFagrk5ySH7CX3E2",
+  "name": "LinkedIn Enrichment - Prospects",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enrich-prospect",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Receive Prospect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        400
+      ],
+      "webhookId": "enrich-prospect-trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json;\n\n// Validation des données reçues\nif (!data.name && !data.company) {\n  return [{json: {error: 'name ou company requis', success: false}}];\n}\n\nconst prompt = `Tu es un expert en qualification de prospects B2B Salesforce.\n\nAnalyse ce prospect et enrichis ses données:\n- Nom: ${data.name || 'N/A'}\n- Titre: ${data.title || 'N/A'}\n- Entreprise: ${data.company || 'N/A'}\n- LinkedIn URL: ${data.linkedin_url || 'N/A'}\n- Email: ${data.email || 'N/A'}\n\nDétermine:\n1. Si c'est un décideur potentiel pour Salesforce (score 1-10)\n2. Les pain points probables de son entreprise\n3. Le meilleur angle d'approche\n4. La taille probable de l'entreprise\n\nRéponds en JSON:\n{\"decision_maker_score\": X, \"company_size\": \"...\", \"pain_points\": [\"...\"], \"approach_angle\": \"...\", \"industry\": \"...\"}`;\n\nreturn [{json: {...data, prompt}}];"
+      },
+      "id": "prepare",
+      "name": "Prepare Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "error-check",
+              "leftValue": "={{ $json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid",
+      "name": "Valid Data?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        650,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "options": {
+          "timeout": 180000
+        }
+      },
+      "id": "ollama",
+      "name": "Analyze Prospect",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        850,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $(\"Prepare Analysis\").first().json;\nconst r = $json.response || '';\n\nlet enrichment = {\n  decision_maker_score: 5,\n  company_size: 'unknown',\n  pain_points: [],\n  approach_angle: '',\n  industry: 'unknown'\n};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*decision_maker_score[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    enrichment = {...enrichment, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  success: true,\n  original: {\n    name: original.name,\n    title: original.title,\n    company: original.company,\n    email: original.email,\n    linkedin_url: original.linkedin_url\n  },\n  enrichment\n}}];"
+      },
+      "id": "parse",
+      "name": "Parse Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO prospects (name, title, company, email, linkedin_url, decision_maker_score, company_size, pain_points, approach_angle, industry, enriched_at) VALUES ('{{ $json.original.name }}', '{{ $json.original.title }}', '{{ $json.original.company }}', '{{ $json.original.email }}', '{{ $json.original.linkedin_url }}', {{ $json.enrichment.decision_maker_score }}, '{{ $json.enrichment.company_size }}', '{{ JSON.stringify($json.enrichment.pain_points) }}', '{{ $json.enrichment.approach_angle }}', '{{ $json.enrichment.industry }}', NOW()) ON CONFLICT (email) DO UPDATE SET decision_maker_score = EXCLUDED.decision_maker_score, enriched_at = NOW() RETURNING *",
+        "options": {}
+      },
+      "id": "save",
+      "name": "Save Prospect",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1250,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive Prospect": {
+      "main": [
+        [
+          {
+            "node": "Prepare Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Analysis": {
+      "main": [
+        [
+          {
+            "node": "Valid Data?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Data?": {
+      "main": [
+        [
+          {
+            "node": "Analyze Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Analyze Prospect": {
+      "main": [
+        [
+          {
+            "node": "Parse Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Save Prospect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "b9eeaffb-7c86-4901-a516-05266c469b73",
+  "activeVersionId": "b9eeaffb-7c86-4901-a516-05266c469b73",
+  "versionCounter": 34,
+  "triggerCount": 1,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2025-12-29T17:09:38.504Z",
+      "createdAt": "2025-12-29T17:09:38.504Z",
+      "role": "workflow:owner",
+      "workflowId": "FFagrk5ySH7CX3E2",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

@@ -1,0 +1,602 @@
+{
+  "updatedAt": "2026-04-26T16:03:15.000Z",
+  "createdAt": "2026-01-07T10:34:02.126Z",
+  "id": "qcVVPMTE0LyhNAO2",
+  "name": "Blog - Newsletter Hebdo (Lundi 9h)",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-newsletter",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "webhookId": "newsletter-trigger"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Lundi 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        480
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode test: true = envoie uniquement à shatit@gmail.com\n// Le body du webhook est dans $input.first().json.body pour responseMode\nconst inputData = $input.first().json;\nconst testMode = inputData.test_mode === true || inputData.body?.test_mode === true;\n\n// Calcul fenêtre semaine (7 jours en arrière)\nconst today = new Date();\nconst weekAgo = new Date(today);\nweekAgo.setDate(today.getDate() - 7);\nweekAgo.setHours(0, 0, 0, 0);\n\nreturn [{\n  json: {\n    week_start: weekAgo.toISOString(),\n    week_label: `Semaine du ${weekAgo.toLocaleDateString('fr-FR', {day: 'numeric', month: 'long'})}`,\n    test_mode: testMode\n  }\n}];"
+      },
+      "id": "init",
+      "name": "Init Week",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://blog-admin.digital-humans.fr/ghost/api/admin/posts/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Ghost {{ $('Get Ghost Token').first().json.token }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filter",
+              "value": "status:published"
+            },
+            {
+              "name": "limit",
+              "value": "20"
+            },
+            {
+              "name": "include",
+              "value": "authors,tags"
+            },
+            {
+              "name": "order",
+              "value": "published_at desc"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get_posts",
+      "name": "Get Published Posts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        770,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrer les articles de cette semaine\nconst input = items[0].json;\nconst initData = $('Init Week').first().json;\nconst weekStart = new Date(initData.week_start);\nconst weekLabel = initData.week_label;\nconst testMode = initData.test_mode;\nconst posts = input.posts || [];\n\nconst thisWeekPosts = posts.filter(post => {\n  const pubDate = new Date(post.published_at);\n  return pubDate >= weekStart;\n});\n\nif (thisWeekPosts.length === 0) {\n  return [{ json: { skip: true, reason: 'Aucun article cette semaine' }}];\n}\n\n// Grouper par agent/auteur\nconst byAuthor = {};\nthisWeekPosts.forEach(post => {\n  const author = post.authors?.[0]?.name || 'Digital Humans';\n  if (!byAuthor[author]) byAuthor[author] = [];\n  byAuthor[author].push({\n    title: post.title,\n    excerpt: post.custom_excerpt || post.excerpt || '',\n    url: `https://digital-humans.fr/blog/${post.slug}`,\n    published_at: post.published_at\n  });\n});\n\nreturn [{\n  json: {\n    skip: false,\n    week_label: weekLabel,\n    total_articles: thisWeekPosts.length,\n    by_author: byAuthor,\n    posts: thisWeekPosts,\n    test_mode: testMode\n  }\n}];"
+      },
+      "id": "filter_week",
+      "name": "Filter This Week",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        990,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if_skip",
+      "name": "Has Articles?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1210,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node: Generate Newsletter HTML  (Studio template — Track B5.2)\n// =============================================================================\n// Renders docs/marketing-site/newsletter-studio-mockup.html with live data.\n// Inputs (from \"Filter This Week\"):\n//   - posts: Ghost article objects (with tags, primary_author, feature_image…)\n//   - week_label, test_mode\n// Optional overrides on the same payload:\n//   - week_number, year, hero_deck\n//\n// Outputs:\n//   - html             : per-recipient HTML (with __UNSUBSCRIBE_URL__ placeholder\n//                        — substituted by the Send Newsletter node per recipient.\n//                        We use __UNSUBSCRIBE_URL__ rather than {{unsubscribe_url}}\n//                        to avoid colliding with n8n's `{{ }}` expression syntax.)\n//   - subject          : email subject line\n//   - week_number, year\n//   - archive_slug     : \"week-{N}-{YYYY}\"\n//   - archive_url      : https://digital-humans.fr/journal/archive/{slug}\n//   - archive_excerpt  : hero deck (used as Ghost custom_excerpt)\n//   - archive_html     : same HTML, unsubscribe placeholder substituted with\n//                        the generic studio unsubscribe URL (no per-recipient leak)\n//   - test_mode, total_articles, rendered_articles\n// =============================================================================\n\nconst data = items[0].json;\nconst initData = $('Init Week').first().json;\nconst articles = data.posts || [];\nconst test_mode = data.test_mode === true || initData.test_mode === true;\n\n// --- Week / Year ---------------------------------------------------------\nfunction isoWeek(d) {\n  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));\n  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));\n  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));\n  return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);\n}\nconst today = new Date();\nconst week_number = data.week_number || isoWeek(today);\nconst year = data.year || today.getUTCFullYear();\nconst hero_deck = data.hero_deck || \"Field notes from the writers' room.\";\n\n// --- URLs ----------------------------------------------------------------\nconst archive_slug = `week-${week_number}-${year}`;\nconst view_in_browser_url = `https://digital-humans.fr/journal/archive/${archive_slug}`;\n\n// --- Rubric mapping (slug → color + label) -------------------------------\nconst RUBRIC = {\n  'manifesto':   { color: '#C8A97E', label: 'MANIFESTO'   }, // brass\n  'craft-notes': { color: '#8E6B8E', label: 'CRAFT NOTES' }, // mauve\n  'dispatches':  { color: '#7A9B76', label: 'DISPATCHES'  }, // sage\n  'archive':     { color: '#76716A', label: 'ARCHIVE'     }, // bone-4\n};\nconst RUBRIC_FALLBACK = { color: '#76716A', label: 'NOTES' };\nconst STUDIO_TAG_SLUGS = new Set(Object.keys(RUBRIC));\n\n// --- Helpers -------------------------------------------------------------\nfunction fmtDate(iso) {\n  if (!iso) return '';\n  return new Date(iso)\n    .toLocaleDateString('en-US', { month: 'short', day: '2-digit' })\n    .toUpperCase();\n}\nfunction escapeHTML(s) {\n  return String(s == null ? '' : s).replace(/[&<>\"']/g, c => ({\n    '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;'\n  }[c]));\n}\nfunction readingTime(post) {\n  const r = Number(post.reading_time);\n  return Number.isFinite(r) && r > 0 ? r : 5;\n}\nfunction rubricFor(post) {\n  const tag = (post.tags || []).find(t => t && STUDIO_TAG_SLUGS.has(t.slug));\n  return tag ? RUBRIC[tag.slug] : RUBRIC_FALLBACK;\n}\nfunction authorOf(post) {\n  if (post.primary_author && post.primary_author.name) return post.primary_author.name;\n  if (Array.isArray(post.authors) && post.authors[0] && post.authors[0].name) return post.authors[0].name;\n  return 'The Studio';\n}\nfunction urlOf(post) {\n  if (post.url) return post.url;\n  if (post.slug) return `https://digital-humans.fr/journal/${post.slug}/`;\n  return 'https://digital-humans.fr/journal/';\n}\n\n// --- Article block -------------------------------------------------------\nfunction articleBlock(a) {\n  const r = rubricFor(a);\n  const author = authorOf(a);\n  const cover = a.feature_image || 'https://digital-humans.fr/assets/covers/placeholder.jpg';\n  const url = urlOf(a);\n  const excerpt = (a.custom_excerpt || a.excerpt || '').slice(0, 280);\n  const minutes = readingTime(a);\n  const title = a.title || '(untitled)';\n\n  return `\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr><td height=\"1\" style=\"height:1px;line-height:1px;font-size:1px;background-color:#1F1E1B;border-top:1px solid #1F1E1B;\">&nbsp;</td></tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:36px 40px 32px 40px;\">\n        <p class=\"mso-mono\" style=\"margin:0 0 22px 0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10px;font-weight:500;line-height:1.4;letter-spacing:2.4px;text-transform:uppercase;color:#76716A;\">\n          <span style=\"color:${r.color};\">${r.label}</span> &nbsp;·&nbsp; ${escapeHTML(author)} &nbsp;·&nbsp; ${minutes} min read &nbsp;·&nbsp; ${fmtDate(a.published_at)}\n        </p>\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr>\n            <td style=\"padding:0 0 28px 0;\">\n              <a href=\"${url}\" style=\"display:block;text-decoration:none;\">\n                <img src=\"${cover}\" alt=\"${escapeHTML(title)}\" width=\"520\" height=\"325\" class=\"cover-fluid\" style=\"display:block;width:100%;max-width:520px;height:auto;border:0;outline:none;background-color:#141416;\">\n              </a>\n            </td>\n          </tr>\n        </table>\n        <h2 class=\"h2-fluid\" style=\"margin:0 0 14px 0;font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif;font-size:26px;font-weight:500;line-height:1.18;letter-spacing:-0.02em;color:#F5F2EC;\">\n          <a href=\"${url}\" style=\"color:#F5F2EC;text-decoration:none;\">${escapeHTML(title)}</a>\n        </h2>\n        <p class=\"mso-sans\" style=\"margin:0 0 22px 0;font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;font-size:14.5px;font-weight:400;line-height:1.65;color:#E8E3D9;\">\n          ${escapeHTML(excerpt)}\n        </p>\n        <p class=\"mso-mono\" style=\"margin:0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10.5px;font-weight:500;line-height:1.4;letter-spacing:2px;text-transform:uppercase;\">\n          <a href=\"${url}\" style=\"color:#C8A97E;text-decoration:none;border-bottom:1px solid #8C6E4A;padding-bottom:2px;\">Read the piece →</a>\n        </p>\n      </td>\n    </tr>\n  `;\n}\n\n// --- Render --------------------------------------------------------------\nconst renderedArticles = articles.slice(0, 3).map(articleBlock).join('');\nconst remaining = Math.max(0, articles.length - 3);\nconst moreBlock = remaining > 0 ? `\n    <tr>\n      <td class=\"px-40\" align=\"center\" style=\"padding:8px 40px 32px 40px;\">\n        <p class=\"mso-mono\" style=\"margin:0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10.5px;font-weight:500;line-height:1.4;letter-spacing:1.6px;text-transform:uppercase;color:#76716A;\">\n          <a href=\"${view_in_browser_url}\" style=\"color:#B8B2A6;text-decoration:none;border-bottom:1px solid #76716A;padding-bottom:2px;\">+ ${remaining} more this week →</a>\n        </p>\n      </td>\n    </tr>\n` : '';\n\nconst testBanner = test_mode ? `\n    <tr>\n      <td style=\"background:#3A2A12;color:#F5DCB1;padding:10px 16px;text-align:center;font-family:'JetBrains Mono', Consolas, monospace;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;\">\n        ⚠ Test mode — recipient list limited to [email protected]\n      </td>\n    </tr>` : '';\n\n// --- Full template (mirror of docs/marketing-site/newsletter-studio-mockup.html)\nconst html = `<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <meta name=\"format-detection\" content=\"telephone=no, date=no, address=no, email=no\">\n  <meta name=\"color-scheme\" content=\"dark\">\n  <meta name=\"supported-color-schemes\" content=\"dark\">\n  <title>Digital·Humans — № Week ${week_number} · This week from the studio.</title>\n  <!--[if !mso]><!-->\n  <link href=\"https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap\" rel=\"stylesheet\">\n  <!--<![endif]-->\n  <!--[if mso]>\n  <style type=\"text/css\">\n    body, table, td, h1, h2, h3, p, a { font-family: Georgia, 'Times New Roman', serif !important; }\n    .mso-mono, .mso-mono * { font-family: Consolas, 'Courier New', monospace !important; }\n    .mso-sans, .mso-sans * { font-family: Arial, sans-serif !important; }\n  </style>\n  <![endif]-->\n  <style type=\"text/css\">\n    body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; background-color: #0A0A0B; }\n    table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }\n    img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; display: block; }\n    a { text-decoration: none; }\n    a:hover { text-decoration: underline; }\n    .preheader { display: none !important; visibility: hidden; opacity: 0; color: transparent; height: 0; width: 0; overflow: hidden; mso-hide: all; }\n    @media only screen and (max-width: 620px) {\n      .container { width: 100% !important; max-width: 100% !important; }\n      .px-40 { padding-left: 24px !important; padding-right: 24px !important; }\n      .h1-fluid { font-size: 30px !important; line-height: 1.12 !important; }\n      .h2-fluid { font-size: 24px !important; line-height: 1.18 !important; }\n      .cover-fluid { width: 100% !important; max-width: 100% !important; height: auto !important; }\n    }\n  </style>\n</head>\n<body style=\"margin:0;padding:0;background-color:#0A0A0B;color:#F5F2EC;\">\n<div class=\"preheader\" style=\"display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:transparent;\">\n  ${escapeHTML(hero_deck)}\n</div>\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"background-color:#0A0A0B;\">\n<tr>\n<td align=\"center\" style=\"padding:0;\">\n${testBanner}\n  <!--[if mso | IE]>\n  <table role=\"presentation\" align=\"center\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:600px;\"><tr><td>\n  <![endif]-->\n  <table role=\"presentation\" class=\"container\" align=\"center\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"width:600px;max-width:600px;background-color:#0A0A0B;\">\n    <tr><td style=\"height:32px;line-height:32px;font-size:0;\">&nbsp;</td></tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr>\n            <td align=\"left\" valign=\"middle\" style=\"font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif;font-size:24px;font-weight:500;line-height:1.1;color:#F5F2EC;letter-spacing:-0.01em;\">\n              <a href=\"https://digital-humans.fr/\" style=\"color:#F5F2EC;text-decoration:none;\">\n                Digital<span style=\"color:#8C6E4A;\">·</span><em style=\"font-style:italic;color:#C8A97E;font-weight:400;\">Humans</em>\n              </a>\n            </td>\n            <td align=\"right\" valign=\"middle\" class=\"mso-mono\" style=\"font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10px;font-weight:400;line-height:1.4;color:#76716A;letter-spacing:2px;text-transform:uppercase;\">\n              № Week ${week_number} &nbsp;·&nbsp; <span style=\"color:#C8A97E;\">${year}</span>\n            </td>\n          </tr>\n        </table>\n      </td>\n    </tr>\n    <tr><td style=\"height:32px;line-height:32px;font-size:0;\">&nbsp;</td></tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr><td height=\"1\" style=\"height:1px;line-height:1px;font-size:1px;background-color:#8C6E4A;border-top:1px solid #8C6E4A;\">&nbsp;</td></tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:48px 40px 44px 40px;\">\n        <p class=\"mso-mono\" style=\"margin:0 0 20px 0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10px;font-weight:500;line-height:1.4;color:#C8A97E;letter-spacing:3px;text-transform:uppercase;\">\n          № ${String(week_number).padStart(3, '0')} &nbsp;·&nbsp; <span style=\"color:#76716A;\">The Dispatch</span>\n        </p>\n        <h1 class=\"h1-fluid\" style=\"margin:0 0 22px 0;font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif;font-size:38px;font-weight:500;line-height:1.08;color:#F5F2EC;letter-spacing:-0.025em;\">\n          This week <em style=\"font-style:italic;color:#C8A97E;font-weight:400;\">from the studio.</em>\n        </h1>\n        <p style=\"margin:0;font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif;font-size:17px;font-style:italic;font-weight:400;line-height:1.55;color:#B8B2A6;padding-left:14px;border-left:1px solid #8C6E4A;\">\n          ${escapeHTML(hero_deck)}\n        </p>\n      </td>\n    </tr>\n${renderedArticles}${moreBlock}\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr><td height=\"1\" style=\"height:1px;line-height:1px;font-size:1px;background-color:#8C6E4A;border-top:1px solid #8C6E4A;\">&nbsp;</td></tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:48px 40px 16px 40px;\">\n        <h2 class=\"h2-fluid\" style=\"margin:0 0 16px 0;font-family:'Cormorant Garamond', Georgia, 'Times New Roman', serif;font-size:28px;font-weight:500;line-height:1.15;letter-spacing:-0.02em;color:#F5F2EC;\">\n          The journal keeps going <em style=\"font-style:italic;color:#C8A97E;font-weight:400;\">between dispatches.</em>\n        </h2>\n        <p class=\"mso-sans\" style=\"margin:0;font-family:Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;font-size:14.5px;font-weight:400;line-height:1.65;color:#B8B2A6;\">\n          Daily craft notes, archive pieces and the occasional manifesto. No tracking pixels, no engagement bait — just the studio thinking out loud.\n        </p>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" align=\"left\" style=\"padding:24px 40px 56px 40px;\">\n        <!--[if mso]>\n        <v:roundrect xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:w=\"urn:schemas-microsoft-com:office:word\" href=\"https://digital-humans.fr/journal/\" style=\"height:46px;v-text-anchor:middle;width:240px;\" arcsize=\"0%\" stroke=\"f\" fillcolor=\"#C8A97E\">\n          <w:anchorlock/>\n          <center style=\"color:#0A0A0B;font-family:Arial,sans-serif;font-size:11px;font-weight:600;letter-spacing:2px;text-transform:uppercase;\">Open the Journal &rarr;</center>\n        </v:roundrect>\n        <![endif]-->\n        <!--[if !mso]><!-->\n        <table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" style=\"border-collapse:separate;\">\n          <tr>\n            <td align=\"center\" valign=\"middle\" style=\"background-color:#C8A97E;padding:14px 28px;\">\n              <a href=\"https://digital-humans.fr/journal/\" style=\"display:inline-block;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:11px;font-weight:600;line-height:1;color:#0A0A0B;letter-spacing:0.14em;text-transform:uppercase;text-decoration:none;\">\n                Open the Journal &nbsp;→\n              </a>\n            </td>\n          </tr>\n        </table>\n        <!--<![endif]-->\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px;\">\n        <table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\">\n          <tr><td height=\"1\" style=\"height:1px;line-height:1px;font-size:1px;background-color:#8C6E4A;border-top:1px solid #8C6E4A;\">&nbsp;</td></tr>\n        </table>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:36px 40px 16px 40px;\">\n        <p class=\"mso-mono\" style=\"margin:0 0 18px 0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:10.5px;font-weight:500;line-height:1.6;letter-spacing:1.8px;text-transform:uppercase;\">\n          <a href=\"https://digital-humans.fr/brief/\" style=\"color:#C8A97E;text-decoration:none;border-bottom:1px solid #8C6E4A;padding-bottom:2px;\">Brief us &nbsp;→</a>\n          &nbsp;<span style=\"color:#8C6E4A;\">·</span>&nbsp;\n          <a href=\"https://digital-humans.fr/journal/\" style=\"color:#B8B2A6;text-decoration:none;\">The Journal</a>\n          &nbsp;<span style=\"color:#8C6E4A;\">·</span>&nbsp;\n          <a href=\"${view_in_browser_url}\" style=\"color:#76716A;text-decoration:none;\">View on web</a>\n        </p>\n        <p class=\"mso-mono\" style=\"margin:0 0 8px 0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:9.5px;font-weight:400;line-height:1.5;letter-spacing:1.6px;text-transform:uppercase;color:#76716A;\">\n          Digital<span style=\"color:#8C6E4A;\">·</span>Humans &nbsp;·&nbsp; Autonomous Salesforce studio\n        </p>\n        <p class=\"mso-mono\" style=\"margin:0 0 24px 0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:9.5px;font-weight:400;line-height:1.5;letter-spacing:1.6px;color:#76716A;\">\n          Samhatit Consulting &nbsp;·&nbsp; Paris, France &nbsp;·&nbsp; <a href=\"mailto:[email protected]\" style=\"color:#76716A;text-decoration:none;\">[email protected]</a>\n        </p>\n      </td>\n    </tr>\n    <tr>\n      <td class=\"px-40\" style=\"padding:0 40px 48px 40px;\">\n        <p class=\"mso-mono\" style=\"margin:0;font-family:'JetBrains Mono', Consolas, 'Courier New', monospace;font-size:9.5px;font-weight:400;line-height:1.5;letter-spacing:1.4px;color:#76716A;\">\n          You are receiving this because you subscribed to the Digital&middot;Humans Dispatch.\n          <br>\n          <a href=\"__UNSUBSCRIBE_URL__\" style=\"color:#76716A;text-decoration:underline;\">Unsubscribe</a>\n          &nbsp;·&nbsp;\n          <a href=\"https://digital-humans.fr/privacy/\" style=\"color:#76716A;text-decoration:underline;\">Privacy</a>\n        </p>\n      </td>\n    </tr>\n  </table>\n  <!--[if mso | IE]>\n  </td></tr></table>\n  <![endif]-->\n</td>\n</tr>\n</table>\n</body>\n</html>`;\n\n// Per-recipient unsubscribe is injected by the Send Newsletter node\n// (it does .replace('__UNSUBSCRIBE_URL__', ...) on the html field).\n// For the archive copy on Ghost, no per-recipient context exists — we\n// substitute the placeholder with a generic studio URL so the archive page\n// never displays an unresolved token.\nconst archive_html = html.split('__UNSUBSCRIBE_URL__').join(\n  'https://digital-humans.fr/journal/unsubscribe'\n);\n\nconst subject = `№ Week ${week_number} · This week from the studio.`;\n\nreturn [{\n  json: {\n    html,\n    subject,\n    week_number,\n    year,\n    archive_slug,\n    archive_url: view_in_browser_url,\n    archive_excerpt: hero_deck,\n    archive_html,\n    test_mode,\n    total_articles: articles.length,\n    rendered_articles: Math.min(articles.length, 3),\n  }\n}];\n"
+      },
+      "id": "gen_html",
+      "name": "Generate Newsletter HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1430,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.test_mode ? \"SELECT email, name FROM leads WHERE email = 'shatit@gmail.com'\" : \"SELECT email, name FROM leads WHERE verified = true AND subscribed_newsletter = true\" }}",
+        "options": {}
+      },
+      "id": "get_subscribers",
+      "name": "Get Subscribers",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1650,
+        300
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "contact@digital-humans.fr",
+        "toEmail": "={{ $json.email }}",
+        "subject": "={{ $('Generate Newsletter HTML').first().json.subject }}",
+        "emailType": "html",
+        "html": "={{ $('Generate Newsletter HTML').first().json.html.replace('__UNSUBSCRIBE_URL__', 'https://digital-humans.fr/journal/unsubscribe?email=' + encodeURIComponent($json.email)) }}",
+        "options": {
+          "replyTo": "contact@digital-humans.fr"
+        }
+      },
+      "id": "send_email",
+      "name": "Send Newsletter",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1870,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "E4tVgAIcdXPgRisS",
+          "name": "Hostinger SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, message: $json.reason || 'Newsletter skipped - no articles' }) }}"
+      },
+      "id": "resp_skip",
+      "name": "Response Skip",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1430,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ success: true, articles: $('Generate Newsletter HTML').first().json.total_articles, recipients: $input.all().length, test_mode: $('Generate Newsletter HTML').first().json.test_mode }) }}"
+      },
+      "id": "resp_ok",
+      "name": "Response OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2090,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://127.0.0.1:8765/ghost-token",
+        "options": {}
+      },
+      "id": "get_ghost_token",
+      "name": "Get Ghost Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        550,
+        390
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================================================\n// Node: Generate Ghost Admin JWT  (Track B5.2)\n// =============================================================================\n// Mints a 5-minute Ghost Admin API JWT from $env.GHOST_ADMIN_KEY.\n// Format expected for GHOST_ADMIN_KEY: \"<24-hex-id>:<64-hex-secret>\".\n//\n// Outputs:\n//   - token : Ghost Admin JWT (string, valid 5 min, audience \"/admin/\")\n//\n// Usage downstream:\n//   Authorization: Ghost {{ $('Generate Ghost JWT').first().json.token }}\n//\n// Notes:\n// - This Code node uses pure JS via Node crypto (no extra deps), since N8N\n//   Code nodes don't ship the `jsonwebtoken` module reliably across versions.\n// - Secret is hex-decoded before HMAC, per Ghost's spec.\n// =============================================================================\n\nconst crypto = require('crypto');\n\nconst raw = $env.GHOST_ADMIN_KEY || '';\nif (!raw || !raw.includes(':')) {\n  throw new Error('GHOST_ADMIN_KEY env var missing or malformed (expected \"id:secret\")');\n}\nconst [keyId, secretHex] = raw.split(':');\nconst secret = Buffer.from(secretHex, 'hex');\n\nconst iat = Math.floor(Date.now() / 1000);\nconst header = { alg: 'HS256', typ: 'JWT', kid: keyId };\nconst payload = { iat, exp: iat + 5 * 60, aud: '/admin/' };\n\nfunction b64url(buf) {\n  return Buffer.from(buf)\n    .toString('base64')\n    .replace(/=+$/, '')\n    .replace(/\\+/g, '-')\n    .replace(/\\//g, '_');\n}\n\nconst signingInput =\n  b64url(JSON.stringify(header)) + '.' + b64url(JSON.stringify(payload));\nconst signature = b64url(\n  crypto.createHmac('sha256', secret).update(signingInput).digest()\n);\n\nreturn [{ json: { token: signingInput + '.' + signature } }];\n"
+      },
+      "id": "ghost_jwt",
+      "name": "Generate Ghost JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1650,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://blog-admin.digital-humans.fr/ghost/api/admin/posts/slug/{{ $('Generate Newsletter HTML').first().json.archive_slug }}/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Ghost {{ $('Generate Ghost JWT').first().json.token }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "id,slug,updated_at,status"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "ghost_lookup",
+      "name": "Lookup Archive Slug",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1870,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "exists",
+              "leftValue": "={{ ($json.posts || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "ghost_exists_if",
+      "name": "Archive Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2090,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://blog-admin.digital-humans.fr/ghost/api/admin/posts/?source=html",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Ghost {{ $('Generate Ghost JWT').first().json.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  posts: [{\n    title: $('Generate Newsletter HTML').first().json.subject,\n    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n    html: $('Generate Newsletter HTML').first().json.archive_html,\n    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n    tags: [{slug: 'archive'}],\n    status: 'published',\n    visibility: 'public',\n    feature_image: null\n  }]\n}) }}",
+        "options": {},
+        "contentType": "json"
+      },
+      "id": "ghost_create",
+      "name": "Create Archive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2310,
+        620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://blog-admin.digital-humans.fr/ghost/api/admin/posts/{{ $json.posts[0].id }}/?source=html",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Ghost {{ $('Generate Ghost JWT').first().json.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  posts: [{\n    title: $('Generate Newsletter HTML').first().json.subject,\n    slug: $('Generate Newsletter HTML').first().json.archive_slug,\n    html: $('Generate Newsletter HTML').first().json.archive_html,\n    custom_excerpt: $('Generate Newsletter HTML').first().json.archive_excerpt,\n    tags: [{slug: 'archive'}],\n    status: 'published',\n    visibility: 'public',\n    feature_image: null,\n    updated_at: $('Lookup Archive Slug').first().json.posts[0].updated_at\n  }]\n}) }}",
+        "options": {},
+        "contentType": "json"
+      },
+      "id": "ghost_update",
+      "name": "Update Archive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2310,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Init Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lundi 9h": {
+      "main": [
+        [
+          {
+            "node": "Init Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Published Posts": {
+      "main": [
+        [
+          {
+            "node": "Filter This Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter This Week": {
+      "main": [
+        [
+          {
+            "node": "Has Articles?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Articles?": {
+      "main": [
+        [
+          {
+            "node": "Response Skip",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Newsletter HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Newsletter HTML": {
+      "main": [
+        [
+          {
+            "node": "Get Subscribers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Ghost JWT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Subscribers": {
+      "main": [
+        [
+          {
+            "node": "Send Newsletter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Newsletter": {
+      "main": [
+        [
+          {
+            "node": "Response OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Week": {
+      "main": [
+        [
+          {
+            "node": "Get Ghost Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Ghost Token": {
+      "main": [
+        [
+          {
+            "node": "Get Published Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Ghost JWT": {
+      "main": [
+        [
+          {
+            "node": "Lookup Archive Slug",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup Archive Slug": {
+      "main": [
+        [
+          {
+            "node": "Archive Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Archive Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update Archive",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Archive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Lundi 9h": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "f466a69a-f9b2-4c51-8cc3-e6bc72985372",
+  "activeVersionId": "f466a69a-f9b2-4c51-8cc3-e6bc72985372",
+  "versionCounter": 92,
+  "triggerCount": 2,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-01-07T10:34:02.130Z",
+      "createdAt": "2026-01-07T10:34:02.130Z",
+      "role": "workflow:owner",
+      "workflowId": "qcVVPMTE0LyhNAO2",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}

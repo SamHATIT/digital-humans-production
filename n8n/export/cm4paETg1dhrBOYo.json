@@ -1,0 +1,175 @@
+{
+  "updatedAt": "2026-04-12T12:41:03.000Z",
+  "createdAt": "2026-04-12T12:33:11.948Z",
+  "id": "cm4paETg1dhrBOYo",
+  "name": "📊 Rapport Quotidien — 8h",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Schedule 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Daily Report Data",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "command": "python3 -c \"\nimport subprocess, json, datetime\n\n# Services\nservices=[('digital-humans-backend','Backend DH'),('digital-humans-frontend','Frontend DH'),('nginx','Nginx'),('postgresql','PostgreSQL'),('n8n','N8N'),('mcp-system-server','MCP'),('ollama','Ollama')]\nok_svcs=[]; ko_svcs=[]\nfor svc,label in services:\n    r=subprocess.run(['systemctl','is-active',svc],capture_output=True,text=True)\n    (ok_svcs if r.stdout.strip()=='active' else ko_svcs).append(label)\n\n# Docker\nr=subprocess.run(['docker','ps','--format','{{.Names}}|{{.Status}}'],capture_output=True,text=True)\ndockers=[]\nfor line in r.stdout.strip().split('\\n'):\n    if '|' in line:\n        n,s=line.split('|',1)\n        dockers.append(n+' ('+('✅' if 'unhealthy' not in s and 'Exited' not in s else '❌')+')')\n\n# RAM\nr=subprocess.run(['free','-h'],capture_output=True,text=True)\nmem=r.stdout.split('\\n')[1].split()\nram_info=mem[2]+'/'+mem[1]+' utilisé'\n\n# Disque\nr=subprocess.run(['df','-h','/'],capture_output=True,text=True)\nd=r.stdout.split('\\n')[1].split()\ndisk_info=d[2]+'/'+d[1]+' utilisé ('+d[4]+')'\n\n# Uptime\nr=subprocess.run(['uptime','-p'],capture_output=True,text=True)\nuptime=r.stdout.strip()\n\n# DH Backend check\ntry:\n    r=subprocess.run(['curl','-s','-o','/dev/null','-w','%{http_code}','http://localhost:8002/docs'],capture_output=True,text=True,timeout=5)\n    dh_api='✅ OK (HTTP '+r.stdout.strip()+')' if r.stdout.strip()=='200' else '⚠️ HTTP '+r.stdout.strip()\nexcept: dh_api='❌ Timeout'\n\n# PostgreSQL stats\ntry:\n    r=subprocess.run(['sudo','-u','postgres','psql','-d','digital_humans_db','-t','-c','SELECT COUNT(*) FROM projects; SELECT COUNT(*) FROM execution_entity;'],capture_output=True,text=True,timeout=10)\n    db_stats=r.stdout.strip().replace('\\n','  |  ')\nexcept: db_stats='N/A'\n\n# Fail2ban\ntry:\n    r=subprocess.run(['fail2ban-client','status','sshd'],capture_output=True,text=True,timeout=5)\n    banned=[l for l in r.stdout.split('\\n') if 'Currently banned' in l]\n    f2b=banned[0].strip() if banned else 'OK'\nexcept: f2b='N/A'\n\nresult={\n    'ok_svcs':ok_svcs,'ko_svcs':ko_svcs,'dockers':dockers,\n    'ram':ram_info,'disk':disk_info,'uptime':uptime,\n    'dh_api':dh_api,'db_stats':db_stats,'f2b':f2b,\n    'date':datetime.datetime.now().strftime('%A %d/%m/%Y'),'time':datetime.datetime.now().strftime('%H:%M')\n}\nprint(json.dumps(result))\n\"\n"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Format Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst d = JSON.parse($input.first().json.stdout.trim());\nconst ko = d.ko_svcs.length > 0 ? '⚠️ KO: ' + d.ko_svcs.join(', ') : '✅ Tous opérationnels';\nconst tg = `📊 *RAPPORT QUOTIDIEN — ${d.date}*\n\n🖥️ *Serveur*\n• Uptime: ${d.uptime}\n• RAM: ${d.ram}\n• Disque: ${d.disk}\n\n⚙️ *Services (${d.ok_svcs.length}/${d.ok_svcs.length + d.ko_svcs.length} OK)*\n${ko}\n\n🐳 *Docker*\n${d.dockers.join('\\n')}\n\n🤖 *Digital Humans*\n• API Backend: ${d.dh_api}\n• DB Stats: ${d.db_stats}\n\n🛡️ *Sécurité*\n• Fail2ban SSH: ${d.f2b}\n\n_Rapport généré à ${d.time}_`;\n\nconst mail = `RAPPORT QUOTIDIEN — ${d.date}\n\nSERVEUR\n• Uptime: ${d.uptime}\n• RAM: ${d.ram}\n• Disque: ${d.disk}\n\nSERVICES (${d.ok_svcs.length}/${d.ok_svcs.length + d.ko_svcs.length} OK)\n${ko}\n\nDOCKER\n${d.dockers.join('\\n')}\n\nDIGITAL HUMANS\n• API Backend: ${d.dh_api}\n• DB Stats: ${d.db_stats}\n\nSÉCURITÉ\n• Fail2ban SSH: ${d.f2b}\n\n--\nRapport automatique — Samhatit Consulting`;\n\nreturn [{json: {...d, tg_text: tg, mail_text: mail}}];\n"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Telegram Rapport",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        -100
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "cxAftJvkQkCVjPwI",
+          "name": "Telegram - SamHatit Bot"
+        }
+      },
+      "parameters": {
+        "chatId": "6562956255",
+        "text": "={{ $json.tg_text }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Email Rapport",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        660,
+        100
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "du0c1at36SosdTku",
+          "name": "Gmail SMTP - Sam"
+        }
+      },
+      "parameters": {
+        "fromEmail": "shatit@gmail.com",
+        "toEmail": "shatit@gmail.com",
+        "subject": "📊 Rapport Quotidien Serveur — {{ $json.date }}",
+        "emailType": "text",
+        "message": "={{ $json.mail_text }}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule 8h": {
+      "main": [
+        [
+          {
+            "node": "Daily Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Report Data": {
+      "main": [
+        [
+          {
+            "node": "Format Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report": {
+      "main": [
+        [
+          {
+            "node": "Telegram Rapport",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Email Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": null,
+  "versionId": "3fac3b09-536b-40fc-b219-4f50fa9c12b9",
+  "activeVersionId": null,
+  "versionCounter": 4,
+  "triggerCount": 0,
+  "tags": [],
+  "shared": [
+    {
+      "updatedAt": "2026-04-12T12:33:11.950Z",
+      "createdAt": "2026-04-12T12:33:11.950Z",
+      "role": "workflow:owner",
+      "workflowId": "cm4paETg1dhrBOYo",
+      "projectId": "0GBMc2LvdlpiNqNv",
+      "project": {
+        "updatedAt": "2025-12-29T11:11:51.162Z",
+        "createdAt": "2025-12-29T11:01:59.068Z",
+        "id": "0GBMc2LvdlpiNqNv",
+        "name": "Sam Hatit <shatit@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "6e692d76-02fa-4678-ad62-d542556cb485"
+      }
+    }
+  ]
+}
