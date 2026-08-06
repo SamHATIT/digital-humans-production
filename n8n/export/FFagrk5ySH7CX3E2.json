@@ -72,12 +72,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:11434/api/generate",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={{$env.GEMINI_API_KEY}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "jsonBody": "={\"contents\":[{\"parts\":[{\"text\":{{ JSON.stringify($json.prompt) }}}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":2048}}",
         "options": {
-          "timeout": 180000
+          "timeout": 90000
         }
       },
       "id": "ollama",
@@ -91,7 +91,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const original = $(\"Prepare Analysis\").first().json;\nconst r = $json.response || '';\n\nlet enrichment = {\n  decision_maker_score: 5,\n  company_size: 'unknown',\n  pain_points: [],\n  approach_angle: '',\n  industry: 'unknown'\n};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*decision_maker_score[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    enrichment = {...enrichment, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  success: true,\n  original: {\n    name: original.name,\n    title: original.title,\n    company: original.company,\n    email: original.email,\n    linkedin_url: original.linkedin_url\n  },\n  enrichment\n}}];"
+        "jsCode": "const original = $(\"Prepare Analysis\").first().json;\nconst r = ($json.response || $json.candidates?.[0]?.content?.parts?.[0]?.text || '') || '';\n\nlet enrichment = {\n  decision_maker_score: 5,\n  company_size: 'unknown',\n  pain_points: [],\n  approach_angle: '',\n  industry: 'unknown'\n};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*decision_maker_score[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    enrichment = {...enrichment, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  success: true,\n  original: {\n    name: original.name,\n    title: original.title,\n    company: original.company,\n    email: original.email,\n    linkedin_url: original.linkedin_url\n  },\n  enrichment\n}}];"
       },
       "id": "parse",
       "name": "Parse Enrichment",
@@ -192,7 +192,7 @@
   "pinData": null,
   "versionId": "b9eeaffb-7c86-4901-a516-05266c469b73",
   "activeVersionId": "b9eeaffb-7c86-4901-a516-05266c469b73",
-  "versionCounter": 42,
+  "versionCounter": 47,
   "triggerCount": 1,
   "tags": [],
   "shared": [

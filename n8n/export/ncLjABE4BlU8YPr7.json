@@ -2,9 +2,9 @@
   "updatedAt": "2026-01-06T08:52:37.475Z",
   "createdAt": "2025-12-29T16:42:23.774Z",
   "id": "ncLjABE4BlU8YPr7",
-  "name": "Lead Scoring - Mistral Nemo",
+  "name": "Lead Scoring - Gemini",
   "description": null,
-  "active": false,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -63,12 +63,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:11434/api/generate",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={{$env.GEMINI_API_KEY}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "jsonBody": "={\"contents\":[{\"parts\":[{\"text\":{{ JSON.stringify($json.prompt) }}}]}],\"generationConfig\":{\"temperature\":0.2,\"maxOutputTokens\":2048}}",
         "options": {
-          "timeout": 180000
+          "timeout": 90000
         }
       },
       "id": "ollama",
@@ -82,7 +82,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Récupérer lead_id depuis le noeud Prepare\nconst prepareData = $(\"Prepare\").first().json;\nconst lead_id = prepareData.lead_id;\nconst email = prepareData.email;\n\n// Parser la réponse Ollama\nconst r = $json.response || \"\";\nlet score = 50, reason = \"Parsing failed\";\n\ntry {\n  // Essayer d'abord le format JSON\n  const jsonMatch = r.match(/\\{[^{}]*score[^{}]*\\}/i);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    score = parseInt(p.score) || 50;\n    reason = String(p.reason || \"\").replace(/[\"']/g, \"\").substring(0, 200);\n  } else {\n    // Fallback: chercher \"Score: XX\" ou \"Score : XX\" dans le texte\n    const scoreMatch = r.match(/score\\s*:?\\s*(\\d+)/i);\n    if (scoreMatch) {\n      score = parseInt(scoreMatch[1]) || 50;\n      reason = \"Score extrait du texte\";\n    }\n  }\n} catch(e) {\n  reason = \"Parsing error\";\n}\n\n// Borner le score entre 1 et 100\nscore = Math.max(1, Math.min(100, score));\n\nreturn [{json: {lead_id, email, score, reason}}];"
+        "jsCode": "// Récupérer lead_id depuis le noeud Prepare\nconst prepareData = $(\"Prepare\").first().json;\nconst lead_id = prepareData.lead_id;\nconst email = prepareData.email;\n\n// Parser la réponse Ollama\nconst r = ($json.response || $json.candidates?.[0]?.content?.parts?.[0]?.text || '') || \"\";\nlet score = 50, reason = \"Parsing failed\";\n\ntry {\n  // Essayer d'abord le format JSON\n  const jsonMatch = r.match(/\\{[^{}]*score[^{}]*\\}/i);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    score = parseInt(p.score) || 50;\n    reason = String(p.reason || \"\").replace(/[\"']/g, \"\").substring(0, 200);\n  } else {\n    // Fallback: chercher \"Score: XX\" ou \"Score : XX\" dans le texte\n    const scoreMatch = r.match(/score\\s*:?\\s*(\\d+)/i);\n    if (scoreMatch) {\n      score = parseInt(scoreMatch[1]) || 50;\n      reason = \"Score extrait du texte\";\n    }\n  }\n} catch(e) {\n  reason = \"Parsing error\";\n}\n\n// Borner le score entre 1 et 100\nscore = Math.max(1, Math.min(100, score));\n\nreturn [{json: {lead_id, email, score, reason}}];"
       },
       "id": "parse",
       "name": "Parse",
@@ -217,7 +217,7 @@
   "pinData": {},
   "versionId": "fd0944e3-5805-44aa-8827-1512417dafb3",
   "activeVersionId": "fd0944e3-5805-44aa-8827-1512417dafb3",
-  "versionCounter": 60,
+  "versionCounter": 66,
   "triggerCount": 1,
   "tags": [],
   "shared": [

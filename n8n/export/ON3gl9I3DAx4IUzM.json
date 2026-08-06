@@ -194,6 +194,42 @@
         }
       },
       "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transforme les articles de veille en sujets d'article a valider.\n// Statut \"pending\" : rien ne part en redaction sans validation humaine.\n// L'agent suggere est deduit du sujet — Sam peut le changer a l'approbation.\nconst filtre = $(\"Filter Recent\").first().json;\nconst articles = filtre.articles || [];\nconst AGENTS = [\n  [/lwc|lightning web|composant|component/i, \"zara-thompson\"],\n  [/apex|trigger|classe|code|develop/i,      \"diego-martinez\"],\n  [/flow|automation|admin|permission/i,      \"raj-patel\"],\n  [/agentforce|ia|ai |agent/i,               \"marcus-chen\"],\n  [/data|donnee|migration|integration/i,     \"aisha-okonkwo\"],\n  [/test|qualite|quality/i,                  \"elena-volkov\"],\n  [/deploy|devops|ci\\/cd|release/i,          \"jordan-blake\"],\n];\nconst sortie = [];\nfor (const a of articles.slice(0, 5)) {\n  const titre = (a.title || \"\").trim();\n  if (!titre) continue;\n  let agent = \"olivia-laurent\";\n  for (const [re, nom] of AGENTS) { if (re.test(titre)) { agent = nom; break; } }\n  sortie.push({ json: {\n    title: titre.slice(0, 240),\n    description: (a.contentSnippet || a.content || \"\").replace(/<[^>]+>/g, \"\").trim().slice(0, 500),\n    source_url: a.link || \"\",\n    source_name: a.source || \"Veille Salesforce\",\n    suggested_agent: agent,\n    veille_date: new Date().toISOString().slice(0, 10)\n  }});\n}\nreturn sortie;"
+      },
+      "id": "veille-sujets",
+      "name": "Proposer Sujets",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO blog_topics (title, description, source_url, source_name, suggested_agent, veille_date, status) SELECT x.title, x.description, x.source_url, x.source_name,        x.suggested_agent, x.veille_date::date, 'pending' FROM json_to_record($1::json) AS x(  title text, description text, source_url text,   source_name text, suggested_agent text, veille_date text) ON CONFLICT DO NOTHING",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json) }}"
+        }
+      },
+      "id": "veille-save-sujets",
+      "name": "Enregistrer Sujets",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        880,
+        560
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
     }
   ],
   "connections": {
@@ -282,6 +318,11 @@
             "node": "Save Report",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Proposer Sujets",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -291,6 +332,17 @@
         [
           {
             "node": "Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Proposer Sujets": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer Sujets",
             "type": "main",
             "index": 0
           }
@@ -312,7 +364,7 @@
   "pinData": {},
   "versionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
   "activeVersionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
-  "versionCounter": 51,
+  "versionCounter": 58,
   "triggerCount": 1,
   "tags": [],
   "shared": [

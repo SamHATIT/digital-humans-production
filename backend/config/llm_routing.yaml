@@ -172,9 +172,12 @@ providers:
         supports_temperature: false   # mod41 (2026-07-02) : Sonnet 5 — temperature deprecee (400 si envoyee), meme regime qu'Opus 4.7+. Bascule manuelle validee par Sam. Thinking adaptatif laisse ON (carte qualite).
         display_name: "Claude Sonnet 5"
       claude-opus:
-        model_id: "claude-opus-4-8"
+        # 06/08/2026 : Opus 4.8 -> Opus 5. Verifie via GET /v1/models — claude-opus-5
+        # est disponible. Regle posee par Sam : toujours la derniere version d'une
+        # famille, sauf raison explicite documentee ici.
+        model_id: "claude-opus-5"
         supports_temperature: false   # mod39 : Opus 4.x — sampling params (temperature/top_p/top_k) deprecies (400 si envoyes)
-        display_name: "Claude Opus 4.8"
+        display_name: "Claude Opus 5"
 
   openai:
     enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.

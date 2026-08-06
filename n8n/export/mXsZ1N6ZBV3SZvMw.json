@@ -2,7 +2,7 @@
   "updatedAt": "2025-12-29T17:07:11.786Z",
   "createdAt": "2025-12-29T17:07:11.786Z",
   "id": "mXsZ1N6ZBV3SZvMw",
-  "name": "LinkedIn Posts - Mistral Nemo",
+  "name": "LinkedIn Posts - Gemini (envoi bride)",
   "description": null,
   "active": false,
   "isArchived": false,
@@ -60,12 +60,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:11434/api/generate",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={{$env.GEMINI_API_KEY}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "jsonBody": "={\"contents\":[{\"parts\":[{\"text\":{{ JSON.stringify($json.prompt) }}}]}],\"generationConfig\":{\"temperature\":0.4,\"maxOutputTokens\":2048}}",
         "options": {
-          "timeout": 180000
+          "timeout": 90000
         }
       },
       "id": "ollama",
@@ -79,7 +79,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const topic = $(\"Choose Topic\").first().json.topic;\nconst tone = $(\"Choose Topic\").first().json.tone;\nconst r = $json.response || '';\n\nlet post = 'L IA révolutionne Salesforce. Découvrez comment.';\nlet hashtags = ['#Salesforce', '#IA', '#DigitalTransformation'];\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*post[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    post = p.post || post;\n    hashtags = p.hashtags || hashtags;\n  }\n} catch(e) {}\n\nreturn [{json: {topic, tone, post, hashtags: hashtags.join(' '), generated_at: new Date().toISOString()}}];"
+        "jsCode": "const topic = $(\"Choose Topic\").first().json.topic;\nconst tone = $(\"Choose Topic\").first().json.tone;\nconst r = ($json.response || $json.candidates?.[0]?.content?.parts?.[0]?.text || '') || '';\n\nlet post = 'L IA révolutionne Salesforce. Découvrez comment.';\nlet hashtags = ['#Salesforce', '#IA', '#DigitalTransformation'];\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*post[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    const p = JSON.parse(jsonMatch[0]);\n    post = p.post || post;\n    hashtags = p.hashtags || hashtags;\n  }\n} catch(e) {}\n\nreturn [{json: {topic, tone, post, hashtags: hashtags.join(' '), generated_at: new Date().toISOString()}}];"
       },
       "id": "parse",
       "name": "Parse Post",
@@ -133,7 +133,8 @@
           "id": "E4tVgAIcdXPgRisS",
           "name": "Hostinger SMTP"
         }
-      }
+      },
+      "disabled": true
     }
   ],
   "connections": {
@@ -218,7 +219,7 @@
   "pinData": null,
   "versionId": "1fef687d-8bec-4f9f-b423-dab3fabafa7b",
   "activeVersionId": "1fef687d-8bec-4f9f-b423-dab3fabafa7b",
-  "versionCounter": 44,
+  "versionCounter": 50,
   "triggerCount": 2,
   "tags": [],
   "shared": [
