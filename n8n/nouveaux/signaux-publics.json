@@ -1,0 +1,161 @@
+{
+  "name": "Signaux Publics - Collecteur (BOAMP)",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7,
+              "triggerAtMinute": 30
+            }
+          ]
+        }
+      },
+      "id": "sig-trigger",
+      "name": "Chaque matin 7h30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "path": "signaux-publics-manuel",
+        "options": {}
+      },
+      "id": "sig-webhook",
+      "name": "Declencheur manuel",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        480
+      ],
+      "webhookId": "signaux-publics-manuel"
+    },
+    {
+      "parameters": {
+        "url": "https://www.boamp.fr/api/explore/v2.1/catalog/datasets/boamp/records",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "where",
+              "value": "=search(\"salesforce\") OR search(\"Sales Cloud\")"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            },
+            {
+              "name": "order_by",
+              "value": "dateparution desc"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "sig-fetch",
+      "name": "Interroger le BOAMP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -240,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtre les avis parus depuis moins de 30 jours et les normalise en SIGNAL.\n// Un signal est une PREUVE PUBLIQUE ET DATEE qu'une organisation investit dans\n// Salesforce maintenant. Sans date ni URL verifiable, le signal ne compte pas.\nconst LIMITE_JOURS = 30;\nconst maintenant = new Date();\nconst sortie = [];\n\nfor (const item of $input.all()) {\n  const res = item.json.results || [item.json];\n  for (const r of res) {\n    if (!r || !r.dateparution) continue;\n    const parution = new Date(r.dateparution);\n    const age = Math.floor((maintenant - parution) / 86400000);\n    if (age > LIMITE_JOURS) continue;\n\n\n    // Le BOAMP renvoie l'avis entier : un marche de traiteur peut contenir\n    // \"salesforce\" dans une piece jointe. On exige la mention dans l'OBJET,\n    // c'est-a-dire dans ce que l'acheteur achete reellement.\n    const objet = (r.objet || '').toLowerCase();\n    const pertinent = ['salesforce', 'sales cloud', 'service cloud', 'crm'].some(m => objet.includes(m));\n    if (!pertinent) continue;\n\n    const acheteur = (r.nomacheteur || '').trim();\n    if (!acheteur) continue;\n\n    sortie.push({ json: {\n      signal_type: 'Appel offres public',\n      signal_source: 'BOAMP',\n      signal_url: 'https://www.boamp.fr/pages/avis/?q=idweb:\"' + r.idweb + '\"',\n      signal_date: r.dateparution,\n      signal_resume: (r.objet || '').slice(0, 400),\n      entreprise: acheteur,\n      echeance: r.datelimitereponse || null,\n      reference: r.idweb,\n      // Un marche public est le signal le plus fort qui soit : budget vote,\n      // besoin decrit, calendrier connu. Bonus de fraicheur.\n      score_signal: (objet.includes('salesforce') ? 9 : 7) - (age > 15 ? 1 : 0)\n    }});\n  }\n}\nreturn sortie;"
+      },
+      "id": "sig-filter",
+      "name": "Filtrer et normaliser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20,
+        380
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO signaux_publics (signal_type, signal_source, signal_url, signal_date, signal_resume, entreprise, echeance, reference, score_signal, statut) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'nouveau') ON CONFLICT (reference) DO NOTHING",
+        "options": {
+          "queryReplacement": "={{ $json.signal_type }},{{ $json.signal_source }},{{ $json.signal_url }},{{ $json.signal_date }},{{ $json.signal_resume }},{{ $json.entreprise }},{{ $json.echeance }},{{ $json.reference }},{{ $json.score_signal }}"
+        }
+      },
+      "id": "sig-save",
+      "name": "Enregistrer le signal",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        200,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "GZbkpedRoAvhZ1O4",
+          "name": "Digital Humans PostgreSQL"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque matin 7h30": {
+      "main": [
+        [
+          {
+            "node": "Interroger le BOAMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Declencheur manuel": {
+      "main": [
+        [
+          {
+            "node": "Interroger le BOAMP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interroger le BOAMP": {
+      "main": [
+        [
+          {
+            "node": "Filtrer et normaliser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtrer et normaliser": {
+      "main": [
+        [
+          {
+            "node": "Enregistrer le signal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "versionId": "01bcf96c-e98c-42de-9ac5-10767864c4a7",
+  "id": "signauxpublics01"
+}
