@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-01-06T09:22:26.927Z",
+  "updatedAt": "2026-08-06T17:06:56.000Z",
   "createdAt": "2025-12-29T17:13:01.333Z",
   "id": "ON3gl9I3DAx4IUzM",
-  "name": "Veille Concurrence - Mistral Nemo",
+  "name": "Veille Concurrence - Gemini",
   "description": null,
-  "active": false,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -118,12 +118,12 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://127.0.0.1:11434/api/generate",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={{$env.GEMINI_API_KEY}}",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({model: 'mistral-nemo', prompt: $json.prompt, stream: false}) }}",
+        "jsonBody": "={\"contents\":[{\"parts\":[{\"text\":{{ JSON.stringify($json.prompt) }}}]}],\"generationConfig\":{\"temperature\":0.3,\"maxOutputTokens\":2048}}",
         "options": {
-          "timeout": 180000
+          "timeout": 90000
         }
       },
       "id": "ollama",
@@ -137,7 +137,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const filterData = $(\"Filter Recent\").first().json;\nconst r = $json.response || '';\n\nlet analysis = {trends: [], opportunities: [], threats: [], actions: []};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*trends[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = {...analysis, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  date: new Date().toISOString().split('T')[0],\n  articles_count: filterData.articles_count,\n  articles: filterData.articles,\n  analysis\n}}];"
+        "jsCode": "const filterData = $(\"Filter Recent\").first().json;\n// Accepte le format Gemini (candidates) ET le format Ollama (.response),\n// pour que le workflow survive a un changement de fournisseur.\nconst r = $json.response\n  || ($json.candidates?.[0]?.content?.parts?.[0]?.text)\n  || '';\n\nlet analysis = {trends: [], opportunities: [], threats: [], actions: []};\n\ntry {\n  const jsonMatch = r.match(/\\{[\\s\\S]*trends[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    analysis = {...analysis, ...JSON.parse(jsonMatch[0])};\n  }\n} catch(e) {}\n\nreturn [{json: {\n  date: new Date().toISOString().split('T')[0],\n  articles_count: filterData.articles_count,\n  articles: filterData.articles,\n  analysis\n}}];"
       },
       "id": "parse",
       "name": "Parse Analysis",
@@ -151,8 +151,10 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO veille_reports (report_date, articles_count, articles, trends, opportunities, threats, actions) VALUES ('{{ $json.date }}', {{ $json.articles_count }}, '{{ JSON.stringify($json.articles) }}', '{{ JSON.stringify($json.analysis.trends) }}', '{{ JSON.stringify($json.analysis.opportunities) }}', '{{ JSON.stringify($json.analysis.threats) }}', '{{ JSON.stringify($json.analysis.actions) }}') RETURNING *",
-        "options": {}
+        "query": "INSERT INTO veille_reports (report_date, articles_count, articles, trends, opportunities, threats, actions) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        "options": {
+          "queryReplacement": "={{ $json.date }},{{ $json.articles_count }},{{ JSON.stringify($json.articles) }},{{ JSON.stringify($json.analysis.trends) }},{{ JSON.stringify($json.analysis.opportunities) }},{{ JSON.stringify($json.analysis.threats) }},{{ JSON.stringify($json.analysis.actions) }}"
+        }
       },
       "id": "save",
       "name": "Save Report",
@@ -190,7 +192,8 @@
           "id": "E4tVgAIcdXPgRisS",
           "name": "Hostinger SMTP"
         }
-      }
+      },
+      "disabled": true
     }
   ],
   "connections": {
@@ -309,7 +312,7 @@
   "pinData": {},
   "versionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
   "activeVersionId": "4af4f79e-1d42-4db9-9f32-c2f9023757bb",
-  "versionCounter": 39,
+  "versionCounter": 51,
   "triggerCount": 1,
   "tags": [],
   "shared": [
