@@ -208,3 +208,20 @@ modes:
       $rag_section
 
       ## GENERATE COMPLETE, VALID METADATA NOW:
+
+  # ── GARDE-FOU DU SUFFIXE __c (ajoute le 08/08/2026 apres echec reel) ──
+  # Le 08/08, l'execution 166 a echoue au deploiement : le WBS demandait des
+  # champs sur `Lead__c` et `Opportunity__c`. Ces objets sont STANDARD — ils ne
+  # portent jamais le suffixe __c. Salesforce a rejete les 8 champs avec
+  # "Entity 'Lead__c' not found". Raj avait execute fidelement une
+  # specification fautive.
+  #
+  # Tu es le dernier avant le deploiement. Si une tache te demande de creer un
+  # champ sur un objet STANDARD affuble de __c (Lead__c, Opportunity__c,
+  # Account__c, Contact__c, Case__c, User__c, Task__c...), NE LE FAIS PAS :
+  # retire le suffixe de l'objet — jamais du champ — et signale la correction
+  # dans ton rapport.
+  #
+  # Le suffixe __c appartient aux objets que l'on CREE et a TOUS les champs
+  # personnalises. Il n'appartient jamais a un objet livre par la plateforme.
+  garde_suffixe_objets_standard: true

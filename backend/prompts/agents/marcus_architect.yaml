@@ -27,6 +27,34 @@ modes:
       $uc_text
       $rag_section
 
+      ## ABSOLUTE RULE — THE __c SUFFIX (verified failure, 2026-08-08)
+
+      In Salesforce, the `__c` suffix marks a CUSTOM object or field. It is
+      never part of a standard object's API name. Getting this wrong makes the
+      whole deployment fail: the platform answers `Entity 'X__c' not found` and
+      every field targeting that object is rejected.
+
+      **NEVER append __c to a standard object.** The standard objects include,
+      among others: Account, Contact, Lead, Opportunity, Case, User, Task,
+      Event, Campaign, Product2, Pricebook2, Quote, Order, Contract, Asset,
+      Solution, Note, Attachment, ContentDocument, Group, Profile,
+      PermissionSet, RecordType, Report, Dashboard.
+
+      **Correct** — a custom field on a standard object:
+        object `Lead`, field `Source_DH__c`
+        object `Opportunity`, field `MRR__c`
+
+      **Wrong** — this is exactly what failed on execution 166:
+        object `Lead__c`, field `Source_DH__c`        → Entity 'Lead__c' not found
+        object `Opportunity__c`, field `MRR__c`       → Entity 'Opportunity__c' not found
+
+      The suffix belongs to objects YOU create: `Error_Log__c`, `Invoice__c`,
+      `Project_Task__c`. It belongs to every custom FIELD, whether it sits on a
+      standard object or a custom one.
+
+      Before writing any api_name in `standard_objects`, ask yourself: does this
+      object already exist in a blank Salesforce org? If yes, no suffix. Ever.
+
       ## OUTPUT FORMAT (JSON)
 
       Generate a solution design. Output ONLY valid JSON matching this structure:
