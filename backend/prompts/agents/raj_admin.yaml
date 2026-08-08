@@ -200,6 +200,15 @@ modes:
       □ Each CustomField is in a SEPARATE file under fields/ folder
       □ NO forbidden properties (enableChangeDataCapture, enableHistory, etc.)
       □ All XML is well-formed with proper closing tags
+      □ DECLARE target_api_version at the top level of your JSON plan. Elena
+        rejects any plan without it (Summer 26 checklist). Current platform
+        release: API 67.0 — use it unless the project states otherwise.
+      □ STANDARD OBJECTS NEVER take the __c suffix. Lead, Opportunity, Account,
+        Contact, Case, User, Task, Event are standard: write "Lead", never
+        "Lead__c". The suffix belongs to objects you CREATE and to every custom
+        FIELD, including fields placed on a standard object.
+      □ Custom fields on Task or Event deploy to the Activity container object,
+        never to Task or Event directly.
       □ All required fields for the type are present
       □ File paths follow exact Salesforce structure
 
@@ -208,20 +217,4 @@ modes:
 
       ## GENERATE COMPLETE, VALID METADATA NOW:
 
-  # ── GARDE-FOU DU SUFFIXE __c (ajoute le 08/08/2026 apres echec reel) ──
-  # Le 08/08, l'execution 166 a echoue au deploiement : le WBS demandait des
-  # champs sur `Lead__c` et `Opportunity__c`. Ces objets sont STANDARD — ils ne
-  # portent jamais le suffixe __c. Salesforce a rejete les 8 champs avec
-  # "Entity 'Lead__c' not found". Raj avait execute fidelement une
-  # specification fautive.
-  #
-  # Tu es le dernier avant le deploiement. Si une tache te demande de creer un
-  # champ sur un objet STANDARD affuble de __c (Lead__c, Opportunity__c,
-  # Account__c, Contact__c, Case__c, User__c, Task__c...), NE LE FAIS PAS :
-  # retire le suffixe de l'objet — jamais du champ — et signale la correction
-  # dans ton rapport.
-  #
-  # Le suffixe __c appartient aux objets que l'on CREE et a TOUS les champs
-  # personnalises. Il n'appartient jamais a un objet livre par la plateforme.
-  garde_suffixe_objets_standard: true
 

@@ -122,7 +122,27 @@ class SFAdminService:
     4. Retourne le résultat
     """
     
-    API_VERSION = "59.0"
+    # ── FIX-APIVERSION-001 (08/08/2026) ────────────────────────────────
+    # Le code deployait en dur en 59.0 alors que platform_state.yaml declare
+    # 67.0 (Summer 26) — huit versions de retard. Et Elena rejetait chaque
+    # plan pour "aucune target_api_version declaree", bloquant la phase 1
+    # apres 3 tentatives. La version est desormais lue dans l'etat de
+    # plateforme, source unique, avec repli sur 67.0.
+    @staticmethod
+    def _version_api() -> str:
+        try:
+            import yaml as _y
+            from pathlib import Path as _P
+            f = _P(__file__).parent.parent.parent / "config" / "platform_state.yaml"
+            v = (_y.safe_load(f.read_text(encoding="utf-8")) or {})
+            v = (v.get("salesforce") or v).get("api_version")
+            if v:
+                return f"{float(v):.1f}"
+        except Exception:
+            pass
+        return "67.0"
+
+    API_VERSION = "67.0"
     
     # Mapping field_type vers Salesforce FieldType
     FIELD_TYPE_MAPPING = {
