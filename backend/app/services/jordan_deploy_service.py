@@ -146,6 +146,7 @@ class JordanDeployService:
         """
         config = PHASE_CONFIGS.get(phase)
         if not config:
+            logger.error(f"[Jordan] ECHEC : " + str(f"Unknown phase: {phase}"))
             return {"success": False, "error": f"Unknown phase: {phase}"}
         
         logger.info(f"[Jordan] Deploying phase {phase} ({config.phase_name}) via {config.deploy_method}")
@@ -218,6 +219,7 @@ class JordanDeployService:
         branch_name = f"build/phase-{phase}-{phase_name}"
         
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.create_branch(branch_name)
@@ -246,6 +248,7 @@ class JordanDeployService:
 """
         
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.create_pr(branch_name, title, body)
@@ -257,6 +260,7 @@ class JordanDeployService:
         import re
         match = re.search(r'/pull/(\d+)', pr_url)
         if not match:
+            logger.error(f"[Jordan] ECHEC : " + str(f"Invalid PR URL: {pr_url}"))
             return {"success": False, "error": f"Invalid PR URL: {pr_url}"}
         
         pr_number = int(match.group(1))
@@ -265,6 +269,7 @@ class JordanDeployService:
     async def merge_pr(self, pr_number: int) -> Dict[str, Any]:
         """Merge une PR."""
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.merge_pr(pr_number)
@@ -273,6 +278,7 @@ class JordanDeployService:
     async def revert_merge(self, merge_sha: str) -> Dict[str, Any]:
         """Revert un merge en cas d'échec de déploiement."""
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.revert_merge(merge_sha)
@@ -282,6 +288,7 @@ class JordanDeployService:
     async def tag_phase(self, tag_name: str, message: str) -> Dict[str, Any]:
         """Crée un tag Git."""
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.tag(tag_name, message)
@@ -290,6 +297,7 @@ class JordanDeployService:
     async def commit_files(self, files: Dict[str, str], message: str) -> Dict[str, Any]:
         """Commit des fichiers."""
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         result = await self.git_service.commit_files(files, message)
@@ -304,10 +312,23 @@ class JordanDeployService:
         Phase 1/4: Déploie via SFDX CLI (plans JSON de Raj → XML → deploy).
         """
         if not self.sf_admin_service:
+            logger.error(f"[Jordan] ECHEC : " + str("SF Admin service not initialized"))
             return {"success": False, "error": "SF Admin service not initialized"}
         
         operations = aggregated_output.get("operations", [])
         if not operations:
+            # FIX-SILENCE-001 (08/08) : ce chemin sortait SANS RIEN JOURNALISER.
+            # Resultat le 08/08 : la phase 1 restait en "deploying" sans qu'aucun
+            # message n'apparaisse, et il a fallu une demi-heure pour comprendre
+            # que le deploiement n'avait jamais ete tente. Un echec doit toujours
+            # dire son nom.
+            logger.error(
+                f"[Jordan] AUCUNE OPERATION A DEPLOYER pour le projet "
+                f"{self.project_id}. L'agregation des lots n'a produit aucune "
+                f"operation exploitable. Cles recues : "
+                f"{list(aggregated_output.keys()) if isinstance(aggregated_output, dict) else type(aggregated_output)}"
+            )
+            logger.error(f"[Jordan] ECHEC : " + str("No operations to deploy"))
             return {"success": False, "error": "No operations to deploy"}
         
         logger.info(f"[Jordan] Deploying {len(operations)} operations via SFDX CLI")
@@ -333,6 +354,7 @@ class JordanDeployService:
         Phase 2/3/5: Déploie via SFDX source deploy.
         """
         if not self.sfdx_service:
+            logger.error(f"[Jordan] ECHEC : " + str("SFDX service not initialized"))
             return {"success": False, "error": "SFDX service not initialized"}
         
         files = aggregated_output.get("files", {})
@@ -341,6 +363,7 @@ class JordanDeployService:
             files = aggregated_output.get("xml_files", {})
         
         if not files:
+            logger.error(f"[Jordan] ECHEC : " + str("No files to deploy"))
             return {"success": False, "error": "No files to deploy"}
         
         logger.info(f"[Jordan] Deploying {len(files)} files via SFDX")
@@ -369,6 +392,7 @@ class JordanDeployService:
         Phase 6: Exécute les scripts de migration de données.
         """
         if not self.sfdx_service:
+            logger.error(f"[Jordan] ECHEC : " + str("SFDX service not initialized"))
             return {"success": False, "error": "SFDX service not initialized"}
         
         scripts = aggregated_output.get("scripts", [])
@@ -418,6 +442,7 @@ class JordanDeployService:
         Post-Tooling API: Récupère le metadata propre depuis la sandbox et commit.
         """
         if not self.sfdx_service:
+            logger.error(f"[Jordan] ECHEC : " + str("SFDX service not initialized"))
             return {"success": False, "error": "SFDX service not initialized"}
         
         # Extract object names from operations
@@ -524,6 +549,7 @@ class JordanDeployService:
             Dict avec résultat du rollback
         """
         if not self.git_service:
+            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
             return {"success": False, "error": "Git service not initialized"}
         
         try:

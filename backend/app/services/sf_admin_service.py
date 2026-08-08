@@ -299,6 +299,17 @@ class SFAdminService:
                 field_name = f"{field_name}__c"
             
             field_xml = self._field_to_xml(field_op)
+            # FIX-NONEXML-001 (08/08) : _field_to_xml renvoie None quand le champ
+            # ne peut pas etre genere (liste de valeurs vide, par exemple).
+            # write_text(None) levait alors une exception qui remontait
+            # silencieusement et interrompait TOUTE la generation — aucun champ
+            # deploye, aucun journal. On saute le champ et on continue.
+            if not field_xml:
+                logger.warning(
+                    f"[SFAdmin] Champ {field_name} non genere (definition "
+                    f"incomplete) — ignore, les autres champs continuent"
+                )
+                continue
             field_file = fields_dir / f"{field_name}.field-meta.xml"
             field_file.write_text(field_xml, encoding="utf-8")
             logger.info(f"[SFAdmin] Generated: {field_file.name}")
