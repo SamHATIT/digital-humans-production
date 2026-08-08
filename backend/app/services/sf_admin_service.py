@@ -483,11 +483,31 @@ class SFAdminService:
         project_file.write_text(json.dumps(project_json, indent=2), encoding="utf-8")
         logger.info("[SFAdmin] Created sfdx-project.json")
     
+
+    def _instance_de_l_org(self) -> str:
+        """Demande a SFDX l'URL d'instance reelle de l'org cible.
+
+        Le garde-fou anti-production a besoin de l'instance, pas seulement du
+        nom d'utilisateur : c'est l'URL qui porte les marqueurs (sandbox,
+        develop, scratch...). Sans elle, toute cible serait refusee.
+        """
+        try:
+            r = subprocess.run(
+                ["sf", "org", "display", "--target-org", self.target_org, "--json"],
+                capture_output=True, text=True, timeout=60,
+            )
+            if r.returncode == 0 and r.stdout:
+                return (json.loads(r.stdout).get("result", {})
+                        .get("instanceUrl", "") or "")
+        except Exception as e:
+            logger.warning(f"[SFAdmin] Instance de l'org indeterminable : {e}")
+        return ""
+
     def _deploy_via_sfdx(self, temp_dir: str) -> DeployResult:
         """Déploie les métadonnées via SFDX CLI."""
 
         # ── GARDE-PROD-001 : refus absolu de déployer en production ──
-        instance = getattr(self, "instance_url", "") or ""
+        instance = getattr(self, "instance_url", "") or self._instance_de_l_org()
         if org_est_productive(self.target_org, instance):
             message = (
                 f"DÉPLOIEMENT REFUSÉ — la cible '{self.target_org}' n'est pas "
@@ -495,6 +515,8 @@ class SFAdminService:
                 f"Digital·Humans ne déploie jamais en production : la livraison "
                 f"s'arrête au sandbox, le client promeut ensuite lui-même. "
                 f"Si cette org est bien un sandbox, ajoutez son marqueur à "
+                f"Instance interrogee : '{instance or 'indeterminable'}'. "
+                f"Si cette org est bien un sandbox, ajoutez son marqueur a "
                 f"MARQUEURS_NON_PRODUCTION plutôt que de contourner ce garde-fou."
             )
             logger.error(f"[SFAdmin] {message}")
