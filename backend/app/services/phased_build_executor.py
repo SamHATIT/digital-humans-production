@@ -30,6 +30,43 @@ class PhaseStatus(str, Enum):
 
 # Mapping task_type → phase
 TASK_TYPE_TO_PHASE = {
+    # ── FIX-PHASEMAP-001 (08/08/2026) ──────────────────────────────────────
+    # Le WBS de Marcus a change de vocabulaire : il produit "dev_data_model",
+    # "dev_apex", "dev_flow"... la ou cette table n'attendait que
+    # "create_object", "apex_class", "flow". Aucun terme ne correspondait, tout
+    # retombait sur le repli par agent — qui classe Diego en phase 2 et
+    # n'atteint jamais Raj. Consequence observee sur l'execution 166 : les 7
+    # taches de modele de donnees restaient PENDING pendant que Diego generait
+    # de l'Apex contre des objets inexistants. Detecte par Sam a l'oeil nu.
+    # Les deux vocabulaires sont desormais reconnus : les anciennes executions
+    # restent lisibles, les nouvelles fonctionnent.
+    "dev_data_model": 1,
+    "setup_environment": 1,
+    "setup_repository": 1,
+    "devops_setup": 1,
+
+    "dev_apex": 2,
+    "test_unit": 2,
+    "test_integration": 2,
+
+    "config_layouts": 3,
+    "config_apps": 3,
+
+    "dev_flow": 4,
+    "dev_validation": 4,
+
+    "config_profiles": 5,
+    "setup_permissions": 5,
+    "config_sharing": 5,
+
+    "config_reports": 6,
+    "test_uat": 6,
+    "doc_technical": 6,
+    "doc_user": 6,
+    "deploy_prepare": 6,
+    "deploy_validate": 6,
+    "deploy_execute": 6,
+
     # Phase 1: Data Model
     "create_object": 1,
     "create_field": 1,
