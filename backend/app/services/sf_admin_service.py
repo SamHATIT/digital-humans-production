@@ -44,6 +44,14 @@ STANDARD_OBJECTS = {
 }
 
 
+# ── FIX-ACTIVITY-001 (08/08/2026) ─────────────────────────────────────────
+# Task et Event partagent leurs champs personnalises via l'objet conteneur
+# Activity : un champ deploye sur Activity apparait sur les deux. Le deployer
+# directement sur Task echoue avec "Enumeration ou ID de l'entite : valeur
+# incorrecte pour le champ de liste de selection restreinte : Task".
+ACTIVITY_CONTAINER = {"task", "event"}
+
+
 def normaliser_objet(nom: str) -> str:
     """Renvoie l'API name correct d'un objet Salesforce.
 
@@ -53,6 +61,8 @@ def normaliser_objet(nom: str) -> str:
     if not nom:
         return nom
     base = nom[:-3] if nom.endswith("__c") else nom
+    if base.lower() in ACTIVITY_CONTAINER:
+        return "Activity"   # les champs de Task/Event vivent sur Activity
     if base.lower() in STANDARD_OBJECTS:
         return base
     return base + "__c"
@@ -313,20 +323,62 @@ class SFAdminService:
             scale = op.get("scale", 2)
             type_specific = f"\n    <precision>{precision}</precision>\n    <scale>{scale}</scale>"
             
-        elif sf_type == "Picklist":
-            values = op.get("picklist_values", [])
-            if values:
-                values_xml = "\n".join([
-                    f"            <value>\n                <fullName>{v}</fullName>\n                <default>false</default>\n            </value>"
-                    for v in values
-                ])
+        elif sf_type == "Picklist" or sf_type == "MultiselectPicklist":
+            # ── FIX-PICKLIST-001 (08/08/2026) ──────────────────────────────
+            # Raj produit `values` avec des objets {api_name, label, default} ;
+            # ce generateur ne lisait que `picklist_values` avec des chaines.
+            # Les deux ne se rencontraient jamais, donc aucun <valueSet> n'etait
+            # emis et Salesforce refusait : "You must specify either picklist,
+            # globalPicklist, or valueSet". Les deux formats sont acceptes.
+            values = op.get("values") or op.get("picklist_values") or []
+            lignes = []
+            for v in values:
+                if isinstance(v, dict):
+                    plein = v.get("api_name") or v.get("fullName") or v.get("value") or ""
+                    lib = v.get("label") or plein
+                    defaut = "true" if v.get("default") else "false"
+                else:
+                    plein = str(v); lib = plein; defaut = "false"
+                if not plein:
+                    continue
+                lignes.append(
+                    "            <value>\n"
+                    f"                <fullName>{plein}</fullName>\n"
+                    f"                <default>{defaut}</default>\n"
+                    f"                <label>{lib}</label>\n"
+                    "            </value>"
+                )
+            if lignes:
+                values_xml = "\n".join(lignes)
+                tri = "false" if sf_type == "MultiselectPicklist" else "false"
                 type_specific = f"""
     <valueSet>
+        <restricted>true</restricted>
         <valueSetDefinition>
+            <sorted>{tri}</sorted>
 {values_xml}
         </valueSetDefinition>
     </valueSet>"""
-            
+                if sf_type == "MultiselectPicklist":
+                    type_specific += "\n    <visibleLines>4</visibleLines>"
+            else:
+                # Sans valeurs, Salesforce refuse le champ. On le signale au
+                # lieu de produire un XML qui echouera au deploiement.
+                logger.warning(
+                    f"[SFAdmin] Picklist {field_name} sans valeurs — "
+                    f"champ ignore (Salesforce exige un valueSet)"
+                )
+                return None
+
+        elif sf_type == "Checkbox":
+            # ── FIX-CHECKBOX-001 (08/08/2026) ──────────────────────────────
+            # Salesforce EXIGE defaultValue sur une case a cocher :
+            # "Must specify 'defaultValue' for a CustomField of type Checkbox".
+            # Aucune branche ne traitait ce type, donc rien n'etait emis.
+            defaut = op.get("default_value", op.get("defaultValue", False))
+            defaut = "true" if defaut in (True, "true", "True", 1) else "false"
+            type_specific = f"\n    <defaultValue>{defaut}</defaultValue>"
+
         elif sf_type == "Lookup":
             ref_to = op.get("reference_to", "")
             relationship_name = op.get("relationship_name", field_name.replace("__c", ""))
