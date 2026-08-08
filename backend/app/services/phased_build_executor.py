@@ -841,13 +841,23 @@ class PhasedBuildExecutor:
         try:
             from sqlalchemy import text
             
+            # FIX-TASKID-001 (08/08/2026) : le WBS fournit un identifiant
+            # textuel ("TASK-001") qui correspond a la colonne task_id, pas a
+            # la cle primaire entiere `id`. La requete echouait avec "invalid
+            # input syntax for type integer", puis toute la transaction etait
+            # avortee — les taches restaient en RUNNING alors qu'elles etaient
+            # terminees, et l'avancement affiche etait faux.
             for task in tasks:
-                task_id = task.get("id") or task.get("task_id")
-                if task_id:
-                    self.db.execute(
-                        text("UPDATE task_executions SET status = 'completed' WHERE id = :id"),
-                        {"id": task_id}
-                    )
+                ref = task.get("id") or task.get("task_id")
+                if not ref:
+                    continue
+                self.db.execute(
+                    text(
+                        "UPDATE task_executions SET status = 'completed' "
+                        "WHERE execution_id = :exec_id AND task_id = :ref"
+                    ),
+                    {"exec_id": self.execution_id, "ref": str(ref)},
+                )
             self.db.commit()
             
         except Exception as e:
