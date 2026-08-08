@@ -24,6 +24,40 @@ class DeployResult:
     deploy_id: Optional[str] = None
 
 
+# ── FIX-SUFFIXE-002 (08/08/2026) ──────────────────────────────────────────
+# Le code ajoutait `__c` a TOUT objet qui n'en avait pas, sans verifier s'il
+# s'agissait d'un objet standard. Le WBS disait bien `Lead` ; le deploiement
+# demandait `Lead__c`, et Salesforce repondait "Entity 'Lead__c' not found"
+# pour chacun des 8 champs. Deux executions perdues le 08/08 avant de trouver.
+#
+# Les objets standard sont livres par la plateforme et ne portent JAMAIS le
+# suffixe. Seuls les objets crees le portent — ainsi que tous les champs
+# personnalises, y compris ceux poses sur un objet standard.
+STANDARD_OBJECTS = {
+    "account", "contact", "lead", "opportunity", "case", "user", "task",
+    "event", "campaign", "campaignmember", "contract", "order", "orderitem",
+    "product2", "pricebook2", "pricebookentry", "quote", "quotelineitem",
+    "asset", "solution", "note", "attachment", "contentdocument",
+    "contentversion", "group", "profile", "permissionset", "recordtype",
+    "report", "dashboard", "opportunitylineitem", "opportunitycontactrole",
+    "idea", "entitlement", "serviceappointment", "workorder", "individual",
+}
+
+
+def normaliser_objet(nom: str) -> str:
+    """Renvoie l'API name correct d'un objet Salesforce.
+
+    Ajoute `__c` uniquement si l'objet est PERSONNALISE. Un objet standard
+    perd le suffixe s'il l'a recu a tort en amont.
+    """
+    if not nom:
+        return nom
+    base = nom[:-3] if nom.endswith("__c") else nom
+    if base.lower() in STANDARD_OBJECTS:
+        return base
+    return base + "__c"
+
+
 class SFAdminService:
     """
     Service d'administration Salesforce pour le BUILD v2.
@@ -126,8 +160,7 @@ class SFAdminService:
                 
             elif op_type == "create_field":
                 obj_name = op.get("object", "")
-                if not obj_name.endswith("__c"):
-                    obj_name = f"{obj_name}__c"
+                obj_name = normaliser_objet(obj_name)
                 if obj_name not in objects_data:
                     objects_data[obj_name] = {"object": None, "fields": []}
                 objects_data[obj_name]["fields"].append(op)
@@ -138,8 +171,7 @@ class SFAdminService:
             elif op_type == "create_record_type":
                 # Record types sont inclus dans l'objet
                 obj_name = op.get("object", "")
-                if not obj_name.endswith("__c"):
-                    obj_name = f"{obj_name}__c"
+                obj_name = normaliser_objet(obj_name)
                 if obj_name not in objects_data:
                     objects_data[obj_name] = {"object": None, "fields": [], "record_types": []}
                 if "record_types" not in objects_data[obj_name]:
