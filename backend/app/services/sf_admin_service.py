@@ -44,6 +44,48 @@ STANDARD_OBJECTS = {
 }
 
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# GARDE-PROD-001 (08/08/2026) — RÈGLE ABSOLUE, POSÉE PAR SAM
+#
+# Digital·Humans ne déploie JAMAIS en production. Jamais. La livraison
+# s'arrête au sandbox ; c'est ensuite le client, ou un agent Agentforce chez
+# lui, qui promeut vers la production. C'est une règle commerciale ET
+# contractuelle : le tier Team s'arrête explicitement au sandbox.
+#
+# L'enjeu n'est pas théorique. Casser la production d'un grand compte, même
+# une heure, coûterait infiniment plus que tout ce que la plateforme peut
+# rapporter — et détruirait la confiance qui est notre seul actif.
+#
+# Ce garde-fou est une LISTE BLANCHE, pas une liste noire : on ne déploie que
+# si l'org est identifiable comme non-productive. Dans le doute, on refuse.
+# Une liste noire laisserait passer tout ce qu'on n'aurait pas prévu.
+# ══════════════════════════════════════════════════════════════════════════
+
+MARQUEURS_NON_PRODUCTION = (
+    ".sandbox.my.salesforce.com",      # sandbox nommé
+    "--",                              # suffixe de sandbox dans le nom d'utilisateur
+    ".develop.my.salesforce.com",      # org de développement
+    "-dev-ed.",                        # Developer Edition
+    ".scratch.my.salesforce.com",      # org éphémère
+    "test.salesforce.com",             # point d'entrée des sandbox
+    "orgfarm-",                        # orgs de démonstration Salesforce
+)
+
+
+def org_est_productive(cible: str, instance_url: str = "") -> bool:
+    """Vrai si la cible ressemble à une PRODUCTION.
+
+    Liste blanche : tout ce qui ne porte aucun marqueur de non-production est
+    traité comme une production, donc refusé. Dans le doute, on refuse.
+    """
+    empreinte = f"{cible or ''} {instance_url or ''}".lower()
+    for marqueur in MARQUEURS_NON_PRODUCTION:
+        if marqueur in empreinte:
+            return False
+    return True
+
+
 # ── FIX-ACTIVITY-001 (08/08/2026) ─────────────────────────────────────────
 # Task et Event partagent leurs champs personnalises via l'objet conteneur
 # Activity : un champ deploye sur Activity apparait sur les deux. Le deployer
@@ -443,7 +485,28 @@ class SFAdminService:
     
     def _deploy_via_sfdx(self, temp_dir: str) -> DeployResult:
         """Déploie les métadonnées via SFDX CLI."""
-        
+
+        # ── GARDE-PROD-001 : refus absolu de déployer en production ──
+        instance = getattr(self, "instance_url", "") or ""
+        if org_est_productive(self.target_org, instance):
+            message = (
+                f"DÉPLOIEMENT REFUSÉ — la cible '{self.target_org}' n'est pas "
+                f"identifiable comme un sandbox ou une org de développement. "
+                f"Digital·Humans ne déploie jamais en production : la livraison "
+                f"s'arrête au sandbox, le client promeut ensuite lui-même. "
+                f"Si cette org est bien un sandbox, ajoutez son marqueur à "
+                f"MARQUEURS_NON_PRODUCTION plutôt que de contourner ce garde-fou."
+            )
+            logger.error(f"[SFAdmin] {message}")
+            return DeployResult(
+                success=False,
+                errors=[message],
+                components_deployed=0,
+            )
+        logger.info(
+            f"[SFAdmin] Cible vérifiée non-productive : {self.target_org}"
+        )
+
         cmd = [
             "sf", "project", "deploy", "start",
             "--source-dir", "force-app",
