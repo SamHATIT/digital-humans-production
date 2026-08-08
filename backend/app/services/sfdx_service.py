@@ -794,10 +794,16 @@ class SFDXService:
                 cmd.extend(["--target-org", self.target_org])
             
             start_time = time.time()
-            result = await self._run_command(cmd)
+            # FIX-TUPLE-001 (08/08/2026) : _run_command renvoie un TUPLE
+            # (success, result). Les 9 autres appels le decomposent ; celui-ci
+            # traitait le tuple comme un dictionnaire, d'ou "tuple indices must
+            # be integers or slices, not str" au moment ou Jordan recupere les
+            # metadonnees apres deploiement. Bug de longue date, revele par le
+            # premier passage reel a cette etape.
+            success, result = await self._run_command(cmd)
             duration_ms = int((time.time() - start_time) * 1000)
-            
-            if not result["success"]:
+
+            if not success:
                 self._log_operation(
                     "retrieve_metadata", metadata_type, metadata_name,
                     success=False, error_message=result.get("error", ""), duration_ms=duration_ms
@@ -858,18 +864,18 @@ class SFDXService:
                 cmd.extend(["--target-org", self.target_org])
             
             start_time = time.time()
-            result = await self._run_command(cmd)
+            success, result = await self._run_command(cmd)
             duration_ms = int((time.time() - start_time) * 1000)
             
             self._log_operation(
                 "execute_anonymous", "ApexAnonymous", "anonymous_block",
-                success=result["success"],
-                error_message=result.get("error", "") if not result["success"] else None,
+                success=success,
+                error_message=result.get("error", "") if not success else None,
                 duration_ms=duration_ms
             )
             
             return {
-                "success": result["success"],
+                "success": success,
                 "output": result.get("stdout", ""),
                 "logs": result.get("stderr", ""),
                 "execution_time_ms": duration_ms
@@ -904,18 +910,18 @@ class SFDXService:
             cmd.extend(["--target-org", self.target_org])
         
         start_time = time.time()
-        result = await self._run_command(cmd)
+        success, result = await self._run_command(cmd)
         duration_ms = int((time.time() - start_time) * 1000)
         
         self._log_operation(
             "deploy_manifest", "Package", manifest_path,
-            success=result["success"],
-            error_message=result.get("error", "") if not result["success"] else None,
+            success=success,
+            error_message=result.get("error", "") if not success else None,
             duration_ms=duration_ms
         )
         
         return {
-            "success": result["success"],
+            "success": success,
             "output": result.get("stdout", ""),
             "error": result.get("error", ""),
             "duration_ms": duration_ms
