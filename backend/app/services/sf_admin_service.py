@@ -507,6 +507,49 @@ class SFAdminService:
             f"[SFAdmin] Cible vérifiée non-productive : {self.target_org}"
         )
 
+        # ── VALIDATION-XML-001 (08/08/2026) ────────────────────────────────
+        # Angle mort identifie par Sam : Elena relit le PLAN de Raj, mais le XML
+        # est genere APRES sa revue. Les quatre echecs du 08/08 vivaient tous
+        # dans cet interstice — trop tard pour Elena, trop tot pour Salesforce.
+        # On valide donc le XML AVANT de deployer : "--dry-run" fait verifier
+        # les metadonnees par Salesforce sans rien ecrire. Cout : un aller-retour
+        # reseau, aucun appel de modele. Si la validation echoue, on renvoie
+        # l'erreur telle quelle sans avoir touche a l'org.
+        cmd_validation = [
+            "sf", "project", "deploy", "start",
+            "--source-dir", "force-app",
+            "--target-org", self.target_org,
+            "--dry-run",
+            "--json",
+        ]
+        try:
+            v = subprocess.run(
+                cmd_validation, cwd=temp_dir, capture_output=True,
+                text=True, timeout=600,
+            )
+            if v.returncode != 0:
+                detail = json.loads(v.stdout or "{}") if v.stdout else {}
+                erreurs = []
+                for e in (detail.get("result", {}).get("details", {})
+                          .get("componentFailures", []) or []):
+                    erreurs.append(
+                        f"{e.get('fullName','?')}: {e.get('problem','?')}"
+                    )
+                if not erreurs:
+                    erreurs = [(v.stderr or v.stdout or "validation echouee")[:400]]
+                logger.error(f"[SFAdmin] Validation XML echouee : {erreurs[:5]}")
+                return DeployResult(
+                    success=False,
+                    errors=["VALIDATION AVANT DEPLOIEMENT — rien n'a ete ecrit dans l'org."]
+                           + erreurs,
+                    components_deployed=0,
+                )
+            logger.info("[SFAdmin] Validation XML reussie — deploiement autorise")
+        except subprocess.TimeoutExpired:
+            logger.warning("[SFAdmin] Validation XML expiree — on tente le deploiement")
+        except Exception as e:
+            logger.warning(f"[SFAdmin] Validation XML impossible ({e}) — on tente le deploiement")
+
         cmd = [
             "sf", "project", "deploy", "start",
             "--source-dir", "force-app",
