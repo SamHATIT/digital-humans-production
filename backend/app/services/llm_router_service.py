@@ -253,14 +253,33 @@ class LLMRouterService:
             api_key = os.environ.get(api_key_env)
             if api_key:
                 timeout = providers_config["anthropic"].get("timeout_seconds", 600)
+
+                # FEAT-FOUNDRY-001 (09/08/2026) — point d'acces configurable.
+                # Claude est disponible dans Microsoft Foundry depuis le
+                # 29/06/2026, via la MEME Messages API, avec authentification
+                # Entra ID ou cle d'API, facturation Azure et retention zero
+                # disponible. Un grand compte qui a deja un contrat Microsoft
+                # (cas du Credit Logement) peut donc faire tourner la
+                # plateforme sur SON abonnement Azure, sans contrat Anthropic
+                # separe et sans que ses donnees quittent son perimetre.
+                #
+                # Sans base_url : comportement inchange, API Anthropic directe.
+                base_url = (
+                    os.environ.get("ANTHROPIC_BASE_URL")
+                    or providers_config["anthropic"].get("base_url")
+                )
+                extra = {"base_url": base_url} if base_url else {}
+                if base_url:
+                    logger.info(f"[LLM] Point d'acces Anthropic redirige vers {base_url}")
+
                 self.providers["anthropic"] = {
                     "type": ProviderType.ANTHROPIC,
-                    "client": Anthropic(api_key=api_key, timeout=float(timeout)),
+                    "client": Anthropic(api_key=api_key, timeout=float(timeout), **extra),
                     "models": providers_config["anthropic"].get("models", {}),
                 }
                 self.async_providers["anthropic"] = {
                     "type": ProviderType.ANTHROPIC,
-                    "client": AsyncAnthropic(api_key=api_key, timeout=float(timeout)),
+                    "client": AsyncAnthropic(api_key=api_key, timeout=float(timeout), **extra),
                     "models": providers_config["anthropic"].get("models", {}),
                 }
                 logger.info("Anthropic provider initialized")
