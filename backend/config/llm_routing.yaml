@@ -137,11 +137,13 @@ profiles:
   # marqueur non-production. A verifier avant chaque usage.
   test_gpu_complet:
     build_enabled: true
-    orchestrator: "gpu_local/gemma"
-    worker:       "gpu_local/qwen"
+    # Les noms doivent correspondre aux cles enregistrees par le routeur :
+    # gpu_gemma et gpu_qwen (un fournisseur par port).
+    orchestrator: "gpu_gemma/gemma"
+    worker:       "gpu_qwen/qwen"
     fallback_chain:
-      "gpu_local/gemma": "gpu_local/qwen"
-      "gpu_local/qwen":  "gpu_local/gemma"
+      "gpu_gemma/gemma": "gpu_qwen/qwen"
+      "gpu_qwen/qwen":   "gpu_gemma/gemma"
 
   on-premise:
     build_enabled: true
