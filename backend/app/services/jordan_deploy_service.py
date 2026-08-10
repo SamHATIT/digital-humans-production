@@ -162,7 +162,7 @@ class JordanDeployService:
             logger.warning(f"[Jordan] No sf_username for project {self.project_id}")
         
         # Créer SFAdminService
-        self.sf_admin_service = await create_sf_admin_service(self.project_id, self.db)
+        self.sf_admin_service = await create_sf_admin_service(self.project_id, self.db, execution_id=getattr(self, "execution_id", None))
         
         logger.info(f"[Jordan] Services initialized for project {self.project_id}")
     

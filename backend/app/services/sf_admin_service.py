@@ -5,6 +5,7 @@ Transforme les plans JSON Raj en fichiers XML et déploie via SFDX CLI.
 import logging
 import json
 import tempfile
+import os
 import subprocess
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -20,6 +21,9 @@ class DeployResult:
     components_deployed: int = 0
     components_failed: int = 0
     errors: List[str] = field(default_factory=list)
+    # FIX-PERSIST-001 : chemin ou les metadonnees generees ont ete conservees,
+    # pour que Jordan puisse les versionner. None si la conservation a echoue.
+    output_dir: Optional[str] = None
     created_components: List[Dict[str, str]] = field(default_factory=list)
     deploy_id: Optional[str] = None
 
@@ -167,13 +171,18 @@ class SFAdminService:
         "AutoNumber": "AutoNumber",
     }
     
-    def __init__(self, target_org: str):
+    def __init__(self, target_org: str, execution_id=None, persist_dir: str = None):
         """
         Args:
             target_org: Username ou alias de l'org cible SFDX
         """
         self.target_org = target_org
         self.created_components: List[Dict[str, str]] = []
+        # FIX-PERSIST-001 : ou conserver les metadonnees generees, pour que
+        # Jordan les versionne. Sans cela, tempfile les detruit apres le
+        # deploiement et rien n'atteint jamais le depot git.
+        self.execution_id = execution_id
+        self.persist_dir = persist_dir or "/var/lib/digital-humans/livrables"
         logger.info(f"[SFAdmin] Initialized for org: {target_org}")
     
     def execute_plan(self, plan: Dict[str, Any]) -> DeployResult:
@@ -205,7 +214,33 @@ class SFAdminService:
                 
                 # 3. Déployer via SFDX
                 result = self._deploy_via_sfdx(temp_dir)
-                
+
+                # FIX-PERSIST-001 (10/08/2026) — CONSERVER LES FICHIERS.
+                # tempfile.TemporaryDirectory() efface tout en sortant du
+                # bloc : les metadonnees etaient deployees dans Salesforce
+                # puis DETRUITES. Rien n'atteignait jamais le depot git —
+                # c'est pourquoi l'integration git n'avait jamais servi a
+                # rien : il n'y avait rien a commiter.
+                #
+                # On copie donc l'arborescence produite dans un emplacement
+                # durable, que Jordan versionnera ensuite.
+                if result and result.success:
+                    try:
+                        import shutil, time as _t
+                        dest = os.path.join(
+                            self.persist_dir or "/var/lib/digital-humans/livrables",
+                            f"exec-{self.execution_id or 'sans-id'}-{int(_t.time())}",
+                        )
+                        os.makedirs(os.path.dirname(dest), exist_ok=True)
+                        shutil.copytree(temp_dir, dest, dirs_exist_ok=True)
+                        result.output_dir = dest
+                        n = sum(len(f) for _, _, f in os.walk(dest))
+                        logger.info(f"[SFAdmin] {n} fichier(s) conserves dans {dest}")
+                    except Exception as e:
+                        # Non bloquant : perdre l'archivage vaut mieux que
+                        # perdre un deploiement reussi.
+                        logger.error(f"[SFAdmin] Conservation impossible : {e}")
+
                 return result
                 
             except Exception as e:
@@ -897,7 +932,8 @@ class SFAdminService:
 
 
 # Factory function pour créer le service depuis un project_id
-async def create_sf_admin_service(project_id: int, db) -> Optional[SFAdminService]:
+async def create_sf_admin_service(project_id: int, db,
+                                  execution_id=None) -> Optional[SFAdminService]:
     """
     Crée un SFAdminService pour un projet.
     
@@ -919,4 +955,4 @@ async def create_sf_admin_service(project_id: int, db) -> Optional[SFAdminServic
         logger.warning(f"[SFAdmin] No Salesforce config for project {project_id}")
         return None
     
-    return SFAdminService(target_org=result.sf_username)
+    return SFAdminService(target_org=result.sf_username, execution_id=execution_id)
