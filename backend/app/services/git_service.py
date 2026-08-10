@@ -88,15 +88,34 @@ class GitService:
         return ""
     
     def _parse_repo_url(self) -> Dict[str, str]:
-        """Parse repo URL to extract owner/repo"""
-        parsed = urlparse(self.repo_url)
-        path_parts = parsed.path.strip("/").replace(".git", "").split("/")
-        
-        if len(path_parts) >= 2:
+        """Extrait owner/repo d'une adresse de depot.
+
+        FIX-GITURL-001 (10/08/2026) : urlparse ne comprend PAS la syntaxe SSH
+        `git@github.com:owner/repo.git` — il la voit comme un chemin unique et
+        renvoie un full_name vide. Consequence observee : l'adresse
+        authentifiee devenait
+        `https://github.com/git@github.com:SamHATIT/dh-crm-salesforce.git/`
+        et GitHub repondait "Repository not found".
+
+        Les deux formats sont desormais acceptes :
+          git@github.com:owner/repo.git
+          https://github.com/owner/repo.git
+        """
+        url = (self.repo_url or "").strip()
+
+        # Forme SSH : tout ce qui suit le ':' est le chemin owner/repo
+        if url.startswith("git@") or (":" in url and "://" not in url):
+            chemin = url.split(":", 1)[1] if ":" in url else url
+        else:
+            chemin = urlparse(url).path
+
+        parts = [p for p in chemin.strip("/").replace(".git", "").split("/") if p]
+
+        if len(parts) >= 2:
             return {
-                "owner": path_parts[0],
-                "repo": path_parts[1],
-                "full_name": f"{path_parts[0]}/{path_parts[1]}"
+                "owner": parts[-2],
+                "repo": parts[-1],
+                "full_name": f"{parts[-2]}/{parts[-1]}",
             }
         return {"owner": "", "repo": "", "full_name": ""}
     

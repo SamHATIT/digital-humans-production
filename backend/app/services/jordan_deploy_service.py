@@ -78,9 +78,32 @@ class JordanDeployService:
         
         git_token = None
         if git_cred and git_cred.encrypted_value:
-            # Le token Git n'est pas encrypté dans cette table (stocké en clair)
-            git_token = git_cred.encrypted_value
-            logger.info("[Jordan] Git token loaded from project_credentials")
+            # FIX-GITTOKEN-001 (10/08/2026) : le commentaire precedent affirmait
+            # que le jeton etait stocke EN CLAIR. C'etait vrai pour le jeton de
+            # janvier (projet 84, prefixe ghp_) mais plus depuis fevrier : les
+            # jetons des projets 85 et 105 sont chiffres en Fernet (prefixe
+            # Z0FBQUFB...). Passe tel quel a git, cela donnait :
+            #   fatal: could not read Password for 'https://Z0FBQUFB...'
+            #
+            # On dechiffre si necessaire, en gardant le cas du clair pour les
+            # anciens enregistrements.
+            brut = git_cred.encrypted_value
+            if brut.startswith(("ghp_", "github_pat_", "glpat-")):
+                git_token = brut          # ancien format, deja en clair
+                logger.info("[Jordan] Jeton git lu en clair (format ancien)")
+            else:
+                try:
+                    from app.utils.encryption import decrypt_credential
+                    git_token = decrypt_credential(brut)
+                    if git_token:
+                        logger.info("[Jordan] Jeton git dechiffre")
+                    else:
+                        logger.error(
+                            "[Jordan] DECHIFFREMENT DU JETON GIT ECHOUE — "
+                            "verifier la cle de chiffrement (CREDENTIAL_ENCRYPTION_KEY)"
+                        )
+                except Exception as e:
+                    logger.error(f"[Jordan] Dechiffrement impossible : {e}")
         
         # Créer GitService
         if git_repo_url:
@@ -91,6 +114,40 @@ class JordanDeployService:
                 project_id=self.project_id
             )
             logger.info(f"[Jordan] GitService initialized for {git_repo_url}")
+
+            # ── FIX-GIT-001 (10/08/2026) ────────────────────────────────────
+            # Jordan appelait create_branch, commit_files, create_pr et
+            # merge_pr — mais JAMAIS clone(). Il travaillait donc dans un
+            # repertoire temporaire vide qui n'est pas un depot git, d'ou
+            # "fatal: not a git repository" au premier deploiement reel du
+            # 08/08. Personne ne l'avait vu parce qu'aucune execution n'etait
+            # jamais allee jusque-la.
+            #
+            # clone() pose aussi self.repo_path, dont toutes les operations
+            # suivantes dependent — c'etait la cause racine, pas seulement
+            # l'absence du depot.
+            #
+            # NON BLOQUANT : si le clonage echoue, on continue sans git. Le
+            # deploiement Salesforce fonctionne independamment, et perdre le
+            # versionnement vaut mieux que perdre le deploiement.
+            try:
+                r = await self.git_service.clone(shallow=True)
+                if r.get("success"):
+                    logger.info(
+                        f"[Jordan] Depot clone dans {self.git_service.repo_path}"
+                    )
+                else:
+                    logger.error(
+                        f"[Jordan] CLONAGE ECHOUE : {r.get('error', 'sans detail')} "
+                        f"— les operations git seront ignorees, le deploiement continue"
+                    )
+                    self.git_service = None
+            except Exception as e:
+                logger.error(
+                    f"[Jordan] CLONAGE IMPOSSIBLE ({e}) — les operations git "
+                    f"seront ignorees, le deploiement continue"
+                )
+                self.git_service = None
         else:
             logger.warning(f"[Jordan] No git_repo_url for project {self.project_id}")
         
