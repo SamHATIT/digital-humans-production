@@ -359,6 +359,55 @@ class JordanDeployService:
         
         result = await self.git_service.commit_files(files, message)
         return result
+
+    async def versionner_livrables(self, output_dir: str, phase: str = "") -> Dict[str, Any]:
+        """Verse dans git l'arborescence SFDX conservee par SFAdminService.
+
+        FIX-PERSIST-001 / suite (10/08/2026). Les metadonnees generees etaient
+        detruites apres deploiement ; elles sont desormais conservees dans
+        `output_dir`. Cette methode les lit et les commite, ce qui rend enfin
+        le travail du dispositif REUTILISABLE : relisible, corrigeable,
+        redeployable sur une autre org.
+
+        Non bloquant : un echec de versionnement ne doit jamais faire echouer
+        un deploiement Salesforce reussi.
+        """
+        import os
+
+        if not self.git_service:
+            return {"success": False, "error": "git non initialise"}
+        if not output_dir or not os.path.isdir(output_dir):
+            return {"success": False, "error": f"arborescence absente : {output_dir}"}
+
+        fichiers: Dict[str, str] = {}
+        for racine, _, noms in os.walk(output_dir):
+            for n in noms:
+                chemin = os.path.join(racine, n)
+                # Chemin RELATIF a l'arborescence, pour reproduire la
+                # structure SFDX dans le depot plutot que des chemins absolus.
+                rel = os.path.relpath(chemin, output_dir)
+                try:
+                    with open(chemin, encoding="utf-8") as f:
+                        fichiers[rel] = f.read()
+                except Exception as e:
+                    logger.warning(f"[Jordan] {rel} illisible, ignore ({e})")
+
+        if not fichiers:
+            return {"success": False, "error": "aucun fichier lisible"}
+
+        msg = f"BUILD{' — ' + phase if phase else ''} : {len(fichiers)} fichier(s) de metadonnees"
+        logger.info(f"[Jordan] Versionnement de {len(fichiers)} fichier(s) depuis {output_dir}")
+
+        try:
+            r = await self.commit_files(fichiers, msg)
+            if r.get("success"):
+                logger.info(f"[Jordan] Livrables versionnes : {r.get('commit_sha', '')[:8]}")
+            else:
+                logger.error(f"[Jordan] Versionnement echoue : {r.get('error')}")
+            return r
+        except Exception as e:
+            logger.error(f"[Jordan] Versionnement impossible : {e}")
+            return {"success": False, "error": str(e)[:200]}
     
     # ═══════════════════════════════════════════════════════════════
     # DEPLOYMENT METHODS
@@ -395,9 +444,27 @@ class JordanDeployService:
         # execute_plan est synchrone, on l'appelle dans un thread
         import asyncio
         result = await asyncio.to_thread(self.sf_admin_service.execute_plan, plan)
-        
+
+        # FIX-PERSIST-002 (10/08/2026) — versionner ce qui vient d'etre
+        # deploye. C'est le maillon qui rend le travail REUTILISABLE : sans
+        # lui, les metadonnees vivent uniquement dans Salesforce, sans
+        # historique ni possibilite de les rejouer ailleurs.
+        #
+        # Deliberement NON BLOQUANT : un echec de versionnement ne doit
+        # jamais transformer un deploiement reussi en echec.
+        sha = None
+        chemin = getattr(result, "output_dir", None)
+        if result.success and chemin and self.git_service:
+            try:
+                r = await self.versionner_livrables(chemin, phase="data_model")
+                sha = r.get("commit_sha")
+            except Exception as e:
+                logger.error(f"[Jordan] Versionnement ignore : {e}")
+
         # Convertir DeployResult en dict
         return {
+            "commit_sha": sha,
+            "livrables_conserves": chemin,
             "success": result.success,
             "components_deployed": result.components_deployed,
             "components_failed": result.components_failed,
