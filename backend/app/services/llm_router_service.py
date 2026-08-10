@@ -248,6 +248,26 @@ class LLMRouterService:
             }
             logger.info("Ollama provider configured")
 
+        # ── Serveur GPU dedie (10/08/2026) ──────────────────────────────────
+        # llama.cpp expose une API compatible OpenAI. Deux modeles servis sur
+        # deux ports, joints par un tunnel SSH permanent (service tunnel-gpu).
+        # On enregistre DEUX entrees distinctes — gpu_gemma et gpu_qwen — car
+        # chaque modele a son propre port, contrairement aux autres
+        # fournisseurs ou un point d'acces sert plusieurs modeles.
+        if providers_config.get("gpu_local", {}).get("enabled", False):
+            g = providers_config["gpu_local"]
+            modeles = g.get("models", {})
+            for nom, url_cle in (("gemma", "base_url"), ("qwen", "base_url_qwen")):
+                if nom not in modeles:
+                    continue
+                self.providers[f"gpu_{nom}"] = {
+                    "type": ProviderType.LOCAL,
+                    "base_url": g.get(url_cle, ""),
+                    "timeout": g.get("timeout_seconds", 600),
+                    "models": {nom: modeles[nom]},
+                }
+                logger.info(f"[LLM] Fournisseur GPU '{nom}' sur {g.get(url_cle)}")
+
         if providers_config.get("anthropic", {}).get("enabled", False) and ANTHROPIC_AVAILABLE:
             api_key_env = providers_config["anthropic"].get("api_key_env", "ANTHROPIC_API_KEY")
             api_key = os.environ.get(api_key_env)
@@ -467,6 +487,80 @@ class LLMRouterService:
                 tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=latency_ms,
                 success=False, error=str(e),
             )
+
+    async def _call_gpu_local(self, request: LLMRequest, model: str,
+                              provider_name: str) -> LLMResponse:
+        """Appelle un modele servi par llama.cpp sur le serveur GPU dedie.
+
+        Format OpenAI (/v1/chat/completions), joint par un tunnel SSH.
+
+        PARTICULARITE DES MODELES DE RAISONNEMENT : Gemma 4 remplit
+        `reasoning_content` avant `content`. Un max_tokens trop bas est
+        entierement consomme par la reflexion et `content` revient VIDE —
+        constate le 10/08 avec 30 jetons. On garantit donc un plancher.
+        """
+        import time
+
+        cfg = self.providers.get(provider_name) or self.providers.get(f"gpu_{model}")
+        if not cfg:
+            return LLMResponse(content="", provider="gpu_local", model_id=model,
+                               tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=0,
+                               success=False, error=f"fournisseur {provider_name} absent")
+
+        base = (cfg.get("base_url") or "").rstrip("/")
+        messages = []
+        if getattr(request, "system_prompt", None):
+            messages.append({"role": "system", "content": request.system_prompt})
+        messages.append({"role": "user", "content": request.prompt})
+
+        charge = {
+            "model": model,
+            "messages": messages,
+            # Plancher a 2000 : en dessous, la reflexion mange tout.
+            "max_tokens": max(int(getattr(request, "max_tokens", 4096) or 4096), 2000),
+        }
+        temp = getattr(request, "temperature", None)
+        if temp is not None:
+            charge["temperature"] = temp
+
+        debut = time.time()
+        try:
+            # httpx plutot qu'aiohttp : deja utilise par _call_ollama, pas de
+            # dependance nouvelle a installer.
+            async with httpx.AsyncClient(timeout=cfg.get("timeout", 600)) as client:
+                r = await client.post(f"{base}/chat/completions", json=charge)
+                if r.status_code != 200:
+                    return LLMResponse(content="", provider=provider_name, model_id=model,
+                                       tokens_in=0, tokens_out=0, cost_usd=0.0,
+                                       latency_ms=int((time.time()-debut)*1000),
+                                       success=False,
+                                       error=f"HTTP {r.status_code} : {r.text[:200]}")
+                d = r.json()
+
+            msg = (d.get("choices") or [{}])[0].get("message", {})
+            contenu = msg.get("content") or ""
+            if not contenu and msg.get("reasoning_content"):
+                # Le modele a tout mis dans la reflexion : on la renvoie plutot
+                # que du vide, en le signalant.
+                logger.warning(
+                    f"[LLM] {provider_name} : content vide, reasoning_content utilise "
+                    f"(max_tokens peut-etre trop bas)")
+                contenu = msg["reasoning_content"]
+
+            u = d.get("usage") or {}
+            return LLMResponse(
+                content=contenu, provider=provider_name, model_id=model, success=True,
+                tokens_in=u.get("prompt_tokens", 0),
+                tokens_out=u.get("completion_tokens", 0),
+                latency_ms=int((time.time() - debut) * 1000),
+                cost_usd=0.0,      # cout fixe : le forfait GPU, pas au jeton
+                stop_reason=(d.get("choices") or [{}])[0].get("finish_reason"),
+            )
+        except Exception as e:
+            return LLMResponse(content="", provider=provider_name, model_id=model,
+                               tokens_in=0, tokens_out=0, cost_usd=0.0,
+                               latency_ms=int((time.time() - debut) * 1000),
+                               success=False, error=str(e)[:200])
 
     async def _call_anthropic(self, request: LLMRequest, model_id: str, provider_str: str) -> LLMResponse:
         """Call Anthropic Claude API with automatic continuation on max_tokens (CRIT-02 port)."""
@@ -768,6 +862,10 @@ class LLMRouterService:
 
         if provider_name == "local":
             return await self._call_ollama(request, model_name)
+        # FEAT-GPU-001 (10/08) : llama.cpp expose une API compatible OpenAI,
+        # PAS celle d'Ollama. On ne peut donc pas reutiliser _call_ollama.
+        if provider_name in ("gpu_local", "gpu_gemma", "gpu_qwen"):
+            return await self._call_gpu_local(request, model_name, provider_name)
         if provider_name == "anthropic":
             return await self._call_anthropic(request, model_id, provider_str)
         if provider_name == "openai":

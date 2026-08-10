@@ -116,6 +116,33 @@ profiles:
   # --- Profile 2 : on-premise (client airgapped) ---
   # Ollama local pour tout. AUCUN fallback cloud (confidentialité).
   # Si local/mixtral down, l'erreur remonte telle quelle à l'utilisateur.
+  # ═══════════════════════════════════════════════════════════════════════
+  # PROFIL DE TEST — NE JAMAIS UTILISER AVEC UN VRAI CLIENT
+  # ═══════════════════════════════════════════════════════════════════════
+  # Ajoute le 10/08/2026 a la demande de Sam : « mets toute l'equipe du debut
+  # a la fin afin de tous les tester, on ne va pas tous les migrer mais juste
+  # pour les tests ».
+  #
+  # POURQUOI C'EST LEGITIME ICI : le projet de test (108) tourne sur l'org de
+  # DEVELOPPEMENT de Sam, sans aucune donnee client. La regle qui protege
+  # Sophie, Olivia, Emma, Marcus, Jordan et Aisha vise la PRODUCTION avec de
+  # vrais clients — pas un test interne.
+  #
+  # POURQUOI IL FAUT LE DIRE ICI : pour que personne ne prenne ce reglage
+  # pour un reglage de production. En production, les agents exposes aux
+  # donnees clients restent sur API (arbitrage Sam du 09/08), et le serveur
+  # GPU est en Californie.
+  #
+  # GARDE-FOU : ce profil ne doit etre actif que si le projet cible porte un
+  # marqueur non-production. A verifier avant chaque usage.
+  test_gpu_complet:
+    build_enabled: true
+    orchestrator: "gpu_local/gemma"
+    worker:       "gpu_local/qwen"
+    fallback_chain:
+      "gpu_local/gemma": "gpu_local/qwen"
+      "gpu_local/qwen":  "gpu_local/gemma"
+
   on-premise:
     build_enabled: true
     orchestrator: "local/mixtral"
@@ -138,6 +165,45 @@ profiles:
 # Providers — connexion aux APIs / endpoints
 # =============================================================================
 providers:
+  # ── Serveur GPU dedie (Packet.ai, RTX PRO 6000 Blackwell 96 Go) ──────────
+  # Ajoute le 10/08/2026. Deux modeles ouverts servis par llama.cpp, en
+  # quantification 8 bits :
+  #   Gemma 4 31B  (30,4 Go) — raisonnement et maniement d'outils
+  #   Qwen 3.6 27B (26,6 Go) — code et sortie structuree
+  # Les deux ensemble : 57 Go, il reste 39 Go pour le contexte.
+  #
+  # API compatible OpenAI — meme forme d'appel que le fournisseur openai.
+  #
+  # CE QUI NE DOIT JAMAIS Y PASSER (arbitrage Sam, 09/08) : les agents exposes
+  # aux donnees clients — Sophie, Olivia, Emma, Marcus, Jordan, Aisha. Le
+  # serveur est en Californie ; y router des donnees clients contredirait
+  # notre argument de souverainete. Diego, Raj, Zara et Elena sont autorises :
+  # ils ne voient que des metadonnees de structure (avis juridique du 09/08).
+  gpu_local:
+    enabled: true           # actif depuis le 10/08/2026, serveurs verifies
+    # Joignable par un tunnel SSH permanent (service tunnel-gpu sur le VPS).
+    # Les ports du serveur GPU ne sont PAS exposes sur internet — c'est
+    # deliberé : le tunnel evite d'ouvrir llama.cpp au monde, sachant qu'il
+    # n'a aucune authentification.
+    base_url: "http://127.0.0.1:18080/v1"
+    base_url_qwen: "http://127.0.0.1:18081/v1"
+    base_url_env: "GPU_LOCAL_BASE_URL"
+    api_key: "aucune"       # llama.cpp n'en exige pas
+    timeout_seconds: 600
+    models:
+      gemma:
+        model_id: "gemma"
+        display_name: "Gemma 4 31B Q8 (GPU dedie)"
+        context_length: 32768
+        supports_temperature: true
+        port: 8080
+      qwen:
+        model_id: "qwen"
+        display_name: "Qwen 3.6 27B Q8 (GPU dedie)"
+        context_length: 32768
+        supports_temperature: true
+        port: 8081
+
   ollama:
     enabled: true
     base_url: "http://localhost:11434"
