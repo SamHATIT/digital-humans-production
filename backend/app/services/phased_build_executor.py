@@ -853,7 +853,15 @@ class PhasedBuildExecutor:
                     continue
                 self.db.execute(
                     text(
-                        "UPDATE task_executions SET status = 'completed' "
+                        # FIX-TASKENUM-001 (10/08) : l'enumeration taskstatus
+                        # attend des valeurs en MAJUSCULES (PENDING, RUNNING,
+                        # COMPLETED...). Ecrire 'completed' en minuscules
+                        # provoquait "invalid input value for enum taskstatus"
+                        # et avortait TOUTE la transaction — d'ou la phase
+                        # figee en "deploying" sans qu'aucune erreur ne
+                        # remonte. Meme symptome que FIX-TASKID-001, autre
+                        # cause : celui-la portait sur l'identifiant.
+                        "UPDATE task_executions SET status = 'COMPLETED' "
                         "WHERE execution_id = :exec_id AND task_id = :ref"
                     ),
                     {"exec_id": self.execution_id, "ref": str(ref)},
