@@ -685,7 +685,33 @@ class PMOrchestratorServiceV2:
             
             # 3.0: Get Salesforce org metadata (skip for greenfield projects)
             # ARCH-001 fix: Don't attempt SFDX commands for greenfield projects
-            is_greenfield = project and project.project_type == "greenfield"
+            # ── FIX-GREENFIELD-001 (10/08/2026) ─────────────────────────
+            # Regle posee par Sam : « normalement, is_greenfield, c'est quand
+            # tu ne renseignes pas d'org ».
+            #
+            # Le type de projet est saisi a la main dans l'assistant et n'est
+            # JAMAIS revu ensuite. Or une org devient chargee des le premier
+            # BUILD reussi. Constate sur l'execution 167 : le projet portait
+            # encore "greenfield" alors que 10 champs avaient ete deployes le
+            # matin meme — Marcus a produit un etat des lieux d'org VIERGE,
+            # ignorant tout l'existant. Sans consequence ici (org de
+            # developpement quasi vide), redhibitoire chez un client charge :
+            # toute l'analyse d'ecart aurait ete fausse.
+            #
+            # Le fait qui compte n'est donc pas la case cochee, mais la
+            # PRESENCE D'UNE ORG. Sans org renseignee, il n'y a rien a
+            # analyser — c'est la definition meme d'un projet vierge.
+            org_renseignee = bool(project and getattr(project, "sf_username", None))
+            type_declare = project and project.project_type == "greenfield"
+
+            is_greenfield = not org_renseignee
+
+            if type_declare != is_greenfield:
+                logger.warning(
+                    f"[Phase 3.0] Type declare '{project.project_type}' contredit par "
+                    f"l'org : {'renseignee' if org_renseignee else 'absente'}. "
+                    f"On suit l'org — mode {'greenfield' if is_greenfield else 'existing'}."
+                )
             if is_greenfield:
                 org_metadata = {}
                 org_summary = {"note": "Greenfield project — no existing org to analyze"}
