@@ -56,6 +56,21 @@ TASK_TYPE_TO_PHASE = {
     "dev_validation": 4,
 
     "config_profiles": 5,
+    # ── FIX-PHASEMAP-002 (10/08/2026) ────────────────────────────────────
+    # Trois types ANNONCES a Marcus dans son prompt n'etaient pas routes
+    # ici. Constate sur l'execution 167 : le prompt marcus_architect.yaml
+    # declare 23 types de taches, cette table n'en reconnaissait que 20.
+    # Les orphelins retombaient sur le repli par agent — qui fonctionne,
+    # mais classe approximativement.
+    #
+    # dev_lwc est le plus genant : c'est le composant Lightning, phase 3.
+    # Le repli par agent l'aurait envoye ailleurs.
+    #
+    # REGLE A TENIR : tout type ajoute au prompt de Marcus doit etre ajoute
+    # ici le meme jour. Le prompt et cette table sont un seul contrat.
+    "dev_lwc": 3,          # Zara — composants Lightning
+    "dev_formula": 4,      # Raj — champs formule, avec l'automatisation
+    "doc_training": 6,     # Lucas — supports de formation, en fin de cycle
     "setup_permissions": 5,
     "config_sharing": 5,
 

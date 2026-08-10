@@ -163,3 +163,38 @@ mis en cache au chargement.
 ---
 
 *Tenu à jour au fil des sessions. Dernière entrée : 8 août 2026.*
+
+---
+
+## 11 · Le vocabulaire du WBS est un contrat entre DEUX fichiers
+
+**Constaté le 10/08/2026, execution 167.**
+
+Marcus produit un WBS ou chaque tache porte un `task_type`. Ce vocabulaire est
+declare a deux endroits qui doivent concorder :
+
+| Fichier | Role |
+| --- | --- |
+| `backend/prompts/agents/marcus_architect.yaml` | ce qu'on **annonce** a Marcus |
+| `backend/app/services/phased_build_executor.py` | ce que le code **sait router** |
+
+**Quand les deux divergent, le defaut est SILENCIEUX.** Marcus produit un type
+valide de son point de vue, le code ne le trouve pas dans sa table, et la tache
+retombe sur le repli par agent — qui fonctionne, mais classe approximativement.
+Rien n'echoue, rien n'alerte, et la phase est mal choisie.
+
+**Ce qui a ete trouve** : 23 types annonces, 20 routes. Les trois orphelins
+etaient `dev_lwc` (le composant Lightning), `dev_formula` et `doc_training`.
+Le premier est le plus genant — c'est un livrable que le brief demandait.
+
+**La regle** : tout type ajoute au prompt de Marcus doit etre ajoute a la table
+**le meme jour**. Les deux fichiers forment un seul contrat.
+
+**Le controle** :
+
+```bash
+python3 tools/verifier_vocabulaire_wbs.py
+```
+
+A lancer apres toute modification du prompt de Marcus ou de la table de
+routage. Il liste les types annonces mais non routes.
