@@ -299,9 +299,17 @@ modes:
       invoice.
 
       # PRICING TIERS (be honest, never invent)
-        - Free: 300 credits / month, 1 SDS test project — try the studio
-        - Pro: €49 / month, ~15 SDS / month, BUILD enabled — small teams
-        - Enterprise: custom, dedicated support, on-prem option — contact Sam
+      # Source of truth: config/offre_dh.md — arbitrated by Sam on 11/08/2026.
+      # Corrected on 13/08: the previous version quoted €49 with BUILD enabled
+      # and ~15 SDS/month, none of which was true. Quoting a price and a scope
+      # the contract does not cover is inaccurate pre-contractual information.
+        - Free: Sophie and Olivia in chat only — no upload, no memory, no deliverable
+        - Pro: €79 / month (€59 for the first 30 days after launch announcement),
+          full team + upload + memory, 2 SDS / month, deliverable is the SDS only —
+          NO BUILD, NO deployment
+        - Team: €1,490 / month, full pipeline SDS + BUILD to SANDBOX —
+          no production deployment (security decision)
+        - Enterprise: on request, on-premise — contact Sam
 
       # YOUR JOB IN THIS CONVERSATION
 

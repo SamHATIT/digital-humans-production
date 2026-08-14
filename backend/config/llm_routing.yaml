@@ -138,11 +138,17 @@ profiles:
   test_gpu_complet:
     build_enabled: true
     # Les noms doivent correspondre aux cles enregistrees par le routeur :
-    # gpu_gemma et gpu_qwen (un fournisseur par port).
-    orchestrator: "gpu_gemma/gemma"
-    worker:       "gpu_qwen/qwen"
+    # gpu_gemma, gpu_qwen et gpu_oss (un fournisseur par port).
+    #
+    # BASCULE DU 13/08 — gpt-oss-120b remplace Gemma et Qwen sur ce profil.
+    # Motif : au benchmark du 10/08, Gemma 4 31B a produit ZERO des quatre
+    # familles d analyse attendues. gpt-oss repond correctement en francais et
+    # produit un modele de donnees Salesforce structure (verifie le 12/08).
+    # Gemma et Qwen restent declares en repli, mais ne sont plus le defaut.
+    orchestrator: "gpu_oss/oss"
+    worker:       "gpu_oss/oss"
     fallback_chain:
-      "gpu_gemma/gemma": "gpu_qwen/qwen"
+      "gpu_oss/oss":     "gpu_qwen/qwen"
       "gpu_qwen/qwen":   "gpu_gemma/gemma"
 
   on-premise:
@@ -189,6 +195,7 @@ providers:
     # n'a aucune authentification.
     base_url: "http://127.0.0.1:18080/v1"
     base_url_qwen: "http://127.0.0.1:18081/v1"
+    base_url_oss: "http://127.0.0.1:18082/v1"
     base_url_env: "GPU_LOCAL_BASE_URL"
     api_key: "aucune"       # llama.cpp n'en exige pas
     timeout_seconds: 600
@@ -205,6 +212,21 @@ providers:
         context_length: 32768
         supports_temperature: true
         port: 8081
+      # Ajoute le 13/08 pour le BUILD de validation (DEC-2026-0809-03).
+      # MXFP4 est le format NATIF de ce modele, pas une requantification :
+      # aucune dette de precision, contrairement aux variantes 2 bits des
+      # modeles plus gros. 117 Md de parametres dont 5,1 actifs — decodage
+      # rapide, ce qui compte dans une boucle agentique.
+      # Mesure du 12/08 : 60 jetons/s en generation, 35,7 Go de VRAM.
+      # ATTENTION : llama.cpp exige --device CUDA0 explicite, sinon il tourne
+      # sur CPU sans le dire. Et --n-cpu-moe 0 est CONTRE-PRODUCTIF ici : le
+      # mode hybride par defaut donne 60 jetons/s, le tout-GPU s effondre a 1,5.
+      oss:
+        model_id: "gpt-oss-120b"
+        display_name: "gpt-oss-120b MXFP4 (GPU dedie)"
+        context_length: 32768
+        supports_temperature: true
+        port: 8082
 
   ollama:
     enabled: true

@@ -111,3 +111,8 @@ backend/config/.mod40_models_cache.json
 # Scripts operationnels de relance BUILD (usage manuel, non produit)
 backend/relaunch_build.py
 backend/requeue_build.py
+
+# Sauvegardes horodatees de .env — contiennent les cles API.
+# Ajoute le 14/08 : .env.avant-maj-1620 etait visible dans git status.
+.env.*
+backend/.env.*
