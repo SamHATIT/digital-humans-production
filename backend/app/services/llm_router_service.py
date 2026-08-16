@@ -257,9 +257,21 @@ class LLMRouterService:
         if providers_config.get("gpu_local", {}).get("enabled", False):
             g = providers_config["gpu_local"]
             modeles = g.get("models", {})
-            for nom, url_cle in (("gemma", "base_url"), ("qwen", "base_url_qwen")):
-                if nom not in modeles:
-                    continue
+            # ── CORRECTIF DU 16/08 ────────────────────────────────────────
+            # Cette liste etait FIGEE sur ("gemma", "qwen"). Tout modele ajoute
+            # au YAML n'etait jamais enregistre : le routeur cherchait
+            # "gpu_qwen38", ne le trouvait pas, et basculait sur le repli.
+            # Symptome observe : "Falling back from gpu_qwen38/qwen38 to
+            # gpu_oss/oss", suivi de l'echec des deux — 8 lots crees, 0 genere.
+            # Le meme defaut rendait gpt-oss inoperant depuis le 13/08 sans que
+            # personne ne s'en apercoive, faute d'avoir lance un BUILD complet.
+            #
+            # On decouvre desormais les modeles a partir du YAML lui-meme :
+            # chaque modele declare cherche sa cle base_url_<nom>, et retombe
+            # sur base_url si elle est absente. Ajouter un modele ne demande
+            # plus de toucher a ce fichier.
+            for nom in modeles:
+                url_cle = f"base_url_{nom}" if f"base_url_{nom}" in g else "base_url"
                 self.providers[f"gpu_{nom}"] = {
                     "type": ProviderType.LOCAL,
                     "base_url": g.get(url_cle, ""),
@@ -508,6 +520,7 @@ class LLMRouterService:
                                success=False, error=f"fournisseur {provider_name} absent")
 
         base = (cfg.get("base_url") or "").rstrip("/")
+        cfg_modele = (cfg.get("models") or {}).get(model, {}) or {}
         messages = []
         if getattr(request, "system_prompt", None):
             messages.append({"role": "system", "content": request.system_prompt})
@@ -522,6 +535,35 @@ class LLMRouterService:
         temp = getattr(request, "temperature", None)
         if temp is not None:
             charge["temperature"] = temp
+
+        # ── DESACTIVATION DE LA REFLEXION (16/08) ─────────────────────────
+        # Les modeles de raisonnement locaux — Qwen 3.8, gpt-oss, Gemma —
+        # produisent un bloc de reflexion AVANT leur reponse. Laisses libres,
+        # ils consomment tout le budget de jetons dedans et ne repondent jamais.
+        # Mesure du 16/08 sur Qwen 3.8 27B : 1400 jetons produits, contenu VIDE.
+        # Avec enable_thinking=false : reponse complete et code Apex correct.
+        #
+        # C est tres probablement la vraie cause de l echec du 15/08, ou Marcus
+        # et Emma recevaient "JSON parse error: Empty response" — on avait mis
+        # cela sur le compte du format de sortie.
+        #
+        # Le plancher a 2000 jetons ci-dessus reste utile en repli : si un
+        # fournisseur ignore ce parametre, il faut au moins de quoi finir.
+        # PARAMETRABLE PAR MODELE (remarque de Sam, 16/08) : le SDS a besoin de
+        # reflexion — Marcus fait de l architecture, Emma de la recherche. Le
+        # BUILD transforme une specification deja ecrite en code, le raisonnement
+        # y sert moins. On ne desactive donc pas globalement : chaque modele
+        # declare son comportement dans llm_routing.yaml.
+        #
+        # Defaut : reflexion DESACTIVEE. C est le reglage sur pour un premier
+        # essai — un modele qui ne repond pas est pire qu un modele qui repond
+        # sans avoir reflechi. Passer reasoning: true quand le budget de jetons
+        # est large et que la tache le justifie.
+        if not cfg_modele.get("reasoning", False):
+            charge["chat_template_kwargs"] = {"enable_thinking": False}
+        else:
+            # Reflexion active : il FAUT de la marge, sinon elle mange tout.
+            charge["max_tokens"] = max(charge["max_tokens"], 6000)
 
         debut = time.time()
         try:
@@ -864,7 +906,7 @@ class LLMRouterService:
             return await self._call_ollama(request, model_name)
         # FEAT-GPU-001 (10/08) : llama.cpp expose une API compatible OpenAI,
         # PAS celle d'Ollama. On ne peut donc pas reutiliser _call_ollama.
-        if provider_name in ("gpu_local", "gpu_gemma", "gpu_qwen"):
+        if provider_name == "gpu_local" or provider_name.startswith("gpu_"):
             return await self._call_gpu_local(request, model_name, provider_name)
         if provider_name == "anthropic":
             return await self._call_anthropic(request, model_id, provider_str)
