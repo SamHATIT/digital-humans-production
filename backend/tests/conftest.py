@@ -1,6 +1,8 @@
 """
 Pytest configuration and fixtures for testing.
 """
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,13 +11,29 @@ from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.database import Base, get_db
 
-# Test database URL (SQLite in-memory for testing)
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+# Test database URL.
+# Les modeles utilisent des colonnes JSONB : SQLite ne sait pas les compiler et
+# toute fixture qui cree les tables echouait en CompileError. La base de test
+# doit donc etre une PostgreSQL. TEST_DATABASE_URL permet a chaque execution
+# (ou chaque agent) d'isoler la sienne, sinon on retombe sur DATABASE_URL.
+SQLALCHEMY_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres@127.0.0.1:5432/digital_humans_test",
+    ),
+)
+
+_connect_args = (
+    {"check_same_thread": False}
+    if SQLALCHEMY_DATABASE_URL.startswith("sqlite")
+    else {}
+)
 
 # Create test database engine
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}
+    connect_args=_connect_args,
 )
 
 # Create test session factory
