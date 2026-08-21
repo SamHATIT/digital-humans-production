@@ -28,13 +28,18 @@ def get_analytics(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    completed_projects = db.query(Project).join(Execution).filter(
+    # LOT-B : `db.query(Project)...distinct()` selectionnait toutes les
+    # colonnes du projet, dont des colonnes JSON. PostgreSQL n'a pas
+    # d'operateur d'egalite sur `json` : SELECT DISTINCT levait
+    # "could not identify an equality operator for type json" et la route
+    # renvoyait 500 pour tout le monde. On ne dedoublonne que sur l'id.
+    completed_projects = db.query(Project.id).join(Execution).filter(
         Execution.status == ExecutionStatus.COMPLETED,
         Project.user_id == current_user.id
     ).distinct().count()
     
     week_ago = datetime.utcnow() - timedelta(days=7)
-    recent_completed = db.query(Project).join(Execution).filter(
+    recent_completed = db.query(Project.id).join(Execution).filter(
         Execution.status == ExecutionStatus.COMPLETED,
         Execution.completed_at >= week_ago,
         Project.user_id == current_user.id
@@ -71,10 +76,15 @@ def get_analytics(
         ).order_by(Execution.created_at.desc()).first()
         
         if latest_execution:
+            # LOT-B : `ExecutionStatus.IN_PROGRESS` n'existe pas dans l'enum
+            # (les membres sont PENDING / RUNNING / COMPLETED / FAILED /
+            # CANCELLED / WAITING_*). La construction de ce dictionnaire
+            # levait un AttributeError des qu'un projet avait une execution :
+            # la route repondait 500. RUNNING est l'etat visé.
             status_map = {
                 ExecutionStatus.COMPLETED: "Completed",
                 ExecutionStatus.FAILED: "Failed",
-                ExecutionStatus.IN_PROGRESS: "In Progress",
+                ExecutionStatus.RUNNING: "In Progress",
                 ExecutionStatus.PENDING: "Pending"
             }
             

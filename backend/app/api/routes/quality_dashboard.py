@@ -1,16 +1,33 @@
 """
 Quality Dashboard API Routes
 - BLD-07: Dashboard qualité code
+
+LOT-B (cla:SEC-01, kim:SEC-01) : ce routeur etait integralement expose et
+interrogeait la base en SQL brut sans aucun filtre utilisateur. N'importe
+qui pouvait lire la qualite du code genere pour l'execution d'un autre
+client (`GET /api/quality/execution/{id}`) ou ses tendances projet.
+L'authentification est posee au niveau du routeur, et les deux routes
+portant un identifiant de ressource verifient la propriete.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 from typing import Dict, List, Any
 from datetime import datetime
 import logging
 import re
 
+from app.database import get_db
+from app.models.user import User
+from app.utils.dependencies import get_current_user
+from app.utils.ownership import verify_execution_access, verify_project_access
+
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/quality", tags=["Quality"])
+router = APIRouter(
+    prefix="/quality",
+    tags=["Quality"],
+    dependencies=[Depends(get_current_user)],
+)
 
 
 # ========== Quality Metrics Models ==========
@@ -36,74 +53,93 @@ class FileQuality(BaseModel):
 # ========== BLD-07: Quality Dashboard ==========
 
 @router.get("/execution/{execution_id}")
-async def get_execution_quality(execution_id: int):
+async def get_execution_quality(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get quality metrics for all code generated in an execution.
     """
+    verify_execution_access(execution_id, current_user.id, db)
+    return await _compute_execution_quality(execution_id, db)
+
+
+async def _compute_execution_quality(
+    execution_id: int, session: Session
+) -> Dict[str, Any]:
+    """Calcul brut, sans controle d'acces.
+
+    Appele par la route ci-dessus (qui verifie la propriete) et par
+    /trends/{project_id} (qui a deja verifie la propriete du projet et
+    n'itere que sur les executions de ce projet).
+
+    LOT-B : ce bloc ouvrait `get_db_session()`, fonction absente de
+    `app.database` — tout appel levait une ImportError. Il travaille
+    desormais sur la session fournie par l'appelant.
+    """
     from sqlalchemy import text
-    from app.database import get_db_session
-    
+
     try:
-        with get_db_session() as session:
-            # Get all generated files
-            result = session.execute(text("""
-                SELECT task_id, task_name, generated_files, validation_status, validation_errors
-                FROM task_executions 
-                WHERE execution_id = :exec_id 
-                AND generated_files IS NOT NULL
-            """), {"exec_id": execution_id})
-            
-            all_files = []
-            total_errors = 0
-            total_warnings = 0
-            apex_scores = []
-            lwc_scores = []
-            
-            for row in result:
-                if row.generated_files:
-                    for file_path, content in row.generated_files.items():
-                        analysis = _analyze_code_quality(file_path, content)
-                        all_files.append({
-                            "task_id": row.task_id,
-                            "file_path": file_path,
-                            **analysis
-                        })
-                        
-                        total_errors += analysis["errors_count"]
-                        total_warnings += analysis["warnings_count"]
-                        
-                        if analysis["file_type"] == "apex":
-                            apex_scores.append(analysis["score"])
-                        elif analysis["file_type"] == "lwc":
-                            lwc_scores.append(analysis["score"])
-            
-            # Calculate aggregates
-            apex_score = sum(apex_scores) / len(apex_scores) if apex_scores else 0
-            lwc_score = sum(lwc_scores) / len(lwc_scores) if lwc_scores else 0
-            overall_score = (apex_score + lwc_score) / 2 if (apex_scores or lwc_scores) else 0
-            
-            # Estimate test coverage based on test files
-            test_files = [f for f in all_files if "Test" in f["file_path"]]
-            source_files = [f for f in all_files if "Test" not in f["file_path"] and f["file_type"] == "apex"]
-            test_coverage = (len(test_files) / len(source_files) * 75) if source_files else 0
-            
-            return {
-                "success": True,
-                "execution_id": execution_id,
-                "summary": {
-                    "overall_score": round(overall_score, 1),
-                    "apex_score": round(apex_score, 1),
-                    "lwc_score": round(lwc_score, 1),
-                    "total_files": len(all_files),
-                    "errors_count": total_errors,
-                    "warnings_count": total_warnings,
-                    "test_coverage_estimate": round(test_coverage, 1),
-                    "grade": _score_to_grade(overall_score)
-                },
-                "files": all_files,
-                "generated_at": datetime.now().isoformat()
-            }
-            
+        # Get all generated files
+        result = session.execute(text("""
+            SELECT task_id, task_name, generated_files, validation_status, validation_errors
+            FROM task_executions 
+            WHERE execution_id = :exec_id 
+            AND generated_files IS NOT NULL
+        """), {"exec_id": execution_id})
+
+        all_files = []
+        total_errors = 0
+        total_warnings = 0
+        apex_scores = []
+        lwc_scores = []
+
+        for row in result:
+            if row.generated_files:
+                for file_path, content in row.generated_files.items():
+                    analysis = _analyze_code_quality(file_path, content)
+                    all_files.append({
+                        "task_id": row.task_id,
+                        "file_path": file_path,
+                        **analysis
+                    })
+
+                    total_errors += analysis["errors_count"]
+                    total_warnings += analysis["warnings_count"]
+
+                    if analysis["file_type"] == "apex":
+                        apex_scores.append(analysis["score"])
+                    elif analysis["file_type"] == "lwc":
+                        lwc_scores.append(analysis["score"])
+
+        # Calculate aggregates
+        apex_score = sum(apex_scores) / len(apex_scores) if apex_scores else 0
+        lwc_score = sum(lwc_scores) / len(lwc_scores) if lwc_scores else 0
+        overall_score = (apex_score + lwc_score) / 2 if (apex_scores or lwc_scores) else 0
+
+        # Estimate test coverage based on test files
+        test_files = [f for f in all_files if "Test" in f["file_path"]]
+        source_files = [f for f in all_files if "Test" not in f["file_path"] and f["file_type"] == "apex"]
+        test_coverage = (len(test_files) / len(source_files) * 75) if source_files else 0
+
+        return {
+            "success": True,
+            "execution_id": execution_id,
+            "summary": {
+                "overall_score": round(overall_score, 1),
+                "apex_score": round(apex_score, 1),
+                "lwc_score": round(lwc_score, 1),
+                "total_files": len(all_files),
+                "errors_count": total_errors,
+                "warnings_count": total_warnings,
+                "test_coverage_estimate": round(test_coverage, 1),
+                "grade": _score_to_grade(overall_score)
+            },
+            "files": all_files,
+            "generated_at": datetime.now().isoformat()
+        }
+
     except Exception as e:
         logger.error(f"Quality analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -127,42 +163,49 @@ async def analyze_file(file_path: str, content: str):
 
 
 @router.get("/trends/{project_id}")
-async def get_quality_trends(project_id: int, limit: int = 10):
+async def get_quality_trends(
+    project_id: int,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get quality score trends over recent executions.
     """
     from sqlalchemy import text
-    from app.database import get_db_session
-    
+
+    verify_project_access(project_id, current_user.id, db)
+
+    # LOT-B : `get_db_session` n'existe pas dans app.database — on utilise la
+    # session injectee par Depends(get_db).
     try:
-        with get_db_session() as session:
-            result = session.execute(text("""
-                SELECT e.id, e.created_at, COUNT(t.id) as task_count
-                FROM executions e
-                LEFT JOIN task_executions t ON e.id = t.execution_id
-                WHERE e.project_id = :project_id
-                GROUP BY e.id, e.created_at
-                ORDER BY e.created_at DESC
-                LIMIT :limit
-            """), {"project_id": project_id, "limit": limit})
-            
-            trends = []
-            for row in result:
-                # Get quality for each execution
-                quality = await get_execution_quality(row.id)
-                trends.append({
-                    "execution_id": row.id,
-                    "date": row.created_at.isoformat() if row.created_at else None,
-                    "score": quality.get("summary", {}).get("overall_score", 0),
-                    "grade": quality.get("summary", {}).get("grade", "N/A")
-                })
-            
-            return {
-                "success": True,
-                "project_id": project_id,
-                "trends": trends
-            }
-            
+        result = db.execute(text("""
+            SELECT e.id, e.created_at, COUNT(t.id) as task_count
+            FROM executions e
+            LEFT JOIN task_executions t ON e.id = t.execution_id
+            WHERE e.project_id = :project_id
+            GROUP BY e.id, e.created_at
+            ORDER BY e.created_at DESC
+            LIMIT :limit
+        """), {"project_id": project_id, "limit": limit})
+
+        trends = []
+        for row in result:
+            # Get quality for each execution
+            quality = await _compute_execution_quality(row.id, db)
+            trends.append({
+                "execution_id": row.id,
+                "date": row.created_at.isoformat() if row.created_at else None,
+                "score": quality.get("summary", {}).get("overall_score", 0),
+                "grade": quality.get("summary", {}).get("grade", "N/A")
+            })
+
+        return {
+            "success": True,
+            "project_id": project_id,
+            "trends": trends
+        }
+
     except Exception as e:
         logger.error(f"Trends error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

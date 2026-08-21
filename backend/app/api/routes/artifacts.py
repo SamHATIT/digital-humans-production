@@ -1,12 +1,21 @@
 """
 API routes for V2 artifacts system
+
+LOT-B (cla:SEC-01, kim:SEC-01) : ce routeur etait integralement expose —
+aucune des routes artifacts / gates / questions / graph ne portait
+`Depends(get_current_user)`. Toutes ces ressources sont rattachees a une
+`execution_id` : chaque route authentifie desormais l'appelant ET verifie
+que l'execution visee remonte bien a son projet (`verify_execution_access`).
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.database import get_db
+from app.models.user import User
 from app.services.artifact_service import ArtifactService
+from app.utils.dependencies import get_current_user
+from app.utils.ownership import verify_execution_access
 from app.schemas.artifact import (
     ArtifactCreate, ArtifactUpdate, ArtifactStatusUpdate, ArtifactResponse, ArtifactListResponse,
     GateResponse, GateListResponse, GateStatusUpdate,
@@ -21,8 +30,13 @@ router = APIRouter(prefix="/api/v2", tags=["V2 Artifacts"])
 # ============ ARTIFACT ENDPOINTS ============
 
 @router.post("/artifacts", response_model=ArtifactResponse)
-def create_artifact(data: ArtifactCreate, db: Session = Depends(get_db)):
+def create_artifact(
+    data: ArtifactCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Create a new artifact"""
+    verify_execution_access(data.execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         artifact = service.create_artifact(data)
@@ -37,9 +51,11 @@ def list_artifacts(
     artifact_type: Optional[str] = None,
     status: Optional[str] = None,
     current_only: bool = True,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """List artifacts for an execution"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     artifacts = service.list_artifacts(execution_id, artifact_type, status, current_only)
     stats = service.get_artifacts_stats(execution_id)
@@ -56,9 +72,11 @@ def get_artifact(
     artifact_code: str,
     execution_id: int,
     version: Optional[int] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get a specific artifact"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     artifact = service.get_artifact(artifact_code, execution_id, version)
     if not artifact:
@@ -71,9 +89,11 @@ def update_artifact(
     artifact_code: str,
     execution_id: int,
     data: ArtifactUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update an artifact (creates new version)"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         artifact = service.update_artifact(artifact_code, execution_id, data)
@@ -87,9 +107,11 @@ def update_artifact_status(
     artifact_code: str,
     execution_id: int,
     data: ArtifactStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update artifact status"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         artifact = service.update_artifact_status(artifact_code, execution_id, data)
@@ -102,9 +124,11 @@ def update_artifact_status(
 def get_next_artifact_code(
     artifact_type: str,
     execution_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get the next artifact code for a type"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     code = service.get_next_artifact_code(execution_id, artifact_type)
     return {"next_code": code}
@@ -116,9 +140,11 @@ def get_next_artifact_code(
 def get_agent_context(
     agent_id: str,
     execution_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get context for an agent"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     context = service.get_context_for_agent(execution_id, agent_id)
     return context
@@ -127,15 +153,20 @@ def get_agent_context(
 # ============ GATE ENDPOINTS ============
 
 @router.post("/gates/initialize", response_model=InitializeGatesResponse)
-def initialize_gates(data: InitializeGatesRequest, db: Session = Depends(get_db)):
+def initialize_gates(
+    data: InitializeGatesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Initialize all 6 gates for an execution"""
+    verify_execution_access(data.execution_id, current_user.id, db)
     service = ArtifactService(db)
-    
+
     # Check if gates already exist
     existing = service.list_gates(data.execution_id)
     if existing:
         raise HTTPException(status_code=400, detail="Gates already initialized for this execution")
-    
+
     gates = service.initialize_gates(data.execution_id)
     return InitializeGatesResponse(
         execution_id=data.execution_id,
@@ -145,8 +176,13 @@ def initialize_gates(data: InitializeGatesRequest, db: Session = Depends(get_db)
 
 
 @router.get("/gates", response_model=GateListResponse)
-def list_gates(execution_id: int, db: Session = Depends(get_db)):
+def list_gates(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """List all gates for an execution"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     progress = service.get_gates_progress(execution_id)
     return GateListResponse(
@@ -157,8 +193,14 @@ def list_gates(execution_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/gates/{gate_number}", response_model=GateResponse)
-def get_gate(gate_number: int, execution_id: int, db: Session = Depends(get_db)):
+def get_gate(
+    gate_number: int,
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get a specific gate"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     gate = service.get_gate(execution_id, gate_number)
     if not gate:
@@ -167,8 +209,14 @@ def get_gate(gate_number: int, execution_id: int, db: Session = Depends(get_db))
 
 
 @router.post("/gates/{gate_number}/submit", response_model=GateResponse)
-def submit_gate(gate_number: int, execution_id: int, db: Session = Depends(get_db)):
+def submit_gate(
+    gate_number: int,
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Submit a gate for user review"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         gate = service.submit_gate_for_review(execution_id, gate_number)
@@ -178,8 +226,14 @@ def submit_gate(gate_number: int, execution_id: int, db: Session = Depends(get_d
 
 
 @router.post("/gates/{gate_number}/approve", response_model=GateResponse)
-def approve_gate(gate_number: int, execution_id: int, db: Session = Depends(get_db)):
+def approve_gate(
+    gate_number: int,
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Approve a gate"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         gate = service.approve_gate(execution_id, gate_number)
@@ -193,12 +247,14 @@ def reject_gate(
     gate_number: int,
     execution_id: int,
     data: GateStatusUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Reject a gate"""
     if not data.rejection_reason:
         raise HTTPException(status_code=400, detail="rejection_reason is required")
-    
+
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         gate = service.reject_gate(execution_id, gate_number, data.rejection_reason)
@@ -210,8 +266,13 @@ def reject_gate(
 # ============ QUESTION ENDPOINTS ============
 
 @router.post("/questions", response_model=QuestionResponse)
-def create_question(data: QuestionCreate, db: Session = Depends(get_db)):
+def create_question(
+    data: QuestionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Create a new question between agents"""
+    verify_execution_access(data.execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         question = service.create_question(data)
@@ -226,9 +287,11 @@ def list_questions(
     from_agent: Optional[str] = None,
     to_agent: Optional[str] = None,
     status: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """List questions for an execution"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     questions = service.list_questions(execution_id, from_agent, to_agent, status)
     pending = sum(1 for q in questions if q.status == "pending")
@@ -241,8 +304,14 @@ def list_questions(
 
 
 @router.get("/questions/{question_code}", response_model=QuestionResponse)
-def get_question(question_code: str, execution_id: int, db: Session = Depends(get_db)):
+def get_question(
+    question_code: str,
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get a specific question"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     question = service.get_question(question_code, execution_id)
     if not question:
@@ -255,9 +324,11 @@ def answer_question(
     question_code: str,
     execution_id: int,
     data: QuestionAnswer,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Answer a question"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     try:
         question = service.answer_question(question_code, execution_id, data)
@@ -267,8 +338,13 @@ def answer_question(
 
 
 @router.get("/questions/next-code")
-def get_next_question_code(execution_id: int, db: Session = Depends(get_db)):
+def get_next_question_code(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get the next question code"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     code = service.get_next_question_code(execution_id)
     return {"next_code": code}
@@ -277,7 +353,12 @@ def get_next_question_code(execution_id: int, db: Session = Depends(get_db)):
 # ============ GRAPH ENDPOINT ============
 
 @router.get("/graph", response_model=DependencyGraph)
-def get_dependency_graph(execution_id: int, db: Session = Depends(get_db)):
+def get_dependency_graph(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     """Get the dependency graph for visualization"""
+    verify_execution_access(execution_id, current_user.id, db)
     service = ArtifactService(db)
     return service.get_dependency_graph(execution_id)

@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.database import get_db
 from app.utils.dependencies import get_current_user
+from app.utils.ownership import verify_project_access
 from app.models.user import User
 from app.models.project import Project
 from app.models.execution import Execution
@@ -21,6 +22,30 @@ from app.schemas.change_request import (
 )
 
 router = APIRouter(prefix="/api/projects", tags=["change-requests"])
+
+
+def _get_owned_cr(
+    project_id: int, cr_id: int, user_id: int, db: Session
+) -> ChangeRequest:
+    """LOT-B (cla:SEC-01) : recuperer une CR en verifiant d'abord que le
+    projet appartient a l'appelant.
+
+    Les routes update / submit / approve / reject / delete filtraient sur
+    `project_id` seul : authentifie mais non cloisonne, un utilisateur
+    pouvait donc approuver ou supprimer les CR d'un autre client en
+    passant l'id de projet de ce dernier.
+    """
+    verify_project_access(project_id, user_id, db)
+
+    cr = db.query(ChangeRequest).filter(
+        ChangeRequest.id == cr_id,
+        ChangeRequest.project_id == project_id
+    ).first()
+
+    if not cr:
+        raise HTTPException(status_code=404, detail="Change request not found")
+
+    return cr
 
 
 def get_next_cr_number(db: Session, project_id: int) -> str:
@@ -133,22 +158,7 @@ def get_change_request(
     current_user: User = Depends(get_current_user)
 ):
     """Get a specific change request."""
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
-    
-    # Verify access
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user.id
-    ).first()
-    
-    if not project:
-        raise HTTPException(status_code=403, detail="Access denied")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     resp = ChangeRequestResponse.model_validate(cr)
     if cr.related_br_id:
@@ -170,13 +180,7 @@ def update_change_request(
     current_user: User = Depends(get_current_user)
 ):
     """Update a change request (only if in draft status)."""
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     if cr.status != "draft":
         raise HTTPException(status_code=400, detail="Can only update draft CRs")
@@ -213,13 +217,7 @@ def submit_change_request(
     
     logger.info(f"[CR Route] Submit CR {cr_id} for project {project_id}")
     
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     if cr.status != "draft":
         raise HTTPException(status_code=400, detail="CR already submitted")
@@ -267,13 +265,7 @@ def approve_change_request(
     
     logger.info(f"[CR Route] Approve CR {cr_id} for project {project_id}")
     
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     if cr.status != "analyzed":
         raise HTTPException(status_code=400, detail="CR must be analyzed before approval")
@@ -321,13 +313,7 @@ def reject_change_request(
     current_user: User = Depends(get_current_user)
 ):
     """Reject a CR."""
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     if cr.status in ["completed", "rejected"]:
         raise HTTPException(status_code=400, detail="CR already finalized")
@@ -346,13 +332,7 @@ def delete_change_request(
     current_user: User = Depends(get_current_user)
 ):
     """Delete a draft CR."""
-    cr = db.query(ChangeRequest).filter(
-        ChangeRequest.id == cr_id,
-        ChangeRequest.project_id == project_id
-    ).first()
-    
-    if not cr:
-        raise HTTPException(status_code=404, detail="Change request not found")
+    cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     if cr.status != "draft":
         raise HTTPException(status_code=400, detail="Can only delete draft CRs")

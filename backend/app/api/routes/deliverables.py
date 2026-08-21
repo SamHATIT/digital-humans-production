@@ -1,5 +1,10 @@
 """
 Deliverables API routes.
+
+LOT-B (cla:SEC-01, kim:SEC-01) : ce routeur etait integralement expose —
+aucune route ne portait `Depends(get_current_user)`. Chaque route porte
+desormais l'authentification ET la verification de propriete
+(deliverable -> execution -> project -> user).
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,7 +12,13 @@ from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.user import User
 from app.services.deliverable_service import DeliverableService
+from app.utils.dependencies import (
+    get_current_user,
+    get_current_user_from_token_or_header,
+)
+from app.utils.ownership import verify_deliverable_access, verify_execution_access
 from app.schemas.deliverable import (
     AgentDeliverableCreate,
     AgentDeliverableUpdate,
@@ -22,9 +33,11 @@ router = APIRouter(prefix="/deliverables", tags=["Deliverables"])
 @router.post("/", response_model=AgentDeliverableResponse, status_code=status.HTTP_201_CREATED)
 def create_deliverable(
     data: AgentDeliverableCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Create new agent deliverable."""
+    verify_execution_access(data.execution_id, current_user.id, db)
     service = DeliverableService(db)
 
     try:
@@ -40,9 +53,11 @@ def create_deliverable(
 @router.get("/{deliverable_id}", response_model=AgentDeliverableResponse)
 def get_deliverable(
     deliverable_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get deliverable by ID."""
+    verify_deliverable_access(deliverable_id, current_user.id, db)
     service = DeliverableService(db)
     deliverable = service.get_by_id(deliverable_id)
 
@@ -58,9 +73,11 @@ def get_deliverable(
 @router.get("/{deliverable_id}/full", response_model=AgentDeliverableFull)
 def get_deliverable_full(
     deliverable_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get full deliverable content."""
+    verify_deliverable_access(deliverable_id, current_user.id, db)
     service = DeliverableService(db)
     deliverable = service.get_full_deliverable(deliverable_id)
 
@@ -76,9 +93,11 @@ def get_deliverable_full(
 @router.get("/executions/{execution_id}", response_model=List[AgentDeliverableResponse])
 def get_execution_deliverables(
     execution_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get all deliverables for an execution."""
+    verify_execution_access(execution_id, current_user.id, db)
     service = DeliverableService(db)
     return service.get_by_execution(execution_id)
 
@@ -86,9 +105,11 @@ def get_execution_deliverables(
 @router.get("/executions/{execution_id}/previews", response_model=List[AgentDeliverablePreview])
 def get_execution_deliverable_previews(
     execution_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get previews of all deliverables for an execution."""
+    verify_execution_access(execution_id, current_user.id, db)
     service = DeliverableService(db)
     return service.get_deliverable_previews(execution_id)
 
@@ -97,9 +118,11 @@ def get_execution_deliverable_previews(
 def get_agent_deliverables(
     execution_id: int,
     agent_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get deliverables for a specific agent in an execution."""
+    verify_execution_access(execution_id, current_user.id, db)
     service = DeliverableService(db)
     return service.get_by_execution_and_agent(execution_id, agent_id)
 
@@ -108,9 +131,11 @@ def get_agent_deliverables(
 def get_deliverable_by_type(
     execution_id: int,
     deliverable_type: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get deliverable by execution and type."""
+    verify_execution_access(execution_id, current_user.id, db)
     service = DeliverableService(db)
     deliverable = service.get_by_type(execution_id, deliverable_type)
 
@@ -127,9 +152,11 @@ def get_deliverable_by_type(
 def update_deliverable(
     deliverable_id: int,
     data: AgentDeliverableUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Update deliverable."""
+    verify_deliverable_access(deliverable_id, current_user.id, db)
     service = DeliverableService(db)
 
     try:
@@ -150,9 +177,11 @@ def update_deliverable(
 @router.delete("/{deliverable_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_deliverable(
     deliverable_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Delete deliverable."""
+    verify_deliverable_access(deliverable_id, current_user.id, db)
     service = DeliverableService(db)
 
     if not service.delete_deliverable(deliverable_id):
@@ -166,26 +195,33 @@ def delete_deliverable(
 @router.get("/{deliverable_id}/render", response_class=HTMLResponse)
 def render_deliverable_html(
     deliverable_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header)
 ):
     """Render the deliverable as standalone HTML (for SDS documents).
-    
+
     Unwraps the JSON wrapper produced by Emma's _execute_write_sds and
     returns the inner HTML directly with Content-Type: text/html so the
     browser renders it instead of showing it as text.
+
+    LOT-B : route ouverte dans un onglet par le frontend (navigation, pas
+    de header possible) — elle accepte donc le jeton en header OU en query
+    param, comme les telechargements de sds_versions.py. Le jeton en URL
+    reste un defaut connu (kim:SEC-07), traite hors de ce lot.
     """
     import json
+    verify_deliverable_access(deliverable_id, current_user.id, db)
     service = DeliverableService(db)
     deliverable = service.get_full_deliverable(deliverable_id)
-    
+
     if not deliverable:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Deliverable {deliverable_id} not found"
         )
-    
+
     raw = deliverable.content or ""
-    
+
     # Try to unwrap the JSON wrapper {"content": {"raw_html": "..."}, ...}
     html = raw
     try:
@@ -198,11 +234,11 @@ def render_deliverable_html(
     except (json.JSONDecodeError, TypeError):
         # Content is not JSON-wrapped — return as-is
         pass
-    
+
     # If the content is already a complete HTML document, return it directly
     if html.lstrip().lower().startswith("<!doctype html") or html.lstrip().lower().startswith("<html"):
         return HTMLResponse(content=html)
-    
+
     # Otherwise wrap in a minimal HTML shell (for markdown/text content)
     wrapped = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Deliverable {deliverable_id}</title>
@@ -210,4 +246,3 @@ def render_deliverable_html(
 pre{{background:#f4f4f4;padding:1rem;border-radius:4px;overflow-x:auto}}</style></head>
 <body><pre>{html}</pre></body></html>"""
     return HTMLResponse(content=wrapped)
-

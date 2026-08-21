@@ -126,15 +126,23 @@ def upload_document(
         raise HTTPException(status_code=400, detail=f"File too large (max {MAX_FILE_SIZE // 1024 // 1024} MB)")
 
     # Save to disk
+    # LOT-B (kim:SEC-03, cote ecriture) : le nom de fichier vient du client.
+    # `project_dir / file.filename` avec un nom du type "../../app/main.py"
+    # ecrivait hors du repertoire du projet. `Path(...).name` ne garde que le
+    # dernier segment, sans composante de chemin.
+    safe_filename = Path(file.filename or "").name
+    if not safe_filename:
+        raise HTTPException(status_code=400, detail="Invalid file name")
+
     project_dir = DOCUMENTS_DIR / str(project_id)
     project_dir.mkdir(parents=True, exist_ok=True)
-    file_path = project_dir / file.filename
+    file_path = project_dir / safe_filename
     file_path.write_bytes(content)
 
     # Create DB record
     doc = ProjectDocument(
         project_id=project_id,
-        filename=file.filename,
+        filename=safe_filename,
         file_path=str(file_path),
         file_size=len(content),
         content_type=file.content_type,
@@ -166,7 +174,7 @@ def upload_document(
         chunk_count = ingest_document(
             collection_name=collection_name,
             chunks=chunks,
-            metadata={"source": file.filename, "project_id": str(project_id)},
+            metadata={"source": safe_filename, "project_id": str(project_id)},
             project_id=project_id,
             document_id=doc.id,
         )
@@ -175,10 +183,10 @@ def upload_document(
         doc.status = "ready"
         db.commit()
 
-        logger.info(f"Document '{file.filename}' ingested: {chunk_count} chunks into {collection_name} for project {project_id}")
+        logger.info(f"Document '{safe_filename}' ingested: {chunk_count} chunks into {collection_name} for project {project_id}")
 
     except Exception as e:
-        logger.error(f"Error ingesting document '{file.filename}': {e}")
+        logger.error(f"Error ingesting document '{safe_filename}': {e}")
         doc.status = "error"
         doc.error_message = str(e)[:500]
         db.commit()
