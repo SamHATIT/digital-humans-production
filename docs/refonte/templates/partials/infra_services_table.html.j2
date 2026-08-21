@@ -19,6 +19,7 @@
   <thead>
     <tr>
       <th class="tbl-toggle-col" aria-hidden="true"></th>
+      <th>Machine</th>
       <th>Service</th>
       <th>systemctl unit</th>
       <th>Port</th>
@@ -29,6 +30,7 @@
   {% for s in services %}
     <tr class="tbl-row-summary">
       <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+      <td><span class="service-port">{{ s.machine | upper }}</span></td>
       <td><strong>{{ s.label }}</strong></td>
       <td>
         {%- if s.kind == 'docker' -%}
@@ -45,7 +47,7 @@
       <td>{{ status_tag(s.status) }}</td>
     </tr>
     <tr class="tbl-row-detail">
-      <td colspan="5">
+      <td colspan="6">
         <div class="tbl-detail-body">
           <dl class="detail-kv">
             <dt>type de service</dt>

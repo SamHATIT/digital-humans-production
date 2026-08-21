@@ -3,6 +3,41 @@
     <p class="section-desc">Tous les services sont gérés via <code>systemctl</code> sur Ubuntu 24.04.</p>
     <!-- PARTIAL:infra_services_table -->
 
+
+    <h3>Hermes Agent — home server</h3>
+    <p class="section-desc">Agent local sur le mini PC relié à la TV (HDMI). Installé le 21/08 sous un
+    utilisateur dédié <code>hermes</code> qui <strong>lit</strong> les disques média mais ne peut
+    pas y écrire — la limite est dans le système, pas dans une consigne.</p>
+    <table>
+      <tr><th>Élément</th><th>Chemin / valeur</th></tr>
+      <tr><td>Racine</td><td><code>/opt/hermes/.hermes/</code></td></tr>
+      <tr><td>Configuration</td><td><code>config.yaml</code></td></tr>
+      <tr><td>Cadrage de fond</td><td><code>SOUL.md</code> — invite système, où ajouter ses propres consignes</td></tr>
+      <tr><td>Compétences apprises</td><td><code>skills/</code> — <strong>à relire de temps en temps</strong> : ce qu'il y écrit, il le relira comme une consigne</td></tr>
+      <tr><td>Historique</td><td><code>sessions/</code> · journaux dans <code>logs/</code></td></tr>
+      <tr><td>Binaire</td><td><code>/opt/hermes/.hermes/hermes-agent/venv/bin/hermes</code></td></tr>
+      <tr><td>Modèle</td><td>Nemotron sur le Spark — <code>http://192.168.1.56:8080/v1</code>, provider <code>lmstudio</code></td></tr>
+    </table>
+    <p><strong>Outils actifs :</strong> <code>todo</code>, <code>memory</code>, <code>session_search</code>,
+    <code>clarify</code>, <code>skills</code>. <strong>Retirés :</strong> terminal, fichiers, web, navigateur,
+    exécution de code, vision, pilotage du bureau, cron, délégation. Il peut discuter et apprendre ;
+    il ne peut rien exécuter sur la machine.</p>
+    <table>
+      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><td>Parler à Hermes</td><td><code>sudo -u hermes -H bash -c "cd /opt/hermes &amp;&amp; .hermes/hermes-agent/venv/bin/hermes chat"</code></td></tr>
+      <tr><td>Voir les outils</td><td><code>hermes tools list</code></td></tr>
+      <tr><td>Relire les compétences</td><td><code>sudo ls -lt /opt/hermes/.hermes/skills/</code></td></tr>
+      <tr><td>Diagnostic</td><td><code>hermes doctor</code></td></tr>
+    </table>
+
+    <h3>Adressage réseau (baux fixes Freebox)</h3>
+    <table>
+      <tr><th>Machine</th><th>IP</th><th>Remarque</th></tr>
+      <tr><td>Spark (DGX GB10)</td><td><code>192.168.1.56</code></td><td>WiFi — la carte Ethernet aura sa propre MAC, donc un second bail à créer</td></tr>
+      <tr><td>Home server</td><td><code>192.168.1.154</code></td><td>Ethernet 2,5 Gb</td></tr>
+      <tr><td>VPS</td><td><code>72.61.161.222</code></td><td>Hostinger</td></tr>
+    </table>
+
     <h3>Commandes essentielles</h3>
     <table>
       <tr><th>Action</th><th>Commande</th></tr>

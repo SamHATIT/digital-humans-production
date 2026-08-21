@@ -1230,12 +1230,36 @@ flowchart LR
     </div>
 
     <h3>Fallback chain — par profile</h3>
-    <p>Chaque profile définit sa propre chaîne de secours en cas d'échec. <strong>Le profile <code>on-premise</code> ne tombe jamais sur du cloud</strong> (garantie d'airgap).</p>
+    <p>Chaque profile définit sa propre chaîne de secours en cas d'échec. Table générée depuis <code>backend/config/llm_routing.yaml</code>. <strong>Le profile <code>on-premise</code> ne tombe jamais sur du cloud</strong> (garantie d'airgap).</p>
     <table>
-      <tr><th>Profile</th><th>Primary → fallback 1 → fallback 2</th></tr>
-      <tr><td><code>cloud</code></td><td>Anthropic → OpenAI → (échec)</td></tr>
-      <tr><td><code>on-premise</code></td><td>Ollama local → (échec, PAS de cloud)</td></tr>
-      <tr><td><code>freemium</code></td><td>OpenAI → Anthropic (cap coût mensuel)</td></tr>
+      <thead>
+        <tr><th>Profile</th><th>Orchestrateur</th><th>Worker</th><th>BUILD</th><th>Chaîne de secours</th></tr>
+      </thead>
+      <tbody>    <tr>
+          <td><code>cloud</code></td>
+          <td>anthropic/claude-opus</td>
+          <td>anthropic/claude-sonnet</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>aucun repli — la panne remonte en erreur franche</td>
+        </tr>    <tr>
+          <td><code>test_gpu_complet</code></td>
+          <td>gpu_nemotron/nemotron</td>
+          <td>gpu_nemotron/nemotron</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>gpu_nemotron/nemotron → gpu_qwen38/qwen38<br>gpu_qwen38/qwen38 → gpu_oss/oss<br>gpu_oss/oss → gpu_qwen/qwen</td>
+        </tr>    <tr>
+          <td><code>on-premise</code></td>
+          <td>local/mixtral</td>
+          <td>local/mistral:7b-instruct</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>local/mixtral → local/mistral-nemo<br>local/mistral:7b-instruct → local/mistral-nemo</td>
+        </tr>    <tr>
+          <td><code>freemium</code></td>
+          <td>anthropic/claude-sonnet</td>
+          <td>anthropic/claude-sonnet</td>
+          <td><span class="tag tag-warning">désactivé</span></td>
+          <td>anthropic/claude-sonnet (aucune degradation)</td>
+        </tr>  </tbody>
     </table>
 
     <h3>Continuation automatique</h3>
@@ -1269,6 +1293,7 @@ flowchart LR
       <thead>
         <tr>
           <th class="tbl-toggle-col" aria-hidden="true"></th>
+          <th>Machine</th>
           <th>Service</th>
           <th>systemctl unit</th>
           <th>Port</th>
@@ -1278,13 +1303,14 @@ flowchart LR
       <tbody>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Backend API</strong></td>
           <td><code>digital-humans-backend</code></td>
           <td>8002</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1297,13 +1323,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>ARQ Worker</strong></td>
           <td><code>digital-humans-worker</code></td>
           <td>—</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1316,13 +1343,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Frontend</strong></td>
           <td><code>digital-humans-frontend</code></td>
           <td>3000</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1335,13 +1363,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>PostgreSQL</strong></td>
           <td><code>postgresql</code></td>
           <td>5432</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1354,13 +1383,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Redis</strong></td>
           <td><code>redis-server</code></td>
           <td>6379</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1373,13 +1403,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>ChromaDB</strong></td>
           <td>PersistentClient</td>
           <td>—</td>
           <td><span class="tag tag-done">embedded</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1394,13 +1425,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Ollama</strong></td>
           <td><code>ollama</code></td>
           <td>11434</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1413,13 +1445,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Nginx</strong></td>
           <td><code>nginx</code></td>
           <td>80/443</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1432,13 +1465,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Ghost CMS</strong></td>
           <td>Docker: <code>ghost-blog</code></td>
           <td>2368</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1451,13 +1485,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>N8N</strong></td>
           <td><code>n8n</code></td>
           <td>5678</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1470,13 +1505,14 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
           <td><strong>Open WebUI</strong></td>
           <td>Docker: <code>open-webui</code></td>
           <td>3200→8080</td>
           <td><span class="tag tag-done">active</span></td>
         </tr>
         <tr class="tbl-row-detail">
-          <td colspan="5">
+          <td colspan="6">
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>type de service</dt>
@@ -1487,7 +1523,234 @@ flowchart LR
             </div>
           </td>
         </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
+          <td><strong>Tunnel Spark LLM</strong></td>
+          <td><code>tunnel-spark-llm</code></td>
+          <td>18080→8080</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>note</dt>
+                <dd>Nemotron pour le comite</dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status tunnel-spark-llm</code> · <code>journalctl -u tunnel-spark-llm -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
+          <td><strong>Tunnel Spark MCP</strong></td>
+          <td><code>tunnel-spark-mcp</code></td>
+          <td>8010→8000</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status tunnel-spark-mcp</code> · <code>journalctl -u tunnel-spark-mcp -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">VPS</span></td>
+          <td><strong>Tunnel GPU loue</strong></td>
+          <td><code>tunnel-gpu</code></td>
+          <td>18080→8080</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>systemd</code></dd>
+                <dt>note</dt>
+                <dd>Packet.ai, eteint (pay-per-use)</dd>
+                <dt>diagnostic</dt>
+                <dd><code>systemctl status tunnel-gpu</code> · <code>journalctl -u tunnel-gpu -n 50</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">SPARK</span></td>
+          <td><strong>Nemotron (llama.cpp)</strong></td>
+          <td><code>nemotron</code></td>
+          <td>8080</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh</code></dd>
+                <dt>note</dt>
+                <dd>30B Q8, 2 slots x 131072</dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">SPARK</span></td>
+          <td><strong>VoxCPM TTS</strong></td>
+          <td><code>vox-tts</code></td>
+          <td>8100</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh_docker</code></dd>
+                <dt>note</dt>
+                <dd>voix sam + olha</dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">SPARK</span></td>
+          <td><strong>LobeChat</strong></td>
+          <td><code>lobe-chat</code></td>
+          <td>3210</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh_docker</code></dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">SPARK</span></td>
+          <td><strong>ComfyUI</strong></td>
+          <td><code>comfyui</code></td>
+          <td>8188</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh</code></dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">HOME</span></td>
+          <td><strong>Jellyfin</strong></td>
+          <td><code>jellyfin</code></td>
+          <td>8096</td>
+          <td><span class="tag tag-done">active</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh</code></dd>
+                <dt>note</dt>
+                <dd>paquet Debian, utilisateur jellyfin, donnees /var/lib/jellyfin</dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="service-port">HOME</span></td>
+          <td><strong>Hermes Agent</strong></td>
+          <td><code>hermes</code></td>
+          <td>—</td>
+          <td><span class="tag tag-neutral">sans service</span></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="6">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>type de service</dt>
+                <dd><code>ssh_absent</code></dd>
+                <dt>note</dt>
+                <dd>CLI sous utilisateur hermes, /opt/hermes — pas de service, lance a la demande</dd>
+                <dt>diagnostic</dt>
+                <dd>—</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
       </tbody>
+    </table>
+
+
+    <h3>Hermes Agent — home server</h3>
+    <p class="section-desc">Agent local sur le mini PC relié à la TV (HDMI). Installé le 21/08 sous un
+    utilisateur dédié <code>hermes</code> qui <strong>lit</strong> les disques média mais ne peut
+    pas y écrire — la limite est dans le système, pas dans une consigne.</p>
+    <table>
+      <tr><th>Élément</th><th>Chemin / valeur</th></tr>
+      <tr><td>Racine</td><td><code>/opt/hermes/.hermes/</code></td></tr>
+      <tr><td>Configuration</td><td><code>config.yaml</code></td></tr>
+      <tr><td>Cadrage de fond</td><td><code>SOUL.md</code> — invite système, où ajouter ses propres consignes</td></tr>
+      <tr><td>Compétences apprises</td><td><code>skills/</code> — <strong>à relire de temps en temps</strong> : ce qu'il y écrit, il le relira comme une consigne</td></tr>
+      <tr><td>Historique</td><td><code>sessions/</code> · journaux dans <code>logs/</code></td></tr>
+      <tr><td>Binaire</td><td><code>/opt/hermes/.hermes/hermes-agent/venv/bin/hermes</code></td></tr>
+      <tr><td>Modèle</td><td>Nemotron sur le Spark — <code>http://192.168.1.56:8080/v1</code>, provider <code>lmstudio</code></td></tr>
+    </table>
+    <p><strong>Outils actifs :</strong> <code>todo</code>, <code>memory</code>, <code>session_search</code>,
+    <code>clarify</code>, <code>skills</code>. <strong>Retirés :</strong> terminal, fichiers, web, navigateur,
+    exécution de code, vision, pilotage du bureau, cron, délégation. Il peut discuter et apprendre ;
+    il ne peut rien exécuter sur la machine.</p>
+    <table>
+      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><td>Parler à Hermes</td><td><code>sudo -u hermes -H bash -c "cd /opt/hermes &amp;&amp; .hermes/hermes-agent/venv/bin/hermes chat"</code></td></tr>
+      <tr><td>Voir les outils</td><td><code>hermes tools list</code></td></tr>
+      <tr><td>Relire les compétences</td><td><code>sudo ls -lt /opt/hermes/.hermes/skills/</code></td></tr>
+      <tr><td>Diagnostic</td><td><code>hermes doctor</code></td></tr>
+    </table>
+
+    <h3>Adressage réseau (baux fixes Freebox)</h3>
+    <table>
+      <tr><th>Machine</th><th>IP</th><th>Remarque</th></tr>
+      <tr><td>Spark (DGX GB10)</td><td><code>192.168.1.56</code></td><td>WiFi — la carte Ethernet aura sa propre MAC, donc un second bail à créer</td></tr>
+      <tr><td>Home server</td><td><code>192.168.1.154</code></td><td>Ethernet 2,5 Gb</td></tr>
+      <tr><td>VPS</td><td><code>72.61.161.222</code></td><td>Hostinger</td></tr>
     </table>
 
     <h3>Commandes essentielles</h3>

@@ -148,11 +148,15 @@ profiles:
     # BASCULE DU 16/08 — Qwen 3.8 27B pour le premier BUILD complet.
     # gpt-oss reste declare en repli : il a produit du code Apex correct le
     # 13/08, c est le seul repere qu on ait.
-    orchestrator: "gpu_qwen38/qwen38"
-    worker:       "gpu_qwen38/qwen38"
+    # Bascule du 19/08 : le GPU loue n existe plus, le Spark le remplace.
+    orchestrator: "gpu_nemotron/nemotron"
+    worker:       "gpu_nemotron/nemotron"
     fallback_chain:
-      "gpu_qwen38/qwen38": "gpu_oss/oss"
-      "gpu_oss/oss":       "gpu_qwen/qwen"
+      # 21/08 : les ports 18081-18083 pointaient vers le GPU loue Packet.ai,
+      # eteint depuis (pay-per-use). Seul 18080 repond, via le tunnel
+      # autossh VPS -> Spark. Un repli vers un port mort masquerait la panne
+      # derriere un timeout de 600 s : on preferre l'erreur franche.
+      "gpu_nemotron/nemotron": "gpu_nemotron/nemotron"
 
   on-premise:
     build_enabled: true
@@ -200,6 +204,8 @@ providers:
     base_url_qwen: "http://127.0.0.1:18081/v1"
     base_url_oss: "http://127.0.0.1:18082/v1"
     base_url_qwen38: "http://127.0.0.1:18083/v1"
+    # Le Spark, via le tunnel SSH permanent. Ajoute le 19/08.
+    base_url_nemotron: "http://127.0.0.1:18080/v1"
     base_url_env: "GPU_LOCAL_BASE_URL"
     api_key: "aucune"       # llama.cpp n'en exige pas
     timeout_seconds: 600
@@ -235,6 +241,30 @@ providers:
       # metadonnees Salesforce. Ils mesurent du Python et du JavaScript sur des
       # depots GitHub. Un modele excellent sur SWE-bench peut etre mediocre sur
       # un trigger handler — c est precisement ce que ce BUILD doit trancher.
+      # ── NEMOTRON 3 NANO — 19/08 ─────────────────────────────────────────
+      # 30 milliards au total, 3 SEULEMENT lus a chaque jeton (melange
+      # d experts). Le goulot du Spark est la bande passante memoire : ce
+      # modele le contourne au lieu de le subir. NVIDIA le concoit nommement
+      # pour cette machine.
+      #
+      # Mesures du 19/08, sur les taches reelles :
+      #   latence     1,4 s contre 7,8 s pour Qwen 27B
+      #   debit       42,5 jetons/s contre 12,2
+      #   contexte    262144 nativement, 131072 servis par conversation
+      #   outils      4 tests sur 4, y compris celui ou il ne faut PAS appeler
+      #
+      # POURQUOI IL EST BRANCHE ICI : le Delivery a besoin de VOLUME pour
+      # valider que la chaine SDS -> BUILD -> sandbox fonctionne. Un modele
+      # local sans facturation vaut mieux qu un modele excellent qu on
+      # rationne. Le tour de qualite se fera ensuite, sur API.
+      nemotron:
+        model_id: "nemotron-3-nano-30b-a3b"
+        display_name: "Nemotron 3 Nano (Spark, local)"
+        context_length: 131072
+        supports_temperature: true
+        port: 18080
+        reasoning: false
+
       qwen38:
         model_id: "qwen3.8-27b"
         display_name: "Qwen 3.8 27B Q8_0 (GPU dedie)"

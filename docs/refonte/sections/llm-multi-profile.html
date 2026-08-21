@@ -47,13 +47,8 @@ flowchart LR
     </div>
 
     <h3>Fallback chain — par profile</h3>
-    <p>Chaque profile définit sa propre chaîne de secours en cas d'échec. <strong>Le profile <code>on-premise</code> ne tombe jamais sur du cloud</strong> (garantie d'airgap).</p>
-    <table>
-      <tr><th>Profile</th><th>Primary → fallback 1 → fallback 2</th></tr>
-      <tr><td><code>cloud</code></td><td>Anthropic → OpenAI → (échec)</td></tr>
-      <tr><td><code>on-premise</code></td><td>Ollama local → (échec, PAS de cloud)</td></tr>
-      <tr><td><code>freemium</code></td><td>OpenAI → Anthropic (cap coût mensuel)</td></tr>
-    </table>
+    <p>Chaque profile définit sa propre chaîne de secours en cas d'échec. Table générée depuis <code>backend/config/llm_routing.yaml</code>. <strong>Le profile <code>on-premise</code> ne tombe jamais sur du cloud</strong> (garantie d'airgap).</p>
+    <!-- PARTIAL:fallback_chains_table -->
 
     <h3>Continuation automatique</h3>
     <p>Porté depuis V1 (CRIT-02). Quand l'API LLM retourne <code>stop_reason="max_tokens"</code>, le router relance automatiquement avec <code>&lt;<em>réponse tronquée</em>&gt; continue</code> en prompt, jusqu'à N itérations (configurable). Transparente pour l'agent appelant — essentielle pour les sorties Marcus (architecture 15k+ tokens) et Emma (SDS write 20k+ tokens).</p>

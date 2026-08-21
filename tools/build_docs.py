@@ -100,6 +100,10 @@ PARTIALS: dict[str, tuple[str, callable]] = {
             "llm_profiles": d["llm_profiles"],
         },
     ),
+    "fallback_chains_table": (
+        "fallback_chains_table",
+        lambda d: {"profiles": d["fallback_chains"]["profiles"]},
+    ),
     "llm_routing_table": (
         "llm_routing_table",
         lambda d: {
@@ -180,6 +184,7 @@ def collect_all() -> dict:
     return {
         "agents": collect.collect_agents(),
         "llm_profiles": collect.collect_llm_profiles(),
+        "fallback_chains": collect.collect_fallback_chains(),
         "rag": collect.collect_rag_stats(),
         "services": collect.collect_services(),
         "problems": collect.collect_problems(),

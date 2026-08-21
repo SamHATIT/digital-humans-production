@@ -1,0 +1,20 @@
+{#
+  fallback_chains_table.html.j2 — genere depuis backend/config/llm_routing.yaml
+  Consomme : collect_fallback_chains() -> { profiles: [{profile, orchestrator, worker, build_enabled, chaine[]}] }
+#}
+<table>
+  <thead>
+    <tr><th>Profile</th><th>Orchestrateur</th><th>Worker</th><th>BUILD</th><th>Chaîne de secours</th></tr>
+  </thead>
+  <tbody>
+  {%- for p in profiles %}
+    <tr>
+      <td><code>{{ p.profile }}</code></td>
+      <td>{{ p.orchestrator }}</td>
+      <td>{{ p.worker }}</td>
+      <td>{% if p.build_enabled %}<span class="tag tag-done">activé</span>{% else %}<span class="tag tag-warning">désactivé</span>{% endif %}</td>
+      <td>{% for e in p.chaine %}{{ e }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>

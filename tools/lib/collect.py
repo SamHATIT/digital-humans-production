@@ -213,6 +213,42 @@ RAG_COLLECTION_META: dict[str, dict[str, Any]] = {
 }
 
 
+
+def collect_fallback_chains() -> dict[str, Any]:
+    """Chaine de secours de chaque profile, lue dans ``llm_routing.yaml``.
+
+    Ecrite en dur dans la doc jusqu'au 21/08, cette table avait divergé du
+    fichier de routage : elle annonçait un repli OpenAI qui n'existe nulle
+    part. On la genere desormais, pour qu'elle ne puisse plus mentir.
+
+    Un ``fallback_chain`` vide, ou dont chaque entree pointe sur elle-meme,
+    signifie *aucune degradation silencieuse* : la panne remonte en erreur.
+    """
+    path = BACKEND_CONFIG / "llm_routing.yaml"
+    if not path.exists():
+        return {"profiles": []}
+    import yaml
+    conf = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    out = []
+    for nom, prof in (conf.get("profiles") or {}).items():
+        chaine = prof.get("fallback_chain") or {}
+        etapes = []
+        for depuis, vers in chaine.items():
+            if depuis == vers:
+                etapes.append(f"{depuis} (aucune degradation)")
+            else:
+                etapes.append(f"{depuis} \u2192 {vers}")
+        if not etapes:
+            etapes = ["aucun repli \u2014 la panne remonte en erreur franche"]
+        out.append({
+            "profile": nom,
+            "orchestrator": prof.get("orchestrator", ""),
+            "worker": prof.get("worker", ""),
+            "build_enabled": bool(prof.get("build_enabled")),
+            "chaine": etapes,
+        })
+    return {"profiles": out}
+
 def collect_rag_stats() -> dict[str, Any]:
     """Probe ChromaDB et retourne les comptages live par collection.
 
@@ -298,7 +334,54 @@ INFRA_SERVICES: list[dict[str, str]] = [
     {"label": "Ghost CMS",    "unit": "ghost-blog",              "port": "2368",    "kind": "docker"},
     {"label": "N8N",          "unit": "n8n",                     "port": "5678",    "kind": "systemd"},
     {"label": "Open WebUI",   "unit": "open-webui",              "port": "3200→8080","kind": "docker"},
+    # Tunnels VPS → machines distantes
+    {"label": "Tunnel Spark LLM",  "unit": "tunnel-spark-llm",  "port": "18080→8080", "kind": "systemd", "note": "Nemotron pour le comite"},
+    {"label": "Tunnel Spark MCP",  "unit": "tunnel-spark-mcp",  "port": "8010→8000",  "kind": "systemd"},
+    {"label": "Tunnel GPU loue",   "unit": "tunnel-gpu",        "port": "18080→8080", "kind": "systemd", "note": "Packet.ai, eteint (pay-per-use)"},
+    # --- Spark (DGX GB10), joint par SSH depuis le VPS ---
+    {"label": "Nemotron (llama.cpp)", "unit": "nemotron",       "port": "8080",  "kind": "ssh", "machine": "spark", "note": "30B Q8, 2 slots x 131072"},
+    {"label": "VoxCPM TTS",           "unit": "vox-tts",        "port": "8100",  "kind": "ssh_docker", "machine": "spark", "note": "voix sam + olha"},
+    {"label": "LobeChat",             "unit": "lobe-chat",      "port": "3210",  "kind": "ssh_docker", "machine": "spark"},
+    {"label": "ComfyUI",              "unit": "comfyui",        "port": "8188",  "kind": "ssh", "machine": "spark"},
+    # --- Home server (mini PC, HDMI TV) ---
+    {"label": "Jellyfin",             "unit": "jellyfin",       "port": "8096",  "kind": "ssh", "machine": "home", "note": "paquet Debian, utilisateur jellyfin, donnees /var/lib/jellyfin"},
+    {"label": "Hermes Agent",         "unit": "hermes",         "port": "\u2014",     "kind": "ssh_absent", "machine": "home", "note": "CLI sous utilisateur hermes, /opt/hermes — pas de service, lance a la demande"},
 ]
+
+# Acces aux machines distantes. Le VPS atteint le Spark par un tunnel autossh
+# permanent, et le home server par SSH direct sur le LAN via ce meme Spark.
+MACHINES_DISTANTES: dict[str, list[str]] = {
+    "spark": ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6",
+              "-p", "2222", "-i", "/root/.ssh/id_spark", "spark-dh@127.0.0.1"],
+    "home":  ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6",
+              "-p", "2222", "-i", "/root/.ssh/id_spark", "spark-dh@127.0.0.1",
+              "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=6", "sam@192.168.1.154"],
+}
+
+
+def _ssh_is_active(machine: str, unit: str, docker: bool = False) -> str:
+    """Etat d'un service sur une machine distante, mesure par SSH.
+
+    Une machine injoignable rend ``unknown`` et non ``failed`` : on ne sait pas,
+    et le dire est plus honnete que de conclure a une panne.
+    """
+    base = MACHINES_DISTANTES.get(machine)
+    if not base:
+        return "unknown"
+    if docker:
+        cmd = ("docker inspect -f '{{.State.Running}}' %s 2>/dev/null "
+               "| grep -q true && echo active || echo stopped" % unit)
+    else:
+        # Systeme d'abord : depuis la migration Jellyfin en paquet Debian (21/08),
+        # l'unite systeme fait autorite. Le repli --user couvre les services
+        # utilisateur du Spark (comfyui, nemotron).
+        cmd = ("systemctl is-active %s 2>/dev/null | grep -qx active && echo active "
+               "|| systemctl --user is-active %s 2>/dev/null" % (unit, unit))
+    try:
+        r = subprocess.run(base + [cmd], capture_output=True, text=True, timeout=15)
+        return (r.stdout.strip().splitlines() or ["unknown"])[0] or "unknown"
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return "unknown"
 
 
 def _systemctl_is_active(unit: str) -> str:
@@ -345,6 +428,12 @@ def collect_services() -> dict[str, Any]:
             status = _docker_is_running(svc["unit"])
         elif svc["kind"] == "embedded":
             status = "embedded"
+        elif svc["kind"] == "ssh":
+            status = _ssh_is_active(svc.get("machine", ""), svc["unit"])
+        elif svc["kind"] == "ssh_absent":
+            status = "sans service"
+        elif svc["kind"] == "ssh_docker":
+            status = _ssh_is_active(svc.get("machine", ""), svc["unit"], docker=True)
         services.append({
             "label": svc["label"],
             "unit": svc["unit"],
@@ -352,6 +441,7 @@ def collect_services() -> dict[str, Any]:
             "kind": svc["kind"],
             "status": status,
             "note": svc.get("note", ""),
+            "machine": svc.get("machine", "vps"),
         })
     return {"services": services}
 
