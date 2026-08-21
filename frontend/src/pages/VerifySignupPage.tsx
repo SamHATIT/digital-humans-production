@@ -40,8 +40,13 @@ function VerifyInner() {
         if (cancelled) return;
 
         // Store the access token like the standard /login flow does.
+        // LOT-F bis — la clé DOIT être 'token' : c'est celle que lisent
+        // apiCall() et ProtectedRoute. Écrire sous 'access_token' laissait
+        // l'inscrit non authentifié et le renvoyait vers /login.
+        // Le champ de la réponse, lui, s'appelle bien `access_token`
+        // (POST /api/auth/signup-confirm, response_model=Token).
         if (resp?.access_token) {
-          localStorage.setItem('access_token', resp.access_token);
+          localStorage.setItem('token', resp.access_token);
         }
 
         // Pull the tier set on the previous page (sessionStorage) so the
