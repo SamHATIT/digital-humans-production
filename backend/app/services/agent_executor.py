@@ -347,11 +347,26 @@ class AgentExecutor:
         return artifact
     
     def _check_salesforce_connection(self) -> Dict[str, Any]:
-        """Check if Salesforce org is connected"""
+        """Check if Salesforce org is connected.
+
+        LOT-C (kim:SEC-02) : liste d'arguments, plus de shell. Aucune
+        entree utilisateur ne transite ici aujourd'hui, mais un alias d'org est
+        une donnee de configuration modifiable depuis l'application : elle n'a
+        pas a etre relue par un shell.
+
+        LOT-E bis : `org_alias` peut valoir None depuis le retrait des identites
+        codees en dur. `require()` produit un message exploitable au lieu d'un
+        `--target-org None` et d'une erreur du CLI `sf`.
+        """
         try:
+            salesforce_config.require("org_alias")
             result = subprocess.run(
-                f"sf org display --target-org {salesforce_config.org_alias} --json",
-                shell=True,
+                [
+                    "sf", "org", "display",
+                    "--target-org", salesforce_config.org_alias,
+                    "--json",
+                ],
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=30
@@ -799,11 +814,27 @@ class AgentExecutor:
         return saved
     
     async def _deploy_to_salesforce(self) -> Dict[str, Any]:
-        """Deploy to Salesforce"""
+        """Deploy to Salesforce.
+
+        LOT-C (kim:SEC-02) : liste d'arguments, plus de shell. Ce site
+        est le plus consequent des quatre — un deploiement vers une org — et le
+        chemin `force_app_path` provient de la configuration : un espace ou un
+        `;` dans ce chemin faisait jusqu'ici partie de la ligne de commande.
+
+        LOT-E bis : `require()` avant de construire la commande, pour refuser
+        clairement un deploiement sans org configuree plutot que de laisser le
+        CLI `sf` echouer sur `--target-org None`.
+        """
         try:
+            salesforce_config.require("org_alias")
             result = subprocess.run(
-                f"sf project deploy start --source-dir {salesforce_config.force_app_path} --target-org {salesforce_config.org_alias} --json",
-                shell=True,
+                [
+                    "sf", "project", "deploy", "start",
+                    "--source-dir", str(salesforce_config.force_app_path),
+                    "--target-org", salesforce_config.org_alias,
+                    "--json",
+                ],
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=120,

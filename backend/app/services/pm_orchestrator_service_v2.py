@@ -1400,16 +1400,28 @@ class PMOrchestratorServiceV2:
 
 
     @staticmethod
-    async def _run_sfdx_async(cmd: str, timeout: int = 30) -> subprocess.CompletedProcess:
+    async def _run_sfdx_async(args: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
         """Run a Salesforce CLI command without blocking the asyncio event loop.
 
         P3 (May 2026) — wraps the (sync, blocking) ``subprocess.run`` call in a
         thread so that other async jobs (other SDS pipelines, SSE progress,
         DB I/O, …) can keep running during the 30-60 s SFDX call.
+
+        LOT-C (kim:SEC-02) — ``cmd: str`` avec le shell actif est devenu
+        ``args: List[str]`` avec ``shell=False``. Les appelants composaient leur
+        commande par f-string a partir de l'alias d'org et de noms d'objets :
+        tout ce qui arrivait la etait relu par un shell. La signature impose
+        desormais la forme sure — on ne peut plus passer une ligne de commande
+        a interpreter, seulement une liste d'arguments.
         """
+        if isinstance(args, str):
+            raise TypeError(
+                "_run_sfdx_async attend une liste d'arguments, pas une ligne de "
+                "commande (LOT-C : plus de shell)."
+            )
         return await asyncio.to_thread(
-            subprocess.run, cmd,
-            shell=True, capture_output=True, text=True, timeout=timeout,
+            subprocess.run, list(args),
+            shell=False, capture_output=True, text=True, timeout=timeout,
         )
 
     async def _get_salesforce_metadata(self, execution_id: int, project: "Project" = None) -> Dict[str, Any]:
@@ -1452,8 +1464,14 @@ class PMOrchestratorServiceV2:
         }
         
         try:
+            # LOT-E bis : depuis le retrait des identites codees en dur,
+            # `org_alias` peut valoir None. On refuse ici, avec un message
+            # explicite (capte par le `except Exception` en fin de bloc), plutot
+            # que de passer None au CLI `sf`.
+            sf_cfg.require("org_alias")
+
             # 1. Get org info (edition, version, features)
-            org_cmd = f"sf org display --target-org {sf_cfg.org_alias} --json"
+            org_cmd = ["sf", "org", "display", "--target-org", sf_cfg.org_alias, "--json"]
             org_result = await self._run_sfdx_async(org_cmd, timeout=30)
             if org_result.returncode == 0:
                 org_data = json.loads(org_result.stdout)
@@ -1461,7 +1479,11 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ Org info retrieved: {metadata['org_info'].get('edition', 'Unknown')} edition")
             
             # 2. List available metadata types
-            types_cmd = f"sf org list metadata-types --api-version {sf_cfg.api_version} --target-org {sf_cfg.org_alias} --json"
+            types_cmd = [
+                "sf", "org", "list", "metadata-types",
+                "--api-version", str(sf_cfg.api_version),
+                "--target-org", sf_cfg.org_alias, "--json",
+            ]
             types_result = await self._run_sfdx_async(types_cmd, timeout=60)
             if types_result.returncode == 0:
                 types_data = json.loads(types_result.stdout)
@@ -1469,7 +1491,10 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['metadata_types'])} metadata types available")
             
             # 3. List all objects (standard + custom)
-            objects_cmd = f"sf sobject list --sobject-type all --target-org {sf_cfg.org_alias} --json"
+            objects_cmd = [
+                "sf", "sobject", "list", "--sobject-type", "all",
+                "--target-org", sf_cfg.org_alias, "--json",
+            ]
             objects_result = await self._run_sfdx_async(objects_cmd, timeout=60)
             if objects_result.returncode == 0:
                 objects_data = json.loads(objects_result.stdout)
@@ -1478,7 +1503,10 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['objects'])} objects ({custom_count} custom)")
             
             # 4. List installed packages (ISV)
-            pkg_cmd = f"sf package installed list --target-org {sf_cfg.org_alias} --json"
+            pkg_cmd = [
+                "sf", "package", "installed", "list",
+                "--target-org", sf_cfg.org_alias, "--json",
+            ]
             pkg_result = await self._run_sfdx_async(pkg_cmd, timeout=30)
             if pkg_result.returncode == 0:
                 pkg_data = json.loads(pkg_result.stdout)
@@ -1486,7 +1514,10 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] ✅ {len(metadata['installed_packages'])} installed packages")
             
             # 5. Get org limits
-            limits_cmd = f"sf limits api display --target-org {sf_cfg.org_alias} --json"
+            limits_cmd = [
+                "sf", "limits", "api", "display",
+                "--target-org", sf_cfg.org_alias, "--json",
+            ]
             limits_result = await self._run_sfdx_async(limits_cmd, timeout=30)
             if limits_result.returncode == 0:
                 limits_data = json.loads(limits_result.stdout)
@@ -1502,7 +1533,10 @@ class PMOrchestratorServiceV2:
             metadata["object_fields"] = {}
             for obj_name in key_objects:
                 try:
-                    describe_cmd = f"sf sobject describe --sobject {obj_name} --target-org {sf_cfg.org_alias} --json"
+                    describe_cmd = [
+                        "sf", "sobject", "describe", "--sobject", obj_name,
+                        "--target-org", sf_cfg.org_alias, "--json",
+                    ]
                     describe_result = await self._run_sfdx_async(describe_cmd, timeout=30)
                     if describe_result.returncode == 0:
                         describe_data = json.loads(describe_result.stdout)

