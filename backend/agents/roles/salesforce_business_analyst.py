@@ -334,8 +334,13 @@ class BusinessAnalystAgent(BaseAgent):
         rag_context = self._get_rag_context(br, project_id=project_id)
 
         # Build prompt (single or batch)
+        # kim:PROD-01 — sans le `else`, un lot mono-BR (tout projet a nombre
+        # impair de BR, l'orchestrateur batchant par 2) levait un
+        # UnboundLocalError sur `prompt` et perdait ses UC en silence.
         if batch_mode:
             prompt = get_uc_generation_prompt_batch(brs, rag_context)
+        else:
+            prompt = get_uc_generation_prompt(br, rag_context)
         logger.info(f"BusinessAnalystAgent prompt_size={len(prompt)} chars")
 
         # Call LLM
@@ -460,6 +465,15 @@ class BusinessAnalystAgent(BaseAgent):
                 response["provider"],
                 cost_usd,
             )
+
+        # cla:CRASH-02 — sans ce raise, la methode retournait None et
+        # l'appelant plantait sur `TypeError: cannot unpack non-iterable
+        # NoneType`. Echec net et nomme plutot que None silencieux.
+        raise RuntimeError(
+            "BusinessAnalystAgent: llm_service indisponible "
+            "(app.services.llm_service non importable) — aucun provider LLM"
+        )
+
     def _parse_response(self, content: str, br_id: str, br_ids: list, batch_mode: bool) -> tuple:
         """
         Parse JSON from LLM response with json_cleaner and batch support (F-081).
@@ -467,14 +481,23 @@ class BusinessAnalystAgent(BaseAgent):
         Returns:
             tuple of (parsed_content dict, uc_count int)
         """
+        # cla:CRASH-03 — ces deux variables n'etaient affectees que dans la
+        # branche batch : toute reponse mono-BR (ou json_cleaner absent) levait
+        # un UnboundLocalError non rattrape par le `except JSONDecodeError`.
+        parsed_content = None
+        uc_count = 0
         try:
             # Use robust json_cleaner if available
             if JSON_CLEANER_AVAILABLE:
                 parsed_content, parse_error = clean_llm_json_response(content)
                 if parsed_content is None:
                     raise json.JSONDecodeError(parse_error or "Parse error", content, 0)
+            else:
+                parsed_content = json.loads(content)
             # F-081: Handle batch response format {"results": [...]}
-            if 'results' in parsed_content and isinstance(parsed_content['results'], list):
+            if (isinstance(parsed_content, dict)
+                    and 'results' in parsed_content
+                    and isinstance(parsed_content['results'], list)):
                 # Batch response - flatten all use_cases with their parent_br
                 all_use_cases = []
                 for result in parsed_content['results']:
@@ -485,6 +508,10 @@ class BusinessAnalystAgent(BaseAgent):
                 parsed_content = {"use_cases": all_use_cases, "batch_mode": True, "parent_brs": br_ids}
                 uc_count = len(all_use_cases)
                 logger.info(f"Batch mode: Generated {uc_count} Use Cases for {len(br_ids)} BRs")
+            elif isinstance(parsed_content, dict):
+                # Mono-BR : format {"parent_br": ..., "use_cases": [...]}
+                uc_count = len(parsed_content.get('use_cases', []))
+                logger.info(f"Single mode: Generated {uc_count} Use Cases for {br_id}")
             return parsed_content, uc_count
 
         except json.JSONDecodeError as e:

@@ -276,6 +276,15 @@ class TrainerAgent(BaseAgent):
                 response.get('model', 'unknown'),
                 response.get('provider', 'unknown'),
             )
+
+        # cla:CRASH-02 / kim:PROD-03 — sans ce raise, la methode retournait None
+        # et l'appelant plantait sur `TypeError: cannot unpack non-iterable
+        # NoneType`. Echec net et nomme plutot que None silencieux.
+        raise RuntimeError(
+            "TrainerAgent: llm_service indisponible "
+            "(app.services.llm_service non importable) — aucun provider LLM"
+        )
+
     def _parse_response(self, content: str) -> Any:
         """Parse JSON from LLM response, stripping code fences if present."""
         try:

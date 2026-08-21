@@ -206,6 +206,12 @@ class DevOpsAgent(BaseAgent):
         try:
             if mode == "spec":
                 return self._execute_spec(input_content, execution_id, project_id)
+            # cla:CRASH-04 — "deploy" est declare dans VALID_MODES et
+            # _execute_deploy existe, mais run() ne le dispatchait pas :
+            # l'appel retournait None au lieu du resultat de deploiement.
+            if mode == "deploy":
+                return self._execute_deploy(input_content, execution_id, project_id)
+            return {"success": False, "error": f"Unhandled mode: {mode}"}
         except Exception as e:
             logger.error(f"DevOpsAgent error in mode '{mode}': {e}", exc_info=True)
             return {"success": False, "error": str(e)}
@@ -416,6 +422,15 @@ class DevOpsAgent(BaseAgent):
                 f"(model={last_response.get('model', 'unknown')}, execution_id={execution_id}) "
                 "— echec explicite plutot que deliverable vide silencieux"
             )
+
+        # cla:CRASH-02 / kim:PROD-03 — sans ce raise, la methode retournait None
+        # quand LLM_SERVICE_AVAILABLE est False, et l'appelant plantait sur
+        # `TypeError: cannot unpack non-iterable NoneType`.
+        raise RuntimeError(
+            "DevOpsAgent: llm_service indisponible "
+            "(app.services.llm_service non importable) — aucun provider LLM"
+        )
+
     def _parse_files(self, content: str) -> Dict[str, str]:
         """Parse deployment files from LLM response using code block patterns."""
         files = {}

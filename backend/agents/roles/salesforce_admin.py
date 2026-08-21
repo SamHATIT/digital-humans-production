@@ -358,6 +358,7 @@ FIX THESE ISSUES.
     logger.info(f"Raj BUILD mode - generating metadata for {task_id}...")
     start_time = time.time()
 
+    cost_usd = 0.0
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(prompt=prompt, agent_type="admin", max_tokens=16000, temperature=0.2,
                                          execution_id=execution_id)
@@ -365,7 +366,8 @@ FIX THESE ISSUES.
         tokens_used = response.get('tokens_used', 0)
         input_tokens = response.get('input_tokens', 0)
         model_used = response.get("model", "unknown")
-        response.get("cost_usd", 0.0)
+        # cla:CRASH-05 — la valeur etait lue puis jetee : cout BUILD non trace.
+        cost_usd = response.get("cost_usd", 0.0)
     else:
         from openai import OpenAI
         client = OpenAI()
@@ -409,7 +411,8 @@ FIX THESE ISSUES.
         "task_id": task_id, "execution_id": str(execution_id),
         "deliverable_type": "admin_metadata", "success": len(files) > 0,
         "content": {"raw_response": content, "files": files, "file_count": len(files)},
-        "metadata": {"tokens_used": tokens_used, "execution_time_seconds": round(time.time() - start_time, 2)}
+        "metadata": {"tokens_used": tokens_used, "cost_usd": cost_usd,
+                     "execution_time_seconds": round(time.time() - start_time, 2)}
     }
 
 

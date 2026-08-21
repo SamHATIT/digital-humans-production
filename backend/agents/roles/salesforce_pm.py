@@ -469,6 +469,15 @@ class PMAgent(BaseAgent):
                 response["model"],
                 response["provider"],
             )
+
+        # cla:CRASH-02 / kim:PROD-03 — sans ce raise, la methode retournait None
+        # et l'appelant plantait sur `TypeError: cannot unpack non-iterable
+        # NoneType`. Echec net et nomme plutot que None silencieux.
+        raise RuntimeError(
+            "PMAgent: llm_service indisponible "
+            "(app.services.llm_service non importable) — aucun provider LLM"
+        )
+
     def _parse_response(self, mode: str, content: str) -> Any:
         """Parse LLM response based on mode."""
         if mode == "extract_br":
