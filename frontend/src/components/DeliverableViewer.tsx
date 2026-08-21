@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, ChevronDown, ChevronUp, FileText, Loader2 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, files } from '../services/api';
 import MermaidRenderer, { extractMermaidBlocks } from './MermaidRenderer';
 import StructuredRenderer from './StructuredRenderer';
 
@@ -175,15 +175,24 @@ export default function DeliverableViewer({ executionId, phaseNumber, onClose }:
                       </p>
                     </div>
                     {(d.deliverable_type.includes('sds_document') || d.deliverable_type.includes('write_sds')) ? (
-                      <a
-                        href={`/api/deliverables/${d.id}/render`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      // LOT-F ter — lien nu remplacé par une ouverture authentifiée.
+                      // Depuis que LOT-B a posé l'auth sur /api/deliverables/*, une
+                      // navigation directe n'envoie aucun jeton et retourne 401.
+                      // On passe par files.openAuthenticated (en-tête Authorization)
+                      // plutôt que par un ?token= en URL, qui finirait dans les
+                      // journaux nginx (kim:SEC-07).
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void files
+                            .openAuthenticated(`/api/deliverables/${d.id}/render`)
+                            .catch(() => window.alert('Could not open the SDS.'));
+                        }}
                         className="ml-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-brass text-ink hover:bg-brass/90 transition-colors"
                       >
                         Open SDS
                         <span aria-hidden="true">↗</span>
-                      </a>
+                      </button>
                     ) : (
                       <button
                         onClick={() => handleExpand(d.id)}
