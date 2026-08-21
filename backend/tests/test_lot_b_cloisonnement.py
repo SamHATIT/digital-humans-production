@@ -552,3 +552,107 @@ def test_analytics_cloisonnement(client, tenants):
     assert "Projet bob" not in noms, (
         f"fuite inter-clients dans /api/analytics : {noms}"
     )
+
+
+# --------------------------------------------- 9. app/api/audit.py (LOT-B bis)
+
+def test_audit_cloisonnement(client, tenants, db_session):
+    """kim:SEC-01 — routeur monte sur /api/audit (main.py:101) sans aucune
+    dependance d'authentification : `GET /api/audit/logs` rendait lisible
+    par un anonyme l'historique d'actions de tous les clients, avec
+    actor_id, ip_address et user_agent.
+
+    Perimetre reattribue par l'orchestrateur apres le premier commit.
+    """
+    from app.models.audit import AuditLog
+    from app.models.task_execution import TaskExecution
+
+    a, b = tenants["a"], tenants["b"]
+
+    # Une trace d'audit et une tache BUILD chez chacun, avec le MEME task_id
+    # de part et d'autre : "TASK-001" n'est pas unique globalement.
+    for tenant, ip in ((a, "10.0.0.1"), (b, "10.0.0.2")):
+        db_session.add(
+            TaskExecution(
+                execution_id=tenant["execution"].id,
+                task_id="TASK-001",
+                task_name="Tache confidentielle",
+            )
+        )
+        db_session.add(
+            AuditLog(
+                actor_type="user",
+                actor_id=str(tenant["user"].id),
+                actor_name=tenant["user"].email,
+                action="task.complete",
+                project_id=tenant["project"].id,
+                execution_id=tenant["execution"].id,
+                task_id="TASK-001",
+                ip_address=ip,
+                user_agent="Mozilla/5.0 (client confidentiel)",
+            )
+        )
+    db_session.commit()
+
+    proj_b, exec_b = b["project"].id, b["execution"].id
+
+    # 1. anonyme
+    _assert_unauthenticated(
+        client.get(f"/api/audit/logs?project_id={proj_b}"),
+        "GET /audit/logs anonyme",
+    )
+    _assert_unauthenticated(
+        client.get(f"/api/audit/executions/{exec_b}/timeline"),
+        "GET /audit/executions/{id}/timeline anonyme",
+    )
+    _assert_unauthenticated(
+        client.get("/api/audit/tasks/TASK-001/history"),
+        "GET /audit/tasks/{id}/history anonyme",
+    )
+    _assert_unauthenticated(client.get("/api/audit/actions"), "GET /audit/actions anonyme")
+    _assert_unauthenticated(
+        client.get("/api/audit/actor-types"), "GET /audit/actor-types anonyme"
+    )
+
+    # 2. A vers les ressources de B
+    _assert_denied(
+        client.get(f"/api/audit/logs?project_id={proj_b}", headers=a["headers"]),
+        "GET /audit/logs sur le projet de B par A",
+    )
+    _assert_denied(
+        client.get(
+            f"/api/audit/executions/{exec_b}/timeline", headers=a["headers"]
+        ),
+        "GET /audit/executions/{execution de B}/timeline par A",
+    )
+
+    # 3. A voit les siens — et uniquement les siens
+    reponse = client.get(
+        f"/api/audit/logs?project_id={a['project'].id}", headers=a["headers"]
+    )
+    assert reponse.status_code == 200, reponse.text
+    lignes = reponse.json()["logs"]
+    assert len(lignes) == 1, lignes
+    assert lignes[0]["project_id"] == a["project"].id
+
+    reponse = client.get(
+        f"/api/audit/executions/{a['execution'].id}/timeline", headers=a["headers"]
+    )
+    assert reponse.status_code == 200, reponse.text
+    assert [ligne["execution_id"] for ligne in reponse.json()["logs"]] == [
+        a["execution"].id
+    ]
+
+    # meme task_id des deux cotes : A ne doit voir que sa propre trace
+    reponse = client.get("/api/audit/tasks/TASK-001/history", headers=a["headers"])
+    assert reponse.status_code == 200, reponse.text
+    executions_vues = {ligne["execution_id"] for ligne in reponse.json()["logs"]}
+    assert executions_vues == {a["execution"].id}, (
+        f"fuite inter-clients sur /audit/tasks/{{id}}/history : {executions_vues}"
+    )
+
+    # les enumerations statiques restent accessibles a un compte valide
+    assert client.get("/api/audit/actions", headers=a["headers"]).status_code == 200
+    assert (
+        client.get("/api/audit/actor-types", headers=a["headers"]).status_code == 200
+    )
