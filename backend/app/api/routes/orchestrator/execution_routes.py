@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 import logging
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.user import User
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
@@ -246,6 +246,44 @@ def get_execution_progress(
     }
 
 
+def _load_progress_snapshot(execution_id: int, user_id: int):
+    """Lit une exécution dans une session COURTE et rend des types simples.
+
+    kim:PROD-02 — motif posé par LOT-G sur chat_ws_routes.py (7367c09) : la
+    session est ouverte, lue et fermée à l'intérieur de cet appel, qui tourne
+    dans un thread. Aucune connexion n'est donc tenue à travers un `await`, et
+    le SQLAlchemy synchrone ne gèle plus la boucle d'événements.
+
+    Rend None si l'exécution a disparu ou ne appartient plus à `user_id`.
+    """
+    db = SessionLocal()
+    try:
+        execution = (
+            db.query(Execution)
+            .join(Project)
+            .filter(Execution.id == execution_id, Project.user_id == user_id)
+            .first()
+        )
+        if not execution:
+            return None
+
+        agent_prog, overall, phase = build_agent_progress(execution)
+        current_status = (
+            execution.status.value if hasattr(execution.status, "value") else str(execution.status)
+        )
+        payload = {
+            "execution_id": execution.id,
+            "status": current_status,
+            "execution_state": execution.execution_state or "draft",
+            "overall_progress": overall,
+            "current_phase": phase,
+            "agent_progress": agent_prog,
+        }
+        return payload, current_status, overall
+    finally:
+        db.close()
+
+
 @router.get("/execute/{execution_id}/progress/stream")
 async def stream_execution_progress(
     execution_id: int,
@@ -267,7 +305,17 @@ async def stream_execution_progress(
     `except Exception` transformait le ModuleNotFoundError en 401, si bien que
     ce flux SSE refusait TOUT LE MONDE, jeton valide compris.
     """
-    execution = verify_execution_access(execution_id, current_user.id, db)
+    verify_execution_access(execution_id, current_user.id, db)
+
+    # kim:PROD-02 — la session de `Depends(get_db)` n'est rendue au pool qu'à la
+    # fin de la réponse, or une réponse SSE dure jusqu'à max_duration (600 s).
+    # Une requête de contrôle d'accès de quelques millisecondes immobilisait
+    # donc une connexion PostgreSQL pendant dix minutes, par client connecté au
+    # monitoring. On la rend maintenant : la vérification est faite, le
+    # générateur n'utilisera plus cette session (il ouvre les siennes, courtes).
+    # `get_db` refermera derrière nous, `close()` est idempotent.
+    user_id = current_user.id
+    db.close()
 
     # Try notifications, fallback to polling
     # Pre-initialize to satisfy static analysis (ruff F823) — both branches of
@@ -299,20 +347,12 @@ async def stream_execution_progress(
         start_time = asyncio.get_event_loop().time()
         poll_interval = 3 if use_notifications else 2
 
-        def build_progress_data():
-            db.refresh(execution)
-            agent_prog, overall, phase = build_agent_progress(execution)
-            current_status = (
-                execution.status.value if hasattr(execution.status, "value") else str(execution.status)
-            )
-            return {
-                "execution_id": execution.id,
-                "status": current_status,
-                "execution_state": execution.execution_state or "draft",
-                "overall_progress": overall,
-                "current_phase": phase,
-                "agent_progress": agent_prog,
-            }, current_status, overall
+        async def build_progress_data():
+            # kim:PROD-02 — était `db.refresh(execution)`, du SQLAlchemy
+            # synchrone exécuté directement dans ce générateur async : à chaque
+            # tour de boucle, et pour chaque client connecté, la boucle
+            # d'événements était bloquée le temps de l'aller-retour PostgreSQL.
+            return await asyncio.to_thread(_load_progress_snapshot, execution_id, user_id)
 
         if use_notifications and notification_service:
             channel = f"execution_{execution_id}"
@@ -324,7 +364,11 @@ async def stream_execution_progress(
                                 await asyncio.wait_for(queue.get(), timeout=poll_interval)
                             except asyncio.TimeoutError:
                                 pass
-                            data, current_status, overall = build_progress_data()
+                            snapshot = await build_progress_data()
+                            if snapshot is None:
+                                yield f"data: {json.dumps({'event': 'close', 'reason': 'execution_gone'})}\n\n"
+                                return
+                            data, current_status, overall = snapshot
                             if current_status != last_status or overall != last_progress:
                                 yield f"data: {json.dumps(data)}\n\n"
                                 last_status = current_status
@@ -344,7 +388,11 @@ async def stream_execution_progress(
         if not use_notifications:
             while (asyncio.get_event_loop().time() - start_time) < max_duration:
                 try:
-                    data, current_status, overall = build_progress_data()
+                    snapshot = await build_progress_data()
+                    if snapshot is None:
+                        yield f"data: {json.dumps({'event': 'close', 'reason': 'execution_gone'})}\n\n"
+                        return
+                    data, current_status, overall = snapshot
                     if current_status != last_status or overall != last_progress:
                         yield f"data: {json.dumps(data)}\n\n"
                         last_status = current_status
