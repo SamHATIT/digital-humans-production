@@ -11,6 +11,8 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -182,7 +184,10 @@ class SFAdminService:
         # Jordan les versionne. Sans cela, tempfile les detruit apres le
         # deploiement et rien n'atteint jamais le depot git.
         self.execution_id = execution_id
-        self.persist_dir = persist_dir or "/var/lib/digital-humans/livrables"
+        # P2 (LOT-E): no hardcoded absolute path. Defaults to
+        # settings.DELIVERABLES_DIR (PROJECT_ROOT-relative, overridable with
+        # DH_DELIVERABLES_DIR).
+        self.persist_dir = str(persist_dir or settings.DELIVERABLES_DIR)
         logger.info(f"[SFAdmin] Initialized for org: {target_org}")
     
     def execute_plan(self, plan: Dict[str, Any]) -> DeployResult:
@@ -228,7 +233,7 @@ class SFAdminService:
                     try:
                         import shutil, time as _t
                         dest = os.path.join(
-                            self.persist_dir or "/var/lib/digital-humans/livrables",
+                            self.persist_dir or str(settings.DELIVERABLES_DIR),
                             f"exec-{self.execution_id or 'sans-id'}-{int(_t.time())}",
                         )
                         os.makedirs(os.path.dirname(dest), exist_ok=True)

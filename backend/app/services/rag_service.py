@@ -101,22 +101,34 @@ def get_collection(name: str):
     return _collections[name]
 
 def get_openai_client():
+    """
+    Build the OpenAI client from the single configured source.
+
+    P12 (LOT-E): this used to fall back to reading a SECOND .env file
+    (`/opt/digital-humans/rag/.env`) line by line whenever OPENAI_API_KEY was
+    absent from the environment. That silent fallback meant two OpenAI keys
+    could coexist — the application one and the RAG one — with no way to tell
+    which was in use. On 21/08 the RAG file held a revoked key and the
+    embeddings failed for reasons no log explained.
+
+    There is now exactly one authoritative source: `settings.OPENAI_API_KEY`,
+    loaded by app.config from the single backend/.env. A missing key is an
+    explicit error, never a fallback.
+    """
     global _openai_client
     if _openai_client is None:
+        api_key = settings.OPENAI_API_KEY
+        if not api_key:
+            logger.error(
+                "OPENAI_API_KEY is not configured — RAG embeddings on the "
+                "openai collections (technical, operations, business) are "
+                "unavailable. Set OPENAI_API_KEY in backend/.env."
+            )
+            return None
         try:
             from openai import OpenAI
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                env_path = str(settings.RAG_ENV_PATH)
-                if os.path.exists(env_path):
-                    with open(env_path) as f:
-                        for line in f:
-                            if line.startswith("OPENAI_API_KEY="):
-                                api_key = line.strip().split("=", 1)[1]
-                                break
-            if api_key:
-                _openai_client = OpenAI(api_key=api_key)
-                logger.info("✅ Client OpenAI initialisé")
+            _openai_client = OpenAI(api_key=api_key)
+            logger.info("✅ Client OpenAI initialisé")
         except Exception as e:
             logger.error(f"Erreur init OpenAI: {e}")
     return _openai_client

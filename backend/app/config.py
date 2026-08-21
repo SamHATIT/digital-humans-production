@@ -46,16 +46,27 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = ""
 
-    # Centralized paths (P2 / D-1: env-driven with sane defaults).
+    # Credentials encryption (LOT-E / kim:SEC-06).
+    # Dedicated Fernet key for `app.utils.encryption`. Required in production
+    # (DEBUG=False): see `validate_encryption_key` below. Deriving the key
+    # from SECRET_KEY is a DEBUG-only convenience — in production it silently
+    # made every stored credential undecryptable as soon as SECRET_KEY moved.
+    CREDENTIALS_ENCRYPTION_KEY: Optional[str] = None
+
+    # Centralized paths (P2 / D-1: env-driven, PROJECT_ROOT-relative defaults).
     #
     # Every path below is derived from PROJECT_ROOT (auto-detected as the
-    # parent of backend/) unless overridden via environment variables. This
-    # removes 52 hardcoded absolute paths from the codebase and keeps the
-    # backend portable across cloud, on-premise and freemium deployments.
+    # parent of backend/) unless overridden via environment variables. No
+    # default is an absolute machine-specific path: a checkout must be
+    # runnable as-is on cloud, on-premise and developer machines.
+    #
+    # Deployments whose data lives outside the checkout (the VPS keeps the
+    # ChromaDB store under /opt) MUST set the matching env var explicitly —
+    # guessing a host-specific location is what P2 set out to remove.
     #
     # Override any of the following by setting the matching env var:
     #   DH_PROJECT_ROOT, DH_BACKEND_ROOT, DH_OUTPUT_DIR, DH_METADATA_DIR,
-    #   DH_CHROMA_PATH, DH_RAG_ENV_PATH, DH_LLM_CONFIG_PATH,
+    #   DH_CHROMA_PATH, DH_LLM_CONFIG_PATH, DH_DELIVERABLES_DIR,
     #   DH_SFDX_PROJECT_PATH, DH_FORCE_APP_PATH, DH_AGENTS_DIR.
     PROJECT_ROOT: Path = Path(
         os.environ.get("DH_PROJECT_ROOT")
@@ -67,18 +78,34 @@ class Settings(BaseSettings):
     )
     OUTPUT_DIR: Path = Path(os.environ.get("DH_OUTPUT_DIR") or str(Path(__file__).resolve().parent.parent / "outputs"))
     METADATA_DIR: Path = Path(os.environ.get("DH_METADATA_DIR") or str(Path(__file__).resolve().parent.parent / "metadata"))
-    CHROMA_PATH: Path = Path(os.environ.get("DH_CHROMA_PATH") or "/opt/digital-humans/rag/chromadb_data")
-    RAG_ENV_PATH: Path = Path(os.environ.get("DH_RAG_ENV_PATH") or "/opt/digital-humans/rag/.env")
+    CHROMA_PATH: Path = Path(
+        os.environ.get("DH_CHROMA_PATH")
+        or str(Path(__file__).resolve().parent.parent.parent / "rag" / "chromadb_data")
+    )
     LLM_CONFIG_PATH: Path = Path(
         os.environ.get("DH_LLM_CONFIG_PATH")
         or str(Path(__file__).resolve().parent.parent / "config" / "llm_routing.yaml")
     )
-    SFDX_PROJECT_PATH: Path = Path(os.environ.get("DH_SFDX_PROJECT_PATH") or "/opt/digital-humans/salesforce-workspace/digital-humans-sf")
+    # FIX-PERSIST-001 archive location (sf_admin_service).
+    DELIVERABLES_DIR: Path = Path(
+        os.environ.get("DH_DELIVERABLES_DIR")
+        or str(Path(__file__).resolve().parent.parent.parent / "livrables")
+    )
+    SFDX_PROJECT_PATH: Path = Path(
+        os.environ.get("DH_SFDX_PROJECT_PATH")
+        or str(Path(__file__).resolve().parent.parent.parent / "salesforce-workspace" / "digital-humans-sf")
+    )
     FORCE_APP_PATH: Path = Path(
         os.environ.get("DH_FORCE_APP_PATH")
-        or "/opt/digital-humans/salesforce-workspace/digital-humans-sf/force-app/main/default"
+        or str(
+            Path(__file__).resolve().parent.parent.parent
+            / "salesforce-workspace" / "digital-humans-sf"
+            / "force-app" / "main" / "default"
+        )
     )
-    AGENTS_DIR: str = os.environ.get("DH_AGENTS_DIR") or "/opt/digital-humans/salesforce-agents"
+    AGENTS_DIR: str = os.environ.get("DH_AGENTS_DIR") or str(
+        Path(__file__).resolve().parent.parent.parent / "salesforce-agents"
+    )
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
@@ -115,6 +142,31 @@ class Settings(BaseSettings):
         # Use object.__setattr__ to bypass Pydantic's frozen model protection
         object.__setattr__(self, "SECRET_KEY", generated_key)
         return self
+
+    @model_validator(mode="after")
+    def validate_encryption_key(self):
+        """
+        kim:SEC-06 — a dedicated credentials key is mandatory in production.
+
+        Historically `app.utils.encryption` fell back to deriving a Fernet key
+        from SECRET_KEY. Combined with the SECRET_KEY auto-generation above,
+        any environment that forgot to set SECRET_KEY got a brand-new
+        encryption key on every restart, silently turning every stored
+        credential into an "Invalid token" error. Fail loudly instead.
+        """
+        if self.CREDENTIALS_ENCRYPTION_KEY or self.DEBUG:
+            return self
+
+        raise ValueError(
+            "CREDENTIALS_ENCRYPTION_KEY is required in production mode "
+            "(DEBUG=False). Generate one with: python -c \"from "
+            "cryptography.fernet import Fernet; "
+            "print(Fernet.generate_key().decode())\"\n"
+            "If credentials were previously encrypted with a key derived from "
+            "SECRET_KEY, re-encrypt them before switching:\n"
+            "    python scripts/rotate_encryption_key.py "
+            "--old-secret-key-derived --new-key <new-key>"
+        )
 
     class Config:
         extra = "ignore"

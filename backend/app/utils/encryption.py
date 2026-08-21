@@ -6,29 +6,73 @@ Based on SPEC Section 7.1
 SECRET KEY ROTATION PROCEDURE
 ==============================
 
+The migration script referenced below EXISTS: ``backend/scripts/rotate_encryption_key.py``
+(LOT-E / P8 — it used to be a "TODO", i.e. a documented procedure with no
+capability behind it).
+
 1. Generate a new Fernet key:
        python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 
-2. Set CREDENTIALS_ENCRYPTION_KEY in .env to the new key.
+2. Re-encrypt every credential in the database, old key -> new key:
+       python scripts/rotate_encryption_key.py --new-key <new-key>          # dry-run
+       python scripts/rotate_encryption_key.py --new-key <new-key> --apply
 
-3. Run a migration script to re-encrypt all existing credentials stored
-   in the database using the new key.  (TODO: create migration script
-   ``scripts/rotate_encryption_key.py``.)
+   The script verifies that every row round-trips through the new key
+   before committing, and rolls the whole transaction back otherwise.
 
-4. Verify decryption works with the new key, then remove the old key.
+3. Set CREDENTIALS_ENCRYPTION_KEY in .env to the new key and restart.
+
+4. Re-run the script with --verify-only to confirm every row decrypts.
 
 IMPORTANT:
 - Changing SECRET_KEY (in .env) invalidates ALL existing JWT tokens.
   All users will need to re-authenticate.
 - Changing CREDENTIALS_ENCRYPTION_KEY invalidates ALL encrypted
-  credentials in the database.  They MUST be re-encrypted before the
-  old key is discarded.
+  credentials in the database.  They MUST be re-encrypted (step 2) before
+  the old key is discarded.
+
+CONFIGURATION SOURCE (LOT-E)
+============================
+Keys are read from ``app.config.settings``, which loads a single ``.env``.
+Reading ``os.environ`` directly meant a key present in ``backend/.env`` but
+not exported was invisible here, silently falling through to another key.
 """
 from cryptography.fernet import Fernet, InvalidToken
-import os
 import base64
 import hashlib
+import logging
 from typing import Optional
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+def build_fernet(key: str) -> Fernet:
+    """
+    Build a Fernet from an arbitrary key string.
+
+    A well-formed 32-byte urlsafe-base64 Fernet key is used as-is; anything
+    else is stretched through SHA-256. Exposed at module level so the
+    rotation script can hold the OLD and the NEW key side by side without
+    touching the process-wide singleton.
+    """
+    try:
+        return Fernet(key.encode())
+    except Exception:
+        key_bytes = hashlib.sha256(key.encode()).digest()
+        return Fernet(base64.urlsafe_b64encode(key_bytes))
+
+
+def derive_fernet_from_secret_key(secret_key: str) -> Fernet:
+    """
+    Reproduce the legacy SECRET_KEY-derived encryption key.
+
+    Kept so `scripts/rotate_encryption_key.py` can read credentials written
+    by an older deployment that never had a CREDENTIALS_ENCRYPTION_KEY.
+    """
+    key_bytes = hashlib.sha256(secret_key.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key_bytes))
 
 
 class CredentialEncryption:
@@ -36,38 +80,37 @@ class CredentialEncryption:
     Gestionnaire de chiffrement pour les credentials sensibles.
     Utilise Fernet (AES-128-CBC) pour le chiffrement symétrique.
     """
-    
+
     def __init__(self):
         self._fernet = None
-    
+
     @property
     def fernet(self) -> Fernet:
         if self._fernet is None:
-            # Try CREDENTIALS_ENCRYPTION_KEY first (recommended)
-            key = os.getenv("CREDENTIALS_ENCRYPTION_KEY")
-            
+            # Single source of truth: app.config.settings (one .env).
+            key = settings.CREDENTIALS_ENCRYPTION_KEY
+
             if key:
-                # Use provided Fernet key directly
-                try:
-                    self._fernet = Fernet(key.encode())
-                except Exception:
-                    # If not a valid Fernet key, derive one
-                    key_bytes = hashlib.sha256(key.encode()).digest()
-                    fernet_key = base64.urlsafe_b64encode(key_bytes)
-                    self._fernet = Fernet(fernet_key)
+                self._fernet = build_fernet(key)
             else:
-                # Fallback to SECRET_KEY (for backwards compatibility)
-                secret_key = os.getenv("SECRET_KEY")
+                # Legacy: derive from SECRET_KEY. config.validate_encryption_key
+                # forbids this in production (DEBUG=False); it survives here
+                # only so existing DEBUG environments keep reading their data
+                # until they run scripts/rotate_encryption_key.py.
+                secret_key = settings.SECRET_KEY
                 if not secret_key:
                     raise ValueError(
-                        "CREDENTIALS_ENCRYPTION_KEY or SECRET_KEY environment variable not set. "
+                        "CREDENTIALS_ENCRYPTION_KEY is not set. "
                         "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
                     )
-                # Derive a 32-byte key from SECRET_KEY using SHA256
-                key_bytes = hashlib.sha256(secret_key.encode()).digest()
-                fernet_key = base64.urlsafe_b64encode(key_bytes)
-                self._fernet = Fernet(fernet_key)
-        
+                logger.warning(
+                    "CREDENTIALS_ENCRYPTION_KEY is not set — falling back to a key "
+                    "derived from SECRET_KEY. Every stored credential becomes "
+                    "undecryptable if SECRET_KEY changes. Set a dedicated key and "
+                    "run scripts/rotate_encryption_key.py."
+                )
+                self._fernet = derive_fernet_from_secret_key(secret_key)
+
         return self._fernet
     
     def encrypt(self, plaintext: str) -> Optional[str]:
