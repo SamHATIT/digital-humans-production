@@ -422,7 +422,7 @@ export default function BuildMonitoringPage() {
             {status === 'completed' && executionId && (
               <button
                 type="button"
-                onClick={() => window.open(executions.getSdsHtmlUrl(Number(executionId)), '_blank')}
+                onClick={() => { void executions.openSdsHtml(Number(executionId)); }}
                 className="inline-flex items-center gap-2 px-5 py-2 bg-brass text-ink hover:bg-brass-2 font-mono text-[10px] tracking-cta uppercase"
               >
                 <Download className="w-3.5 h-3.5" />

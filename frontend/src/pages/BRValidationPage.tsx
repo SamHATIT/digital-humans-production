@@ -13,7 +13,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, files } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import StudioInput from '../components/studio/StudioInput';
 import StudioTextarea from '../components/studio/StudioTextarea';
@@ -217,9 +217,12 @@ export default function BRValidationPage() {
     }
   };
 
+  // LOT-F / kim:SEC-07 — export CSV sans JWT dans l'URL.
   const handleExportCSV = () => {
-    const token = localStorage.getItem('token');
-    window.open(`/api/br/${projectId}/export?token=${token}`, '_blank');
+    void files.downloadAuthenticated(
+      `/api/br/${projectId}/export`,
+      `business_requirements_${projectId}.csv`,
+    );
   };
 
   const startInlineEdit = (br: BusinessRequirement) => {

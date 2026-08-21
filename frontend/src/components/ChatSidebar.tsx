@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { X, Send, Loader2, User, Bot, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
 import DiffViewer from './DiffViewer';
+import { renderInlineMarkdown } from '../lib/safeMarkdown';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -59,12 +60,12 @@ const AGENT_PHOTO: Record<string, string> = {
 const photoFor = (agentId: string | undefined): string =>
   `/avatars/small/${AGENT_PHOTO[agentId || 'sophie'] || 'sophie-pm'}.png`;
 
-function formatMarkdownInline(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-bone font-semibold">$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em class="text-bone-2">$1</em>');
-}
+// LOT-F / cla:SEC-02, ope:SEC-01 — le contenu d'agent n'est plus injecte en HTML.
+const CHAT_MD_CLASSES = {
+  code: 'px-1 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono',
+  strong: 'text-bone font-semibold',
+  em: 'text-bone-2',
+};
 
 export default function ChatSidebar({
   executionId,
@@ -264,10 +265,9 @@ export default function ChatSidebar({
                 ? 'bg-brass/10 border-brass/30'
                 : `${colors.bg} ${colors.border}`
             } border rounded-xl px-3 py-2`}>
-              <p
-                className="text-sm text-bone-2 whitespace-pre-wrap break-words"
-                dangerouslySetInnerHTML={{ __html: formatMarkdownInline(msg.content) }}
-              />
+              <p className="text-sm text-bone-2 whitespace-pre-wrap break-words">
+                {renderInlineMarkdown(msg.content, CHAT_MD_CLASSES)}
+              </p>
               {msg.diff && (
                 <div className="mt-2">
                   <DiffViewer oldText={msg.diff.old} newText={msg.diff.new} oldLabel="Before" newLabel="After" />

@@ -1,6 +1,7 @@
 import { useState, useMemo, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, List, FileText } from 'lucide-react';
 import MermaidRenderer from './MermaidRenderer';
+import { renderInlineMarkdown } from '../lib/safeMarkdown';
 
 interface SDSPreviewProps {
   content: string;
@@ -56,7 +57,7 @@ function renderMarkdownSection(text: string): ReactNode {
       elements.push(
         <ul key={`ul-${i}`} className="list-disc list-inside space-y-1 my-2 text-bone-3 text-sm">
           {listItems.map((item, j) => (
-            <li key={j} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
+            <li key={j}>{inlineFormat(item)}</li>
           ))}
         </ul>
       );
@@ -73,7 +74,7 @@ function renderMarkdownSection(text: string): ReactNode {
       elements.push(
         <ol key={`ol-${i}`} className="list-decimal list-inside space-y-1 my-2 text-bone-3 text-sm">
           {listItems.map((item, j) => (
-            <li key={j} dangerouslySetInnerHTML={{ __html: inlineFormat(item) }} />
+            <li key={j}>{inlineFormat(item)}</li>
           ))}
         </ol>
       );
@@ -99,11 +100,9 @@ function renderMarkdownSection(text: string): ReactNode {
 
     // Regular paragraph
     elements.push(
-      <p
-        key={`p-${i}`}
-        className="text-bone-3 text-sm my-1.5 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: inlineFormat(line) }}
-      />
+      <p key={`p-${i}`} className="text-bone-3 text-sm my-1.5 leading-relaxed">
+        {inlineFormat(line)}
+      </p>
     );
     i++;
   }
@@ -111,12 +110,19 @@ function renderMarkdownSection(text: string): ReactNode {
   return <>{elements}</>;
 }
 
-function inlineFormat(text: string): string {
-  return text
-    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-bone font-semibold">$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em class="text-bone-2">$1</em>')
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-brass underline hover:text-brass-2" target="_blank" rel="noopener noreferrer">$1</a>');
+// LOT-F / ope:SEC-03 — le SDS est produit par les agents : meme classe de contenu
+// que le chat. L'ancien inlineFormat interpolait aussi l'URL des liens telle
+// quelle dans href (javascript:... exploitable). Plus de HTML injecte du tout.
+const SDS_MD_CLASSES = {
+  code: 'px-1.5 py-0.5 bg-ink-3 text-brass-2 rounded text-xs font-mono',
+  strong: 'text-bone font-semibold',
+  em: 'text-bone-2',
+  link: 'text-brass underline hover:text-brass-2',
+};
+const SDS_MD_OPTIONS = { links: true };
+
+function inlineFormat(text: string) {
+  return renderInlineMarkdown(text, SDS_MD_CLASSES, SDS_MD_OPTIONS);
 }
 
 function renderTable(lines: string[], key: number): ReactNode {
@@ -138,8 +144,9 @@ function renderTable(lines: string[], key: number): ReactNode {
               <th
                 key={i}
                 className="px-3 py-2 text-left text-bone-3 font-medium border-b border-bone/10"
-                dangerouslySetInnerHTML={{ __html: inlineFormat(h) }}
-              />
+              >
+                {inlineFormat(h)}
+              </th>
             ))}
           </tr>
         </thead>
@@ -147,11 +154,9 @@ function renderTable(lines: string[], key: number): ReactNode {
           {rows.map((row, ri) => (
             <tr key={ri} className="hover:bg-ink-2/60">
               {row.map((cell, ci) => (
-                <td
-                  key={ci}
-                  className="px-3 py-2 text-bone-4"
-                  dangerouslySetInnerHTML={{ __html: inlineFormat(cell) }}
-                />
+                <td key={ci} className="px-3 py-2 text-bone-4">
+                  {inlineFormat(cell)}
+                </td>
               ))}
             </tr>
           ))}

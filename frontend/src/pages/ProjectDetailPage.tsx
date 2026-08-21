@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Send, Loader2, Settings, ExternalLink } from 'lucide-react';
-import api from '../services/api';
+import api, { files } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import StudioTabs from '../components/studio/StudioTabs';
 import ProjectHealthCard from '../components/projects/ProjectHealthCard';
@@ -134,7 +134,13 @@ export default function ProjectDetailPage() {
         setChatMessages(chatResp?.messages ?? chatResp ?? []);
         // try to find latest execution id (used for SDS HTML preview)
         try {
-          const exec = await api.get(`/api/pm-orchestrator/projects/${projectId}/executions`).catch(() => null);
+          // LOT-F — `/api/pm-orchestrator/projects/{id}/executions` n'existe pas
+          // côté backend : l'appel 404-ait, l'erreur était avalée et
+          // latestExecutionId restait null (bouton « aperçu SDS » inopérant).
+          // La route réelle est `/api/pm-orchestrator/executions?project_id=`.
+          const exec = await api
+            .get(`/api/pm-orchestrator/executions?project_id=${projectId}`)
+            .catch(() => null);
           const list = exec?.executions ?? exec ?? [];
           if (Array.isArray(list) && list.length > 0) {
             setLatestExecutionId(list[0]?.id ?? null);
@@ -260,21 +266,22 @@ export default function ProjectDetailPage() {
     }
   };
 
+  // LOT-F / kim:SEC-07 — le JWT ne transite plus par l'URL : il part dans
+  // l'en-tête Authorization (les deux routes acceptent déjà l'en-tête).
   const downloadSDS = (versionNumber: number) => {
-    const token = localStorage.getItem('token');
-    window.open(
-      `/api/projects/${projectId}/sds-versions/${versionNumber}/download?token=${token}`,
-      '_blank',
-    );
+    void files
+      .downloadAuthenticated(
+        `/api/projects/${projectId}/sds-versions/${versionNumber}/download`,
+        `SDS_v${versionNumber}.docx`,
+      )
+      .catch(() => window.alert(t('Download failed.', 'Téléchargement impossible.')));
   };
 
   const previewSDSHtml = () => {
     if (!latestExecutionId) return;
-    const token = localStorage.getItem('token');
-    window.open(
-      `/api/pm-orchestrator/execute/${latestExecutionId}/sds-html?token=${token}`,
-      '_blank',
-    );
+    void files
+      .openAuthenticated(`/api/pm-orchestrator/execute/${latestExecutionId}/sds-html`)
+      .catch(() => window.alert(t('Preview failed.', 'Aperçu impossible.')));
   };
 
   // ─── Derived data ──────────────────────────────────────────────────────────

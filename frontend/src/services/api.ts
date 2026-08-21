@@ -4,18 +4,18 @@
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Cookie helpers — used to mirror the JWT token to a cookie so nginx
-// auth_request (e.g. /admin/docs/) can validate the user without
-// requiring the SPA to inject an Authorization header on every static
-// asset request. The localStorage entry stays as the canonical source
-// for fetch() calls; the cookie is purely for nginx-level auth checks.
-const TOKEN_COOKIE_DAYS = 7;
-function setTokenCookie(token: string) {
-  const expires = new Date();
-  expires.setDate(expires.getDate() + TOKEN_COOKIE_DAYS);
-  const secure = location.protocol === 'https:' ? '; Secure' : '';
-  document.cookie = `token=${token}; expires=${expires.toUTCString()}; path=/; SameSite=Lax${secure}`;
-}
+// LOT-F — cla:SEC-02 / ope:SEC-05.
+// Le frontend posait ici un cookie `token` lisible en JS (pas de HttpOnly),
+// miroir du JWT, pour que nginx `auth_request` puisse valider /admin/docs/.
+// Un cookie posé par `document.cookie` ne peut PAS être HttpOnly : il était
+// donc exfiltrable par n'importe quelle XSS, au même titre que localStorage,
+// tout en élargissant la surface (envoyé sur `path=/`, donc sur chaque asset).
+// La pose est supprimée. `clearTokenCookie` est conservé et toujours appelé
+// au logout et sur 401, pour purger les cookies déjà déposés sur les
+// navigateurs des utilisateurs existants.
+// ⚠ Conséquence assumée, à reprendre côté backend : tant que le serveur
+// n'émet pas lui-même le cookie HttpOnly au login, l'`auth_request` nginx de
+// /admin/docs/ n'a plus de cookie à valider. Voir le rapport LOT-F.
 function clearTokenCookie() {
   document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 }
@@ -52,6 +52,78 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   return response.json();
 }
 
+// ============ ACCÈS AUTHENTIFIÉ AUX FICHIERS (kim:SEC-07) ============
+
+/**
+ * Ces deux helpers remplacent les `window.open('...?token=' + jwt)` qui
+ * parsemaient les pages. Le JWT partait en query string : il se retrouvait
+ * dans les access logs nginx, les logs applicatifs et l'historique du
+ * navigateur, et restait rejouable 24 h (ACCESS_TOKEN_EXPIRE_MINUTES=1440).
+ *
+ * Les routes visées acceptent déjà l'en-tête `Authorization` : elles dépendent
+ * de `get_current_user_from_token_or_header`, qui essaie l'en-tête AVANT le
+ * paramètre de requête. Aucune modification backend n'est donc requise.
+ */
+async function fetchAuthenticatedBlob(endpoint: string): Promise<Blob> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+  });
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.removeItem('token');
+      clearTokenCookie();
+      window.location.href = '/login';
+    }
+    throw new Error(`Request failed (${response.status})`);
+  }
+
+  return response.blob();
+}
+
+/**
+ * Affiche une ressource protégée *inline* dans un nouvel onglet (SDS HTML).
+ * L'onglet est ouvert de façon synchrone, avant l'`await`, pour rester dans
+ * le geste utilisateur — sinon les bloqueurs de popup le rejettent.
+ */
+async function openAuthenticated(endpoint: string): Promise<void> {
+  const tab = window.open('', '_blank');
+  try {
+    const blob = await fetchAuthenticatedBlob(endpoint);
+    const blobUrl = URL.createObjectURL(blob);
+    if (tab) {
+      tab.location.href = blobUrl;
+    } else {
+      window.location.href = blobUrl;
+    }
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  } catch (err) {
+    tab?.close();
+    throw err;
+  }
+}
+
+/**
+ * Télécharge une ressource protégée servie en `Content-Disposition:
+ * attachment` (export CSV des BR, .docx d'une version de SDS). On passe par
+ * un lien `download` afin de conserver un nom de fichier lisible, que l'URL
+ * `blob:` ne porte pas.
+ */
+async function downloadAuthenticated(endpoint: string, filename: string): Promise<void> {
+  const blob = await fetchAuthenticatedBlob(endpoint);
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
+export const files = { openAuthenticated, downloadAuthenticated };
+
 // ==================== AUTH ====================
 
 export const auth = {
@@ -63,7 +135,6 @@ export const auth = {
     
     if (data.access_token) {
       localStorage.setItem('token', data.access_token);
-      setTokenCookie(data.access_token);
     }
     return data;
   },
@@ -209,21 +280,18 @@ export const executions = {
     });
   },
 
-  getResultFile: (executionId: number) => {
-    const token = localStorage.getItem('token');
-    return `${API_URL}/api/pm-orchestrator/execute/${executionId}/download?token=${token}`;
-  },
+  // LOT-F — `getResultFile()` (export .docx legacy) est supprimé : aucun
+  // appelant dans le frontend, et il fabriquait une URL portant le JWT.
 
   /**
-   * URL of the rendered SDS HTML (Jinja2, DB-driven).
-   * This replaces the legacy getResultFile() docx export, which prints raw
-   * HTML markup into a Word document. Open this URL in a new tab and use
-   * the in-page PRINT · PDF button to save as PDF.
+   * Ouvre le SDS rendu (Jinja2, DB-driven) dans un nouvel onglet.
+   * Remplace l'ancien `getSdsHtmlUrl()`, qui retournait une URL contenant le
+   * JWT en query string (kim:SEC-07). Le jeton part désormais dans l'en-tête
+   * `Authorization` et n'apparaît plus nulle part dans l'URL.
+   * La page rendue porte son propre bouton PRINT · PDF.
    */
-  getSdsHtmlUrl: (executionId: number) => {
-    const token = localStorage.getItem('token');
-    return `${API_URL}/api/pm-orchestrator/execute/${executionId}/sds-html?token=${token}`;
-  },
+  openSdsHtml: (executionId: number | string) =>
+    openAuthenticated(`/api/pm-orchestrator/execute/${executionId}/sds-html`),
 
   // H12: Resume execution with optional action (architecture validation)
   resume: async (executionId: number, action?: string) => {

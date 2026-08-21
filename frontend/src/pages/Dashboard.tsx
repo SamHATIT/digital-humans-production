@@ -161,9 +161,17 @@ export default function Dashboard() {
 
       // 3. Exécutions actives — endpoint optionnel, fallback silencieux
       try {
-        const data = await api.get('/api/executions?status=running');
+        // LOT-F — `/api/executions` n'existe pas côté backend : l'appel 404-ait
+        // et le `catch {}` masquait la panne (panneau « exécutions actives »
+        // vide en permanence). La route réelle est montée sous le préfixe
+        // pm-orchestrator et ne filtre pas par statut : on filtre ici.
+        const data = await api.get('/api/pm-orchestrator/executions');
         const rows: ExecutionRow[] = (data?.executions ?? data ?? []) as ExecutionRow[];
-        if (!cancelled) setActiveExecutions(Array.isArray(rows) ? rows : []);
+        if (!cancelled) {
+          setActiveExecutions(
+            Array.isArray(rows) ? rows.filter((r) => r.status === 'running') : [],
+          );
+        }
       } catch {
         if (!cancelled) setActiveExecutions([]);
       }

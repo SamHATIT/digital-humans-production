@@ -296,7 +296,7 @@ export default function ExecutionMonitoringPage() {
     // The SDS HTML is the canonical deliverable: rendered from DB via Jinja2,
     // with an in-page PRINT · PDF button. The legacy /download endpoint
     // returns a Word doc that just prints raw HTML markup.
-    window.open(executions.getSdsHtmlUrl(id), '_blank');
+    void executions.openSdsHtml(id);
   };
 
   const handleSelectStep = (step: { id: string }) => {

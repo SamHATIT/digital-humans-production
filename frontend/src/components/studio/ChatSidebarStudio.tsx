@@ -13,6 +13,7 @@ import {
   type StudioAgent,
 } from '../../lib/agents';
 import DiffViewer from '../DiffViewer';
+import { renderInlineMarkdown } from '../../lib/safeMarkdown';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -40,15 +41,12 @@ interface ChatSidebarStudioProps {
   deliverableContext?: string;
 }
 
-function inlineFormat(text: string): string {
-  return text
-    .replace(
-      /`([^`]+)`/g,
-      '<code class="px-1 py-0.5 bg-ink-3 text-brass-2 text-[11px] font-mono">$1</code>',
-    )
-    .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-bone font-semibold">$1</strong>')
-    .replace(/\*([^*]+)\*/g, '<em class="text-bone-2">$1</em>');
-}
+// LOT-F / ope:SEC-02 — meme contenu d'agent que ChatSidebar, meme faille : plus de HTML injecte.
+const CHAT_MD_CLASSES = {
+  code: 'px-1 py-0.5 bg-ink-3 text-brass-2 text-[11px] font-mono',
+  strong: 'text-bone font-semibold',
+  em: 'text-bone-2',
+};
 
 /**
  * Studio version of the HITL chat sidebar.
@@ -322,10 +320,9 @@ export default function ChatSidebarStudio({
                     : `bg-ink border ${ACCENT_BORDER[tone]}`,
                 ].join(' ')}
               >
-                <p
-                  className="font-serif text-bone-2 text-[14px] leading-relaxed whitespace-pre-wrap break-words"
-                  dangerouslySetInnerHTML={{ __html: inlineFormat(msg.content) }}
-                />
+                <p className="font-serif text-bone-2 text-[14px] leading-relaxed whitespace-pre-wrap break-words">
+                  {renderInlineMarkdown(msg.content, CHAT_MD_CLASSES)}
+                </p>
                 {msg.diff && (
                   <div className="mt-2">
                     <DiffViewer
