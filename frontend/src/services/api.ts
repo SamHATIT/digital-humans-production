@@ -122,7 +122,44 @@ async function downloadAuthenticated(endpoint: string, filename: string): Promis
   setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
 }
 
+/**
+ * POST authentifié dont la réponse est un FLUX (SSE sur POST), rendu brut à
+ * l'appelant pour qu'il le consomme via `response.body.getReader()`.
+ *
+ * `apiCall` ne convient pas ici : il fait `return response.json()`, ce qui
+ * consommerait le corps d'un coup et ferait perdre tout l'intérêt du flux.
+ * On reproduit donc juste ce qu'il fait d'utile — en-tête `Authorization` et
+ * traitement du 401 — puis on rend la `Response` intacte.
+ */
+async function streamAuthenticated(endpoint: string, body?: unknown): Promise<Response> {
+  const token = localStorage.getItem('token');
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem('token');
+    clearTokenCookie();
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+    throw new Error(error.detail || `Request failed (${response.status})`);
+  }
+
+  return response;
+}
+
 export const files = { openAuthenticated, downloadAuthenticated };
+export const stream = { post: streamAuthenticated };
 
 // ==================== AUTH ====================
 

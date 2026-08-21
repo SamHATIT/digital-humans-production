@@ -15,6 +15,7 @@ import {
   groupByAct,
 } from '../lib/agents';
 import type { StudioAgent } from '../lib/agents';
+import { api, stream } from '../services/api';
 
 interface AgentBackend {
   name?: string;
@@ -88,8 +89,10 @@ export default function AgentTesterPage() {
 
   const fetchAgents = async () => {
     try {
-      const response = await fetch('/api/agent-tester/agents');
-      const data = await response.json();
+      // LOT-F quater — LOT-C a posé Depends(get_current_user) sur tout le
+      // routeur agent-tester : un fetch nu retourne 401. apiCall porte déjà
+      // l'en-tête Authorization et le traitement du 401.
+      const data = await api.get('/api/agent-tester/agents');
       setBackendAgents(data.agents ?? {});
       setSalesforceOrg(data.salesforce_org ?? null);
       if (!selectedAgentId && data.agents) {
@@ -103,8 +106,7 @@ export default function AgentTesterPage() {
 
   const fetchWorkspaceFiles = async () => {
     try {
-      const response = await fetch('/api/agent-tester/workspace/files');
-      const data = await response.json();
+      const data = await api.get('/api/agent-tester/workspace/files');
       setWorkspaceFiles(data.files ?? {});
     } catch (err) {
       console.error('Error fetching workspace files:', err);
@@ -116,14 +118,13 @@ export default function AgentTesterPage() {
     setIsRunning(true);
     setLogs([]);
     try {
-      const response = await fetch(`/api/agent-tester/test/${selectedAgentId}/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_id: selectedAgentId,
-          task_description: taskDescription,
-          deploy_to_org: true,
-        }),
+      // Flux SSE sur POST : on ne peut pas passer par apiCall (qui ferait
+      // response.json() et consommerait le corps d'un coup). stream.post
+      // applique l'en-tête Authorization et rend la Response intacte.
+      const response = await stream.post(`/api/agent-tester/test/${selectedAgentId}/stream`, {
+        agent_id: selectedAgentId,
+        task_description: taskDescription,
+        deploy_to_org: true,
       });
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
