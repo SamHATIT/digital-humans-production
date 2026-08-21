@@ -14,6 +14,7 @@ from app.utils.dependencies import get_current_user_from_token_or_header
 from app.workers.arq_config import get_redis_pool
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import verify_execution_access
+from app.utils.feature_access import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +208,7 @@ def get_build_phases(
 
 @router.post("/projects/{project_id}/start-build")
 @limiter.limit(RateLimits.EXECUTE_BUILD)
+@require_feature("build_phase")
 async def start_build_phase(
     request: Request,
     response: Response,

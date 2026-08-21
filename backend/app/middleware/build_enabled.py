@@ -25,13 +25,22 @@ logger = logging.getLogger(__name__)
 
 # Patterns des routes BUILD bloquées en mode freemium.
 # Compilés au chargement du module.
+#
+# LOT-A : les patterns d'origine oubliaient le préfixe du routeur
+# (`/api/pm-orchestrator`, cf. main.py `include_router(pm_orchestrator.router,
+# prefix=f"{settings.API_V1_PREFIX}/pm-orchestrator")`). Aucune route réelle ne
+# correspondait, le middleware était donc inerte : le profil `freemium`
+# n'a jamais rien bloqué. Le segment est rendu optionnel pour rester
+# tolérant à un éventuel montage sans préfixe.
+_PM = r"^/api(?:/pm-orchestrator)?"
+
 BUILD_PATH_PATTERNS: Iterable[re.Pattern] = [
-    re.compile(r"^/api/projects/\d+/start-build/?$"),
-    re.compile(r"^/api/execute/\d+/build-tasks/?$"),
-    re.compile(r"^/api/execute/\d+/build-phases/?$"),
-    re.compile(r"^/api/execute/\d+/pause-build/?$"),
-    re.compile(r"^/api/execute/\d+/resume-build/?$"),
-    re.compile(r"^/api/projects/\d+/build/?$"),
+    re.compile(_PM + r"/projects/\d+/start-build/?$"),
+    re.compile(_PM + r"/execute/\d+/build-tasks/?$"),
+    re.compile(_PM + r"/execute/\d+/build-phases/?$"),
+    re.compile(_PM + r"/execute/\d+/pause-build/?$"),
+    re.compile(_PM + r"/execute/\d+/resume-build/?$"),
+    re.compile(_PM + r"/projects/\d+/build/?$"),
 ]
 
 

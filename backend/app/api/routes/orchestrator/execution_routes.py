@@ -30,6 +30,7 @@ from app.api.routes.orchestrator._helpers import (
     verify_execution_access,
     build_agent_progress,
 )
+from app.utils.feature_access import require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ router = APIRouter(tags=["PM Orchestrator"])
 
 @router.post("/execute", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
 @limiter.limit(RateLimits.EXECUTE_SDS)
+@require_feature("sds_document")
 async def start_execution(
     request: Request,
     response: Response,
@@ -107,6 +109,7 @@ async def start_execution(
 
 
 @router.post("/execute/{execution_id}/resume", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
+@require_feature("sds_document")
 async def resume_execution(
     execution_id: int,
     request: Request,

@@ -2,6 +2,7 @@
 Feature Access Control - Section 9.2
 Decorators and utilities to control access based on subscription tier.
 """
+import asyncio
 from functools import wraps
 from typing import Dict, Any
 from fastapi import HTTPException
@@ -51,40 +52,82 @@ class LimitExceededError(HTTPException):
         )
 
 
+def resolve_tier(user) -> SubscriptionTier:
+    """Return the SubscriptionTier of a user object, defaulting to FREE.
+
+    Fail-closed: an unknown / malformed tier string is treated as FREE rather
+    than raising, so a corrupt column can never *grant* access.
+    """
+    tier = getattr(user, 'subscription_tier', None)
+    if tier is None:
+        return SubscriptionTier.FREE
+    if isinstance(tier, SubscriptionTier):
+        return tier
+    try:
+        return SubscriptionTier(tier)
+    except ValueError:
+        return SubscriptionTier.FREE
+
+
+def ensure_feature(user, feature_name: str) -> None:
+    """Raise 401/403 unless ``user`` may use ``feature_name``.
+
+    LOT-A (cla:TIER-01, cla:TIER-02, gem:BIZ-01, kim:TIER-01): the paid
+    boundary is enforced here, server-side. Use this inside a route body when
+    the decorator form is impractical; both share the exact same logic.
+    """
+    if user is None:
+        raise HTTPException(status_code=401, detail="Non authentifié")
+
+    tier = resolve_tier(user)
+    if not has_feature(tier, feature_name):
+        required = get_required_tier(feature_name)
+        raise FeatureAccessError(feature_name, required or SubscriptionTier.PRO)
+
+
+def _extract_current_user(args, kwargs):
+    """Find the injected ``current_user`` among a route call's arguments."""
+    user = kwargs.get('current_user')
+    if user is not None:
+        return user
+    # Defensive: FastAPI always passes by keyword, but a direct call may not.
+    for candidate in args:
+        if hasattr(candidate, 'subscription_tier'):
+            return candidate
+    return None
+
+
 def require_feature(feature_name: str):
     """
     Decorator to check if user has access to a feature.
-    
-    Usage:
+
+    Place it *below* the route decorator (and below any rate limiter) so the
+    check runs before the endpoint body:
+
         @router.post("/build/start")
+        @limiter.limit(RateLimits.EXECUTE_BUILD)
         @require_feature("build_phase")
         async def start_build(..., current_user: User = Depends(get_current_user)):
             ...
+
+    The decorated endpoint MUST declare a ``current_user`` parameter; without
+    one the request is rejected with 401 (fail closed).
     """
     def decorator(func):
+        if asyncio.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                ensure_feature(_extract_current_user(args, kwargs), feature_name)
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
         @wraps(func)
-        async def wrapper(*args, **kwargs):
-            # Get current user from kwargs (injected by Depends)
-            current_user = kwargs.get('current_user')
-            
-            if not current_user:
-                raise HTTPException(status_code=401, detail="Non authentifié")
-            
-            # Get user's tier (default to FREE)
-            tier = getattr(current_user, 'subscription_tier', None)
-            if tier is None:
-                tier = SubscriptionTier.FREE
-            elif isinstance(tier, str):
-                tier = SubscriptionTier(tier)
-            
-            # Check feature access
-            if not has_feature(tier, feature_name):
-                required = get_required_tier(feature_name)
-                raise FeatureAccessError(feature_name, required or SubscriptionTier.PRO)
-            
-            return await func(*args, **kwargs)
-        
-        return wrapper
+        def sync_wrapper(*args, **kwargs):
+            ensure_feature(_extract_current_user(args, kwargs), feature_name)
+            return func(*args, **kwargs)
+
+        return sync_wrapper
     return decorator
 
 
