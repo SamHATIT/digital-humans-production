@@ -47,6 +47,18 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Prefixes of provider tokens that must NEVER appear in
+# `project_credentials.encrypted_value`. A value starting with one of these has
+# never been encrypted (cla:SEC-03). Single definition, shared by the consumers
+# that must refuse such a value and by scripts/rotate_encryption_key.py, which
+# migrates them.
+PLAINTEXT_TOKEN_PREFIXES = ("ghp_", "github_pat_", "glpat-", "gho_", "ghs_")
+
+
+def looks_like_plaintext_token(value: str) -> bool:
+    """True when a stored credential is a bare provider token, not ciphertext."""
+    return bool(value) and value.startswith(PLAINTEXT_TOKEN_PREFIXES)
+
 
 def build_fernet(key: str) -> Fernet:
     """

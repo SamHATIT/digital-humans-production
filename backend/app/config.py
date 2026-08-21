@@ -46,6 +46,21 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str = ""
 
+    # Salesforce default org (LOT-E bis / gem:CONF-01).
+    #
+    # These used to be hardcoded defaults on the SalesforceConfig dataclass —
+    # a real org alias, a real username, a real org id. Any project that failed
+    # to load its own credentials silently fell back to that org: cross-tenant
+    # reads, and deployments landing in the wrong Salesforce org.
+    #
+    # There is no default any more. A deployment that needs a default org sets
+    # these explicitly; otherwise SalesforceConfig.require() raises.
+    SF_ORG_ALIAS: Optional[str] = None
+    SF_USERNAME: Optional[str] = None
+    SF_ORG_ID: Optional[str] = None
+    SF_INSTANCE_URL: Optional[str] = None
+    SF_API_VERSION: str = "67.0"
+
     # Credentials encryption (LOT-E / kim:SEC-06).
     # Dedicated Fernet key for `app.utils.encryption`. Required in production
     # (DEBUG=False): see `validate_encryption_key` below. Deriving the key

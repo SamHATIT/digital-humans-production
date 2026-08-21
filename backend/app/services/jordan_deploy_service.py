@@ -7,6 +7,8 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
+from app.utils.encryption import looks_like_plaintext_token
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,12 +87,28 @@ class JordanDeployService:
             # Z0FBQUFB...). Passe tel quel a git, cela donnait :
             #   fatal: could not read Password for 'https://Z0FBQUFB...'
             #
-            # On dechiffre si necessaire, en gardant le cas du clair pour les
-            # anciens enregistrements.
+            # cla:SEC-03 (LOT-E bis, 21/08/2026) : le repli qui acceptait le
+            # clair est SUPPRIME. Le tolerer signifiait que la colonne
+            # encrypted_value contenait durablement des jetons GitHub en clair
+            # — toute fuite de la base (sauvegarde non chiffree, acces DBA) les
+            # compromettait tous. Tant que ce repli vivait, toute migration
+            # etait a refaire : rien n'empechait un nouvel enregistrement en
+            # clair d'etre ecrit puis accepte.
+            #
+            # ORDRE D'EXPLOITATION : migrer AVANT de deployer.
+            #   python scripts/rotate_encryption_key.py --encrypt-plaintext --apply
+            # Un enregistrement encore en clair au moment du deploiement est
+            # refuse ici, explicitement, plutot que d'etre utilise.
             brut = git_cred.encrypted_value
-            if brut.startswith(("ghp_", "github_pat_", "glpat-")):
-                git_token = brut          # ancien format, deja en clair
-                logger.info("[Jordan] Jeton git lu en clair (format ancien)")
+            if looks_like_plaintext_token(brut):
+                logger.error(
+                    "[Jordan] JETON GIT STOCKE EN CLAIR pour le projet %s — refuse. "
+                    "Un jeton en clair dans project_credentials.encrypted_value est "
+                    "un secret expose : il doit etre chiffre, pas utilise tel quel. "
+                    "Migrer puis relancer : "
+                    "python scripts/rotate_encryption_key.py --encrypt-plaintext --apply",
+                    self.project_id,
+                )
             else:
                 try:
                     from app.utils.encryption import decrypt_credential
@@ -100,7 +118,7 @@ class JordanDeployService:
                     else:
                         logger.error(
                             "[Jordan] DECHIFFREMENT DU JETON GIT ECHOUE — "
-                            "verifier la cle de chiffrement (CREDENTIAL_ENCRYPTION_KEY)"
+                            "verifier la cle de chiffrement (CREDENTIALS_ENCRYPTION_KEY)"
                         )
                 except Exception as e:
                     logger.error(f"[Jordan] Dechiffrement impossible : {e}")
