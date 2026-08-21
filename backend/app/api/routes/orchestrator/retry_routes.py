@@ -15,6 +15,7 @@ from app.schemas.execution import ExecutionStartResponse
 from app.utils.dependencies import get_current_user
 from app.workers.arq_config import get_redis_pool
 from app.api.routes.orchestrator._helpers import verify_execution_access
+from app.utils.feature_access import ensure_feature, require_feature
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ router = APIRouter(tags=["PM Orchestrator"])
 
 
 @router.post("/execute/{execution_id}/retry", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
+@require_feature("sds_document")
 async def retry_failed_execution(
     execution_id: int,
     db: Session = Depends(get_db),
@@ -42,6 +44,15 @@ async def retry_failed_execution(
         TaskExecution.execution_id == execution_id,
         TaskExecution.status == TaskStatus.FAILED,
     ).all()
+
+    # LOT-A bis : les lignes TaskExecution sont des taches BUILD — elles ne sont
+    # creees que par BuildPhaseService.prepare_build_phase. Le retry les remet a
+    # PENDING et efface leurs erreurs : c'est une mutation d'etat BUILD, donc
+    # reservee aux paliers qui ont le BUILD. Le gate est conditionnel pour ne pas
+    # priver un compte Pro du retry SDS, qui lui est du (cas d'une retrogradation
+    # Team -> Pro laissant des taches BUILD derriere elle).
+    if failed_tasks:
+        ensure_feature(current_user, "build_phase")
 
     agent_status = execution.agent_execution_status or {}
     resume_from = "phase1"
@@ -96,7 +107,15 @@ def get_retry_info(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get information about retry options for a failed execution."""
+    """Get information about retry options for a failed execution.
+
+    LOT-A bis — decision : route de LECTURE, volontairement non gardee par palier.
+    La propriete est deja verifiee par verify_execution_access, et la reponse
+    n'expose rien de plus que les endpoints de progression voisins
+    (/progress, /build-tasks, /build-phases), eux aussi non gardes. La garder
+    ouverte permet a l'UI d'afficher l'etat puis l'invite a monter d'offre ;
+    la fermer seule serait incoherent sans fermer aussi les trois autres.
+    """
     from app.models.task_execution import TaskExecution, TaskStatus
 
     execution = verify_execution_access(execution_id, current_user.id, db)
@@ -146,6 +165,7 @@ def get_retry_info(
 
 
 @router.post("/execute/{execution_id}/pause-build")
+@require_feature("build_phase")
 def pause_build(
     execution_id: int,
     db: Session = Depends(get_db),
@@ -154,7 +174,11 @@ def pause_build(
     """Pause the BUILD phase execution."""
     from app.services.pm_orchestrator_service_v2 import BuildPhaseService
 
-    # verify_execution_access not needed here — BuildPhaseService handles it
+    # LOT-A bis : le commentaire precedent affirmait que BuildPhaseService
+    # verifiait la propriete. C'est faux — pause_build/resume_build filtrent sur
+    # Execution.id seul, sans user_id. La verification est donc faite ici.
+    verify_execution_access(execution_id, current_user.id, db)
+
     service = BuildPhaseService(db)
     result = service.pause_build(execution_id)
 
@@ -169,6 +193,7 @@ def pause_build(
 
 
 @router.post("/execute/{execution_id}/resume-build")
+@require_feature("build_phase")
 async def resume_build(
     execution_id: int,
     db: Session = Depends(get_db),
@@ -176,6 +201,9 @@ async def resume_build(
 ):
     """Resume a paused BUILD phase execution."""
     from app.services.pm_orchestrator_service_v2 import BuildPhaseService
+
+    # LOT-A bis : idem pause_build — la propriete n'est pas verifiee en aval.
+    verify_execution_access(execution_id, current_user.id, db)
 
     service = BuildPhaseService(db)
     result = service.resume_build(execution_id)

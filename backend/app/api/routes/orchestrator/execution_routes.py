@@ -3,7 +3,7 @@ Execution management routes for PM Orchestrator.
 
 P4: Extracted from pm_orchestrator.py — SDS execution lifecycle.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -249,29 +249,25 @@ def get_execution_progress(
 @router.get("/execute/{execution_id}/progress/stream")
 async def stream_execution_progress(
     execution_id: int,
-    token: str = Query(..., description="JWT token for authentication"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token_or_header),
 ):
-    """Stream execution progress updates via Server-Sent Events (SSE)."""
-    # Validate token
-    try:
-        from app.services.auth_service import verify_token
+    """Stream execution progress updates via Server-Sent Events (SSE).
 
-        payload = verify_token(token)
-        user_id = payload.get("sub") or payload.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Authentication failed: {str(e)}")
+    kim:SEC-07 — l'authentification passe par la dépendance commune, qui essaie
+    l'en-tête `Authorization` AVANT le paramètre d'URL `token`. Le paramètre
+    reste accepté (EventSource ne sait pas envoyer d'en-tête), donc le frontend
+    actuel continue de fonctionner ; mais il n'est plus *obligatoire*, ce qui
+    débloque la bascule côté client. Tant que le frontend passe le jeton en
+    query string, celui-ci continue d'atterrir dans les journaux nginx :
+    ce correctif lève le verrou serveur, il ne referme pas l'exposition.
 
-    execution = (
-        db.query(Execution)
-        .join(Project)
-        .filter(Execution.id == execution_id, Project.user_id == int(user_id))
-        .first()
-    )
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
+    Il remplace aussi une validation manuelle qui importait
+    `app.services.auth_service` — module inexistant dans le dépôt. Le
+    `except Exception` transformait le ModuleNotFoundError en 401, si bien que
+    ce flux SSE refusait TOUT LE MONDE, jeton valide compris.
+    """
+    execution = verify_execution_access(execution_id, current_user.id, db)
 
     # Try notifications, fallback to polling
     # Pre-initialize to satisfy static analysis (ruff F823) — both branches of
@@ -288,11 +284,20 @@ async def stream_execution_progress(
         # use_notifications and notification_service already pre-set above
 
     async def event_generator():
+        # LOT-A bis : `use_notifications = False` plus bas, dans la branche
+        # notifications, faisait de ce nom une LOCALE du générateur — la lecture
+        # ci-dessous levait donc UnboundLocalError et le flux mourait sur sa
+        # première ligne. Le `# noqa: F823` qui accompagnait cette ligne
+        # qualifiait l'alerte ruff de faux positif : elle était fondée. Le défaut
+        # était invisible parce que la route renvoyait 401 à tout le monde
+        # (import de `app.services.auth_service`, module inexistant).
+        nonlocal use_notifications
+
         last_status = None
         last_progress = -1
         max_duration = 600
         start_time = asyncio.get_event_loop().time()
-        poll_interval = 3 if use_notifications else 2  # noqa: F823 — pre-initialized at function entry, ruff false positive on closure
+        poll_interval = 3 if use_notifications else 2
 
         def build_progress_data():
             db.refresh(execution)
