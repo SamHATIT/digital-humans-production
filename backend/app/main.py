@@ -9,25 +9,43 @@ load_dotenv()
 from app.logging_config import setup_logging
 setup_logging()
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts, agent_tester, business_requirements, project_chat, sds_versions, change_requests, deployment, quality_dashboard, wizard, subscription, documents, hitl_routes, billing, config as config_routes, deliverables, concierge_routes
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware, BuildEnabledMiddleware, ExecutionContextMiddleware  # CORE-001 + C-4 + D-2
-from app.database import Base, engine
+from app.database import Base, engine, SessionLocal
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from app.rate_limiter import limiter, rate_limit_exceeded_handler
 from app.services.notification_service import get_notification_service, shutdown_notification_service
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Create database tables
-Base.metadata.create_all(bind=engine)
+# Schema management.
+#
+# cla:OPS-02 / kim:PROD-05 — `Base.metadata.create_all()` used to run at import
+# time. Two consequences, both real:
+#   1. it creates tables from the models without stamping `alembic_version`, so
+#      the first `alembic upgrade head` in production either fails or silently
+#      skips columns → schema drift;
+#   2. it made the process unable to even start when PostgreSQL was down, so a
+#      database outage turned into "the API will not boot" instead of "the API
+#      reports unhealthy".
+# In production the schema is owned by Alembic (`alembic upgrade head`, run by
+# the deployment). Only DEBUG environments keep the convenience auto-create.
+if settings.DEBUG:
+    Base.metadata.create_all(bind=engine)
+else:
+    logger.info(
+        "Schema creation skipped (DEBUG=False): the schema is owned by Alembic. "
+        "Run 'alembic upgrade head' as part of the deployment."
+    )
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -195,10 +213,51 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error shutting down NotificationService: {e}")
 
+def _check_database() -> tuple[bool, str]:
+    """Run a real SELECT 1 against PostgreSQL. Returns (ok, detail)."""
+    from sqlalchemy import text
+
+    db = None
+    try:
+        db = SessionLocal()
+        db.execute(text("SELECT 1"))
+        return True, "ok"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+
 @app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+async def health_check(response: Response):
+    """Health check endpoint.
+
+    cla:OPS-01 / kim:OPS-01 — this used to return {"status": "healthy"}
+    unconditionally, so a dead database still answered 200 to the load
+    balancer while every real request failed with a 500. It now runs a
+    SELECT 1 and answers 503 when the database is unreachable.
+
+    The shallow probe is still available on `/` for callers that only need
+    to know the process is up.
+    """
+    db_ok, db_detail = await asyncio.to_thread(_check_database)
+
+    if not db_ok:
+        logger.error("Health check failed: database unreachable (%s)", db_detail)
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "unhealthy",
+            "checks": {"database": {"status": "down", "detail": db_detail}},
+        }
+
+    return {
+        "status": "healthy",
+        "checks": {"database": {"status": "up"}},
+    }
 
 if __name__ == "__main__":
     import uvicorn
@@ -209,13 +268,9 @@ if __name__ == "__main__":
         reload=settings.DEBUG
     )
 
-# Quick download endpoint
-from fastapi.responses import FileResponse
-import os
-
-@app.get("/download/{filename}")
-async def download_file(filename: str):
-    filepath = str(settings.OUTPUT_DIR / filename)
-    if os.path.exists(filepath):
-        return FileResponse(filepath, filename=filename, media_type="application/octet-stream")
-    return {"error": "File not found"}
+# kim:SEC-03 — the `GET /download/{filename}` endpoint was removed here.
+# It resolved `settings.OUTPUT_DIR / filename` with no authentication and no
+# path resolution, so `GET /download/..%2F..%2F..%2Fetc%2Fpasswd` read
+# arbitrary server files. A repository-wide search found no caller (frontend
+# or backend), so it is deleted rather than patched: authenticated deliverable
+# downloads already exist under /api/deliverables and /api/pm-orchestrator.

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import asyncio
 import logging
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.models.user import User
 from app.models.project import Project
 from app.models.execution import Execution, ExecutionStatus
@@ -19,6 +19,59 @@ from app.api.routes.orchestrator._helpers import verify_execution_access
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["PM Orchestrator"])
+
+# kim:PROD-02 — interval between two reads of the execution row.
+WS_POLL_INTERVAL_SECONDS = 5
+
+
+def _load_execution_snapshot(execution_id: int, user_id: int):
+    """Read one execution in a short-lived session, return a plain dict.
+
+    kim:PROD-02: the session is opened, read and closed inside this call so
+    that no DB connection is held across an ``await``. Previously the handler
+    kept one session open for the whole socket lifetime (``next(get_db())``,
+    never closed), so N monitoring tabs pinned N PostgreSQL connections.
+
+    Returns None when the execution does not exist or does not belong to
+    ``user_id``.
+    """
+    db = SessionLocal()
+    try:
+        execution = (
+            db.query(Execution)
+            .join(Project)
+            .filter(Execution.id == execution_id, Project.user_id == user_id)
+            .first()
+        )
+        if not execution:
+            return None
+        status = execution.status
+        return {
+            "status": status,
+            "status_value": status.value if hasattr(status, "value") else str(status),
+            "progress": execution.progress or 0,
+            "current_agent": execution.current_agent,
+            "agent_execution_status": execution.agent_execution_status,
+            "sds_document_path": execution.sds_document_path,
+        }
+    finally:
+        db.close()
+
+
+async def _wait_or_disconnect(websocket: WebSocket, timeout: float) -> bool:
+    """Wait ``timeout`` seconds, returning True as soon as the client leaves.
+
+    A blind ``asyncio.sleep`` never reads the socket, so a closed browser tab
+    went unnoticed and the server task polled forever. Reading with a timeout
+    turns a disconnect into an immediate, clean exit.
+    """
+    try:
+        message = await asyncio.wait_for(websocket.receive(), timeout=timeout)
+    except asyncio.TimeoutError:
+        return False
+    except (WebSocketDisconnect, RuntimeError):
+        return True
+    return message.get("type") == "websocket.disconnect"
 
 
 @router.post("/chat/{execution_id}")
@@ -76,62 +129,74 @@ async def websocket_endpoint(
 
     await websocket.accept()
 
-    try:
-        db = next(get_db())
+    user_id_int = int(user_id)
 
-        execution = (
-            db.query(Execution)
-            .join(Project)
-            .filter(Execution.id == execution_id, Project.user_id == int(user_id))
-            .first()
+    try:
+        # kim:PROD-02 — every DB read goes through a short-lived session run in
+        # a worker thread: no connection is held across an await, and the sync
+        # SQLAlchemy call no longer blocks the event loop for every client.
+        snapshot = await asyncio.to_thread(
+            _load_execution_snapshot, execution_id, user_id_int
         )
 
-        if not execution:
+        if snapshot is None:
             await websocket.send_json({"type": "error", "data": {"error": "Execution not found"}})
             await websocket.close()
             return
 
         await websocket.send_json({
             "type": "connected",
-            "data": {"execution_id": execution_id, "status": execution.status.value},
+            "data": {"execution_id": execution_id, "status": snapshot["status_value"]},
         })
 
-        last_status = execution.status
-        last_agent = execution.current_agent
+        last_status = snapshot["status"]
+        last_agent = snapshot["current_agent"]
 
         while True:
             try:
-                db.refresh(execution)
+                if snapshot is None:
+                    await websocket.send_json(
+                        {"type": "error", "data": {"error": "Execution not found"}}
+                    )
+                    break
 
-                if execution.status != last_status or execution.current_agent != last_agent:
+                if snapshot["status"] != last_status or snapshot["current_agent"] != last_agent:
                     await websocket.send_json({
                         "type": "progress",
                         "data": {
                             "execution_id": execution_id,
-                            "status": execution.status.value,
-                            "progress": execution.progress or 0,
-                            "current_agent": execution.current_agent,
-                            "agent_execution_status": execution.agent_execution_status,
-                            "message": f"Agent {execution.current_agent} is running..." if execution.current_agent else None,
+                            "status": snapshot["status_value"],
+                            "progress": snapshot["progress"],
+                            "current_agent": snapshot["current_agent"],
+                            "agent_execution_status": snapshot["agent_execution_status"],
+                            "message": f"Agent {snapshot['current_agent']} is running..." if snapshot["current_agent"] else None,
                         },
                     })
-                    last_status = execution.status
-                    last_agent = execution.current_agent
+                    last_status = snapshot["status"]
+                    last_agent = snapshot["current_agent"]
 
-                if execution.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]:
+                if snapshot["status"] in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]:
                     await websocket.send_json({
-                        "type": "completed" if execution.status == ExecutionStatus.COMPLETED else "error",
+                        "type": "completed" if snapshot["status"] == ExecutionStatus.COMPLETED else "error",
                         "data": {
                             "execution_id": execution_id,
-                            "status": execution.status.value,
-                            "progress": 100 if execution.status == ExecutionStatus.COMPLETED else execution.progress,
-                            "sds_document_path": execution.sds_document_path,
+                            "status": snapshot["status_value"],
+                            "progress": 100 if snapshot["status"] == ExecutionStatus.COMPLETED else snapshot["progress"],
+                            "sds_document_path": snapshot["sds_document_path"],
                         },
                     })
                     break
 
-                await asyncio.sleep(5)
+                if await _wait_or_disconnect(websocket, WS_POLL_INTERVAL_SECONDS):
+                    logger.info(f"WebSocket client left execution {execution_id}")
+                    break
 
+                snapshot = await asyncio.to_thread(
+                    _load_execution_snapshot, execution_id, user_id_int
+                )
+
+            except WebSocketDisconnect:
+                raise
             except Exception as e:
                 logger.error(f"Error in WebSocket loop: {str(e)}")
                 await websocket.send_json({"type": "error", "data": {"error": "Internal server error"}})

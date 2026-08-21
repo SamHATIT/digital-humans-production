@@ -205,24 +205,28 @@ def generate_llm_response(
         except Exception:
             db_session = None
 
-    _log_llm_debug("llm_request", {
-        "agent_type": agent_type,
-        "profile": router.get_active_profile(),
-        "max_tokens": clean_kwargs.get("max_tokens", 16000),
-        "system_prompt_length": len(system_prompt) if system_prompt else 0,
-        "user_prompt_length": len(prompt),
-        "user_prompt_preview": prompt[:500],
-    })
-
-    # Auto-resolve subscription_tier from execution_id if not explicitly passed
-    # (Phase 3.4 — tier-based LLM routing, cached per execution).
-    if "subscription_tier" not in clean_kwargs and execution_id:
-        resolved_tier = _resolve_tier_for_execution(execution_id)
-        if resolved_tier:
-            clean_kwargs["subscription_tier"] = resolved_tier
-            logger.debug("Resolved tier=%s for execution=%s", resolved_tier, execution_id)
-
+    # cla:CRASH-01 — the try/finally starts here, right after the session is
+    # created: everything that can raise between creation and the LLM call
+    # (debug log, router.get_active_profile(), tier resolution, budget guard)
+    # is now covered, so an auto-created session can never outlive the call.
     try:
+        _log_llm_debug("llm_request", {
+            "agent_type": agent_type,
+            "profile": router.get_active_profile(),
+            "max_tokens": clean_kwargs.get("max_tokens", 16000),
+            "system_prompt_length": len(system_prompt) if system_prompt else 0,
+            "user_prompt_length": len(prompt),
+            "user_prompt_preview": prompt[:500],
+        })
+
+        # Auto-resolve subscription_tier from execution_id if not explicitly passed
+        # (Phase 3.4 — tier-based LLM routing, cached per execution).
+        if "subscription_tier" not in clean_kwargs and execution_id:
+            resolved_tier = _resolve_tier_for_execution(execution_id)
+            if resolved_tier:
+                clean_kwargs["subscription_tier"] = resolved_tier
+                logger.debug("Resolved tier=%s for execution=%s", resolved_tier, execution_id)
+
         # Garde budgetaire AVANT l'appel — arret dur (mod37, P1.1)
         if execution_id and db_session:
             from app.services.budget_service import BudgetService

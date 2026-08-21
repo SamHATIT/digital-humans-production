@@ -15,6 +15,7 @@ and SSE streaming. This module stays HTTP-agnostic so it can be reused
 later (e.g. by a "talk to Sophie from the Studio" feature, or batch
 analysis of past conversations).
 """
+import asyncio
 import hashlib
 import json
 import logging
@@ -38,7 +39,11 @@ logger = logging.getLogger(__name__)
 PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "agents" / "sophie_pm.yaml"
 HISTORY_TURNS_MAX = 20            # hard cap on conversation length per session
 DAILY_BUDGET_USD = 20.0           # global ceiling, all sessions combined
-IP_SALT = os.getenv("CHAT_IP_SALT", "dh-concierge-default-salt-change-me")
+# kim:COH-05 — no public default. A shipped, well-known salt makes the stored
+# IP hashes reversible by dictionary, which breaks the RGPD commitment written
+# into chat_log.py. Unset means the concierge refuses to serve, the same way
+# journal_webhook.py refuses without JOURNAL_WEBHOOK_SECRET.
+IP_SALT = os.getenv("CHAT_IP_SALT", "")
 
 # Loaded once at module import — small file, no need to re-read on every call.
 _PROMPT_CACHE: Optional[dict] = None
@@ -66,7 +71,16 @@ class ConciergeReply:
 # ─────────────────────────────────────────────────────────────────────
 
 def _hash_ip(ip: str) -> str:
-    """SHA-256 of (ip + salt). Reversible only with the salt, never stored raw."""
+    """SHA-256 of (ip + salt). Reversible only with the salt, never stored raw.
+
+    Raises RuntimeError when CHAT_IP_SALT is not configured: hashing with an
+    empty or publicly known salt would be no protection at all (kim:COH-05).
+    """
+    if not IP_SALT:
+        raise RuntimeError(
+            "CHAT_IP_SALT is not configured — refusing to hash visitor IPs "
+            "with an empty salt. Set CHAT_IP_SALT in the backend environment."
+        )
     return hashlib.sha256(f"{ip}{IP_SALT}".encode("utf-8")).hexdigest()
 
 
@@ -150,11 +164,32 @@ async def converse(
     persisting the user turn, calling the LLM, parsing the META, persisting
     the assistant turn, returning a structured reply.
     """
+    # kim:COH-05 — no salt, no service: better a clear refusal than visitor IPs
+    # hashed with a salt everybody knows.
+    if not IP_SALT:
+        logger.error(
+            "CHAT_IP_SALT is not configured — concierge refuses the turn "
+            "(visitor IP hashes would be reversible)."
+        )
+        return ConciergeReply(
+            text=(
+                "Sorry — the chat is unavailable right now. "
+                "Please email sam@samhatit.com."
+                if visitor_language == "en"
+                else "Désolée, le chat est indisponible pour le moment. "
+                "Écrivez à sam@samhatit.com."
+            ),
+            ended=True,
+        )
+
     ip_hash = _hash_ip(visitor_ip)
 
     # 1. Budget guard — fail closed: if we can't tell, we still try (Postgres
     #    is local, the query is cheap, this should never raise).
-    if not _check_daily_budget(db):
+    #    kim:P0 — this coroutine runs on the event loop: every synchronous
+    #    SQLAlchemy call below is pushed to a worker thread so a public,
+    #    unauthenticated endpoint cannot freeze the loop for every other client.
+    if not await asyncio.to_thread(_check_daily_budget, db):
         logger.warning("Daily concierge budget exceeded — refusing turn")
         return ConciergeReply(
             text=(
@@ -168,12 +203,15 @@ async def converse(
         )
 
     # 2. Conversation length guard — past N turns we redirect to email.
-    history = (
-        db.query(ChatLog)
-        .filter(ChatLog.session_uuid == session_uuid)
-        .order_by(ChatLog.created_at)
-        .all()
-    )
+    def _load_history():
+        return (
+            db.query(ChatLog)
+            .filter(ChatLog.session_uuid == session_uuid)
+            .order_by(ChatLog.created_at)
+            .all()
+        )
+
+    history = await asyncio.to_thread(_load_history)
     if len(history) >= HISTORY_TURNS_MAX * 2:  # *2 because user + assistant per round
         return ConciergeReply(
             text=(
@@ -188,15 +226,17 @@ async def converse(
         )
 
     # 3. Persist the user turn first (so even if LLM call fails we have it).
-    user_log = ChatLog(
-        session_uuid=session_uuid,
-        ip_hash=ip_hash,
-        visitor_language=visitor_language,
-        role="user",
-        message=user_message,
-    )
-    db.add(user_log)
-    db.commit()
+    def _persist_user_turn():
+        db.add(ChatLog(
+            session_uuid=session_uuid,
+            ip_hash=ip_hash,
+            visitor_language=visitor_language,
+            role="user",
+            message=user_message,
+        ))
+        db.commit()
+
+    await asyncio.to_thread(_persist_user_turn)
 
     # 4. Build the prompt from sophie_pm.yaml + this conversation's history.
     mode = _load_concierge_prompt()
@@ -237,26 +277,29 @@ async def converse(
 
     # 6. Persist the assistant turn with metadata + cost.
     cost_micro = int((response.cost_usd or 0) * 1_000_000) if hasattr(response, "cost_usd") else 0
-    assistant_log = ChatLog(
-        session_uuid=session_uuid,
-        ip_hash=ip_hash,
-        visitor_language=visitor_language,
-        role="assistant",
-        message=clean_text,
-        intent=meta.get("intent"),
-        next_action=meta.get("next_action"),
-        email_collected=meta.get("email") or None,
-        tokens_in=getattr(response, "tokens_input", None),
-        tokens_out=getattr(response, "tokens_output", None),
-        cost_usd=cost_micro,
-    )
-    db.add(assistant_log)
-    db.commit()
 
-    # 7. If the visitor shared their email, mirror it to the leads table
-    #    (deduped by email — ignore if already there).
-    if meta.get("email"):
-        _maybe_create_lead(db, meta["email"], meta.get("intent"), session_uuid)
+    def _persist_assistant_turn():
+        db.add(ChatLog(
+            session_uuid=session_uuid,
+            ip_hash=ip_hash,
+            visitor_language=visitor_language,
+            role="assistant",
+            message=clean_text,
+            intent=meta.get("intent"),
+            next_action=meta.get("next_action"),
+            email_collected=meta.get("email") or None,
+            tokens_in=getattr(response, "tokens_input", None),
+            tokens_out=getattr(response, "tokens_output", None),
+            cost_usd=cost_micro,
+        ))
+        db.commit()
+
+        # 7. If the visitor shared their email, mirror it to the leads table
+        #    (deduped by email — ignore if already there).
+        if meta.get("email"):
+            _maybe_create_lead(db, meta["email"], meta.get("intent"), session_uuid)
+
+    await asyncio.to_thread(_persist_assistant_turn)
 
     return ConciergeReply(
         text=clean_text,
