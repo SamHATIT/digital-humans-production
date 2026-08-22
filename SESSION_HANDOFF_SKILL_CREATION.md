@@ -416,7 +416,7 @@ pkill -f 'n8n'
 
 ## Salesforce (SFDX)
 - **CLI** : SFDX v2.113.6
-- **Org authentifiée** : shatit715@agentforce.com
+- **Org authentifiée** : l'org de dev (alias `digital-humans-dev`)
 - **Alias** : digital-humans-dev
 - **Org ID** : 00DgL00000FzQzTUAV
 - **Login** : login.salesforce.com (Developer Edition, PAS test.salesforce.com)
@@ -745,7 +745,7 @@ Total à supprimer : 19 entrées
 - Exécution SDS #130 : COMPLETED (~$2.02, 43 min)
 - SDS : 4878 lignes, 62 UCs, 15 clusters, qualité PRO
 - Git configuré : https://github.com/SamHATIT/formapro-salesforce
-- SF configuré : shatit715@agentforce.com via SFDX
+- SF configuré : l'org de dev (alias `digital-humans-dev`) via SFDX
 - BUILD : Tenté mais échoué (TASK-001 manuelle non gérée)
 
 ### Coûts historiques

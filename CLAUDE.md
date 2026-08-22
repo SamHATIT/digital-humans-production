@@ -106,7 +106,7 @@ systemctl is-active digital-humans-backend digital-humans-frontend postgresql
 ### P0 — TEST E2E BUILD FormaPro (CRITIQUE)
 **Objectif** : Valider que la chaîne SDS → BUILD → déploiement Salesforce fonctionne bout en bout  
 **Référence** : BUILD_V2_SPEC.md Session 6  
-**Org Salesforce** : shatit715@agentforce.com (alias: digital-humans-dev)  
+**Org Salesforce** : l'org de dev (alias `digital-humans-dev`)  
 **Commande de départ** :
 ```bash
 cd /root/workspace/digital-humans-production

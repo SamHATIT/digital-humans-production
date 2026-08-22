@@ -100,7 +100,7 @@ Légende : ✅ Vérifié OK | ❌ Problème | ⚠️ Non testé | 🔍 À vérif
 | DPL-03 | Validation pré-deploy | ✅ Code présent |
 | DPL-07 | Tests post-deploy | ✅ Code présent (run_tests) |
 
-**CONNEXION SF**: ✅ ACTIVE (shatit715@agentforce.com)
+**CONNEXION SF**: ✅ ACTIVE (l'org de dev (alias `digital-humans-dev`))
 
 
 ---
