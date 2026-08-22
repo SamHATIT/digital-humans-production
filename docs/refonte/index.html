@@ -1753,6 +1753,31 @@ flowchart LR
       <tr><td>VPS</td><td><code>72.61.161.222</code></td><td>Hostinger</td></tr>
     </table>
 
+
+    <h3>Séquence de déploiement — vague 1 des correctifs</h3>
+    <p class="section-desc">Issue de l'audit croisé du 21/08. À dérouler <strong>dans cet ordre</strong> :
+    chaque étape suppose la précédente.</p>
+    <table>
+      <tr><th>#</th><th>Étape</th><th>Pourquoi cet ordre</th></tr>
+      <tr><td>1</td><td>Déployer le code de la branche <code>correctifs/audit-croise-20260821</code></td>
+          <td>Le VPS sert encore le code d'avant vague 1, <code>shell=True</code> compris.</td></tr>
+      <tr><td>2</td><td><code>backend/venv/bin/python backend/scripts/rotate_encryption_key.py --verify-only</code></td>
+          <td>Contrôle sans écriture : dit combien de jetons Git sont encore en clair.</td></tr>
+      <tr><td>3</td><td><code>backend/venv/bin/python backend/scripts/rotate_encryption_key.py --encrypt-plaintext --apply</code></td>
+          <td><strong>Obligatoire avant tout déploiement BUILD.</strong> Sans cela, un projet dont le jeton Git
+          est resté en clair cesse de déployer — arrêt net et journalisé, pas de corruption, mais le service s'arrête.</td></tr>
+      <tr><td>4</td><td>Redémarrer <code>digital-humans-backend</code> et <code>-worker</code></td>
+          <td>Compter 40 à 50 s de rechargement ChromaDB avant de tester.</td></tr>
+      <tr><td>5</td><td>Vérifier que <code>/api/agent-tester/org/query</code> répond <strong>401</strong> sans jeton</td>
+          <td>C'est la preuve que le correctif applicatif est actif.</td></tr>
+      <tr><td>6</td><td>Retirer le blocage nginx <code>location ~ ^/api/agent-tester</code></td>
+          <td><strong>Jamais avant l'étape 5.</strong> Ce 403 est la seule protection contre l'exécution de
+          commandes tant que le code corrigé n'est pas déployé.</td></tr>
+    </table>
+    <p><strong>Point de vigilance.</strong> Les tests ne sont pas isolés de la base de production :
+    lancer <code>pytest</code> sur le VPS sans <code>DATABASE_URL</code> dédiée tente un <code>DROP TABLE</code>
+    sur les données réelles. Le 21/08, seule la vue <code>v_deos_sections</code> du comité l'a empêché.</p>
+
     <h3>Commandes essentielles</h3>
     <table>
       <tr><th>Action</th><th>Commande</th></tr>
@@ -4376,7 +4401,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd><em>pas de docstring</em></dd>
+                <dd>Execute a read-only SOQL query against the configured org.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/agent_tester.py</code></dd>
               </dl>
@@ -4515,7 +4540,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Query audit logs with various filters.</dd>
+                <dd>Query audit logs of a project you own, with various filters.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/audit.py</code></dd>
               </dl>
@@ -4533,7 +4558,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Get complete audit timeline for an execution.</dd>
+                <dd>Get complete audit timeline for an execution you own.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/audit.py</code></dd>
               </dl>
@@ -4551,7 +4576,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Get audit history for a BUILD task.</dd>
+                <dd>Get audit history for a BUILD task belonging to one of your executions.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/audit.py</code></dd>
               </dl>
