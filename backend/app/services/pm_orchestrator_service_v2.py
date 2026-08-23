@@ -128,6 +128,101 @@ EMITTED_TO_RESUME_POINT = {
 }
 
 
+#: Extensions qui constituent un livrable remettable au client.
+#:
+#: VAGUE 3 / §3.3 — arbitrage Sam : **le Markdown n'est pas un livrable**. La
+#: phase 6 le renseigne en repli quand l'export DOCX echoue (voir le
+#: `except` de `_execute_from_phase4`) ; il sert la vue HTML. Un
+#: `sds_document_path` en `.md` signifie donc que l'export a echoue ou n'a pas
+#: eu lieu — c'est un cas de regeneration, pas de mise a disposition.
+DELIVERABLE_EXTENSIONS = (".docx", ".pdf")
+
+#: Etat a partir duquel tout le contenu necessaire a la redaction est present.
+#: Critere du point de reprise `phase5` (arbitrage Sam), a ne pas confondre avec
+#: la finalisation du document.
+STATE_CONTENT_READY = "sds_phase4_complete"
+STATE_SDS_COMPLETE = "sds_complete"
+
+
+def resolve_export_action(
+    state: Optional[str], sds_document_path: Optional[str]
+) -> Dict[str, Any]:
+    """Que faire d'une demande de reprise d'export (`phase6_export`) ?
+
+    VAGUE 3 / §3.3. `phase6_export` n'entre pas dans `execute_workflow` : c'est
+    le seul cas ou une reprise ne relance aucun agent. La decision se lit sur
+    deux signaux, tous deux disponibles sans rien recalculer — l'etat de la
+    machine et le chemin du document produit.
+
+    Returns:
+        dict avec `action`, `path`, `resume_from`, `reason`. `action` vaut :
+
+        - ``serve``             — le livrable existe, ne rien relancer ;
+        - ``regenerate_export`` — les donnees sont la, refabriquer le document
+          seul (aucun agent) ;
+        - ``resume_workflow``   — Emma reprend l'ecriture (`phase5`) ;
+        - ``resume_upstream``   — ce n'est pas un cas d'export, il manque du
+          contenu en amont.
+
+    Chaque decision porte sa `reason` : une decision d'export qui ne dit pas
+    pourquoi est indistinguable d'un repli silencieux.
+    """
+    chemin = (sds_document_path or "").strip()
+    extension = ("." + chemin.rsplit(".", 1)[1].lower()) if "." in chemin else ""
+    est_livrable = bool(chemin) and extension in DELIVERABLE_EXTENSIONS
+
+    if state == STATE_SDS_COMPLETE:
+        if est_livrable:
+            return {
+                "action": "serve",
+                "path": sds_document_path,
+                "resume_from": None,
+                "reason": (
+                    f"SDS termine et livrable present ({extension}) : "
+                    f"mise a disposition, aucun agent relance."
+                ),
+            }
+        if not chemin:
+            constat = "chemin absent"
+        elif extension:
+            constat = f"extension {extension} non remettable"
+        else:
+            constat = "fichier sans extension"
+        return {
+            "action": "regenerate_export",
+            "path": None,
+            "resume_from": None,
+            "reason": (
+                f"SDS termine mais aucun livrable : {constat}. Le Markdown est "
+                f"un repli d'export rate, pas un livrable — l'export est "
+                f"refabrique depuis les donnees existantes."
+            ),
+        }
+
+    if state == STATE_CONTENT_READY:
+        return {
+            "action": "resume_workflow",
+            "path": None,
+            "resume_from": "phase5",
+            "reason": (
+                "Contenu complet mais SDS non ecrit : Emma reprend la redaction "
+                "(phase5), puis l'export suit."
+            ),
+        }
+
+    return {
+        "action": "resume_upstream",
+        "path": None,
+        "resume_from": None,
+        "reason": (
+            f"Etat {state!r} : le contenu necessaire a la redaction n'est pas "
+            f"complet ({STATE_CONTENT_READY} non atteint). Ce n'est pas un cas "
+            f"d'export — fabriquer un document ici produirait une coquille. "
+            f"Reprendre en amont."
+        ),
+    }
+
+
 def resolve_resume_point(emitted: Optional[str]) -> Optional[str]:
     """Traduit une valeur emise par une route en point de reprise canonique.
 
