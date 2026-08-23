@@ -277,6 +277,22 @@ def test_artifacts_cloisonnement(client, tenants):
 
 # ---------------------------------------------------------- 3. deployment.py
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "Routeur `deployment` demonte volontairement par `1438431` "
+        "(\"fix: demonter le routeur deployment et reparer le chemin alembic\"). "
+        "Les 7 routes prenaient des chemins de fichiers arbitraires "
+        "(`source_path`, `snapshot_path`) sans lien avec une ressource en base : "
+        "les cloisonner supposait de rattacher les deploiements a une execution, "
+        "modele qui n'existe pas — voir EXECUTION.md §5.1. Le test attend 401 et "
+        "obtient 404 : il est correct, c'est sa cible qui a disparu. "
+        "Garde en `xfail(strict=True)` et non supprime : il porte la trace que "
+        "ces 7 routes non cloisonnees ont existe, et il redeviendra rouge "
+        "(XPASS) le jour ou le routeur sera remonte — ce qui est exactement le "
+        "moment ou il faudra le relire."
+    ),
+)
 def test_deployment_cloisonnement(client, tenants):
     """kim:SEC-01 — le routeur qui execute les deploiements, sans auth."""
     a, b = tenants["a"], tenants["b"]
