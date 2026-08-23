@@ -2,6 +2,7 @@
 Audit Middleware - Automatically logs all HTTP requests.
 CORE-001: Captures API activity for security and debugging.
 """
+import asyncio
 import time
 import uuid
 from typing import Callable
@@ -28,6 +29,18 @@ EXCLUDED_PATHS = {
 LOW_PRIORITY_PATHS = {
     "/api/agents",
 }
+
+# VAGUE 2 / LOT 3 — les flux SSE reussis ne sont pas audites.
+#
+# Le middleware ecrivait une ligne `audit_logs` **par requete SSE**. Or
+# `EventSource` se reconnecte tout seul des que le flux se ferme : un onglet
+# laisse ouvert produisait une ligne par reconnexion, indefiniment, pour un
+# evenement qui n'apprend rien — un client a lu son propre flux. Le journal
+# d'audit se remplissait de bruit qui noyait les lignes qui comptent.
+#
+# Seules les **reussites** sont taues : un flux qui part en 401, 403 ou 500
+# reste audite, c'est precisement ce qu'on veut voir.
+STREAMING_MEDIA_TYPE = "text/event-stream"
 
 
 class AuditMiddleware(BaseHTTPMiddleware):
@@ -76,7 +89,17 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 success == "false" or
                 request.url.path not in LOW_PRIORITY_PATHS
             )
-            
+
+            # VAGUE 2 / LOT 3 : un flux SSE qui s'est bien passe ne merite pas
+            # une ligne. Voir STREAMING_MEDIA_TYPE ci-dessus.
+            if (
+                success == "true"
+                and response is not None
+                and STREAMING_MEDIA_TYPE
+                in (response.headers.get("content-type") or "")
+            ):
+                should_log = False
+
             if should_log:
                 # Log in background to not slow down response
                 try:
@@ -95,8 +118,17 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         user_agent=user_agent
                     )
                     
-                    # Log synchronously but in try/except
-                    audit_service.log(
+                    # VAGUE 2 / LOT 3 — l'ecriture quitte la boucle d'evenements.
+                    #
+                    # `audit_service.log` ouvre une session SQLAlchemy
+                    # synchrone, INSERT et commit. Fait ici, c'etait du SQL
+                    # bloquant sur la boucle, a chaque requete : toutes les
+                    # autres coroutines — flux SSE, WebSocket, appels LLM en
+                    # cours — attendaient l'aller-retour PostgreSQL. Le meme
+                    # defaut que les correctifs P0 async/sync, a un endroit
+                    # traverse par 100 % du trafic.
+                    await asyncio.to_thread(
+                        audit_service.log,
                         actor_type=ActorType.API,
                         actor_id=ip_address,
                         action=action,

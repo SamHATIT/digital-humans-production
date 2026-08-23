@@ -16,7 +16,21 @@ from app.main import app
 # cla:OPS-01 — /health doit echouer quand la base est arretee
 # ---------------------------------------------------------------------------
 
-def test_health_ok_when_database_reachable(client):
+@pytest.fixture
+def autres_dependances_ok(monkeypatch):
+    """Neutralise les sondes redis et chroma.
+
+    VAGUE 2 / LOT 3 : `/health` sonde desormais trois dependances, pas une.
+    Ce test-ci porte sur la base — il doit donc tenir les deux autres, sinon il
+    mesure l'environnement d'execution (un Redis local, un ChromaDB peuple) au
+    lieu de mesurer le code. Le comportement des deux nouvelles sondes est
+    couvert par `tests/test_vague2_lot3_observabilite.py`.
+    """
+    monkeypatch.setattr("app.main._check_redis", lambda: (True, "ok"))
+    monkeypatch.setattr("app.main._check_chroma", lambda: (True, "ok"))
+
+
+def test_health_ok_when_database_reachable(client, autres_dependances_ok):
     response = client.get("/health")
     assert response.status_code == 200
     body = response.json()

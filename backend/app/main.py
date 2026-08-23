@@ -240,6 +240,64 @@ def _check_database() -> tuple[bool, str]:
                 pass
 
 
+def _check_redis() -> tuple[bool, str]:
+    """Ping Redis. Returns (ok, detail).
+
+    VAGUE 2 / LOT 3 — Redis porte la file ARQ (`arq_config.REDIS_SETTINGS`).
+    Sans lui, `enqueue_job` echoue et **aucune execution ne demarre** : SDS,
+    BUILD, retry, reprise. Un `/health` qui ne le regarde pas rend 200 pendant
+    que le produit est a l'arret.
+    """
+    import redis as redis_lib
+
+    from app.workers.arq_config import REDIS_SETTINGS
+
+    client = None
+    try:
+        client = redis_lib.Redis(
+            host=REDIS_SETTINGS.host,
+            port=REDIS_SETTINGS.port,
+            db=REDIS_SETTINGS.database,
+            password=REDIS_SETTINGS.password,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        if not client.ping():
+            return False, "PING returned a falsy reply"
+        return True, "ok"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+
+def _check_chroma() -> tuple[bool, str]:
+    """Count the RAG chunks. Returns (ok, detail).
+
+    VAGUE 2 / LOT 3 — le RAG porte 70 K chunks. Un ChromaDB absent ou vide ne
+    fait pas tomber le backend : **les agents tournent sans contexte Salesforce
+    et rendent des livrables plausibles mais pauvres**. C'est exactement la
+    panne qu'on ne voit pas sans sonde, d'ou le `chroma.count` demande par Kimi
+    plutot qu'un simple « le client repond ».
+    """
+    try:
+        from app.services.rag_service import rag_health_check
+
+        result = rag_health_check()
+        if result.get("error"):
+            return False, str(result["error"])
+        total = result.get("total_chunks", 0)
+        if not total:
+            return False, f"0 chunks at {result.get('chroma_path')}"
+        return True, f"{total} chunks"
+    except Exception as e:
+        return False, f"{type(e).__name__}: {e}"
+
+
 @app.get("/health")
 async def health_check(response: Response):
     """Health check endpoint.
@@ -249,23 +307,46 @@ async def health_check(response: Response):
     balancer while every real request failed with a 500. It now runs a
     SELECT 1 and answers 503 when the database is unreachable.
 
+    VAGUE 2 / LOT 3 — la sonde ne couvrait que la base. Kimi demandait
+    `SELECT 1` + `redis.ping` + `chroma.count` : les trois y sont desormais, et
+    **une seule dependance morte suffit a rendre 503**. Une dependance
+    silencieusement absente est precisement ce qui a coute des jours a cet
+    audit ; un `/health` vert sur un Redis mort en est la version operationnelle.
+
+    Les trois sondes sont synchrones et bloquantes par nature (socket, disque) :
+    elles partent en fil d'execution, jamais sur la boucle d'evenements.
+
     The shallow probe is still available on `/` for callers that only need
     to know the process is up.
     """
-    db_ok, db_detail = await asyncio.to_thread(_check_database)
+    # Les sondes sont resolues a chaque appel, pas figees dans une constante de
+    # module : c'est ce qui permet de les remplacer en test sans monter un
+    # Redis et un ChromaDB reels.
+    probes = (
+        ("database", _check_database),
+        ("redis", _check_redis),
+        ("chroma", _check_chroma),
+    )
 
-    if not db_ok:
-        logger.error("Health check failed: database unreachable (%s)", db_detail)
+    results = await asyncio.gather(
+        *(asyncio.to_thread(probe) for _, probe in probes)
+    )
+
+    checks = {}
+    down = []
+    for (name, _), (ok, detail) in zip(probes, results):
+        if ok:
+            checks[name] = {"status": "up"}
+        else:
+            checks[name] = {"status": "down", "detail": detail}
+            down.append(f"{name} ({detail})")
+
+    if down:
+        logger.error("Health check failed: %s", ", ".join(down))
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {
-            "status": "unhealthy",
-            "checks": {"database": {"status": "down", "detail": db_detail}},
-        }
+        return {"status": "unhealthy", "checks": checks}
 
-    return {
-        "status": "healthy",
-        "checks": {"database": {"status": "up"}},
-    }
+    return {"status": "healthy", "checks": checks}
 
 if __name__ == "__main__":
     import uvicorn

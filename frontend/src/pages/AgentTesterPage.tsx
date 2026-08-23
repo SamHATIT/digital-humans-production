@@ -16,6 +16,7 @@ import {
 } from '../lib/agents';
 import type { StudioAgent } from '../lib/agents';
 import { api, stream } from '../services/api';
+import { SseLineReader } from '../lib/sseStream';
 
 interface AgentBackend {
   name?: string;
@@ -126,20 +127,24 @@ export default function AgentTesterPage() {
         task_description: taskDescription,
         deploy_to_org: true,
       });
+      // VAGUE 2 / LOT 3 — le decodage vit dans `lib/sseStream`, teste seul.
+      // Avant : `decoder.decode(value)` sans `{ stream: true }` ni tampon entre
+      // chunks, et un `catch { }` qui avalait le `JSON.parse` en echec. Un
+      // evenement coupe a la frontiere d'un chunk — cas normal — perdait sa
+      // ligne de log en silence, et sur un flux de test d'agent une ligne
+      // manquante fait conclure qu'une etape n'a pas eu lieu.
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const sse = new SseLineReader();
       while (reader) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value);
-        for (const line of text.split('\n')) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              setLogs((prev) => [...prev, data]);
-            } catch { /* ignore */ }
-          }
+        if (!value) continue;
+        for (const event of sse.push(value)) {
+          setLogs((prev) => [...prev, event as LogEntry]);
         }
+      }
+      for (const event of sse.flush()) {
+        setLogs((prev) => [...prev, event as LogEntry]);
       }
     } catch (err: any) {
       setLogs((prev) => [...prev, { type: 'error', level: 'ERROR', message: `${err}` }]);
