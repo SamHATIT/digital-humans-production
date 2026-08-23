@@ -73,6 +73,22 @@ RAG : /opt/digital-humans/rag/chromadb_data/ (2.4GB, 70251 chunks)
 
 ## 🔧 Règles de développement
 
+### ⚠️ À LIRE AVANT TOUTE MODIFICATION
+
+**`.claude/skills/dh-discipline-de-preuve/SKILL.md`** — sept règles de
+vérification, chacune née d'un incident daté sur ce dépôt. Elles priment sur
+l'habitude. Les trois qui reviennent le plus :
+
+1. **Distinguer « exécuté » de « lu ».** Ne jamais présenter comme un fait ce
+   qui n'a pas été exécuté. « Je ne trouve pas » est une réponse acceptable ;
+   une déduction présentée comme un constat ne l'est pas.
+2. **Un test vert ne vaut que ce que vaut son assertion.** Un test de ce dépôt
+   a porté un critère de fin en vérifiant la *présence* du défaut qu'il
+   prétendait corrigé.
+3. **Mesurer la référence, ne pas la reprendre d'un document.** Un document
+   décrit l'état au moment où il a été écrit.
+
+
 ### Git — OBLIGATOIRE
 ```bash
 # Toujours créer une branche avant de toucher au code
