@@ -1,0 +1,37 @@
+# Dependances de l'environnement de test.
+#
+# VAGUE 2 / LOT 1b — audit croise du 21/08/2026.
+#
+# Constat de depart : « python-docx et chromadb sont absents de l'environnement
+# de test, donc pm_orchestrator_service_v2 ne s'y importe pas et l'E2E BUILD
+# FormaPro ne peut pas tourner ».
+#
+# Verification : les deux paquets sont bien dans `requirements.txt`. Ce qui
+# manquait n'etait pas la declaration, c'etait un fichier disant *ce qu'il faut
+# installer pour lancer la suite* — d'ou des environnements de test partiels ou
+# ces deux imports tombaient. Ce fichier tranche : la suite s'installe avec
+#
+#     pip install -r requirements-test.txt
+#
+# et rien d'autre.
+
+-r requirements.txt
+
+# ---------------------------------------------------------------------------
+# Pin de compatibilite — trouve en montant l'environnement de la vague 2.
+#
+# `requirements.txt` demande `httpx>=0.27.0`. httpx 0.28 a retire le raccourci
+# `Client(app=...)`, sur lequel repose le TestClient de starlette 0.27
+# (fastapi 0.104.1). Resultat mesure : **78 erreurs** de collecte, toutes en
+# `TypeError: Client.__init__() got an unexpected keyword argument 'app'`,
+# sur test_lot_b / test_lot_c / test_lot_g — c'est-a-dire les tests qui
+# demontrent les criteres de fin des lots B, C et G de la vague 1.
+#
+# Le plafond vit ici et pas dans requirements.txt : c'est le TestClient qui
+# contraint, pas le code applicatif.
+httpx>=0.27.0,<0.28
+
+# Outillage de test explicite (deja tire par requirements.txt, repete ici pour
+# que ce fichier se lise seul).
+pytest==7.4.3
+pytest-asyncio==0.21.1

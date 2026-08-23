@@ -67,6 +67,19 @@ async def retry_failed_execution(
                     resume_from = f"phase_{phase_order[idx + 1]}"
                 break
 
+    # VAGUE 2 / LOT 1a — `resume_from="build_tasks"` etait une valeur morte.
+    # Elle etait posee ici puis passee a `execute_sds_task`, donc a
+    # `execute_workflow`, qui ne connait que phase1/phase1_pm/phase2/phase4/
+    # phase5 : elle tombait dans la branche generique « saute la phase 1 » et
+    # **rejouait le SDS a partir de la phase 2**. Un retry de taches BUILD
+    # repayait ainsi toute la chaine SDS au lieu de reprendre le BUILD.
+    #
+    # Le BUILD a deja son point d'entree, utilise par /resume-build : le job ARQ
+    # `execute_build_task`, qui relit les TaskExecution et reprend celles qui ne
+    # sont pas COMPLETED. La reprise BUILD ne se porte donc pas par un
+    # `resume_from` mais par l'etat des taches, remises a PENDING juste avant.
+    is_build_retry = bool(failed_tasks)
+
     # P7: Atomic transaction for retry reset — all task resets + status update together
     try:
         if failed_tasks:
@@ -75,7 +88,6 @@ async def retry_failed_execution(
                 task.attempt_count = 0
                 task.last_error = None
                 task.error_log = None
-            resume_from = "build_tasks"
 
         execution.status = ExecutionStatus.RUNNING
         db.commit()
@@ -84,6 +96,26 @@ async def retry_failed_execution(
         raise
 
     pool = await get_redis_pool()
+
+    if is_build_retry:
+        job = await pool.enqueue_job(
+            "execute_build_task",
+            project_id=execution.project_id,
+            execution_id=execution.id,
+            _queue_name="digital-humans",
+        )
+        logger.info(
+            f"[ARQ] Job {job.job_id} enqueued for BUILD retry {execution.id} — "
+            f"{len(failed_tasks)} failed tasks reset to PENDING"
+        )
+        return ExecutionStartResponse(
+            execution_id=execution.id,
+            status="retrying",
+            message=(
+                f"BUILD retrying. {len(failed_tasks)} failed tasks reset."
+            ),
+        )
+
     job = await pool.enqueue_job(
         "execute_sds_task",
         execution_id=execution.id,

@@ -3,14 +3,6 @@ Pytest configuration and fixtures for testing.
 """
 import os
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.main import app
-from app.database import Base, get_db
-
 # Test database URL.
 # Les modeles utilisent des colonnes JSONB : SQLite ne sait pas les compiler et
 # toute fixture qui cree les tables echouait en CompileError. La base de test
@@ -23,6 +15,31 @@ SQLALCHEMY_DATABASE_URL = os.environ.get(
         "postgresql://postgres@127.0.0.1:5432/digital_humans_test",
     ),
 )
+
+# VAGUE 2 / LOT 1c — garde DATABASE_URL.
+#
+# Le repli sur DATABASE_URL ci-dessus est commode et dangereux : sur le VPS, le
+# service backend et l'arbre de travail deploye lisent le meme backend/.env,
+# donc DATABASE_URL y pointe la base de production. La fixture `db_session`
+# plus bas fait `create_all` puis **`drop_all` apres chaque test**. Un `pytest`
+# lance depuis /root/workspace/digital-humans-production detruirait les donnees
+# reelles. Le 21/08 seule une vue du comite l'a empeche.
+#
+# La garde est **avant l'import de `app.main`**, et ce n'est pas cosmetique :
+# importer `app.main` ouvre deja une connexion et, en DEBUG, execute
+# `Base.metadata.create_all()` (voir LOT 4). Une garde posee apres cet import
+# refuserait la suite *apres* avoir ecrit dans la base qu'elle protege.
+from tests.db_guard import assert_not_production_database  # noqa: E402
+
+assert_not_production_database(SQLALCHEMY_DATABASE_URL)
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from app.main import app  # noqa: E402
+from app.database import Base, get_db  # noqa: E402
 
 _connect_args = (
     {"check_same_thread": False}

@@ -65,6 +65,19 @@ from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE
 
 logger = logging.getLogger(__name__)
 
+# VAGUE 2 / LOT 1a — vocabulaire de `resume_from`, rendu explicite.
+#
+# `execute_workflow` ne teste que quatre valeurs, dispersees dans le corps de la
+# methode (`:377` pour la phase 1, `:488` pour les phases 2-3). Tout le reste
+# tombait en silence dans la branche generique. On nomme ici ce que le code
+# reconnait vraiment, pour que l'ecart avec ce que les appelants envoient soit
+# visible au lieu d'etre devine.
+SDS_RESUME_POINTS = frozenset({"phase1", "phase1_pm", "phase2", "phase4", "phase5"})
+
+# Reprises de phase BUILD : elles ne passent pas par `execute_workflow`, qui est
+# le workflow SDS. Elles ont leur propre job ARQ, `execute_build_task`.
+BUILD_RESUME_POINTS = frozenset({"build_tasks"})
+
 # Agent script paths (centralized via config.py)
 AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
 
@@ -298,6 +311,37 @@ class PMOrchestratorServiceV2:
             include_as_is: Whether to include As-Is analysis (requires SFDX)
             sfdx_metadata: Optional SFDX metadata for As-Is analysis
         """
+        # VAGUE 2 / LOT 1a — refus explicite d'un point de reprise BUILD.
+        #
+        # `retry_routes` posait `resume_from="build_tasks"` et enfilait ce
+        # workflow. Aucune branche ne reconnaissait la valeur : elle tombait
+        # dans le `if resume_from and resume_from not in (None, "phase1",
+        # "phase1_pm")` plus bas, qui saute la phase 1 puis **rejoue le SDS a
+        # partir de la phase 2**. Le retry BUILD repayait la chaine SDS.
+        #
+        # L'appelant est corrige (il enfile `execute_build_task`), mais le repli
+        # silencieux reste un piege pour tout futur appelant : on l'arrete ici et
+        # on dit pourquoi, plutot que de degrader sans le dire.
+        if resume_from in BUILD_RESUME_POINTS:
+            raise ValueError(
+                f"resume_from={resume_from!r} n'est pas un point de reprise SDS : "
+                f"c'est une reprise de phase BUILD. execute_workflow ne sait pas "
+                f"la traiter et rejouerait le SDS a partir de la phase 2. "
+                f"Utiliser le job ARQ 'execute_build_task', qui reprend les "
+                f"TaskExecution non terminees."
+            )
+        if resume_from is not None and resume_from not in SDS_RESUME_POINTS:
+            # Pas un refus : la branche generique reste le comportement historique
+            # de toutes ces valeurs. Mais elle cesse d'etre muette — voir
+            # EXECUTION_VAGUE2.md, le vocabulaire de `resume_from` est fracture
+            # entre quatre appelants et depasse le perimetre de ce lot.
+            logger.warning(
+                f"[resume_from] valeur non reconnue : {resume_from!r}. "
+                f"Points de reprise SDS connus : {sorted(SDS_RESUME_POINTS)}. "
+                f"Repli sur la branche generique « saute la phase 1, rejoue a "
+                f"partir de la phase 2 » — verifier que c'est bien l'intention."
+            )
+
         try:
             # Get project and execution
             project = self.db.query(Project).filter(Project.id == project_id).first()
