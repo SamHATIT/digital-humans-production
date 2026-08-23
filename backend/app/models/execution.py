@@ -69,6 +69,21 @@ class Execution(Base):
     pending_validation = Column(JSONB, nullable=True)  # Current gate info when paused
     validation_history = Column(JSONB, default=list)    # List of past validation decisions
 
+    # VAGUE 3 / §4 — selection des experts SDS, decidee par Marcus en fin de
+    # phase 3 et **persistee** (contrainte 2, arbitrage Sam).
+    #
+    # Colonne dediee, et non reutilisation de `selected_agents` : cette
+    # derniere porte l'intention du client au lancement, qui fait autorite
+    # (contrainte 4). L'ecraser avec la decision de Marcus effacerait
+    # precisement ce qui doit primer sur lui.
+    #
+    # Forme : {"selected": [...], "excluded": {agent: justification},
+    #          "decided_by": "user"|"architect"|"resumed", "signals": {...}}
+    #
+    # Relue par une reprise en `phase4` : la recalculer relancerait des experts
+    # que Marcus avait ecartes.
+    expert_selection = Column(JSONB, nullable=True)
+
     # Relationships
     project = relationship("Project", back_populates="executions")
     user = relationship("User", back_populates="executions")

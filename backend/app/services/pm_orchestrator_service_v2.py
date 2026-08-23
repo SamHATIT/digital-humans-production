@@ -109,9 +109,14 @@ EXPORT_RESUME_POINTS = frozenset({"phase6_export"})
 # alimente le vocabulaire, elle ne l'affaiblit pas.
 #
 # Les quatre valeurs d'experts reprennent toutes en `phase5` parce qu'aucun
-# point de reprise ne distingue les experts entre eux, et qu'en pratique ils
-# tournent tous. Si la selection par Marcus est mise en place (§4), ce point est
-# a revoir : une reprise devra relire la selection en base, pas la recalculer.
+# point de reprise ne distingue les experts entre eux.
+#
+# La specification prevenait qu'avec la selection par Marcus (§4), ce point
+# serait a revoir : « une reprise devra relire la selection en base, pas la
+# recalculer ». C'est fait — `decide_sds_experts` relit `expert_selection`
+# quand elle existe et se declare `decided_by="resumed"`. Une reprise en
+# `phase4` ne relance donc que les experts que Marcus avait retenus, et ne
+# ressuscite pas ceux qu'il avait ecartes.
 EMITTED_TO_RESUME_POINT = {
     # retry_routes.py:67 — `phase_{agent suivant}`, apres l'echec d'un agent
     "phase_ba": "phase2_5",         # Olivia a fini les UC
@@ -2880,6 +2885,110 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             traceback.print_exc()
             return {"success": False, "error": str(e)}
     
+    # ========================================================================
+    # VAGUE 3 / §4 — selection des experts SDS par Marcus
+    # ========================================================================
+
+    def decide_sds_experts(
+        self,
+        execution: Execution,
+        artifacts_source: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Decide — ou relit — quels experts SDS doivent tourner en phase 4.
+
+        VAGUE 3 / §4. Trois regles se croisent ici, dans cet ordre :
+
+        1. **Une decision deja prise est relue, jamais recalculee**
+           (contrainte 2). Une reprise en `phase4` qui recalculerait
+           relancerait des experts que Marcus avait ecartes. La relecture se
+           declare comme telle (`decided_by="resumed"`) plutot que de se faire
+           passer pour une nouvelle decision.
+        2. **Un choix explicite de l'utilisateur prime** (contrainte 4).
+        3. Sinon **Marcus decide**, au vu des artefacts qu'il vient de produire.
+
+        Args:
+            execution: l'execution, dont `expert_selection` porte la decision.
+            artifacts_source: artefacts deja en memoire. `None` -> relus en base.
+
+        Returns:
+            Le dict de `select_sds_experts`, augmente de `decided_by="resumed"`
+            quand il s'agit d'une relecture.
+        """
+        from app.services.expert_selection import select_sds_experts
+
+        deja_decide = execution.expert_selection
+        if deja_decide and deja_decide.get("selected") is not None:
+            relu = dict(deja_decide)
+            relu["decided_by"] = "resumed"
+            logger.info(
+                f"[Phase 4] Selection d'experts relue en base "
+                f"(decidee par {deja_decide.get('decided_by')}) : "
+                f"{relu['selected']} — ecartes : {sorted(relu.get('excluded', {}))}"
+            )
+            return relu
+
+        artifacts = (
+            artifacts_source
+            if artifacts_source is not None
+            else self._load_existing_artifacts(execution.id)
+        )
+        choix = select_sds_experts(
+            artifacts=artifacts, selected_agents=execution.selected_agents
+        )
+
+        execution.expert_selection = choix
+        flag_modified(execution, "expert_selection")
+        self.db.commit()
+
+        logger.info(
+            f"[Phase 4] Experts retenus ({choix['decided_by']}) : "
+            f"{choix['selected']} — ecartes : {sorted(choix['excluded'])}"
+        )
+        for agent, raison in choix["excluded"].items():
+            logger.info(f"[Phase 4] {raison}")
+
+        return choix
+
+    def render_expert_coverage(self, execution: Execution) -> str:
+        """Section de couverture des experts, destinee au SDS.
+
+        VAGUE 3 / §4, contrainte 3 : **un expert ecarte doit etre justifie dans
+        le SDS, pas absent.**
+
+        « Une absence justifiee est une couverture explicite : le client voit
+        que le volet a ete analyse et ecarte, pas oublie. Un silence ne dit rien
+        et ressemble a un oubli. » (Sam)
+
+        Rend une chaine vide quand aucune decision n'a ete prise — mieux vaut
+        pas de section qu'une section trompeuse.
+        """
+        from app.services.expert_selection import AGENT_DISPLAY_NAMES
+
+        choix = execution.expert_selection
+        if not choix or choix.get("selected") is None:
+            return ""
+
+        lignes = ["## Couverture des specialistes", ""]
+
+        retenus = choix.get("selected") or []
+        if retenus:
+            lignes.append("**Specialistes intervenus**")
+            lignes.append("")
+            for agent in retenus:
+                nom = AGENT_DISPLAY_NAMES.get(agent, agent)
+                lignes.append(f"- {nom} : intervenu.")
+            lignes.append("")
+
+        ecartes = choix.get("excluded") or {}
+        if ecartes:
+            lignes.append("**Specialistes non intervenus**")
+            lignes.append("")
+            for agent in sorted(ecartes):
+                lignes.append(f"- {ecartes[agent]}")
+            lignes.append("")
+
+        return "\n".join(lignes).rstrip() + "\n"
+
     def _load_uc_digest(self, execution_id: int) -> Dict[str, Any]:
         """Relit le digest d'Emma depuis `agent_deliverables`.
 
@@ -3200,18 +3309,31 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             except Exception as e:
                 logger.warning(f"[StateMachine] transition failed: {e}")
 
-        ALL_SDS_EXPERTS = ["data", "trainer", "qa", "devops"]
+        # VAGUE 3 / §4 — c'est Marcus qui decide des experts necessaires.
+        #
+        # Avant : le filtre portait sur `selected_agents`, une colonne JSON
+        # renseignee **au lancement**, donc avant que quiconque ait analyse le
+        # projet. Vide, les quatre experts tournaient — et en pratique elle
+        # etait toujours vide. Le mecanisme existait mais etait alimente par le
+        # mauvais bout : un dispositif inerte, meme famille que
+        # `BuildEnabledMiddleware` avant la vague 1.
+        #
+        # Desormais la decision est prise ici, apres la phase 3, au vu des
+        # artefacts que Marcus vient de produire — et **persistee**, pour
+        # qu'une reprise en `phase4` la relise au lieu de la recalculer
+        # (contrainte 2). Un choix explicite de l'utilisateur continue de
+        # primer (contrainte 4), et Elena reste inamovible (contrainte 1).
+        selection = self.decide_sds_experts(execution, artifacts_source=results["artifacts"])
 
         if skip_phase4:
             SDS_EXPERTS = []  # Skip all experts — outputs loaded from DB above
             expert_results = []
-        elif selected_agents:
-            SDS_EXPERTS = [agent for agent in ALL_SDS_EXPERTS if agent in selected_agents]
-            skipped = [agent for agent in ALL_SDS_EXPERTS if agent not in selected_agents]
-            if skipped:
-                logger.info(f"[Phase 4] Skipping non-selected agents: {skipped}")
         else:
-            SDS_EXPERTS = ALL_SDS_EXPERTS
+            SDS_EXPERTS = list(selection["selected"])
+            for agent, raison in selection["excluded"].items():
+                # Contrainte 3 : jamais une absence muette. La justification
+                # part aussi dans le SDS via `render_expert_coverage`.
+                logger.info(f"[Phase 4] Ecarte — {raison}")
 
         if SDS_EXPERTS:
             logger.info(f"[Phase 4] SDS Expert Agents to execute: {SDS_EXPERTS}")
@@ -3446,6 +3568,21 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             emma_output = emma_write_result["output"]
             emma_write_tokens = emma_output.get("metadata", {}).get("tokens_used", 0)
             sds_markdown = emma_output.get("content", {}).get("raw_markdown", "") or emma_output.get("content", {}).get("document", "")
+
+            # VAGUE 3 / §4, contrainte 3 — un expert ecarte est justifie dans le
+            # SDS, pas absent.
+            #
+            # « Une absence justifiee est une couverture explicite : le client
+            # voit que le volet a ete analyse et ecarte, pas oublie. Un silence
+            # ne dit rien et ressemble a un oubli. » (Sam)
+            #
+            # La section est ajoutee ici plutot que confiee au prompt d'Emma :
+            # la couverture est un fait de l'execution, pas une redaction. Elle
+            # ne doit pas dependre de ce que le LLM a bien voulu reprendre.
+            couverture = self.render_expert_coverage(execution)
+            if couverture:
+                sds_markdown += "\n\n---\n\n" + couverture
+                logger.info("[Phase 5] Section de couverture des specialistes ajoutee")
 
             # H13: Append pre-generated UCs as Annexe A
             if uc_section_3_content:
