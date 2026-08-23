@@ -202,6 +202,36 @@ async def submit_validation_decision(
     )
 
 
+def _tracer_annotations_non_relues(gate_name: str, annotations) -> None:
+    """VAGUE 3 / §6 — dire que les annotations ne sont relues par personne.
+
+    Elles sont conservees : `ValidationGateService.submit_validation` les ecrit
+    dans `execution.validation_history`. Mais aucun agent ne les relit. Le taire
+    laisserait croire — au client comme au prochain developpeur — qu'un rejet
+    commente influence la relance. Il ne l'influence pas encore.
+    """
+    if not annotations:
+        return
+    logger.warning(
+        "[ValidationGate] Porte %r rejetee avec annotations : conservees dans "
+        "execution.validation_history, mais AUCUN agent ne les relit "
+        "aujourd'hui. La relance repart sans ce retour. Voir SPEC_VAGUE3 §6.",
+        gate_name,
+    )
+
+
+def _annotations_dans_la_reponse(approved: bool, annotations) -> dict:
+    """Ce que la reponse dit des annotations, sans rien promettre de faux."""
+    if approved:
+        return {}
+    return {
+        "annotations": annotations,
+        # Explicite : le client voit que son commentaire est enregistre et
+        # qu'il n'est pas encore reinjecte dans la relance.
+        "annotations_applied": False,
+    }
+
+
 async def _relancer_apres_porte(
     *,
     db: Session,
@@ -254,16 +284,7 @@ async def _relancer_apres_porte(
             db.rollback()
             raise
 
-        if annotations:
-            # Regle 5 : `execute_build_task` ne transporte pas d'annotations.
-            # Les passer en silence serait les perdre en silence. Traite en §6.
-            logger.warning(
-                "[ValidationGate] Rejet de %r avec annotations : le worker BUILD "
-                "ne les transporte pas encore, elles ne seront pas relues par "
-                "les agents. Annotations conservees en base par "
-                "ValidationGateService.",
-                gate_name,
-            )
+        _tracer_annotations_non_relues(gate_name, annotations)
 
         job = await pool.enqueue_job(
             "execute_build_task",
@@ -280,7 +301,7 @@ async def _relancer_apres_porte(
             "status": statut_reponse,
             "gate": gate_name,
             "approved": approved,
-            **({"annotations": annotations} if not approved else {}),
+            **_annotations_dans_la_reponse(approved, annotations),
             "message": (
                 f"{'Approved' if approved else 'Rejected with feedback'}. "
                 f"BUILD resuming — {len(taches)} tasks reset."
@@ -345,17 +366,31 @@ async def _relancer_apres_porte(
     execution.status = ExecutionStatus.RUNNING
     db.commit()
 
-    kwargs = {
-        "execution_id": execution.id,
-        "project_id": execution.project_id,
-        "selected_agents": execution.selected_agents,
-        "resume_from": point_canonique,
-        "_queue_name": "digital-humans",
-    }
-    if annotations:
-        kwargs["annotations"] = annotations
+    # VAGUE 3 / §6 — le kwarg `annotations` est retire.
+    #
+    # Il etait passe a `execute_sds_task`, qui n'a pas ce parametre
+    # (`workers/tasks.py:9`). ARQ serialise les kwargs sans les valider :
+    # l'enfilage reussissait, le job mourait en `TypeError` **dans le worker**,
+    # et cote client la porte etait rejetee avec un 200 sans que rien ne
+    # redemarre. Rejeter une porte avec commentaires ne relancait donc rien.
+    #
+    # Il n'est pas rebranche plus loin, et c'est un choix (regle 2, verifier les
+    # consommateurs) : **personne ne lit ces annotations**. Aucun agent, aucun
+    # prompt ; `execute_workflow` n'a pas de parametre `annotations` ;
+    # `execution.validation_history` est ecrit et jamais relu ailleurs. Le
+    # cabler jusqu'a `execute_workflow` creerait un parametre inerte de plus.
+    # Les faire relire par les agents est de la fonctionnalite, pas un
+    # correctif — voir le rapport de vague 3.
+    _tracer_annotations_non_relues(gate_name, annotations)
 
-    job = await pool.enqueue_job("execute_sds_task", **kwargs)
+    job = await pool.enqueue_job(
+        "execute_sds_task",
+        execution_id=execution.id,
+        project_id=execution.project_id,
+        selected_agents=execution.selected_agents,
+        resume_from=point_canonique,
+        _queue_name="digital-humans",
+    )
     logger.info(
         f"[ValidationGate] Job {job.job_id} enqueued for execution "
         f"{execution_id} from {point_canonique} (gate {gate_name})"
@@ -365,7 +400,7 @@ async def _relancer_apres_porte(
         "status": statut_reponse,
         "gate": gate_name,
         "approved": approved,
-        **({"annotations": annotations} if not approved else {}),
+        **_annotations_dans_la_reponse(approved, annotations),
         "message": (
             f"{'Approved' if approved else 'Rejected with feedback'}. "
             f"Execution resuming from {point_canonique}."
