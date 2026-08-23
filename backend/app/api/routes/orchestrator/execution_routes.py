@@ -182,6 +182,15 @@ async def resume_execution(
 
     resume_point, validated_brs = await asyncio.to_thread(_determine_resume_point)
 
+    # VAGUE 3 / §3.2 — `phase2_ba` etait une valeur morte de plus. Son effet
+    # reel (rejouer depuis la phase 2) coincidait avec l'intention, mais par
+    # accident : elle tombait dans la branche generique, comme les onze autres.
+    # On la traduit pour que la coincidence devienne un contrat.
+    from app.services.pm_orchestrator_service_v2 import resolve_resume_point
+
+    if resume_point:
+        resume_point = resolve_resume_point(resume_point)
+
     if not resume_point and execution.status == ExecutionStatus.FAILED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
