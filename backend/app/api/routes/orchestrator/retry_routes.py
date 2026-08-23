@@ -57,6 +57,13 @@ async def retry_failed_execution(
     agent_status = execution.agent_execution_status or {}
     resume_from = "phase1"
 
+    # VAGUE 3 / §3.2 — cette boucle construisait `f"phase_{agent suivant}"`,
+    # soit `phase_ba`, `phase_architect`, `phase_data`, `phase_trainer`,
+    # `phase_qa`, `phase_devops` : six valeurs qu'`execute_workflow` ne
+    # reconnaissait pas et qui rejouaient toutes depuis la phase 2. La route
+    # continue de raisonner en agents — c'est ce qu'elle observe — mais elle
+    # **traduit avant d'enfiler**, pour que le job porte un point de reprise
+    # canonique.
     phase_order = ["pm", "ba", "architect", "data", "trainer", "qa", "devops"]
     for agent_id in reversed(phase_order):
         if agent_id in agent_status:
@@ -66,6 +73,14 @@ async def retry_failed_execution(
                 if idx < len(phase_order) - 1:
                     resume_from = f"phase_{phase_order[idx + 1]}"
                 break
+
+    # Import local, comme le reste du fichier : `pm_orchestrator_service_v2`
+    # tire python-docx et chromadb. Le monter au niveau module ferait dependre
+    # le demarrage de l'API de ces deux paquets, alors qu'aujourd'hui `app.main`
+    # s'importe sans eux. Un test verrouille cette propriete.
+    from app.services.pm_orchestrator_service_v2 import resolve_resume_point
+
+    resume_from = resolve_resume_point(resume_from)
 
     # VAGUE 2 / LOT 1a — `resume_from="build_tasks"` etait une valeur morte.
     # Elle etait posee ici puis passee a `execute_sds_task`, donc a

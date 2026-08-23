@@ -89,7 +89,87 @@ SDS_RESUME_POINTS = frozenset({
 
 # Reprises de phase BUILD : elles ne passent pas par `execute_workflow`, qui est
 # le workflow SDS. Elles ont leur propre job ARQ, `execute_build_task`.
-BUILD_RESUME_POINTS = frozenset({"build_tasks"})
+#
+# VAGUE 3 / §3.4 — `deploy` et `build`, emis par les portes de validation,
+# rejoignent `build_tasks` : meme mecanique, meme chaine.
+BUILD_RESUME_POINTS = frozenset({"build_tasks", "build", "deploy"})
+
+# Reprises qui ne relancent aucun agent. `phase6_export` se traite sur l'etat de
+# l'execution et le document deja produit — voir §3.3 et `resolve_export_action`.
+EXPORT_RESUME_POINTS = frozenset({"phase6_export"})
+
+# VAGUE 3 / §3.2 — table de correspondance des valeurs emises.
+#
+# Les quatre appelants d'`execute_workflow` parlent un vocabulaire qui n'est pas
+# le sien. Jusqu'a la vague 2 l'ecart tombait dans la branche generique « saute
+# la phase 1 » ; §3.5 le refuse ; voici la traduction.
+#
+# Elle vit **au bord** : les routes traduisent avant d'enfiler, et
+# `execute_workflow` continue de n'accepter que SDS_RESUME_POINTS. La table
+# alimente le vocabulaire, elle ne l'affaiblit pas.
+#
+# Les quatre valeurs d'experts reprennent toutes en `phase5` parce qu'aucun
+# point de reprise ne distingue les experts entre eux, et qu'en pratique ils
+# tournent tous. Si la selection par Marcus est mise en place (§4), ce point est
+# a revoir : une reprise devra relire la selection en base, pas la recalculer.
+EMITTED_TO_RESUME_POINT = {
+    # retry_routes.py:67 — `phase_{agent suivant}`, apres l'echec d'un agent
+    "phase_ba": "phase2_5",         # Olivia a fini les UC
+    "phase_architect": "phase4",    # Marcus a fini
+    "phase_data": "phase5",         # un expert a fini
+    "phase_trainer": "phase5",
+    "phase_qa": "phase5",
+    "phase_devops": "phase5",
+    # validation_gate_routes.py — approbation et rejet d'une porte
+    "phase4_experts": "phase4",     # rejeu des experts demande
+    "phase5_sds": "phase5",         # SDS ecrit, ou a reecrire
+    # execution_routes.py:190 — reprise apres validation des BR
+    "phase2_ba": "phase2",
+}
+
+
+def resolve_resume_point(emitted: Optional[str]) -> Optional[str]:
+    """Traduit une valeur emise par une route en point de reprise canonique.
+
+    VAGUE 3 / §3.2. Idempotente : une valeur deja canonique traverse inchangee,
+    de sorte qu'une route qui parle deja le bon vocabulaire (`phase1` dans
+    `retry_routes`) n'a pas besoin d'etre distinguee.
+
+    Raises:
+        ValueError: pour une reprise BUILD (elle a son propre job ARQ), pour
+            l'export (il ne relance aucun agent), et pour toute valeur hors
+            table. La table ne doit pas devenir un nouveau repli silencieux.
+    """
+    if emitted is None:
+        return None
+
+    if emitted in SDS_RESUME_POINTS:
+        return emitted
+
+    if emitted in EMITTED_TO_RESUME_POINT:
+        return EMITTED_TO_RESUME_POINT[emitted]
+
+    if emitted in BUILD_RESUME_POINTS:
+        raise ValueError(
+            f"resume_from={emitted!r} est une reprise de phase BUILD : elle "
+            f"n'a pas d'equivalent SDS et passe par le job ARQ "
+            f"'execute_build_task', qui reprend les TaskExecution non "
+            f"terminees. Voir SPEC_VAGUE3 §3.4."
+        )
+
+    if emitted in EXPORT_RESUME_POINTS:
+        raise ValueError(
+            f"resume_from={emitted!r} n'est pas une reprise de workflow : "
+            f"l'export ne relance aucun agent. Se decide sur l'etat de "
+            f"l'execution et l'extension de `sds_document_path` — voir "
+            f"`resolve_export_action` et SPEC_VAGUE3 §3.3."
+        )
+
+    raise ValueError(
+        f"resume_from={emitted!r} n'est traduisible en aucun point de reprise. "
+        f"Valeurs emises connues : {sorted(EMITTED_TO_RESUME_POINT)}. "
+        f"Points de reprise SDS : {sorted(SDS_RESUME_POINTS)}."
+    )
 
 # Agent script paths (centralized via config.py)
 AGENTS_PATH = settings.BACKEND_ROOT / "agents" / "roles"
