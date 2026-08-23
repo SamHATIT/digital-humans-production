@@ -48,6 +48,57 @@ def _get_owned_cr(
     return cr
 
 
+def _resolve_related_br(
+    related_br_id: Optional[int], project_id: int, db: Session
+) -> BusinessRequirement:
+    """VAGUE 2 / LOT 2 — `related_br_id` n'etait pas valide.
+
+    Les routes de creation et de mise a jour recopiaient l'entier tel quel dans
+    `ChangeRequest.related_br_id`. Rien ne rattachait ce BR au projet de la CR :
+    un client pouvait pointer le `BusinessRequirement` d'un autre projet, et les
+    routes de lecture rendaient ensuite son texte dans `related_br_text`. Fuite
+    etroite — un BR a la fois, et il faut deviner l'id — mais reelle : le texte
+    d'un BR est la matiere metier du client.
+
+    On resout ici le BR **dans le projet de la CR**. Un id qui n'y appartient
+    pas est un 404 : on ne confirme pas l'existence d'une ressource d'autrui.
+    """
+    br = db.query(BusinessRequirement).filter(
+        BusinessRequirement.id == related_br_id,
+        BusinessRequirement.project_id == project_id,
+    ).first()
+
+    if not br:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Business requirement {related_br_id} not found in this project",
+        )
+    return br
+
+
+def _related_br_text(cr: ChangeRequest, db: Session, truncate: Optional[int] = None):
+    """Texte du BR lie, **borne au projet de la CR**.
+
+    Defense en profondeur : une CR ecrite avant ce correctif peut deja pointer
+    le BR d'un autre projet. La lecture ne doit pas rendre ce texte pour autant.
+    """
+    if not cr.related_br_id:
+        return None
+
+    br = db.query(BusinessRequirement).filter(
+        BusinessRequirement.id == cr.related_br_id,
+        BusinessRequirement.project_id == cr.project_id,
+    ).first()
+
+    if not br:
+        return None
+
+    requirement = br.requirement
+    if truncate is not None:
+        return f"{br.br_id}: {requirement[:truncate]}..."
+    return f"{br.br_id}: {requirement}"
+
+
 def get_next_cr_number(db: Session, project_id: int) -> str:
     """Generate next CR number for a project."""
     count = db.query(func.count(ChangeRequest.id)).filter(
@@ -85,12 +136,7 @@ def list_change_requests(
     responses = []
     for cr in crs:
         resp = ChangeRequestResponse.model_validate(cr)
-        if cr.related_br_id:
-            br = db.query(BusinessRequirement).filter(
-                BusinessRequirement.id == cr.related_br_id
-            ).first()
-            if br:
-                resp.related_br_text = f"{br.br_id}: {br.requirement[:100]}..."
+        resp.related_br_text = _related_br_text(cr, db, truncate=100)
         responses.append(resp)
     
     # Count by status
@@ -122,6 +168,10 @@ def create_change_request(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    # VAGUE 2 / LOT 2 : le BR lie doit appartenir a ce projet.
+    if cr_data.related_br_id is not None:
+        _resolve_related_br(cr_data.related_br_id, project_id, db)
+
     # Get latest execution
     execution = db.query(Execution).filter(
         Execution.project_id == project_id
@@ -161,12 +211,7 @@ def get_change_request(
     cr = _get_owned_cr(project_id, cr_id, current_user.id, db)
     
     resp = ChangeRequestResponse.model_validate(cr)
-    if cr.related_br_id:
-        br = db.query(BusinessRequirement).filter(
-            BusinessRequirement.id == cr.related_br_id
-        ).first()
-        if br:
-            resp.related_br_text = f"{br.br_id}: {br.requirement}"
+    resp.related_br_text = _related_br_text(cr, db)
     
     return resp
 
@@ -195,6 +240,8 @@ def update_change_request(
     if cr_data.category is not None:
         cr.category = cr_data.category
     if cr_data.related_br_id is not None:
+        # VAGUE 2 / LOT 2 : meme porte que la creation, elle etait ouverte ici aussi.
+        _resolve_related_br(cr_data.related_br_id, project_id, db)
         cr.related_br_id = cr_data.related_br_id
     
     db.commit()

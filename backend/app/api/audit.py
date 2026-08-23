@@ -17,10 +17,13 @@ d'ajouter une colonne de role, une migration et une administration — une
 fonctionnalite, alors que le perimetre est gele. Consequences assumees :
 
 - `/logs` exige desormais `project_id`, et ce projet doit appartenir a
-  l'appelant. C'est ce qui permet de deleguer a `audit_service.get_logs()`
-  **sans modifier le service** (hors perimetre) tout en gardant une
-  pagination juste : filtrer apres coup les lignes rendues par le service
-  fausserait `limit`/`offset` et pourrait rendre des pages vides.
+  l'appelant.
+
+VAGUE 2 / LOT 2 : `audit_service.get_logs()` porte desormais lui-meme le
+cloisonnement — `owner_user_id` y est un mot-cle **obligatoire**. Les
+verifications de propriete faites ici restent : elles rendent 404 sur une
+ressource d'autrui au lieu d'une liste vide, ce que le filtre du service ne
+sait pas faire. Elles ne sont plus le seul rempart.
 - Les lignes a `project_id NULL` (auth.login, auth.fail, evenements
   systeme, appels LLM hors projet) ne sont plus atteignables par l'API.
   C'est voulu : `auth.fail` porte l'`actor_id` et l'IP d'autres comptes.
@@ -114,6 +117,7 @@ def get_audit_logs(
             pass  # Allow raw strings
     
     logs = audit_service.get_logs(
+        owner_user_id=current_user.id,
         project_id=project_id,
         execution_id=execution_id,
         task_id=task_id,
@@ -144,7 +148,9 @@ def get_execution_timeline(
     """Get complete audit timeline for an execution you own."""
     verify_execution_access(execution_id, current_user.id, db)
 
-    logs = audit_service.get_execution_timeline(execution_id=execution_id, db=db)
+    logs = audit_service.get_execution_timeline(
+        execution_id=execution_id, owner_user_id=current_user.id, db=db
+    )
     return AuditLogListResponse(
         logs=[AuditLogResponse.model_validate(log) for log in logs],
         total=len(logs),
@@ -187,7 +193,11 @@ def get_task_history(
     for execution_id in execution_ids:
         logs.extend(
             audit_service.get_logs(
-                task_id=task_id, execution_id=execution_id, limit=100, db=db
+                owner_user_id=current_user.id,
+                task_id=task_id,
+                execution_id=execution_id,
+                limit=100,
+                db=db,
             )
         )
     logs.sort(key=lambda log: log.timestamp, reverse=True)

@@ -82,8 +82,20 @@ async def _compute_execution_quality(
 
     try:
         # Get all generated files
+        # VAGUE 2 / LOT 2 — `/execution/{id}` repondait 500 meme au proprietaire.
+        #
+        # Le SELECT demandait `validation_status` et `validation_errors`. Ces
+        # deux colonnes n'existent pas dans `task_executions` (voir
+        # `app/models/task_execution.py`) : PostgreSQL rendait un
+        # `UndefinedColumn`, capte par le `except Exception` en fin de bloc et
+        # re-emis en HTTP 500. La route etait donc morte pour tout le monde,
+        # proprietaire compris.
+        #
+        # Aucune des deux valeurs n'etait lue : la boucle ci-dessous n'utilise
+        # que `task_id` et `generated_files`. On les retire plutot que
+        # d'inventer les colonnes — les ajouter serait de la fonctionnalite.
         result = session.execute(text("""
-            SELECT task_id, task_name, generated_files, validation_status, validation_errors
+            SELECT task_id, task_name, generated_files
             FROM task_executions 
             WHERE execution_id = :exec_id 
             AND generated_files IS NOT NULL

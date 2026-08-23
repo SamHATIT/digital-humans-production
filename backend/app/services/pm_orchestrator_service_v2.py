@@ -1488,13 +1488,45 @@ class PMOrchestratorServiceV2:
                 logger.info(f"[Metadata] Skipping SF metadata: project_type={getattr(project, 'project_type', 'unknown')}, sf_connected={getattr(project, 'sf_connected', False)}")
                 return {"success": False, "error": "greenfield_or_not_connected", "full_metadata": {}, "summary": {}}
 
+        # VAGUE 2 / LOT 2 — refus explicite quand aucun projet n'est resolu.
+        #
+        # Le bloc ARCH-001 ci-dessus tente de retrouver le projet depuis
+        # l'execution. S'il echoue — execution inconnue, projet supprime — on
+        # arrivait ici avec `project is None` et on prenait `salesforce_config`,
+        # la config globale. Depuis LOT-E bis cette config n'emprunte plus
+        # d'identite : `require("org_alias")` echouera plus bas. Mais elle
+        # echouera *apres* avoir traverse le bloc, sur un message parlant de
+        # l'org par defaut, alors que le vrai defaut est qu'on ne sait pas de
+        # quel projet il s'agit. On le dit ici.
+        if project is None:
+            logger.error(
+                "[Metadata] Aucun projet resolu pour l'execution %s : refus de "
+                "retomber sur la configuration Salesforce globale. Une analyse "
+                "as-is sans projet n'a pas d'org legitime a interroger.",
+                execution_id,
+            )
+            return {
+                "success": False,
+                "error": "no_project_resolved",
+                "full_metadata": {},
+                "summary": {},
+            }
+
         # ARCH-002: Per-project SF config instead of global singleton
-        if project and getattr(project, 'sf_instance_url', None):
+        if getattr(project, 'sf_instance_url', None):
             from app.salesforce_config import SalesforceConfig
             sf_cfg = SalesforceConfig.from_project(project)
             logger.info(f"[Metadata] Using per-project SF config: {sf_cfg.instance_url}")
         else:
-            sf_cfg = salesforce_config  # Fallback to global singleton
+            # Projet connu mais sans org propre : l'org par defaut du deploiement
+            # est un choix legitime (voir EXECUTION.md §6.6). Elle est vide par
+            # defaut, et `require("org_alias")` refusera explicitement plus bas.
+            logger.info(
+                "[Metadata] Projet %s sans sf_instance_url : recours a l'org par "
+                "defaut du deploiement.",
+                getattr(project, "id", "?"),
+            )
+            sf_cfg = salesforce_config
 
         logger.info("[Metadata] Retrieving Salesforce org metadata...")
 

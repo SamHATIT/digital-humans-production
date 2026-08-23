@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
@@ -10,7 +12,84 @@ from app.models.execution import Execution
 from app.models.user import User
 from app.utils.dependencies import get_current_user
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+# ---------------------------------------------------------------------------
+# Credentials de projet — chemin unique (VAGUE 2 / LOT 2, kim:PROD-10)
+#
+# L'audit relevait « deux chemins d'ecriture incompatibles pour le secret
+# Salesforce (routes/projects.py, wizard.py), et lecture sans dechiffrement ».
+# `wizard.py` passait par `EnvironmentService`, qui chiffre en Fernet ; ce
+# fichier ecrivait la valeur brute dans la meme colonne `encrypted_value`. La
+# colonne contenait donc, selon l'ecran d'origine, du clair ou du chiffre — et
+# la lecture, ici, ne dechiffrait pas.
+#
+# Ces trois helpers sont le chemin unique. Ils delegent a EnvironmentService,
+# comme `wizard.py`, pour qu'il n'y ait plus qu'une seule facon d'ecrire et une
+# seule facon de lire.
+# ---------------------------------------------------------------------------
+
+def _store_project_credential(
+    db: Session,
+    project_id: int,
+    credential_type: "CredentialType",
+    value: str,
+    label: Optional[str] = None,
+) -> None:
+    """Ecrit un credential de projet, chiffre."""
+    from app.services.environment_service import get_environment_service
+
+    get_environment_service(db).store_credential(
+        project_id, credential_type, value, label
+    )
+
+
+def _read_project_credential(
+    db: Session, project_id: int, credential_type: "CredentialType"
+) -> Optional[str]:
+    """Lit un credential de projet, dechiffre.
+
+    Une valeur illisible (mauvaise cle, ligne encore en clair) rend `None` et
+    laisse une trace : l'appelant repond alors « credential manquant », ce qui
+    est vrai de son point de vue, plutot que d'envoyer du Fernet a un tiers.
+    """
+    from app.services.environment_service import get_environment_service
+
+    try:
+        return get_environment_service(db).get_credential(project_id, credential_type)
+    except Exception as exc:
+        logger.error(
+            "[projects] credential %s du projet %s illisible : %s. "
+            "Verifier CREDENTIALS_ENCRYPTION_KEY, ou migrer les lignes encore "
+            "en clair : python scripts/rotate_encryption_key.py "
+            "--encrypt-plaintext --apply",
+            getattr(credential_type, "value", credential_type),
+            project_id,
+            exc,
+        )
+        return None
+
+
+def _read_salesforce_oauth_credentials(
+    db: Session, project_id: int
+) -> tuple[Optional[str], Optional[str]]:
+    """(consumer_key, consumer_secret) — la cle est le `label`, jamais chiffree."""
+    from app.models.project_credential import ProjectCredential, CredentialType
+
+    cred = db.query(ProjectCredential).filter(
+        ProjectCredential.project_id == project_id,
+        ProjectCredential.credential_type == CredentialType.SALESFORCE_TOKEN,
+    ).first()
+
+    if not cred:
+        return None, None
+
+    return cred.label, _read_project_credential(
+        db, project_id, CredentialType.SALESFORCE_TOKEN
+    )
 
 # Response schemas
 class ProjectResponse(BaseModel):
@@ -242,51 +321,45 @@ def update_project_settings(
     if "sf_username" in settings:
         project.sf_username = settings["sf_username"]
     
-    # Store OAuth credentials if provided
+    # Store OAuth credentials if provided.
+    #
+    # VAGUE 2 / LOT 2 (kim:PROD-10) — chemin d'ecriture unifie.
+    # Ce bloc ecrivait le secret **en clair** dans `encrypted_value`, la ou
+    # `wizard.py` passait par EnvironmentService et le chiffrait en Fernet.
+    # Deux chemins, deux formats, une seule colonne : selon l'ecran utilise, la
+    # meme ligne contenait un secret lisible ou un chiffre, et la lecture ne
+    # savait pas lequel. Tout passe desormais par EnvironmentService.
     if settings.get("sf_consumer_key") or settings.get("sf_consumer_secret"):
-        existing = db.query(ProjectCredential).filter(
-            ProjectCredential.project_id == project_id,
-            ProjectCredential.credential_type == CredentialType.SALESFORCE_TOKEN
-        ).first()
-        
-        if existing:
-            if settings.get("sf_consumer_key"):
-                existing.label = settings["sf_consumer_key"]
-            if settings.get("sf_consumer_secret"):
-                existing.encrypted_value = settings["sf_consumer_secret"]
-            existing.updated_at = datetime.utcnow()
-        else:
-            if settings.get("sf_consumer_key") and settings.get("sf_consumer_secret"):
-                cred = ProjectCredential(
-                    project_id=project_id,
-                    credential_type=CredentialType.SALESFORCE_TOKEN,
-                    label=settings["sf_consumer_key"],
-                    encrypted_value=settings["sf_consumer_secret"],
-                )
-                db.add(cred)
-    
+        current_key, current_secret = _read_salesforce_oauth_credentials(db, project_id)
+        new_key = settings.get("sf_consumer_key") or current_key
+        new_secret = settings.get("sf_consumer_secret") or current_secret
+
+        # `store_credential` remplace la ligne entiere : ne rien ecrire tant que
+        # les deux moities ne sont pas connues, sinon modifier la seule cle
+        # effacerait le secret.
+        if new_key and new_secret:
+            _store_project_credential(
+                db, project_id, CredentialType.SALESFORCE_TOKEN, new_secret, new_key
+            )
+
     # Update Git settings
     if "git_repo_url" in settings:
         project.git_repo_url = settings["git_repo_url"]
     if "git_branch" in settings:
         project.git_branch = settings["git_branch"]
     if settings.get("git_token"):
-        existing = db.query(ProjectCredential).filter(
-            ProjectCredential.project_id == project_id,
-            ProjectCredential.credential_type == CredentialType.GIT_TOKEN
-        ).first()
-        if existing:
-            existing.encrypted_value = settings["git_token"]
-            existing.updated_at = datetime.utcnow()
-        else:
-            cred = ProjectCredential(
-                project_id=project_id,
-                credential_type=CredentialType.GIT_TOKEN,
-                encrypted_value=settings["git_token"],
-                label="Git Personal Access Token"
-            )
-            db.add(cred)
-    
+        # Meme colonne, meme defaut : ce chemin ecrivait des `ghp_...` en clair,
+        # que `jordan_deploy_service` refuse desormais au deploiement
+        # (cla:SEC-03, LOT-E bis). On chiffre a l'ecriture plutot que de
+        # produire des lignes que l'aval rejettera.
+        _store_project_credential(
+            db,
+            project_id,
+            CredentialType.GIT_TOKEN,
+            settings["git_token"],
+            "Git Personal Access Token",
+        )
+
     db.commit()
     db.refresh(project)
     
@@ -347,17 +420,19 @@ async def test_salesforce_connection(
     else:  # OAuth method
         instance_url = project.sf_instance_url
 
-        # Get OAuth credentials
-        cred = await asyncio.to_thread(lambda: db.query(ProjectCredential).filter(
-            ProjectCredential.project_id == project_id,
-            ProjectCredential.credential_type == CredentialType.SALESFORCE_TOKEN
-        ).first())
-        
-        if not cred or not cred.label or not cred.encrypted_value:
+        # Get OAuth credentials.
+        #
+        # VAGUE 2 / LOT 2 (kim:PROD-10) — troisieme volet du defaut : la
+        # lecture. `cred.encrypted_value` etait pris tel quel et envoye a
+        # Salesforce comme `client_secret`. Sur une ligne ecrite par le wizard,
+        # cela envoyait du Fernet ("Z0FBQUFB...") et l'authentification echouait
+        # sans que le message le dise. On dechiffre.
+        consumer_key, consumer_secret = await asyncio.to_thread(
+            _read_salesforce_oauth_credentials, db, project_id
+        )
+
+        if not consumer_key or not consumer_secret:
             return {"success": False, "message": "Please enter Consumer Key and Consumer Secret"}
-        
-        consumer_key = cred.label
-        consumer_secret = cred.encrypted_value
         
         if not instance_url:
             return {"success": False, "message": "Please enter the Salesforce Instance URL"}
@@ -439,11 +514,12 @@ async def test_git_connection(
 
     repo_url = project.git_repo_url
 
-    cred = await asyncio.to_thread(lambda: db.query(ProjectCredential).filter(
-        ProjectCredential.project_id == project_id,
-        ProjectCredential.credential_type == CredentialType.GIT_TOKEN
-    ).first())
-    git_token = cred.encrypted_value if cred else None
+    # VAGUE 2 / LOT 2 : meme correction que pour le secret Salesforce — la
+    # valeur stockee est chiffree, elle ne peut pas partir telle quelle chez
+    # GitHub.
+    git_token = await asyncio.to_thread(
+        _read_project_credential, db, project_id, CredentialType.GIT_TOKEN
+    )
     
     if not repo_url:
         return {"success": False, "message": "Please enter a repository URL"}

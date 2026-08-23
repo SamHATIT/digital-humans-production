@@ -29,9 +29,28 @@ from sqlalchemy import desc
 
 from app.database import SessionLocal
 from app.models.audit import AuditLog, ActorType, ActionCategory
+from app.models.project import Project
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class _AllOwners:
+    """Sentinelle : l'appelant demande explicitement un journal non cloisonne."""
+
+    __slots__ = ()
+
+    def __repr__(self):  # pragma: no cover - confort de journalisation
+        return "ALL_OWNERS"
+
+
+#: VAGUE 2 / LOT 2 — journal global, assume et nomme.
+#:
+#: `get_logs()` exige desormais `owner_user_id`. Un appelant systeme
+#: (orchestrateur, script d'exploitation, forensique) qui veut lire tout le
+#: journal passe cette sentinelle. Le point n'est pas d'interdire la lecture
+#: globale, c'est qu'elle ne puisse plus arriver par omission.
+ALL_OWNERS = _AllOwners()
 
 
 class AuditService:
@@ -215,6 +234,8 @@ class AuditService:
     
     def get_logs(
         self,
+        *,
+        owner_user_id,
         project_id: Optional[int] = None,
         execution_id: Optional[int] = None,
         task_id: Optional[str] = None,
@@ -227,10 +248,39 @@ class AuditService:
         offset: int = 0,
         db: Optional[Session] = None
     ) -> list[AuditLog]:
-        """Query audit logs with filters"""
+        """Query audit logs with filters, scoped to one owner.
+
+        VAGUE 2 / LOT 2 — `owner_user_id` est **obligatoire et sans defaut**.
+
+        Le cloisonnement etait pose dans `api/audit.py` (LOT-B bis), pas ici :
+        le service rendait volontiers les lignes de n'importe quel client des
+        lors qu'on lui passait le bon `project_id`. Tout futur appelant du
+        service — un rapport, un export, une route ajoutee plus tard —
+        contournait donc le garde-fou sans le savoir, et sans rien casser qui
+        se voie.
+
+        Le filtre est **dans le SQL**, pas applique apres coup : filtrer les
+        lignes rendues fausserait `limit`/`offset`, une page pleine de lignes
+        d'autrui devenant une page vide alors qu'il restait des lignes a rendre.
+
+        Consequence assumee : les lignes a `project_id NULL` (auth.login,
+        auth.fail, evenements systeme, appels LLM hors projet) ne sont pas
+        atteignables avec un `owner_user_id` — elles n'appartiennent a personne
+        au sens du modele. Elles restent lisibles avec `ALL_OWNERS`.
+
+        Args:
+            owner_user_id: id du proprietaire, ou `ALL_OWNERS` pour un journal
+                global. Mot-cle obligatoire : omettre l'argument est une
+                `TypeError`, pas un journal global silencieux.
+        """
         def _query(session: Session):
             query = session.query(AuditLog)
-            
+
+            if not isinstance(owner_user_id, _AllOwners):
+                query = query.join(
+                    Project, AuditLog.project_id == Project.id
+                ).filter(Project.user_id == owner_user_id)
+
             if project_id:
                 query = query.filter(AuditLog.project_id == project_id)
             if execution_id:
@@ -262,18 +312,36 @@ class AuditService:
     def get_execution_timeline(
         self,
         execution_id: int,
+        *,
+        owner_user_id,
         db: Optional[Session] = None
     ) -> list[AuditLog]:
-        """Get complete timeline for an execution"""
-        return self.get_logs(execution_id=execution_id, limit=1000, db=db)
-    
+        """Get complete timeline for an execution owned by `owner_user_id`.
+
+        VAGUE 2 / LOT 2 — meme regle que `get_logs` : une facade qui n'exigerait
+        pas le proprietaire rouvrirait la porte que le service vient de fermer.
+        """
+        return self.get_logs(
+            owner_user_id=owner_user_id,
+            execution_id=execution_id,
+            limit=1000,
+            db=db,
+        )
+
     def get_task_history(
         self,
         task_id: str,
+        *,
+        owner_user_id,
         db: Optional[Session] = None
     ) -> list[AuditLog]:
-        """Get history for a specific BUILD task"""
-        return self.get_logs(task_id=task_id, limit=100, db=db)
+        """Get history for a BUILD task belonging to `owner_user_id`."""
+        return self.get_logs(
+            owner_user_id=owner_user_id,
+            task_id=task_id,
+            limit=100,
+            db=db,
+        )
     
     # ========== Convenience methods ==========
     
