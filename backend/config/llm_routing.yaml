@@ -71,6 +71,61 @@ agent_tier_map:
 # Format : profiles.<profile>.<tier> = "<provider>/<model_alias>"
 # Le model_alias doit exister dans providers.<provider>.models.
 # =============================================================================
+# =============================================================================
+# Plafonds de sortie — ajoutes le 23/08/2026
+# =============================================================================
+# Ils vivaient dans le code, alors que le routage de modele vit ici : le tier
+# venait de ce fichier, le plafond du code, et rien ne verifiait leur
+# coherence. Meme famille que les 52 chemins absolus du P2.
+#
+# Trois defauts se superposaient sans se connaitre :
+#   LLMRequest.max_tokens        = 4096
+#   llm_service, trois chemins   = 16000
+#   sites d'appel                = 500, 1500, 2000, 32000
+# Lequel s'appliquait dependait du chemin emprunte.
+#
+# La diversite des valeurs est VOULUE : 500 pour une classification et 32000
+# pour la redaction d'un SDS sont deux taches sans rapport. Les uniformiser
+# serait une erreur. Ce qui change, c'est qu'elles sont lisibles au meme
+# endroit que la decision de modele.
+#
+# Ordre de resolution : par_agent > par_tier > defaut.
+max_tokens:
+  defaut: 16000
+
+  par_tier:
+    orchestrator: 32000   # raisonnement long, synthese, design
+    worker:       16000   # execution specialisee, sorties longues
+
+  # Surcharge par AGENT. Toute cle doit exister dans agent_tier_map, sinon
+  # l'entree est morte et ne s'appliquera jamais — verifie au demarrage.
+  par_agent:
+    # Redaction du SDS — un seul appel en flux, plus de troncature ni de
+    # raccords (STREAM-001). C'est le plafond le plus haut du systeme.
+    emma:               32000
+    research:           32000
+    research_analyst:   32000
+
+    # Marcus produit l'architecture en quatre appels ; chacun peut etre long.
+    marcus:             32000
+    architect:          32000
+    solution_architect: 32000
+
+  # Surcharge par SITE D'APPEL. Ce ne sont PAS des agents : ils n'ont pas de
+  # fiche, pas de tier, et n'apparaissent pas dans agent_tier_map. Les melanger
+  # aux agents rendrait les entrees invisibles au controle de coherence.
+  par_contexte:
+    # Chat et concierge : reponses courtes, latence visible par l'utilisateur.
+    sophie_chat:             1500
+    sophie_concierge:        1500
+
+    # Demandes de changement : redaction courte, puis classification.
+    change_request:          2000
+    change_request_classify:  500
+
+    # Validation humaine dans la boucle : commentaire court.
+    hitl:                    1500
+
 profiles:
 
   # --- Profile 1 : cloud (production VPS) ---

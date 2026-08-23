@@ -165,6 +165,13 @@ class LLMRouterService:
             self.profile, self.is_build_enabled(), self.config_path,
         )
 
+        # 23/08 — declarer les plafonds au meme endroit que le tier ne sert a
+        # rien si personne ne verifie qu'ils s'appliquent. Le controle tourne au
+        # demarrage et journalise ; il ne leve pas : une incoherence de
+        # configuration ne doit pas empecher le demarrage, mais ne doit pas non
+        # plus passer inapercue.
+        self.verifier_coherence_routage()
+
     # ----------------------------------------------------------------------
     # Config loading
     # ----------------------------------------------------------------------
@@ -359,15 +366,161 @@ class LLMRouterService:
         return bool(self.config["profiles"][self.profile].get("build_enabled", True))
 
     def get_tier_for_agent(self, agent_type: str) -> AgentTier:
-        """Map agent_type → tier via YAML. Unknown agents default to WORKER."""
+        """Map agent_type -> tier via YAML. Un agent inconnu retombe sur WORKER.
+
+        23/08 — le repli existait deja, mais **en silence**. Il y avait un
+        warning quand le *tier* etait invalide (fichier YAML mal ecrit) et
+        aucun quand l'*agent* etait inconnu (faute de frappe a l'appel). C'est
+        l'inverse de l'utile : le second cas se produit a chaque cle absente de
+        la carte, et route Marcus sur Sonnet au lieu d'Opus sans laisser de
+        trace. Le SDS est produit, facture, livre — et rien ne dit qu'il a ete
+        redige par le mauvais modele.
+
+        Le repli sur WORKER est conserve : c'est un defaut sur, un worker coute
+        moins cher qu'un orchestrateur. Ce qui change, c'est le silence.
+        """
         normalized = (agent_type or "").lower().replace("-", "_").replace(" ", "_")
         tier_map = self.config.get("agent_tier_map", {})
-        tier_str = tier_map.get(normalized, "worker")
+
+        if normalized not in tier_map:
+            logger.warning(
+                "[ROUTAGE] Agent inconnu '%s' (normalise : '%s') — repli sur WORKER. "
+                "Si cet agent doit raisonner, l'ajouter a agent_tier_map dans "
+                "config/llm_routing.yaml. Cles connues : %s",
+                agent_type, normalized, ", ".join(sorted(tier_map)) or "(carte vide)",
+            )
+            return AgentTier.WORKER
+
+        tier_str = tier_map[normalized]
         try:
             return AgentTier(tier_str)
         except ValueError:
-            logger.warning("Unknown tier '%s' for agent '%s', defaulting to worker", tier_str, agent_type)
+            logger.warning(
+                "[ROUTAGE] Tier '%s' invalide pour l'agent '%s' dans agent_tier_map "
+                "— repli sur WORKER. Valeurs attendues : %s",
+                tier_str, agent_type, ", ".join(t.value for t in AgentTier),
+            )
             return AgentTier.WORKER
+
+    def get_max_tokens_for_agent(self, agent_type: str, tier: Optional[AgentTier] = None) -> int:
+        """Plafond de sortie d'un agent, lu dans le YAML — plus dans le code.
+
+        23/08 — les plafonds vivaient dans le code alors que le routage de
+        modele vit dans ce YAML : le tier venait du fichier, le plafond du
+        code, et rien ne verifiait leur coherence. Meme famille que les 52
+        chemins absolus du P2 — un parametre d'execution loge au mauvais
+        endroit.
+
+        Trois defauts se superposaient, sans se connaitre :
+          LLMRequest.max_tokens        = 4096
+          llm_service, trois chemins   = 16000
+          sites d'appel                = 500, 1500, 2000, 32000
+
+        Lequel s'applique dependait du chemin emprunte. Ils sont desormais
+        declares dans `max_tokens` du YAML, par tier, avec surcharge par agent.
+
+        La diversite des valeurs reste voulue : 500 pour une classification et
+        32000 pour la redaction d'un SDS sont deux taches sans rapport. Ce qui
+        change, c'est qu'elles sont lisibles au meme endroit que la decision de
+        modele.
+        """
+        normalized = (agent_type or "").lower().replace("-", "_").replace(" ", "_")
+        conf = self.config.get("max_tokens", {}) or {}
+
+        # Un site d'appel declare (sophie_chat, hitl, change_request...) n'est
+        # PAS un agent : il porte son plafond et n'a pas de tier. On le resout
+        # avant toute recherche de tier, sinon get_tier_for_agent l'annoncerait
+        # comme « agent inconnu » a chaque appel — un avertissement qu'on
+        # apprendrait a ignorer, et le dispositif ne vaudrait plus rien.
+        contextes = conf.get("par_contexte") or {}
+        if normalized in contextes:
+            return int(contextes[normalized])
+
+        par_agent = conf.get("par_agent") or {}
+        if normalized in par_agent:
+            return int(par_agent[normalized])
+
+        if tier is None:
+            tier = self.get_tier_for_agent(agent_type)
+        par_tier = (conf.get("par_tier") or {})
+        if tier.value in par_tier:
+            return int(par_tier[tier.value])
+
+        defaut = int(conf.get("defaut", 16000))
+        logger.warning(
+            "[ROUTAGE] Aucun plafond declare pour l'agent '%s' (tier %s) — "
+            "repli sur le defaut %d. Declarer max_tokens.par_agent ou "
+            "max_tokens.par_tier dans config/llm_routing.yaml.",
+            agent_type, tier.value, defaut,
+        )
+        return defaut
+
+    def verifier_coherence_routage(self) -> List[str]:
+        """Controle de coherence du routage, appele au demarrage.
+
+        23/08 — le defaut signale n'etait pas la diversite des plafonds, c'est
+        que **le tier venait du YAML, le plafond du code, et rien ne verifiait
+        leur coherence**. Ce controle est la contrepartie du deplacement des
+        plafonds dans le YAML : les declarer au meme endroit ne sert a rien si
+        personne ne verifie qu'ils s'appliquent.
+
+        Rend la liste des anomalies. Journalisees en WARNING, pas levees : une
+        incoherence de configuration ne doit pas empecher le demarrage, mais
+        elle ne doit pas non plus passer inapercue.
+        """
+        anomalies: List[str] = []
+        tier_map = self.config.get("agent_tier_map", {}) or {}
+        conf = self.config.get("max_tokens", {}) or {}
+
+        # 1. Une surcharge par_agent qui ne designe aucun agent connu est morte :
+        #    elle ne s'appliquera jamais, et personne ne le saura.
+        for agent in (conf.get("par_agent") or {}):
+            if agent not in tier_map:
+                anomalies.append(
+                    f"max_tokens.par_agent['{agent}'] ne correspond a aucune cle "
+                    f"de agent_tier_map — entree morte, elle ne s'appliquera jamais. "
+                    f"Si c'est un site d'appel et non un agent, la deplacer dans "
+                    f"max_tokens.par_contexte."
+                )
+
+        # 2. Un tier declare dans par_tier doit exister dans l'enumeration.
+        valides = {t.value for t in AgentTier}
+        for tier in (conf.get("par_tier") or {}):
+            if tier not in valides:
+                anomalies.append(
+                    f"max_tokens.par_tier['{tier}'] n'est pas un tier connu "
+                    f"({', '.join(sorted(valides))})"
+                )
+
+        # 3. Un plafond declare doit tenir dans la fenetre de sortie du modele
+        #    routee pour ce tier. NON VERIFIABLE AUJOURD'HUI : aucun modele ne
+        #    declare `max_output_tokens` dans providers.*.models. C'est un
+        #    constat en soi — l'incoherence se decouvre a l'execution, sur un
+        #    livrable en cours. Le controle s'active des qu'un modele declare
+        #    sa fenetre.
+        for prov, pconf in (self.config.get("providers") or {}).items():
+            for nom, mconf in ((pconf or {}).get("models") or {}).items():
+                fenetre = (mconf or {}).get("max_output_tokens")
+                if fenetre is None:
+                    continue
+                for source in ("par_tier", "par_agent", "par_contexte"):
+                    for cle, plafond in (conf.get(source) or {}).items():
+                        if int(plafond) > int(fenetre):
+                            anomalies.append(
+                                f"max_tokens.{source}['{cle}'] = {plafond} depasse la "
+                                f"fenetre de sortie de {prov}/{nom} ({fenetre})"
+                            )
+
+        for a in anomalies:
+            logger.warning("[ROUTAGE] Incoherence de configuration : %s", a)
+        if not anomalies:
+            logger.info(
+                "[ROUTAGE] Coherence verifiee : %d agents dans agent_tier_map, "
+                "%d surcharges par agent, %d par contexte.",
+                len(tier_map), len(conf.get("par_agent") or {}),
+                len(conf.get("par_contexte") or {}),
+            )
+        return anomalies
 
     # ----------------------------------------------------------------------
     # Routing
