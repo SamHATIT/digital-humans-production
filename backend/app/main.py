@@ -76,11 +76,19 @@ else:
     logger.critical(_encryption["message"])
 
 # Initialize FastAPI application
+# 23/08 — /docs, /redoc et /openapi.json etaient joignables depuis Internet,
+# sans authentification, et decrivaient les 148 routes de l API. Constate apres
+# la bascule DEBUG=False : contrairement a ce qui etait suppose, DEBUG ne les
+# ferme pas — FastAPI les expose independamment. Hors de toute liste d audit.
+# En production on les coupe ; en developpement (DEBUG=True) elles restent.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     debug=settings.DEBUG,
     version="2.0.0",
-    description="Digital Humans API for Salesforce specification generation"
+    description="Digital Humans API for Salesforce specification generation",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
+    openapi_url="/openapi.json" if settings.DEBUG else None,
 )
 
 # SEC-002: Rate limiting
