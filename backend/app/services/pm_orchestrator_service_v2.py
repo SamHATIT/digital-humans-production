@@ -72,7 +72,20 @@ logger = logging.getLogger(__name__)
 # tombait en silence dans la branche generique. On nomme ici ce que le code
 # reconnait vraiment, pour que l'ecart avec ce que les appelants envoient soit
 # visible au lieu d'etre devine.
-SDS_RESUME_POINTS = frozenset({"phase1", "phase1_pm", "phase2", "phase4", "phase5"})
+# VAGUE 3 / §3.1 — `phase2_5` et `phase3` rejoignent les points d'entree.
+#
+# Il n'existait aucune reprise entre `phase2` et `phase4`. Un echec de Marcus
+# a son quatrieme appel ne laissait que `phase2`, qui refait tous les UC
+# d'Olivia : le cas le plus frequent etait aussi le plus couteux.
+SDS_RESUME_POINTS = frozenset({
+    "phase1",      # tout depuis Sophie
+    "phase1_pm",   # idem — alias historique
+    "phase2",      # depuis Olivia, les BR sont conserves
+    "phase2_5",    # UC conserves, digest d'Emma refait
+    "phase3",      # UC et digest conserves, Marcus reprend ses 4 appels
+    "phase4",      # saute 2, 2.5 et 3 — reprend aux experts
+    "phase5",      # saute 2 a 4 — reprend a l'ecriture du SDS
+})
 
 # Reprises de phase BUILD : elles ne passent pas par `execute_workflow`, qui est
 # le workflow SDS. Elles ont leur propre job ARQ, `execute_build_task`.
@@ -411,15 +424,28 @@ class PMOrchestratorServiceV2:
             if not resume_from and execution.last_completed_phase:
                 last_phase = execution.last_completed_phase
                 # Map checkpoints to resume points
+                # VAGUE 3 / §3.1 — la reprise automatique applique la meme regle
+                # que la reprise demandee : on repart **a la suite** du dernier
+                # qui a reussi, pas au dernier qui a reussi.
+                #
+                # Les deux premieres lignes disaient `phase2`, commentaire a
+                # l'appui : « re-run Phase 2 (UCs in DB, safe to redo) ». Sans
+                # danger, oui — mais entierement repaye. Un plantage apres Emma
+                # refaisait Olivia ET Emma. Les points d'entree qui manquaient
+                # (`phase2_5`, `phase3`) existent desormais.
+                #
+                # Les valeurs doivent toutes appartenir a SDS_RESUME_POINTS :
+                # depuis §3.5 une valeur inconnue leve, donc une entree fausse
+                # ici casserait toute reprise automatique. Un test le verifie.
                 checkpoint_map = {
-                    "phase1_pm": "phase2",
-                    "phase2_ba": "phase2",       # BUG-010: re-run Phase 2 (UCs in DB, safe to redo)
-                    "phase2_5_emma": "phase2",   # BUG-010: re-run Phase 2+2.5
+                    "phase1_pm": "phase2",        # Sophie a fini -> Olivia
+                    "phase2_ba": "phase2_5",      # Olivia a fini -> Emma
+                    "phase2_5_emma": "phase3",    # Emma a fini -> Marcus
                     "phase3_3_coverage_gate": None,  # Handled by resume_from_architecture_validation
-                    "phase3_wbs": "phase4",      # BUG-010: skip to Phase 4 (artifacts in DB)
-                    "phase4_experts": "phase5",   # BUG-010: skip to Phase 5 (Phase 4 done, experts in DB)
-                    "phase5_write_sds": "phase5", # BUG-010: re-run Phase 5 only (SDS generation)
-                    "phase6_export": "phase4",   # BUG-010: skip to Phase 4 (export re-runs)
+                    "phase3_wbs": "phase4",       # Marcus a fini -> les experts
+                    "phase4_experts": "phase5",   # les experts ont fini -> ecriture du SDS
+                    "phase5_write_sds": "phase5", # SDS a reecrire
+                    "phase6_export": "phase5",    # l'export seul reste a refaire (voir §3.3)
                 }
                 auto_resume = checkpoint_map.get(last_phase)
                 if auto_resume:
@@ -564,110 +590,169 @@ class PMOrchestratorServiceV2:
                     skip_phase4=(resume_from == "phase5")
                 )
 
-            # ========================================
-            # PHASE 2: Olivia BA - Generate UCs per BR (DATABASE-FIRST)
-            # ========================================
-            logger.info("[Phase 2] Olivia BA - Generating Use Cases (database-first)")
-            self._update_progress(execution, "ba", "running", 18, "Starting Use Case generation...")
-            try:
-                sm.transition_to("sds_phase2_running")
-            except Exception as e:
-                logger.warning(f"[StateMachine] transition failed: {e}")
-            
-            ba_tokens_total = 0
-            ba_ucs_saved = 0
-            
-            # F-081: Process BRs in batches of 2 to reduce API calls
-            BATCH_SIZE = 2
-            total_batches = (len(business_requirements) + BATCH_SIZE - 1) // BATCH_SIZE
-            logger.info(f"[Phase 2] Processing {len(business_requirements)} BRs in {total_batches} batches of {BATCH_SIZE}")
-            
-            batch_idx = 0
-            for i in range(0, len(business_requirements), BATCH_SIZE):
-                batch_brs = business_requirements[i:i + BATCH_SIZE]
-                br_ids = [br.get("id", f"BR-{i+j+1:03d}") for j, br in enumerate(batch_brs)]
-                progress = 18 + ((batch_idx + 1) / total_batches) * 27  # 18-45%
-                
-                self._update_progress(execution, "ba", "running", int(progress), 
-                                      f"Processing {', '.join(br_ids)} (batch {batch_idx+1}/{total_batches})...")
-                
-                # Send batch or single BR based on count
-                if len(batch_brs) > 1:
-                    input_data = {"business_requirements": batch_brs}
-                else:
-                    input_data = {"business_requirement": batch_brs[0]}
-                
-                uc_result = await self._run_agent(
-                    agent_id="ba",
-                    input_data=input_data,
-                    execution_id=execution_id,
-                    project_id=project_id
+            # VAGUE 3 / §3.1 — reprise en phase 2.5 ou 3 : Olivia n'est pas rejouee.
+            #
+            # Regle retenue (Sam) : « on garde ce qui est termine correctement,
+            # et on reprend a la suite du dernier qui a reussi. »
+            #
+            # Avant, aucun point d'entree n'existait entre `phase2` et `phase4`.
+            # Un echec de Marcus a son quatrieme appel — le cas le plus frequent
+            # et le plus couteux — ne laissait que `phase2` comme reprise, donc
+            # **tous les UC d'Olivia refaits et repayes**. Un echec de Marcus
+            # detruisait le travail d'Olivia.
+            if resume_from in ("phase2_5", "phase3"):
+                uc_stats = self._get_use_case_count(execution_id)
+                logger.info(
+                    f"[Phase 2] SAUTEE — reprise en {resume_from} : "
+                    f"{uc_stats['parsed']} UC relus en base"
                 )
+                results["artifacts"]["USE_CASES"] = {
+                    "artifact_id": "UC-001",
+                    "total_ucs": uc_stats["parsed"],
+                    "raw_saved": uc_stats["raw_saved"],
+                    "metadata": {"tokens_used": 0},
+                    "storage": "database-first",
+                    "table": "deliverable_items",
+                    "resumed": True,
+                }
+                results["agent_outputs"]["ba"] = results["artifacts"]["USE_CASES"]
+                self._update_progress(
+                    execution, "ba", "completed", 42,
+                    f"{uc_stats['parsed']} UC conserves (reprise)"
+                )
+                try:
+                    sm.transition_to("sds_phase2_running")
+                except Exception:
+                    pass
+                try:
+                    sm.transition_to("sds_phase2_complete")
+                except Exception:
+                    pass
+            else:
+                # ========================================
+                # PHASE 2: Olivia BA - Generate UCs per BR (DATABASE-FIRST)
+                # ========================================
+                logger.info("[Phase 2] Olivia BA - Generating Use Cases (database-first)")
+                self._update_progress(execution, "ba", "running", 18, "Starting Use Case generation...")
+                try:
+                    sm.transition_to("sds_phase2_running")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
+            
+                ba_tokens_total = 0
+                ba_ucs_saved = 0
+            
+                # F-081: Process BRs in batches of 2 to reduce API calls
+                BATCH_SIZE = 2
+                total_batches = (len(business_requirements) + BATCH_SIZE - 1) // BATCH_SIZE
+                logger.info(f"[Phase 2] Processing {len(business_requirements)} BRs in {total_batches} batches of {BATCH_SIZE}")
+            
+                batch_idx = 0
+                for i in range(0, len(business_requirements), BATCH_SIZE):
+                    batch_brs = business_requirements[i:i + BATCH_SIZE]
+                    br_ids = [br.get("id", f"BR-{i+j+1:03d}") for j, br in enumerate(batch_brs)]
+                    progress = 18 + ((batch_idx + 1) / total_batches) * 27  # 18-45%
                 
-                # For compatibility with existing code, use first BR's id
-                batch_brs[0]
-                br_id = br_ids[0]
-                batch_idx += 1
+                    self._update_progress(execution, "ba", "running", int(progress), 
+                                          f"Processing {', '.join(br_ids)} (batch {batch_idx+1}/{total_batches})...")
                 
-                if uc_result.get("success"):
-                    # Extract metadata
-                    metadata = uc_result["output"].get("metadata", {})
-                    tokens_used = metadata.get("tokens_used", 0)
-                    model_used = metadata.get("model", "unknown")
-                    exec_time = metadata.get("execution_time_seconds", 0)
-                    
-                    # F-081: Handle batch results - tokens are for the whole batch
-                    tokens_used // len(batch_brs) if len(batch_brs) > 1 else tokens_used
-                    
-                    # SAVE IMMEDIATELY TO DATABASE (database-first)
-                    saved = self._save_use_cases_from_result(
+                    # Send batch or single BR based on count
+                    if len(batch_brs) > 1:
+                        input_data = {"business_requirements": batch_brs}
+                    else:
+                        input_data = {"business_requirement": batch_brs[0]}
+                
+                    uc_result = await self._run_agent(
+                        agent_id="ba",
+                        input_data=input_data,
                         execution_id=execution_id,
-                        br_id=br_id,
-                        ba_result=uc_result,
-                        tokens_used=tokens_used,
-                        model_used=model_used,
-                        execution_time=exec_time
+                        project_id=project_id
                     )
+                
+                    # For compatibility with existing code, use first BR's id
+                    batch_brs[0]
+                    br_id = br_ids[0]
+                    batch_idx += 1
+                
+                    if uc_result.get("success"):
+                        # Extract metadata
+                        metadata = uc_result["output"].get("metadata", {})
+                        tokens_used = metadata.get("tokens_used", 0)
+                        model_used = metadata.get("model", "unknown")
+                        exec_time = metadata.get("execution_time_seconds", 0)
                     
-                    ba_ucs_saved += saved
-                    ba_tokens_total += tokens_used
-                    self._accumulate_cost(execution, tokens_used, model_used)
-                    logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
-                else:
-                    logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get('error')}")
+                        # F-081: Handle batch results - tokens are for the whole batch
+                        tokens_used // len(batch_brs) if len(batch_brs) > 1 else tokens_used
+                    
+                        # SAVE IMMEDIATELY TO DATABASE (database-first)
+                        saved = self._save_use_cases_from_result(
+                            execution_id=execution_id,
+                            br_id=br_id,
+                            ba_result=uc_result,
+                            tokens_used=tokens_used,
+                            model_used=model_used,
+                            execution_time=exec_time
+                        )
+                    
+                        ba_ucs_saved += saved
+                        ba_tokens_total += tokens_used
+                        self._accumulate_cost(execution, tokens_used, model_used)
+                        logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
+                    else:
+                        logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get('error')}")
             
-            # Get final stats from database
-            uc_stats = self._get_use_case_count(execution_id)
+                # Get final stats from database
+                uc_stats = self._get_use_case_count(execution_id)
             
-            # Store summary in artifacts (for compatibility)
-            results["artifacts"]["USE_CASES"] = {
-                "artifact_id": "UC-001",
-                "total_ucs": uc_stats["parsed"],
-                "raw_saved": uc_stats["raw_saved"],
-                "metadata": {"tokens_used": ba_tokens_total},
-                "storage": "database-first",
-                "table": "deliverable_items"
-            }
-            results["agent_outputs"]["ba"] = results["artifacts"]["USE_CASES"]
-            results["metrics"]["tokens_by_agent"]["ba"] = ba_tokens_total
-            results["metrics"]["total_tokens"] += ba_tokens_total
+                # Store summary in artifacts (for compatibility)
+                results["artifacts"]["USE_CASES"] = {
+                    "artifact_id": "UC-001",
+                    "total_ucs": uc_stats["parsed"],
+                    "raw_saved": uc_stats["raw_saved"],
+                    "metadata": {"tokens_used": ba_tokens_total},
+                    "storage": "database-first",
+                    "table": "deliverable_items"
+                }
+                results["agent_outputs"]["ba"] = results["artifacts"]["USE_CASES"]
+                results["metrics"]["tokens_by_agent"]["ba"] = ba_tokens_total
+                results["metrics"]["total_tokens"] += ba_tokens_total
             
-            # Save summary to deliverables (for backward compatibility)
-            self._save_deliverable(execution_id, "ba", "use_cases", results["artifacts"]["USE_CASES"])
+                # Save summary to deliverables (for backward compatibility)
+                self._save_deliverable(execution_id, "ba", "use_cases", results["artifacts"]["USE_CASES"])
             
-            logger.info(f"[Phase 2] Saved {uc_stats['parsed']} UCs + {uc_stats['raw_saved']} raw to database")
-            self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats['parsed']} UCs")
-            self._save_checkpoint(execution, "phase2_ba")
-            try:
-                sm.transition_to("sds_phase2_complete")
-            except Exception as e:
-                logger.warning(f"[StateMachine] transition failed: {e}")
+                logger.info(f"[Phase 2] Saved {uc_stats['parsed']} UCs + {uc_stats['raw_saved']} raw to database")
+                self._update_progress(execution, "ba", "completed", 42, f"Generated {uc_stats['parsed']} UCs")
+                self._save_checkpoint(execution, "phase2_ba")
+                try:
+                    sm.transition_to("sds_phase2_complete")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
 
             # ========================================
             # GATE: Validate UCs before Phase 2.5
             # ========================================
             all_ucs_count = uc_stats.get("parsed", 0) + uc_stats.get("raw_saved", 0)
             if all_ucs_count == 0:
+                # VAGUE 3 / §3.1 — le message distingue les deux causes. Sur une
+                # reprise, Olivia n'a pas echoue : elle n'a simplement pas tourne,
+                # et il n'y a rien en base a reprendre. Reprendre plus haut est
+                # la seule issue — la dire evite de chercher une panne d'Olivia
+                # qui n'a pas eu lieu.
+                if resume_from in ("phase2_5", "phase3"):
+                    logger.error(
+                        f"[GATE] Reprise en {resume_from} impossible : aucun Use "
+                        f"Case en base pour l'execution {execution_id}."
+                    )
+                    try:
+                        sm.transition_to("failed")
+                    except Exception as e:
+                        logger.warning(f"[StateMachine] transition failed: {e}")
+                        execution.status = ExecutionStatus.FAILED
+                    raise Exception(
+                        f"No Use Cases in database: cannot resume from "
+                        f"{resume_from}. Olivia n'a pas produit d'UC pour cette "
+                        f"execution — reprendre en 'phase2' pour les generer."
+                    )
                 logger.error("[GATE] No Use Cases generated - cannot proceed")
                 try:
                     sm.transition_to("failed")
@@ -678,59 +763,94 @@ class PMOrchestratorServiceV2:
             logger.info(f"[GATE] ✅ {all_ucs_count} UCs available - proceeding to Phase 2.5")
             
             
-            # ========================================
-            # PHASE 2.5: Emma Research Analyst - UC Digest Generation
-            # ========================================
-            # Emma analyzes ALL UCs and creates a structured digest for Marcus
-            # This replaces the old approach of passing raw UCs (limited to 15)
-            logger.info("[Phase 2.5] Emma Research Analyst - Generating UC Digest")
-            self._update_progress(execution, "research_analyst", "running", 43, "Analyzing Use Cases...")
-            try:
-                sm.transition_to("sds_phase2_5_running")
-            except Exception as e:
-                logger.warning(f"[StateMachine] transition failed: {e}")
-            
-            # Get ALL use cases (no limit) and business requirements
-            all_use_cases = self._get_use_cases(execution_id, limit=None)
-            
-            emma_result = await self._run_agent(
-                agent_id="research_analyst",
-                mode="analyze",
-                input_data={
-                    "use_cases": all_use_cases,
-                    "business_requirements": business_requirements
-                },
-                execution_id=execution_id,
-                project_id=project_id
-            )
-            
-            uc_digest = {}
-            emma_tokens = 0
-            
-            if emma_result.get("success"):
-                uc_digest = emma_result["output"].get("content", {})
-                emma_tokens = emma_result["output"].get("metadata", {}).get("tokens_used", 0)
-                
-                # Save Emma's deliverable
-                self._save_deliverable(execution_id, "research_analyst", "uc_digest", emma_result["output"])
-                results["artifacts"]["UC_DIGEST"] = emma_result["output"]
-                results["agent_outputs"]["research_analyst"] = emma_result["output"]
-                results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
-                results["metrics"]["total_tokens"] += emma_tokens
-                self._accumulate_cost(execution, emma_tokens, emma_result["output"].get("metadata", {}).get("model", ""))
-
-                logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
-                self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
-                self._save_checkpoint(execution, "phase2_5_emma")
+            # VAGUE 3 / §3.1 — reprise en phase 3 : Emma n'est pas rejouee.
+            #
+            # Le digest est relu depuis `agent_deliverables`. Sans cette
+            # relecture, une reprise `phase3` serait PIRE que `phase2` : Marcus
+            # concevrait avec `uc_digest = {}`, donc sans la synthese des UC, et
+            # en silence — le repli « Marcus utilisera les UC bruts » ci-dessous
+            # est prevu pour un echec d'Emma, pas pour une reprise.
+            if resume_from == "phase3":
+                uc_digest = self._load_uc_digest(execution_id)
+                if uc_digest:
+                    logger.info(
+                        "[Phase 2.5] SAUTEE — reprise en phase3 : digest d'Emma "
+                        "relu en base"
+                    )
+                    results["artifacts"]["UC_DIGEST"] = {"content": uc_digest}
+                else:
+                    # Regle 5 : ne pas continuer en pretendant que tout va bien.
+                    logger.warning(
+                        "[Phase 2.5] Reprise en phase3 mais AUCUN digest d'Emma "
+                        "en base : Marcus va travailler sur les UC bruts. "
+                        "Reprendre en 'phase2_5' pour le reconstruire."
+                    )
+                self._update_progress(
+                    execution, "research_analyst", "completed", 45,
+                    "Digest conserve (reprise)" if uc_digest else "Digest absent (reprise)"
+                )
+                try:
+                    sm.transition_to("sds_phase2_5_running")
+                except Exception:
+                    pass
+                try:
+                    sm.transition_to("sds_phase2_5_complete")
+                except Exception:
+                    pass
             else:
-                logger.warning(f"[Phase 2.5] ⚠️ Emma failed: {emma_result.get('error', 'Unknown error')} - Marcus will use raw UCs")
-                self._update_progress(execution, "research_analyst", "failed", 45, "Analysis failed - using fallback")
-                # Fallback: Marcus will receive raw UCs (old behavior)
+                # ========================================
+                # PHASE 2.5: Emma Research Analyst - UC Digest Generation
+                # ========================================
+                # Emma analyzes ALL UCs and creates a structured digest for Marcus
+                # This replaces the old approach of passing raw UCs (limited to 15)
+                logger.info("[Phase 2.5] Emma Research Analyst - Generating UC Digest")
+                self._update_progress(execution, "research_analyst", "running", 43, "Analyzing Use Cases...")
+                try:
+                    sm.transition_to("sds_phase2_5_running")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
             
-            try:
-                sm.transition_to("sds_phase2_5_complete")
-            except Exception as e:
-                logger.warning(f"[StateMachine] transition failed: {e}")
+                # Get ALL use cases (no limit) and business requirements
+                all_use_cases = self._get_use_cases(execution_id, limit=None)
+            
+                emma_result = await self._run_agent(
+                    agent_id="research_analyst",
+                    mode="analyze",
+                    input_data={
+                        "use_cases": all_use_cases,
+                        "business_requirements": business_requirements
+                    },
+                    execution_id=execution_id,
+                    project_id=project_id
+                )
+            
+                uc_digest = {}
+                emma_tokens = 0
+            
+                if emma_result.get("success"):
+                    uc_digest = emma_result["output"].get("content", {})
+                    emma_tokens = emma_result["output"].get("metadata", {}).get("tokens_used", 0)
+                
+                    # Save Emma's deliverable
+                    self._save_deliverable(execution_id, "research_analyst", "uc_digest", emma_result["output"])
+                    results["artifacts"]["UC_DIGEST"] = emma_result["output"]
+                    results["agent_outputs"]["research_analyst"] = emma_result["output"]
+                    results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
+                    results["metrics"]["total_tokens"] += emma_tokens
+                    self._accumulate_cost(execution, emma_tokens, emma_result["output"].get("metadata", {}).get("model", ""))
+
+                    logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
+                    self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
+                    self._save_checkpoint(execution, "phase2_5_emma")
+                else:
+                    logger.warning(f"[Phase 2.5] ⚠️ Emma failed: {emma_result.get('error', 'Unknown error')} - Marcus will use raw UCs")
+                    self._update_progress(execution, "research_analyst", "failed", 45, "Analysis failed - using fallback")
+                    # Fallback: Marcus will receive raw UCs (old behavior)
+            
+                try:
+                    sm.transition_to("sds_phase2_5_complete")
+                except Exception as e:
+                    logger.warning(f"[StateMachine] transition failed: {e}")
 
             # PHASE 3: Marcus Architect - 4 Sequential Calls
             # ========================================
@@ -2585,6 +2705,45 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             traceback.print_exc()
             return {"success": False, "error": str(e)}
     
+    def _load_uc_digest(self, execution_id: int) -> Dict[str, Any]:
+        """Relit le digest d'Emma depuis `agent_deliverables`.
+
+        VAGUE 3 / §3.1 — sert la reprise en `phase3`, qui conserve la phase 2.5.
+        Marcus doit recevoir le digest reel : sans lui il concevrait sur les UC
+        bruts, silencieusement et sans que rien ne le signale.
+
+        Rend `{}` si aucun digest n'est trouve — l'appelant le journalise, il ne
+        fait pas comme si de rien n'etait.
+        """
+        deliverable = (
+            self.db.query(AgentDeliverable)
+            .filter(
+                AgentDeliverable.execution_id == execution_id,
+                AgentDeliverable.deliverable_type.like("%uc_digest%"),
+            )
+            .order_by(AgentDeliverable.id.desc())
+            .first()
+        )
+        if not deliverable or not deliverable.content:
+            return {}
+
+        try:
+            content = (
+                deliverable.content
+                if isinstance(deliverable.content, dict)
+                else json.loads(deliverable.content)
+            )
+        except (TypeError, ValueError) as exc:
+            logger.warning(
+                f"[Phase 2.5] Digest d'Emma illisible pour l'execution "
+                f"{execution_id} : {exc}"
+            )
+            return {}
+
+        # `_save_deliverable` enregistre l'`output` complet de l'agent ; le
+        # digest utile est sous "content", comme en phase 2.5 nominale.
+        return content.get("content", content) if isinstance(content, dict) else {}
+
     def _load_existing_artifacts(self, execution_id: int) -> Dict[str, Any]:
         """Load existing artifacts from a previous execution."""
         artifacts = {}
