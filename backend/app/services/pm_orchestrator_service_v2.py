@@ -331,15 +331,29 @@ class PMOrchestratorServiceV2:
                 f"TaskExecution non terminees."
             )
         if resume_from is not None and resume_from not in SDS_RESUME_POINTS:
-            # Pas un refus : la branche generique reste le comportement historique
-            # de toutes ces valeurs. Mais elle cesse d'etre muette — voir
-            # EXECUTION_VAGUE2.md, le vocabulaire de `resume_from` est fracture
-            # entre quatre appelants et depasse le perimetre de ce lot.
-            logger.warning(
-                f"[resume_from] valeur non reconnue : {resume_from!r}. "
-                f"Points de reprise SDS connus : {sorted(SDS_RESUME_POINTS)}. "
-                f"Repli sur la branche generique « saute la phase 1, rejoue a "
-                f"partir de la phase 2 » — verifier que c'est bien l'intention."
+            # VAGUE 3 / §3.5 — refus, la ou la vague 2 se contentait d'un WARNING.
+            #
+            # Cause commune des douze valeurs mortes : une valeur non reconnue
+            # tombait dans le `if resume_from and resume_from not in (None,
+            # "phase1", "phase1_pm")` plus bas, c'est-a-dire « saute la phase 1,
+            # rejoue a partir de la phase 2 ». Le WARNING de la vague 2 les a
+            # rendues visibles ; il ne les a pas empechees, et la plus couteuse
+            # est dans le chemin nominal du client (approuver `after_build_code`
+            # rejouait toute la chaine SDS).
+            #
+            # Un point de reprise faux vaut mieux refuse que devine : une
+            # exception coute un job en echec, un repli silencieux coute une
+            # chaine SDS entiere, facturee, sur un travail deja fait.
+            #
+            # Le refus est **avant le `try:`** : ce n'est pas un echec
+            # d'execution a consigner mais une erreur d'appelant.
+            raise ValueError(
+                f"resume_from={resume_from!r} n'est pas un point de reprise "
+                f"reconnu. Points valides : {sorted(SDS_RESUME_POINTS)}. "
+                f"Les reprises de phase BUILD ({sorted(BUILD_RESUME_POINTS)}) "
+                f"passent par le job ARQ 'execute_build_task', pas par ce "
+                f"workflow. Voir SPEC_VAGUE3 §3.2 pour la correspondance entre "
+                f"les valeurs emises par les routes et ces points de reprise."
             )
 
         try:
