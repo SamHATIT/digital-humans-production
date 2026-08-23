@@ -17,6 +17,7 @@ from app.api.routes import auth, pm_orchestrator, projects, analytics, artifacts
 from app.api import audit  # CORE-001: Audit logging API
 from app.middleware import AuditMiddleware, BuildEnabledMiddleware, ExecutionContextMiddleware  # CORE-001 + C-4 + D-2
 from app.database import Base, engine, SessionLocal
+from app.schema_bootstrap import encryption_posture, should_auto_create_schema
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
@@ -37,15 +38,42 @@ logger = logging.getLogger(__name__)
 #   2. it made the process unable to even start when PostgreSQL was down, so a
 #      database outage turned into "the API will not boot" instead of "the API
 #      reports unhealthy".
-# In production the schema is owned by Alembic (`alembic upgrade head`, run by
-# the deployment). Only DEBUG environments keep the convenience auto-create.
-if settings.DEBUG:
+#
+# VAGUE 2 / LOT 4 — la garde etait `if settings.DEBUG:`, et LOT-G annoncait
+# « boot sans create_all ». Or DEBUG vaut True par defaut (config.py) et **la
+# production tourne en DEBUG=True** : create_all y tournait a chaque
+# demarrage. Les requetes `pg_catalog.pg_type` vues au boot du 23/08 etaient
+# la verification d'existence des enums que fait create_all(checkfirst=True) —
+# pas autre chose. Le critere etait declare et non tenu.
+#
+# La decision ne depend plus de DEBUG : elle se demande par AUTO_CREATE_SCHEMA,
+# et elle est journalisee dans les deux sens. Voir app/schema_bootstrap.py.
+_create_schema, _schema_reason = should_auto_create_schema(
+    debug=settings.DEBUG, auto_create=settings.AUTO_CREATE_SCHEMA
+)
+if _create_schema:
+    logger.warning("Schema auto-creation ENABLED — %s", _schema_reason)
     Base.metadata.create_all(bind=engine)
 else:
-    logger.info(
-        "Schema creation skipped (DEBUG=False): the schema is owned by Alembic. "
-        "Run 'alembic upgrade head' as part of the deployment."
-    )
+    logger.info("Schema auto-creation skipped — %s", _schema_reason)
+
+# VAGUE 2 / LOT 4 — posture de chiffrement, annoncee a chaque demarrage.
+#
+# `config.validate_encryption_key` n'exige CREDENTIALS_ENCRYPTION_KEY qu'a
+# DEBUG=False. En production DEBUG vaut True et la cle est absente : le
+# garde-fou de LOT-E est inerte, et le chiffrement des credentials retombe sur
+# une cle derivee de SECRET_KEY. Ce boot ne bascule rien — la bascule
+# DEBUG=False est une decision d'exploitation (docs/audit-20260821/
+# BASCULE_DEBUG_FALSE.md) — mais il refuse de se taire.
+_encryption = encryption_posture(
+    debug=settings.DEBUG,
+    encryption_key=settings.CREDENTIALS_ENCRYPTION_KEY,
+    secret_key=settings.SECRET_KEY,
+)
+if _encryption["ok"]:
+    logger.info(_encryption["message"])
+else:
+    logger.critical(_encryption["message"])
 
 # Initialize FastAPI application
 app = FastAPI(

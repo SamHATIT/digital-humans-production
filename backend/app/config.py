@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Digital Humans API"
     DEBUG: bool = True
 
+    # VAGUE 2 / LOT 4 — creation du schema au demarrage, decorrelee de DEBUG.
+    #
+    # `main.py` faisait `if settings.DEBUG: Base.metadata.create_all()`. DEBUG
+    # vaut True par defaut et la production tourne en DEBUG=True : le critere
+    # de fin de LOT-G, « boot sans create_all », etait declare et non tenu.
+    # La commodite reste disponible, mais elle se demande — elle ne s'herite
+    # plus d'un drapeau qui veut dire autre chose.
+    #
+    # None = non pose (comportement par defaut : pas de create_all).
+    AUTO_CREATE_SCHEMA: Optional[bool] = None
+
     # CORS - Autoriser toutes les origines pour débogage
     BACKEND_CORS_ORIGINS: List[str] = ["*"]
 

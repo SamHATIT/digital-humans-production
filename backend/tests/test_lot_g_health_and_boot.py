@@ -108,21 +108,58 @@ def test_directory_traversal_is_not_served(attack):
 # ---------------------------------------------------------------------------
 
 def test_schema_creation_is_debug_only():
-    """En production (DEBUG=False) le schema appartient a Alembic.
+    """Le boot ne cree pas le schema — quel que soit DEBUG.
 
-    Le boot ne doit plus appeler create_all : sinon les tables sont creees
-    sans `alembic_version` (drift garanti) et le process refuse de demarrer
-    quand PostgreSQL est absent.
+    VAGUE 2 / LOT 4 — ce test **prouvait le defaut au lieu du critere**.
+
+    Sa derniere assertion etait :
+
+        assert "if settings.DEBUG:\\n    Base.metadata.create_all(bind=engine)" in source
+
+    c'est-a-dire : « le code contient bien `if settings.DEBUG: create_all()` ».
+    Or `DEBUG` vaut True par defaut et **la production tourne en DEBUG=True** :
+    cette ligne est exactement ce qui faisait tourner `create_all` a chaque
+    demarrage en production. Le test verifiait la presence du defaut pendant
+    que sa docstring annoncait « le boot ne doit plus appeler create_all », et
+    le critere de fin de LOT-G a ete accepte sur cette base.
+
+    C'est la lecon centrale de cet audit, appliquee a l'audit lui-meme : un
+    test vert ne vaut que ce que vaut son assertion. Le voici reecrit pour
+    verifier ce qu'il annonce.
     """
     import inspect
 
     import app.main as main_module
 
     source = inspect.getsource(main_module)
+
+    # La decision ne doit plus dependre de DEBUG.
+    assert "if settings.DEBUG:\n    Base.metadata.create_all" not in source, (
+        "la creation du schema est de nouveau conditionnee a DEBUG — "
+        "en production DEBUG=True, donc create_all tournerait au boot"
+    )
+
+    # Elle est deleguee a une decision nommee, testee separement
+    # (tests/test_vague2_lot4_boot.py).
+    assert "should_auto_create_schema" in source
+
+    # Et le seul create_all restant est sous cette decision.
     create_all_lines = [
         line.strip()
         for line in source.splitlines()
         if "metadata.create_all" in line and not line.strip().startswith("#")
     ]
     assert create_all_lines == ["Base.metadata.create_all(bind=engine)"]
-    assert "if settings.DEBUG:\n    Base.metadata.create_all(bind=engine)" in source
+
+
+def test_le_boot_ne_cree_aucune_table_en_debug():
+    """Le critere, verifie sur le comportement et non sur le texte du fichier.
+
+    C'est cette forme-la qui manquait : `should_auto_create_schema` decide, et
+    on verifie qu'avec la configuration de production (DEBUG=True,
+    AUTO_CREATE_SCHEMA non pose) la reponse est « non ».
+    """
+    from app.schema_bootstrap import should_auto_create_schema
+
+    creer, raison = should_auto_create_schema(debug=True, auto_create=None)
+    assert creer is False, raison
