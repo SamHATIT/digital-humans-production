@@ -1593,7 +1593,7 @@ flowchart LR
           <td><strong>Nemotron (llama.cpp)</strong></td>
           <td><code>nemotron</code></td>
           <td>8080</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">inactive</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -1840,7 +1840,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><code>executions</code></td>
-          <td>22</td>
+          <td>23</td>
           <td>Exécutions SDS/BUILD (status, state, budget_used, cost_usd)</td>
         </tr>
         <tr class="tbl-row-detail">
@@ -1849,7 +1849,7 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>colonnes</dt>
                 <dd>
-                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>project_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>user_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>status</strong> <span class="muted">· USER-DEFINED</span></span><span class="chip"><strong>progress</strong> <span class="muted">· integer</span></span><span class="chip"><strong>current_agent</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>selected_agents</strong> <span class="muted">· json</span></span><span class="chip"><strong>agent_execution_status</strong> <span class="muted">· json</span></span><span class="chip"><strong>sds_document_path</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>total_tokens_used</strong> <span class="muted">· integer</span></span><span class="chip"><strong>total_cost</strong> <span class="muted">· double precision</span></span><span class="chip"><strong>duration_seconds</strong> <span class="muted">· integer</span></span><span class="chip"><strong>started_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>completed_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>logs</strong> <span class="muted">· text</span></span><span class="chip"><strong>last_completed_phase</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>execution_state</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>state_updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>state_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>pending_validation</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>validation_history</strong> <span class="muted">· jsonb</span></span></div>
+                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>project_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>user_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>status</strong> <span class="muted">· USER-DEFINED</span></span><span class="chip"><strong>progress</strong> <span class="muted">· integer</span></span><span class="chip"><strong>current_agent</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>selected_agents</strong> <span class="muted">· json</span></span><span class="chip"><strong>agent_execution_status</strong> <span class="muted">· json</span></span><span class="chip"><strong>sds_document_path</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>total_tokens_used</strong> <span class="muted">· integer</span></span><span class="chip"><strong>total_cost</strong> <span class="muted">· double precision</span></span><span class="chip"><strong>duration_seconds</strong> <span class="muted">· integer</span></span><span class="chip"><strong>started_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>completed_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>logs</strong> <span class="muted">· text</span></span><span class="chip"><strong>last_completed_phase</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>execution_state</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>state_updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>state_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>pending_validation</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>validation_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>expert_selection</strong> <span class="muted">· jsonb</span></span></div>
                 </dd>
               </dl>
             </div>
@@ -2658,7 +2658,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/v1/projects/{project_id}</code></td>
+          <td><code>/api/v1/{project_id}</code></td>
           <td><code>get_project</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2676,7 +2676,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--ochre); border-color:rgba(184,149,74,0.55);">PATCH</span></td>
-          <td><code>/api/v1/projects/{project_id}/status</code></td>
+          <td><code>/api/v1/{project_id}/status</code></td>
           <td><code>update_project_status</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2694,7 +2694,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
-          <td><code>/api/v1/projects/{project_id}/settings</code></td>
+          <td><code>/api/v1/{project_id}/settings</code></td>
           <td><code>get_project_settings</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2712,7 +2712,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--ochre); border-color:rgba(184,149,74,0.55);">PUT</span></td>
-          <td><code>/api/v1/projects/{project_id}/settings</code></td>
+          <td><code>/api/v1/{project_id}/settings</code></td>
           <td><code>update_project_settings</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2730,7 +2730,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/api/v1/projects/{project_id}/test-salesforce</code></td>
+          <td><code>/api/v1/{project_id}/test-salesforce</code></td>
           <td><code>test_salesforce_connection</code></td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2748,7 +2748,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
-          <td><code>/api/v1/projects/{project_id}/test-git</code></td>
+          <td><code>/api/v1/{project_id}/test-git</code></td>
           <td><code>test_git_connection</code></td>
         </tr>
         <tr class="tbl-row-detail">
