@@ -1,7 +1,7 @@
 /**
  * Pricing — A5.4
  * Refonte commerciale + visuelle Studio :
- *   Free / Pro (49€/mo) / Team (1490€/mo) / Enterprise (devis)
+ *   Free / Pro (79€/mo) / Team (1490€/mo) / Enterprise (devis)
  * Page publique (pas de ProtectedRoute), accessible avec un AppShell variant="public".
  */
 import { useState } from 'react';
@@ -67,9 +67,9 @@ const TIERS: TierCardData[] = [
     id: 'pro',
     name: 'Pro',
     tagline: { en: 'For consultants & freelance admins', fr: 'Pour consultants & admins freelance' },
-    price: { en: '49€', fr: '49€' },
+    price: { en: '79€', fr: '79€' },
     unit: { en: '/ month', fr: '/ mois' },
-    credits: { en: '5 000 credits / mo', fr: '5 000 crédits / mois' },
+    credits: { en: '15 000 credits / mo', fr: '15 000 crédits / mois' },
     projects: { en: '5 projects · SDS + BUILD', fr: '5 projets · SDS + BUILD' },
     scope: { en: 'Git, SFDX, priority support', fr: 'Git, SFDX, support prioritaire' },
     cta: { en: 'Subscribe', fr: "S'abonner" },

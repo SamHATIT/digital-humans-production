@@ -8,7 +8,7 @@ Tier scopes
 -----------
 FREE        — Sophie + Olivia chat seul. Pas d'upload, pas de mémoire.
               Modèle Haiku uniquement. Vitrine + qualification prospect.
-PRO   49€   — Équipe complète, upload, mémoire persistante.
+PRO   79€   — Équipe complète, upload, mémoire persistante, 15 000 crédits/mois.
               Livrable final = SDS (BR + UC + Solution Design + document Word/PDF).
               PAS de BUILD (pas de génération de code), PAS de déploiement.
               Modèles Haiku + Sonnet. Pas d'Opus.
@@ -95,8 +95,8 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
     SubscriptionTier.PRO: {
         "name": "Pro",
         "tagline": "Du brief au SDS",
-        "price": 49,
-        "price_display": "49 €/mois",
+        "price": 79,
+        "price_display": "79 €/mois",
         "billing_period": "monthly",
         "features": {
             # Chat scope

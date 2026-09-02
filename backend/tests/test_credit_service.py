@@ -50,9 +50,9 @@ def _seed_tiers(db) -> None:
             ),
             TierConfig(
                 tier_name="pro",
-                monthly_credits=2000,
+                monthly_credits=15000,
                 daily_credits_cap=None,
-                price_eur_monthly=49,
+                price_eur_monthly=79,
                 description="pro",
             ),
             TierConfig(
@@ -155,14 +155,14 @@ def test_resolve_credit_tier_maps_enterprise_to_team(seeded_db):
 
 
 def test_charge_sonnet_pro_user_ok(seeded_db):
-    user = _create_user(seeded_db, "pro@example.com", tier="premium")
+    user = _create_user(seeded_db, "pro@example.com", tier="pro")
     service = CreditService(seeded_db)
     tx = service.charge(user.id, "claude-sonnet-4-6", tokens_in=2000, tokens_out=1000)
     # 2 * 1.0 + 1 * 5.0 = 7 credits
     assert tx.credits_consumed == 7
     balance = service.get_balance(user.id)
     assert balance["used_credits"] == 7
-    assert balance["available"] == 2000 - 7
+    assert balance["available"] == 15000 - 7
 
 
 def test_charge_opus_free_user_raises_model_not_allowed(seeded_db):
@@ -223,19 +223,19 @@ def test_charge_logs_transaction(seeded_db):
 
 
 def test_get_balance_lazy_create(seeded_db):
-    user = _create_user(seeded_db, "lazy@example.com", tier="premium")
+    user = _create_user(seeded_db, "lazy@example.com", tier="pro")
     service = CreditService(seeded_db)
     assert seeded_db.query(CreditBalance).filter_by(user_id=user.id).first() is None
     snapshot = service.get_balance(user.id)
-    assert snapshot["included_credits"] == 2000  # pro monthly
+    assert snapshot["included_credits"] == 15000  # pro monthly (D1, 02/09)
     assert snapshot["used_credits"] == 0
-    assert snapshot["available"] == 2000
+    assert snapshot["available"] == 15000
     # Balance row was created
     assert seeded_db.query(CreditBalance).filter_by(user_id=user.id).first() is not None
 
 
 def test_reset_monthly_resets_used_to_zero_and_refills_included(seeded_db):
-    user = _create_user(seeded_db, "reset@example.com", tier="premium")
+    user = _create_user(seeded_db, "reset@example.com", tier="pro")
     service = CreditService(seeded_db)
     service.charge(user.id, "claude-sonnet-4-6", tokens_in=10000, tokens_out=2000)
     before = seeded_db.query(CreditBalance).filter_by(user_id=user.id).one()
@@ -245,7 +245,7 @@ def test_reset_monthly_resets_used_to_zero_and_refills_included(seeded_db):
 
     after = seeded_db.query(CreditBalance).filter_by(user_id=user.id).one()
     assert after.used_credits == 0
-    assert after.included_credits == 2000  # pro tier monthly allotment
+    assert after.included_credits == 15000  # pro tier monthly allotment (D1, 02/09)
 
 
 def test_pricing_calculation_haiku(seeded_db):
