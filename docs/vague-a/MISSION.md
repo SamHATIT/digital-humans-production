@@ -6,13 +6,26 @@ Tu ne touches jamais à `main`, ni à `.env`, ni à la base `digital_humans_db`,
 ni aux services systemd. Rien n'est poussé en production : Sam relit la branche
 avec Claude avant tout merge.
 
-## Modèles et outils
+## Environnement, modèles, outils
 
-- Modèles : orchestrateur Fable 5.1 ; sous-agents Opus (A1, A5, A6) et Sonnet (A2, A3, A4, A7, A8, A9, A10, rédaction des tests).
-- Tests : `TEST_DATABASE_URL=postgresql://digital_humans:***@127.0.0.1:5432/digital_humans_test`
-  et `DATABASE_URL` identique dans l'environnement de test. **Jamais** la base prod.
-- La suite complète dure ~3 min : lance-la en arrière-plan (`nohup … > /tmp/pytest_<lot>.log 2>&1 &`) et lis le log, ne la laisse pas expirer.
-- Le venv est `backend/venv`. Les tests se lancent depuis `backend/`.
+- Tu tournes dans le bac à sable Claude Code (clone GitHub), **pas sur le VPS**. C'est
+  le processus habituel : tu travailles sur la branche, Sam et Claude relisent,
+  puis Claude déploie sur le VPS. Ne cherche ni `.env`, ni services systemd,
+  ni tunnel Spark : ils n'existent pas ici.
+- Modèles : orchestrateur Fable 5.1 ; sous-agents Opus (A1, A5, A6) et Sonnet
+  (A2, A3, A4, A7, A8, A9, A10, rédaction des tests).
+- Base de test : `tests/conftest.py` exige PostgreSQL. Installe-le dans le bac à
+  sable (`apt-get install postgresql`, crée `digital_humans_test`), puis exporte
+  `TEST_DATABASE_URL` et `DATABASE_URL` sur cette base. Jamais SQLite.
+- Référence pytest : **mesurée par toi dans ce bac à sable** au lot A1, pas
+  reprise des chiffres du 02/09 (461/24/7/118, mesurés sur le VPS). Les deux
+  environnements peuvent diverger ; c'est la tienne qui compte pour la vague.
+- Le venv : crée-le (`python3.12 -m venv backend/venv && pip install -r backend/requirements.txt`).
+- La suite complète dure plusieurs minutes : lance-la en arrière-plan et lis le log.
+- Pour A8, démarre le backend localement (`uvicorn app.main:app --port 8002`) avec
+  `DEBUG=False` et les variables minimales que `app/config.py` exige.
+- Pour A7, le script est dans `scripts/dh-watchdog.sh` (copie du VPS). La sonde
+  Spark échouera ici : c'est le cas de test.
 
 ## Discipline (chaque règle vient d'un incident réel)
 
