@@ -242,9 +242,34 @@ async def startup_event():
         logger.warning(f"NotificationService failed to initialize (non-critical): {e}")
 
     # P11: probe RAG collections so operators notice empty/misconfigured ChromaDB at boot.
+    #
+    # VAGUE A / LOT A6 — `rag_health_check()` etait appele **en synchrone** ici.
+    # Il ouvre le client ChromaDB puis fait un `coll.count()` par collection
+    # (cinq collections, disque + SQLite) : bloquant par nature, alors que
+    # `startup_event` est une coroutine. Deux consequences distinctes :
+    #   1. la boucle d'evenements est immobilisee pendant tout le comptage ;
+    #   2. uvicorn n'ouvre le port qu'a la fin du startup, donc le serveur ne
+    #      repond a **rien** pendant ce temps — pas meme `/health`.
+    #
+    # Un simple `await asyncio.to_thread(rag_health_check)` corrigerait (1) mais
+    # pas (2) : le startup attendrait toujours la fin du comptage. La sonde est
+    # donc lancee en tache de fond, hors boucle : le boot rend la main tout de
+    # suite et le comptage se journalise quand il aboutit.
+    #
+    # Ce n'est pas un repli silencieux : la ligne `[RAG HEALTH]` (OK / EMPTY /
+    # FAILED) est toujours emise par `rag_health_check`, et une exception qui
+    # s'en echapperait sort en `probe crashed` — jamais avalee. La tache est
+    # referencee par `app.state` pour ne pas etre ramassee avant d'avoir fini :
+    # asyncio ne garde qu'une reference faible sur les taches en cours.
+    async def _rag_health_probe() -> None:
+        try:
+            from app.services.rag_service import rag_health_check
+            await asyncio.to_thread(rag_health_check)
+        except Exception as e:
+            logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
+
     try:
-        from app.services.rag_service import rag_health_check
-        rag_health_check()
+        app.state.rag_health_task = asyncio.create_task(_rag_health_probe())
     except Exception as e:
         logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
 
