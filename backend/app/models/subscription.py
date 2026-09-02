@@ -70,7 +70,6 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
             "multi_environment": False,
             "deploy_to_production": False,
             # LLM access
-            "llm_haiku": True,
             "llm_sonnet": False,
             "llm_opus": False,
             # Limits
@@ -121,7 +120,6 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
             "multi_environment": False,
             "deploy_to_production": False,
             # LLM access
-            "llm_haiku": True,
             "llm_sonnet": True,
             "llm_opus": False,
             # Limits
@@ -172,7 +170,6 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
             "multi_environment": True,
             "deploy_to_production": False,    # Sécurité : sandbox uniquement
             # LLM access
-            "llm_haiku": True,
             "llm_sonnet": True,
             "llm_opus": True,                 # Opt-in côté UI
             # Limits
@@ -222,7 +219,6 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
             "multi_environment": True,
             "deploy_to_production": True,     # Négocié au contrat
             # LLM access (choix client)
-            "llm_haiku": True,
             "llm_sonnet": True,
             "llm_opus": True,
             # Limits — illimité
@@ -327,7 +323,7 @@ if __name__ == "__main__":
         print(f"  SDS deliverable  : {has_feature(tier, 'sds_document')}")
         print(f"  BUILD phase      : {has_feature(tier, 'build_phase')}")
         print(f"  Deploy to prod   : {has_feature(tier, 'deploy_to_production')}")
-        print(f"  LLM access       : haiku={has_feature(tier, 'llm_haiku')} sonnet={has_feature(tier, 'llm_sonnet')} opus={has_feature(tier, 'llm_opus')}")
+        print(f"  LLM access       : sonnet={has_feature(tier, 'llm_sonnet')} opus={has_feature(tier, 'llm_opus')}")
         max_proj = get_limit(tier, "max_projects")
         print(f"  Max projects     : {'∞' if max_proj is None else max_proj}")
 
