@@ -52,3 +52,8 @@ einops
 slowapi>=0.1.9
 asyncpg>=0.29.0
 stripe==15.1.0
+
+# File d'execution ARQ - importee par app/workers/arq_config.py et app/main.py,
+# absente jusqu'ici : une installation neuve ne collecte meme pas tests/conftest.py.
+arq==0.28.0
+redis==5.3.1
