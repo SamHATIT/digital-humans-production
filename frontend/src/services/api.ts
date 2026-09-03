@@ -161,6 +161,31 @@ async function streamAuthenticated(endpoint: string, body?: unknown): Promise<Re
 export const files = { openAuthenticated, downloadAuthenticated };
 export const stream = { post: streamAuthenticated };
 
+// ==================== TIERS (vague B, lot B7 — D9) ====================
+// Source unique des tiers : la table `tier_config`, servie par cet
+// endpoint public (pas de jeton requis, monté sous /api/subscription).
+// Pricing.tsx ne doit plus jamais coder un prix ou un nombre de crédits en
+// dur — il lit ce endpoint. Voir `app/api/routes/subscription.py` et
+// `app/services/tier_config_service.py`.
+export interface PublicTier {
+  tier: string;
+  name: string;
+  price_eur_monthly: number | null;
+  monthly_credits: number | null;
+  daily_credits_cap: number | null;
+  credits: number | null;
+  credits_period: 'day' | 'month' | null;
+  description: string | null;
+  features: Record<string, boolean | number | null>;
+  limitations: string[];
+}
+
+export const publicTiers = {
+  list: async (): Promise<{ tiers: PublicTier[] }> => {
+    return apiCall('/api/subscription/tiers', { method: 'GET' });
+  },
+};
+
 // ==================== AUTH ====================
 
 export const auth = {

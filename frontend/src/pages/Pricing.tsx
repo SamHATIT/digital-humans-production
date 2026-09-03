@@ -1,13 +1,19 @@
 /**
  * Pricing — A5.4
- * Refonte commerciale + visuelle Studio :
- *   Free / Pro (79€/mo) / Team (1490€/mo) / Enterprise (devis)
+ * Refonte commerciale + visuelle Studio : Free / Pro / Team / Enterprise.
  * Page publique (pas de ProtectedRoute), accessible avec un AppShell variant="public".
+ *
+ * Vague B, lot B7 (D9, 03/09) : plus aucun prix ni nombre de crédits en dur
+ * ici. La table `tier_config` est la seule source ; cette page appelle
+ * `publicTiers.list()` (`GET /api/subscription/tiers`, public, sans jeton)
+ * et affiche un état de chargement / d'erreur explicite — jamais un chiffre
+ * de repli silencieux si l'appel échoue (règle 6).
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
+import { publicTiers, type PublicTier } from '../services/api';
 
 type Tier = 'free' | 'pro' | 'team' | 'enterprise';
 
@@ -38,27 +44,24 @@ const FEATURES: Feature[] = [
   { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'SLA + dedicated support', fr: 'SLA + support dédié', }, values: { free: false, pro: false, team: false, enterprise: true } },
 ];
 
-interface TierCardData {
+interface TierCopy {
   id: Tier;
   name: string;
   tagline: { en: string; fr: string };
-  price: { en: string; fr: string };
-  unit: { en: string; fr: string } | null;
-  credits: { en: string; fr: string };
   projects: { en: string; fr: string };
   scope: { en: string; fr: string };
   cta: { en: string; fr: string };
   highlight?: boolean;
 }
 
-const TIERS: TierCardData[] = [
+// Copie marketing statique — aucun prix, aucun nombre de crédits ici (D9).
+// Ces chiffres viennent exclusivement de `publicTiers.list()` (état `apiTiers`
+// dans le composant), lu depuis `tier_config`.
+const TIER_COPY: TierCopy[] = [
   {
     id: 'free',
     name: 'Free',
     tagline: { en: 'Try the Studio', fr: 'Découvrir le Studio' },
-    price: { en: '0€', fr: '0€' },
-    unit: null,
-    credits: { en: '500 credits / mo', fr: '500 crédits / mois' },
     projects: { en: '1 project · SDS only', fr: '1 projet · SDS uniquement' },
     scope: { en: 'Zero data retention', fr: 'Zero data retention' },
     cta: { en: 'Sign up free', fr: 'Créer un compte' },
@@ -67,9 +70,6 @@ const TIERS: TierCardData[] = [
     id: 'pro',
     name: 'Pro',
     tagline: { en: 'For consultants & freelance admins', fr: 'Pour consultants & admins freelance' },
-    price: { en: '79€', fr: '79€' },
-    unit: { en: '/ month', fr: '/ mois' },
-    credits: { en: '15 000 credits / mo', fr: '15 000 crédits / mois' },
     projects: { en: '5 projects · SDS + BUILD', fr: '5 projets · SDS + BUILD' },
     scope: { en: 'Git, SFDX, priority support', fr: 'Git, SFDX, support prioritaire' },
     cta: { en: 'Subscribe', fr: "S'abonner" },
@@ -79,9 +79,6 @@ const TIERS: TierCardData[] = [
     id: 'team',
     name: 'Team',
     tagline: { en: 'For agencies & in-house teams', fr: 'Pour agences & équipes internes' },
-    price: { en: '1 490€', fr: '1 490€' },
-    unit: { en: '/ month', fr: '/ mois' },
-    credits: { en: '50 000 credits / mo', fr: '50 000 crédits / mois' },
     projects: { en: 'Unlimited · multi-env', fr: 'Illimités · multi-env' },
     scope: { en: 'Custom templates, shared workspaces', fr: 'Templates personnalisés, workspaces partagés' },
     cta: { en: 'Talk to us', fr: 'Nous contacter' },
@@ -90,21 +87,52 @@ const TIERS: TierCardData[] = [
     id: 'enterprise',
     name: 'Enterprise',
     tagline: { en: 'For large organisations', fr: 'Pour grandes organisations' },
-    price: { en: 'On request', fr: 'Sur devis' },
-    unit: null,
-    credits: { en: 'Unlimited', fr: 'Illimité' },
     projects: { en: 'Unlimited · on-premise', fr: 'Illimités · on-premise' },
     scope: { en: 'SLA, dedicated support, ZDR', fr: 'SLA, support dédié, ZDR' },
     cta: { en: 'Talk to us', fr: 'Nous contacter' },
   },
 ];
 
+const TIER_ORDER: Tier[] = ['free', 'pro', 'team', 'enterprise'];
+
+// Formatage des chiffres reçus de l'API — jamais une valeur de repli, un
+// tier absent de la réponse (Enterprise n'a pas de ligne `tier_config`)
+// rend "Sur devis" / "On request", jamais un nombre inventé.
+function formatPrice(apiTier: PublicTier | undefined, lang: 'en' | 'fr'): string {
+  if (!apiTier || apiTier.price_eur_monthly === null) {
+    return lang === 'fr' ? 'Sur devis' : 'On request';
+  }
+  const grouped = new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-US').format(
+    apiTier.price_eur_monthly,
+  );
+  return `${grouped}€`;
+}
+
+function formatCredits(apiTier: PublicTier | undefined, lang: 'en' | 'fr'): string {
+  if (!apiTier || apiTier.credits === null || apiTier.credits_period === null) {
+    return lang === 'fr' ? 'Illimité' : 'Unlimited';
+  }
+  const grouped = new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-US').format(
+    apiTier.credits,
+  );
+  const noun = lang === 'fr' ? 'crédits' : 'credits';
+  const period =
+    apiTier.credits_period === 'day'
+      ? lang === 'fr'
+        ? 'jour'
+        : 'day'
+      : lang === 'fr'
+        ? 'mois'
+        : 'month';
+  return `${grouped} ${noun} / ${period}`;
+}
+
 const FAQ = [
   {
     q: { en: 'How are credits counted?', fr: 'Comment les crédits sont-ils comptés ?' },
     a: {
-      en: 'Each agent invocation consumes credits proportional to the LLM tokens used. A typical SDS run costs ~ 800 credits, a typical BUILD ~ 3 500 credits.',
-      fr: 'Chaque invocation d\'agent consomme des crédits proportionnels aux tokens LLM utilisés. Un SDS coûte généralement ~ 800 crédits, un BUILD ~ 3 500 crédits.',
+      en: 'Each agent invocation consumes credits proportional to the LLM tokens used, so cost scales with project complexity rather than a fixed count. The exact allowance for each plan is shown above, read live from our pricing table.',
+      fr: 'Chaque invocation d\'agent consomme des crédits proportionnels aux tokens LLM utilisés : le coût suit la complexité du projet plutôt qu\'un forfait fixe. L\'allocation exacte de chaque plan est affichée ci-dessus, lue en direct depuis notre table de tarifs.',
     },
   },
   {
@@ -197,6 +225,34 @@ export default function Pricing() {
   const { t, lang } = useLang();
   const [showProModal, setShowProModal] = useState(false);
 
+  // Vague B / B7 (D9) : les prix et crédits ne sont plus en dur — ils
+  // viennent de `tier_config` via cet appel. Trois états explicites,
+  // jamais de nombre de repli silencieux si l'appel échoue (règle 6).
+  const [apiTiers, setApiTiers] = useState<PublicTier[] | null>(null);
+  const [tiersError, setTiersError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    publicTiers
+      .list()
+      .then((res) => {
+        if (!cancelled) setApiTiers(res.tiers);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setTiersError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const apiTiersById = (apiTiers ?? []).reduce<Record<string, PublicTier>>((acc, at) => {
+    acc[at.tier] = at;
+    return acc;
+  }, {});
+
   const handleCta = (tier: Tier) => {
     if (tier === 'free') {
       // ONBOARDING-001: Free tier is self-serve — go straight to /signup
@@ -245,12 +301,23 @@ export default function Pricing() {
 
       {/* Tier cards */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        {tiersError && (
+          <p className="mb-6 font-mono text-[12px] text-red-400 border border-red-400/30 bg-red-400/5 px-4 py-3">
+            {t(
+              `Pricing is temporarily unavailable (${tiersError}). Please retry in a moment.`,
+              `Les tarifs sont temporairement indisponibles (${tiersError}). Réessayez dans un instant.`,
+            )}
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {TIERS.map((tier) => {
-            const highlighted = !!tier.highlight;
+          {TIER_ORDER.map((id) => {
+            const copy = TIER_COPY.find((c) => c.id === id)!;
+            const apiTier = apiTiersById[id];
+            const highlighted = !!copy.highlight;
+            const loading = !apiTiers && !tiersError;
             return (
               <div
-                key={tier.id}
+                key={copy.id}
                 className={`relative flex flex-col bg-ink-2 border ${
                   highlighted ? 'border-brass' : 'border-bone/10'
                 } p-7`}
@@ -262,45 +329,53 @@ export default function Pricing() {
                 )}
 
                 <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
-                  {tier.name}
+                  {copy.name}
                 </p>
                 <p className="font-mono text-[11px] text-bone-3 mt-1 mb-6 min-h-[36px]">
-                  {t(tier.tagline.en, tier.tagline.fr)}
+                  {t(copy.tagline.en, copy.tagline.fr)}
                 </p>
 
                 <div className="mb-6">
-                  <span className="font-serif italic text-4xl text-bone">
-                    {t(tier.price.en, tier.price.fr)}
-                  </span>
-                  {tier.unit && (
-                    <span className="font-mono text-[11px] text-bone-4 ml-1">
-                      {t(tier.unit.en, tier.unit.fr)}
+                  {loading ? (
+                    <span className="font-mono text-[13px] text-bone-4 animate-pulse">
+                      {t('Loading…', 'Chargement…')}
                     </span>
+                  ) : (
+                    <>
+                      <span className="font-serif italic text-4xl text-bone">
+                        {formatPrice(apiTier, lang)}
+                      </span>
+                      {apiTier && apiTier.price_eur_monthly !== null && apiTier.price_eur_monthly > 0 && (
+                        <span className="font-mono text-[11px] text-bone-4 ml-1">
+                          {t('/ month', '/ mois')}
+                        </span>
+                      )}
+                    </>
                   )}
                 </div>
 
                 <ul className="space-y-2.5 mb-8 flex-1">
                   <li className="font-mono text-[11px] text-bone-2">
-                    {t(tier.credits.en, tier.credits.fr)}
+                    {loading ? t('Loading…', 'Chargement…') : formatCredits(apiTier, lang)}
                   </li>
                   <li className="font-mono text-[11px] text-bone-3">
-                    {t(tier.projects.en, tier.projects.fr)}
+                    {t(copy.projects.en, copy.projects.fr)}
                   </li>
                   <li className="font-mono text-[11px] text-bone-3">
-                    {t(tier.scope.en, tier.scope.fr)}
+                    {t(copy.scope.en, copy.scope.fr)}
                   </li>
                 </ul>
 
                 <button
                   type="button"
-                  onClick={() => handleCta(tier.id)}
+                  onClick={() => handleCta(copy.id)}
                   className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 font-mono text-[11px] tracking-cta uppercase transition-colors ${
                     highlighted
                       ? 'bg-brass text-ink hover:bg-brass-2'
                       : 'bg-ink-3 text-bone border border-bone/10 hover:border-brass/40'
                   }`}
                 >
-                  {t(tier.cta.en, tier.cta.fr)}
+                  {t(copy.cta.en, copy.cta.fr)}
                   <span aria-hidden="true">→</span>
                 </button>
               </div>
@@ -325,12 +400,12 @@ export default function Pricing() {
                 <th className="text-left py-3 pr-4 font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 font-normal">
                   {t('Feature', 'Fonctionnalité')}
                 </th>
-                {TIERS.map((tier) => (
+                {TIER_COPY.map((copy) => (
                   <th
-                    key={tier.id}
+                    key={copy.id}
                     className="text-center py-3 px-3 font-mono text-[10px] tracking-eyebrow uppercase text-bone-3 font-normal min-w-[110px]"
                   >
-                    {tier.name}
+                    {copy.name}
                   </th>
                 ))}
               </tr>
@@ -353,9 +428,9 @@ export default function Pricing() {
                       <td className="py-3 pr-4 font-mono text-[12px] text-bone-2">
                         {t(feature.label.en, feature.label.fr)}
                       </td>
-                      {TIERS.map((tier) => (
-                        <td key={tier.id} className="py-3 px-3 text-center">
-                          <FeatureValue value={feature.values[tier.id]} />
+                      {TIER_COPY.map((copy) => (
+                        <td key={copy.id} className="py-3 px-3 text-center">
+                          <FeatureValue value={feature.values[copy.id]} />
                         </td>
                       ))}
                     </tr>
