@@ -29,6 +29,8 @@ from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
     verify_execution_access,
     build_agent_progress,
+    # B1-bis : motif lisible d'un echec, quand il est reconnaissable (credits).
+    motif_echec_execution,
 )
 from app.utils.feature_access import require_feature
 
@@ -252,6 +254,9 @@ def get_execution_progress(
         "current_phase": current_phase,
         "agent_progress": agent_progress,
         "sds_document_path": execution.sds_document_path,
+        # B1-bis : `status: "failed"` seul ne disait pas pourquoi. Ce champ vaut
+        # `None` tant que la cause n'est pas reconnue — on ne devine pas.
+        "failure_reason": motif_echec_execution(db, execution),
     }
 
 
@@ -287,6 +292,10 @@ def _load_progress_snapshot(execution_id: int, user_id: int):
             "overall_progress": overall,
             "current_phase": phase,
             "agent_progress": agent_prog,
+            # B1-bis : meme champ que /progress. Le flux SSE est ce que le
+            # front suit reellement pendant une execution ; sans lui le motif
+            # n'arriverait qu'a un rechargement de page.
+            "failure_reason": motif_echec_execution(db, execution),
         }
         return payload, current_status, overall
     finally:

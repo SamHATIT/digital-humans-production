@@ -39,7 +39,9 @@ async def chat_with_sophie(
     service = SophieChatService(db)
     result = await service.chat(
         project_id=project_id,
-        user_message=message.message
+        user_message=message.message,
+        # B1-bis : proprietaire des credits de cet appel LLM (D10).
+        user_id=current_user.id,
     )
     
     if not result.get("success"):

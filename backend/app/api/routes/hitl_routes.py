@@ -184,6 +184,9 @@ def chat_with_sophie_contextual(
             system_prompt=system_prompt,
             max_tokens=1500,
             temperature=0.7,
+            # B1-bis : proprietaire des credits de cet appel LLM (D10). Le
+            # projet de l'execution a deja ete verifie possede par l'appelant.
+            user_id=current_user.id,
         )
     except Exception as e:
         logger.error(f"[HITL Chat] LLM call failed: {e}")
@@ -295,7 +298,7 @@ def analyze_change_request(
         db.commit()
 
     service = ChangeRequestService(db)
-    result = service.analyze_impact(cr_id)
+    result = service.analyze_impact(cr_id, user_id=current_user.id)
 
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))

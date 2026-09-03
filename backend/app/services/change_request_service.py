@@ -55,10 +55,15 @@ class ChangeRequestService:
     def __init__(self, db: Session):
         self.db = db
     
-    def analyze_impact(self, cr_id: int) -> Dict[str, Any]:
+    def analyze_impact(self, cr_id: int, *, user_id: int) -> Dict[str, Any]:
         """
         Analyze the impact of a change request using Claude.
         Returns structured impact analysis with affected items and cost estimate.
+
+        `user_id` — proprietaire des credits, obligatoire (decision D10 du
+        03/09). Les deux routes qui appellent cette methode
+        (`change_requests.py` et `hitl_routes.py`) ont deja verifie que
+        l'utilisateur authentifie possede le projet de la CR.
         """
         logger.info("[CR Service] ========== IMPACT ANALYSIS START ==========")
         logger.info(f"[CR Service] Analyzing CR ID: {cr_id}")
@@ -141,7 +146,8 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
                 agent_type="sophie",  # ORCHESTRATOR tier
                 system_prompt=system_prompt,
                 max_tokens=2000,
-                temperature=0.3  # Low temperature for structured output
+                temperature=0.3,  # Low temperature for structured output
+                user_id=user_id,  # B1-bis : l'analyse d'impact est facturee (D10)
             )
             
             response_text = response["content"]
@@ -390,14 +396,18 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
         self,
         message: str,
         execution_id: int,
+        *,
+        user_id: int,
         deliverable_id: Optional[int] = None,
-        user_id: Optional[int] = None,
     ) -> Optional[ChangeRequest]:
         """
         Create a ChangeRequest from a chat conversation when Sophie detects
         that the user's message implies a modification.
 
         Uses Claude to determine category, priority and title from the message.
+
+        `user_id` — proprietaire des credits, obligatoire (D10) ; il servait
+        deja de `created_by` mais n'etait pas transmis a l'appel LLM.
         """
         logger.info(f"[CR Service] create_from_chat: execution_id={execution_id}, deliverable_id={deliverable_id}")
 
@@ -447,6 +457,7 @@ Retourne UNIQUEMENT un JSON valide:
                 system_prompt=system_prompt,
                 max_tokens=500,
                 temperature=0.2,
+                user_id=user_id,  # B1-bis : la classification est facturee (D10)
             )
 
             parsed = self._parse_impact_json(response["content"])

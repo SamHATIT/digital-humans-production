@@ -505,28 +505,31 @@ def test_le_message_de_quota_s_arrete_a_l_orchestrateur(
     )
 
 
-def test_la_route_de_progression_ne_rend_pas_le_motif_du_refus(
+def test_la_route_de_progression_rend_le_motif_du_refus(
     db_session, client, compte_free
 ):
-    """Constat mesure, pas suppose : rien de `executions.logs` n'atteint le client.
+    """Le motif d'un refus de credits atteint bien le client HTTP.
 
-    `execute_workflow` ecrit le message de l'exception dans `executions.logs`
-    (bloc `except`), et la route de lancement rend 202 avant meme que le
-    travail commence (il part dans un job ARQ). La seule route qu'un client
-    interroge ensuite est `/progress`. Ce test y depose une sentinelle dans
-    `executions.logs` et verifie qu'elle n'en ressort pas : aucun champ de la
-    reponse ne porte le motif d'un refus.
+    Historique : ce test portait le nom inverse
+    (`..._ne_rend_pas_le_motif_du_refus`) et constatait l'absence du champ.
+    C'etait le constat du lot B1 : la route de lancement rend 202 (le travail
+    part dans un job ARQ) et `/progress` ne rendait que `status: "failed"`.
+    Le lot B1-bis a cable le motif ; l'assertion est retournee en consequence,
+    et le controle negatif (un echec de timeout ne doit pas etre etiquete
+    « credits ») vit dans
+    `test_vague_b_b1bis_credits_hors_orchestrateur.py`.
 
-    Conclusion a lire dans le rapport du lot : aujourd'hui aucun chemin HTTP ne
-    remonte « credits insuffisants » au client. Le cabler releve de
-    `api/routes/`, hors du perimetre de B1.
+    Le message consigne est celui que la chaine produit reellement : les agents
+    aplatissent l'exception en chaine (`except Exception: str(e)`) et
+    `execute_workflow` l'ecrit dans `executions.logs`.
     """
+    from app.services.credit_service import InsufficientCreditsError
     from app.utils.auth import create_access_token
 
     utilisateur, _, execution = compte_free
-    sentinelle = "SENTINELLE-B1-MOTIF-DU-REFUS"
+    erreur = InsufficientCreditsError(user_id=utilisateur.id, requested=96, available=0)
     execution.logs = json.dumps(
-        [{"type": "error", "message": f"insufficient_credits: {sentinelle}"}]
+        [{"type": "error", "message": f"BR extraction failed: {erreur}"}]
     )
     execution.status = ExecutionStatus.FAILED
     db_session.commit()
@@ -537,7 +540,10 @@ def test_la_route_de_progression_ne_rend_pas_le_motif_du_refus(
     )
 
     assert reponse.status_code == 200, reponse.text
-    assert sentinelle not in reponse.text, (
-        "la route rend finalement le motif : mettre le rapport a jour"
-    )
-    assert reponse.json()["status"] == "failed"
+    corps = reponse.json()
+    assert corps["status"] == "failed"
+    motif = corps.get("failure_reason")
+    assert motif, f"le motif du refus ne remonte pas au client : {corps}"
+    assert motif["code"] == "insufficient_credits"
+    assert "free" in motif["message"].lower()
+    assert "300" in motif["message"]
