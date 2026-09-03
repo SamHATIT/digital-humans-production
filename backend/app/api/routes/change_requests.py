@@ -280,7 +280,7 @@ def submit_change_request(
     service = ChangeRequestService(db)
     
     logger.info(f"[CR Route] Starting impact analysis for CR {cr.cr_number}")
-    result = service.analyze_impact(cr_id)
+    result = service.analyze_impact(cr_id, user_id=current_user.id)
     
     if result.get("success"):
         logger.info(f"[CR Route] Impact analysis complete for CR {cr.cr_number}")

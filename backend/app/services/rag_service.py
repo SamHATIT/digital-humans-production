@@ -9,6 +9,8 @@ Stratégie hybride:
 """
 import os
 import chromadb
+import threading
+import time
 from typing import List, Dict, Optional
 import logging
 from app.config import settings
@@ -511,3 +513,101 @@ def rag_health_check() -> Dict:
         logger.error(f"[RAG HEALTH] FAILED at {CHROMA_PATH}: {e}", exc_info=True)
 
     return result
+
+
+# ============================================================================
+# VAGUE B / LOT B6 — cache du comptage RAG, rafraichi en tache de fond
+# ============================================================================
+#
+# Defaut mesure : `_check_chroma()` (app/main.py) appelait `rag_health_check()`
+# a chaque `GET /health`, donc `coll.count()` sur les cinq collections a
+# chaque appel du watchdog : ~50 ms a chaud, 11-16 s dans les pics (disque +
+# SQLite charges), d'ou les fausses alertes `000` du watchdog qui interprete
+# un `/health` trop lent comme un backend mort.
+#
+# Decision Sam D8 : resultat en cache, TTL 30 minutes, rafraichi en tache de
+# fond. `/health` lit le cache, jamais `rag_health_check()` en direct.
+RAG_HEALTH_CACHE_TTL_SECONDS = 30 * 60  # D8 — reglage nomme, pas un chiffre magique dans le code appelant
+
+_rag_health_cache: Optional[Dict] = None
+_rag_health_cache_at: float = 0.0
+_rag_health_cache_lock = threading.Lock()
+_rag_health_refresh_en_cours = False
+
+
+def set_rag_health_cache(result: Dict) -> None:
+    """Peuple le cache avec un resultat deja calcule.
+
+    Utilise par la sonde de demarrage (A6, `app.main._rag_health_probe`) pour
+    reutiliser son propre comptage comme premiere valeur du cache, au lieu de
+    forcer un second comptage au premier `/health`.
+    """
+    global _rag_health_cache, _rag_health_cache_at
+    with _rag_health_cache_lock:
+        _rag_health_cache = result
+        _rag_health_cache_at = time.monotonic()
+
+
+def reset_rag_health_cache() -> None:
+    """Vide le cache. Reserve aux tests : pas d'appelant en dehors."""
+    global _rag_health_cache, _rag_health_cache_at, _rag_health_refresh_en_cours
+    with _rag_health_cache_lock:
+        _rag_health_cache = None
+        _rag_health_cache_at = 0.0
+        _rag_health_refresh_en_cours = False
+
+
+def _lancer_rafraichissement_arriere_plan() -> None:
+    """Recalcule `rag_health_check()` dans un fil separe et met a jour le cache.
+
+    Un seul rafraichissement a la fois (`_rag_health_refresh_en_cours` sert de
+    verrou) : un cache perime ne doit pas declencher un comptage par appel
+    concurrent de `/health`, ce qui reproduirait exactement le defaut corrige.
+    """
+    global _rag_health_refresh_en_cours
+    with _rag_health_cache_lock:
+        if _rag_health_refresh_en_cours:
+            return
+        _rag_health_refresh_en_cours = True
+
+    def _tache():
+        global _rag_health_refresh_en_cours
+        try:
+            resultat = rag_health_check()
+            set_rag_health_cache(resultat)
+        finally:
+            with _rag_health_cache_lock:
+                _rag_health_refresh_en_cours = False
+
+    threading.Thread(target=_tache, name="rag-health-refresh", daemon=True).start()
+
+
+def get_cached_rag_health(ttl: float = None) -> Dict:
+    """Rend le dernier `rag_health_check()`, sans recompter a chaque appel.
+
+    - Cache jamais peuple (aucun demarrage n'a encore fini, ou appel direct
+      hors du cycle de vie de l'app) : un comptage synchrone a lieu ici, une
+      fois, plutot que d'inventer une valeur ou de renvoyer un etat vide qui
+      ferait passer `/health` a 503 a tort. C'est le seul cas ou cette
+      fonction peut couter aussi cher que l'ancien code.
+    - Cache present et encore valide (< TTL) : rendu tel quel, aucun comptage.
+    - Cache present mais perime (>= TTL) : rendu tel quel quand meme (un
+      appelant de `/health` n'attend jamais 11-16 s), et un rafraichissement
+      est lance en tache de fond si aucun n'est deja en cours.
+    """
+    if ttl is None:
+        ttl = RAG_HEALTH_CACHE_TTL_SECONDS
+
+    with _rag_health_cache_lock:
+        cache = _rag_health_cache
+        perime = cache is None or (time.monotonic() - _rag_health_cache_at) >= ttl
+
+    if cache is None:
+        resultat = rag_health_check()
+        set_rag_health_cache(resultat)
+        return resultat
+
+    if perime:
+        _lancer_rafraichissement_arriere_plan()
+
+    return cache

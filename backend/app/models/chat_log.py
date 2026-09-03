@@ -10,7 +10,7 @@ on the marketing site. Used for:
 Privacy / RGPD:
   - IP is hashed (SHA-256 + secret salt) before storage — never raw IP
   - email collected only with explicit visitor consent in conversation
-  - retention: rows are auto-deleted after 90 days (cron job to add)
+  - retention: 12 mois (D3, 03/09/2026), purge nocturne arq — app/workers/retention.py
   - visitor can request deletion of their session via /api/public/forget
 """
 from sqlalchemy import Column, Integer, String, Text, DateTime, Index

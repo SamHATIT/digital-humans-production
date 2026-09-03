@@ -161,6 +161,31 @@ async function streamAuthenticated(endpoint: string, body?: unknown): Promise<Re
 export const files = { openAuthenticated, downloadAuthenticated };
 export const stream = { post: streamAuthenticated };
 
+// ==================== TIERS (vague B, lot B7 — D9) ====================
+// Source unique des tiers : la table `tier_config`, servie par cet
+// endpoint public (pas de jeton requis, monté sous /api/subscription).
+// Pricing.tsx ne doit plus jamais coder un prix ou un nombre de crédits en
+// dur — il lit ce endpoint. Voir `app/api/routes/subscription.py` et
+// `app/services/tier_config_service.py`.
+export interface PublicTier {
+  tier: string;
+  name: string;
+  price_eur_monthly: number | null;
+  monthly_credits: number | null;
+  daily_credits_cap: number | null;
+  credits: number | null;
+  credits_period: 'day' | 'month' | null;
+  description: string | null;
+  features: Record<string, boolean | number | null>;
+  limitations: string[];
+}
+
+export const publicTiers = {
+  list: async (): Promise<{ tiers: PublicTier[] }> => {
+    return apiCall('/api/subscription/tiers', { method: 'GET' });
+  },
+};
+
 // ==================== AUTH ====================
 
 export const auth = {
@@ -186,7 +211,20 @@ export const auth = {
     return apiCall('/api/auth/me', { method: 'GET' });
   },
 
-  register: async (email: string, name: string, password: string, requestedTier?: string) => {
+  // RGPD (vague B / lot B3) — version des CGV/politique de confidentialite
+  // couverte par le consentement envoye ci-dessous. Doit correspondre EXACTEMENT
+  // a CURRENT_TERMS_VERSION cote backend (backend/app/api/routes/auth.py) :
+  // le backend refuse (400) toute version differente plutot que d'en deduire
+  // silencieusement "la version actuelle".
+  CGV_VERSION: '2026-08-30', // = CURRENT_TERMS_VERSION cote backend (date de publication)
+
+  register: async (
+    email: string,
+    name: string,
+    password: string,
+    requestedTier?: string,
+    consentCgv?: boolean,
+  ) => {
     // ⚠️ Legacy single-step signup. Kept for back-compat — new UI uses
     // signupRequest + signupConfirm instead (ONBOARDING-002).
     return apiCall('/api/auth/register', {
@@ -196,6 +234,8 @@ export const auth = {
         name,
         password,
         ...(requestedTier ? { requested_tier: requestedTier } : {}),
+        consent_cgv: !!consentCgv,
+        consent_version: auth.CGV_VERSION,
       }),
     });
   },
@@ -206,8 +246,13 @@ export const auth = {
     password: string,
     requestedTier?: string,
     lang?: string,
+    consentCgv?: boolean,
   ) => {
     // ONBOARDING-002 — step 1: send the verification email. No account yet.
+    // RGPD (lot B3) — consent_cgv/consent_version travel here: this is the
+    // form where the checkbox actually lives (SignupPage.tsx). The backend
+    // rejects with 400 if consent_cgv is missing/false, or if the version
+    // doesn't match what it currently serves.
     return apiCall('/api/auth/signup-request', {
       method: 'POST',
       body: JSON.stringify({
@@ -216,6 +261,8 @@ export const auth = {
         password,
         ...(requestedTier ? { requested_tier: requestedTier } : {}),
         ...(lang ? { lang } : {}),
+        consent_cgv: !!consentCgv,
+        consent_version: auth.CGV_VERSION,
       }),
     });
   },

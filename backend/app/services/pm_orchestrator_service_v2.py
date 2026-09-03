@@ -62,6 +62,8 @@ from app.config import settings
 from app.salesforce_config import salesforce_config
 from app.services.document_generator import generate_professional_sds
 from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
+# VAGUE B / LOT B1 — proprietaire des credits propage depuis executions.user_id.
+from app.services.llm_service import credit_owner, reset_credit_owner, set_credit_owner
 
 logger = logging.getLogger(__name__)
 
@@ -549,16 +551,25 @@ class PMOrchestratorServiceV2:
                 f"les valeurs emises par les routes et ces points de reprise."
             )
 
+        # B1 : pose avant le `try:` pour que le `finally:` puisse toujours le
+        # reinitialiser, meme si l'execution est introuvable.
+        jeton_credits = None
+
         try:
             # Get project and execution
             project = self.db.query(Project).filter(Project.id == project_id).first()
             if not project:
                 raise ValueError(f"Project {project_id} not found")
-                
+
             execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
             if not execution:
                 raise ValueError(f"Execution {execution_id} not found")
-            
+
+            # B1 : tous les appels LLM de ce run sont factures au proprietaire
+            # de l'execution. Couvre aussi les appels qui ne portent pas
+            # d'execution_id (sds_section_writer en phase 4).
+            jeton_credits = set_credit_owner(execution.user_id)
+
             # Initialize
             execution.started_at = datetime.now(timezone.utc)
             execution.agent_execution_status = self._init_agent_status(selected_agents or [])
@@ -1751,6 +1762,10 @@ class PMOrchestratorServiceV2:
                 "error": str(e)
             }
         finally:
+            # B1 : le proprietaire des credits ne survit pas au run.
+            if jeton_credits is not None:
+                reset_credit_owner(jeton_credits)
+
             # Cleanup temp files
             import shutil
             if self.temp_dir.exists():
@@ -2031,6 +2046,37 @@ class PMOrchestratorServiceV2:
         mode: Optional[str] = None
     ) -> Dict[str, Any]:
         """Run an agent via direct import (P3: no subprocess)"""
+        # B1 : proprietaire des credits pose pour toute la duree de l'agent.
+        # Les agents passent `execution_id` a `generate_llm_response`, qui
+        # resout deja `executions.user_id` ; cette variable de contexte couvre
+        # en plus les appels du meme run qui ne portent pas d'execution_id.
+        jeton_credits = set_credit_owner(self._proprietaire_credits(execution_id))
+        try:
+            return await self._run_agent_interne(
+                agent_id, input_data, execution_id, project_id, mode
+            )
+        finally:
+            reset_credit_owner(jeton_credits)
+
+    def _proprietaire_credits(self, execution_id: int) -> Optional[int]:
+        """`executions.user_id` — a qui les appels LLM de ce run sont factures."""
+        execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
+        if execution is None:
+            logger.warning(
+                "[B1] execution %s introuvable : aucun proprietaire de credits",
+                execution_id,
+            )
+            return None
+        return execution.user_id
+
+    async def _run_agent_interne(
+        self,
+        agent_id: str,
+        input_data: Dict,
+        execution_id: int,
+        project_id: int,
+        mode: Optional[str] = None
+    ) -> Dict[str, Any]:
         # P1.2: Circuit breaker check before running agent
         try:
             from app.services.budget_service import CircuitBreaker
@@ -3500,17 +3546,22 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     f"UC batch {batch_num}/{total_batches} done"
                 )
 
-            section_3_result = await generate_uc_section_batched(
-                all_ucs=all_use_cases_for_sds,
-                project_name=project.name,
-                project_context={
-                    "name": project.name,
-                    "description": project.description or "",
-                    "salesforce_product": getattr(project, 'salesforce_product', '') or "",
-                    "organization_type": getattr(project, 'project_type', 'existing') or "existing",
-                },
-                progress_callback=_batch_progress,
-            )
+            # B1 : `generate_uc_section_batched` est le seul appel LLM de
+            # l'orchestrateur qui ne passe pas par `_run_agent` et ne porte pas
+            # d'`execution_id`. Le proprietaire des credits lui est donc pose
+            # explicitement ici, autour de l'appel.
+            with credit_owner(self._proprietaire_credits(execution_id)):
+                section_3_result = await generate_uc_section_batched(
+                    all_ucs=all_use_cases_for_sds,
+                    project_name=project.name,
+                    project_context={
+                        "name": project.name,
+                        "description": project.description or "",
+                        "salesforce_product": getattr(project, 'salesforce_product', '') or "",
+                        "organization_type": getattr(project, 'project_type', 'existing') or "existing",
+                    },
+                    progress_callback=_batch_progress,
+                )
             uc_section_3_content = section_3_result["content"]
             uc_section_3_tokens = section_3_result["tokens_used"]
             logger.info(

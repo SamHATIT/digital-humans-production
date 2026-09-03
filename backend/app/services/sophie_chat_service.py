@@ -154,9 +154,17 @@ class SophieChatService:
         self,
         project_id: int,
         user_message: str,
+        *,
+        user_id: int,
         execution_id: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Process a chat message and get Sophie's response using Claude."""
+        """Process a chat message and get Sophie's response using Claude.
+
+        `user_id` — proprietaire des credits, obligatoire (decision D10 du
+        03/09 : tout appel LLM agent est facture). C'est l'utilisateur
+        authentifie de la route `POST /api/projects/{id}/chat`, deja verifie
+        proprietaire du projet ; il n'est pas rededuit ici.
+        """
         logger.info("[Sophie Chat] ========== NEW CHAT MESSAGE ==========")
         logger.info(f"[Sophie Chat] Project: {project_id}, Message length: {len(user_message)}")
         
@@ -192,6 +200,7 @@ class SophieChatService:
                 max_tokens=1500,
                 temperature=0.7,
                 subscription_tier=subscription_tier,
+                user_id=user_id,
             )
             
             assistant_message = response["content"]

@@ -31,6 +31,15 @@ class User(Base):
     subscription_expires_at = Column(DateTime(timezone=True))
     stripe_customer_id = Column(String(255))  # Created on first checkout / signup hook
 
+    # RGPD — vague B / lot B3. Preuve du consentement CGV/politique de
+    # confidentialite donne a l'inscription. Nullables : les comptes crees
+    # avant ce lot n'ont pas ce consentement trace retroactivement.
+    # consent_ip_hash est un hash (SHA-256 hex, meme methode que
+    # chat_logs.ip_hash), jamais l'IP en clair — voir alembic/versions/013.
+    consent_cgv_at = Column(DateTime(timezone=True), nullable=True)
+    consent_version = Column(String(16), nullable=True)
+    consent_ip_hash = Column(String(64), nullable=True)
+
     # Relationships
     projects = relationship("Project", back_populates="user", cascade="all, delete-orphan")
     executions = relationship("Execution", back_populates="user", cascade="all, delete-orphan")

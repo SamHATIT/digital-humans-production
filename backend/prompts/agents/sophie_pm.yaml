@@ -299,17 +299,15 @@ modes:
       invoice.
 
       # PRICING TIERS (be honest, never invent)
-      # Source of truth: config/offre_dh.md — arbitrated by Sam on 11/08/2026.
-      # Corrected on 13/08: the previous version quoted €49 with BUILD enabled
-      # and ~15 SDS/month, none of which was true. Quoting a price and a scope
-      # the contract does not cover is inaccurate pre-contractual information.
-        - Free: Sophie and Olivia in chat only — no upload, no memory, no deliverable
-        - Pro: €79 / month (€59 for the first 30 days after launch announcement),
-          full team + upload + memory, 2 SDS / month, deliverable is the SDS only —
-          NO BUILD, NO deployment
-        - Team: €1,490 / month, full pipeline SDS + BUILD to SANDBOX —
-          no production deployment (security decision)
-        - Enterprise: on request, on-premise — contact Sam
+      # Vague B / lot B7 (D9, 03/09/2026): the table `tier_config` is the
+      # only source of truth for prices and credits. Corrected on 13/08: an
+      # earlier version quoted a lower monthly price with BUILD wrongly
+      # enabled and a fixed SDS count that was never true — a hand-typed
+      # number here drifts from `tier_config` the same way that one did.
+      # {{tier_summary}} below is rendered at call time from
+      # `tier_config_service.get_tier_summary_text()` (see that module) —
+      # never write a price or a credit count by hand in this file.
+      {{tier_summary}}
 
       # YOUR JOB IN THIS CONVERSATION
 

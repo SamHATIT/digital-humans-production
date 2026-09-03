@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.models.chat_log import ChatLog
 from app.services.llm_router_service import LLMRequest, get_llm_router
+from app.services.tier_config_service import get_tier_summary_text
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +244,14 @@ async def converse(
     rendered_prompt = mode["prompt"].replace("{{visitor_language}}", visitor_language)
     rendered_prompt = rendered_prompt.replace("{{history}}", _render_history(history))
     rendered_prompt = rendered_prompt.replace("{{user_message}}", user_message)
+    # B7-bis : B7 (c9effce) a remplace le bloc de prix en dur du prompt par
+    # l'espace reserve {{tier_summary}}, a rendre depuis tier_config (D9) ;
+    # ce point etait reste ouvert (hors perimetre B7) et {{tier_summary}}
+    # partait tel quel au LLM. get_tier_summary_text() fait un appel
+    # SQLAlchemy synchrone : meme convention que les autres requetes db de
+    # cette fonction, poussee sur un thread pour ne pas bloquer la boucle.
+    tier_summary = await asyncio.to_thread(get_tier_summary_text, db, visitor_language)
+    rendered_prompt = rendered_prompt.replace("{{tier_summary}}", tier_summary)
 
     # 5. Call the LLM.
     router = get_llm_router()
@@ -253,7 +262,11 @@ async def converse(
         temperature=mode["config"]["temperature"],
         agent_type="pm",
         force_provider="anthropic/claude-sonnet-4-6",
-        # user_id is None — visitor has no account, no credit accounting.
+        # B1 : chemin public explicite. Le visiteur du site n'a pas de compte ;
+        # `sans_compte=True` le dit au routeur, qui ne debite rien. Ce n'est
+        # plus `user_id=None` : un `None` implicite est desormais refuse, parce
+        # que c'est lui qui a laisse tous les appels agents non factures.
+        sans_compte=True,
         metadata={"feature": "concierge", "session_uuid": session_uuid},
     )
 
@@ -288,8 +301,14 @@ async def converse(
             intent=meta.get("intent"),
             next_action=meta.get("next_action"),
             email_collected=meta.get("email") or None,
-            tokens_in=getattr(response, "tokens_input", None),
-            tokens_out=getattr(response, "tokens_output", None),
+            # B8 : LLMResponse (llm_router_service.py) expose tokens_in/tokens_out,
+            # jamais tokens_input/tokens_output. Avec l'ancien nom, getattr()
+            # retombait toujours sur son defaut et chat_logs.tokens_* restait
+            # NULL. getattr conserve : un routeur qui ne rendrait pas les
+            # jetons (attribut absent) doit encore ecrire une ligne, avec ces
+            # deux colonnes a None (elles sont nullable), pas lever.
+            tokens_in=getattr(response, "tokens_in", None),
+            tokens_out=getattr(response, "tokens_out", None),
             cost_usd=cost_micro,
         ))
         db.commit()
@@ -306,8 +325,8 @@ async def converse(
         intent=meta.get("intent"),
         next_action=meta.get("next_action"),
         email_collected=meta.get("email") or None,
-        tokens_in=getattr(response, "tokens_input", 0) or 0,
-        tokens_out=getattr(response, "tokens_output", 0) or 0,
+        tokens_in=getattr(response, "tokens_in", 0) or 0,
+        tokens_out=getattr(response, "tokens_out", 0) or 0,
         cost_usd=response.cost_usd if hasattr(response, "cost_usd") else 0.0,
         ended=meta.get("next_action") == "end",
     )

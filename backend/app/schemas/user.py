@@ -19,9 +19,16 @@ class UserCreate(UserBase):
     in /pricing. We honour it ONLY for ``free`` for now (the other tiers
     are not self-serve yet — see BIZ-001 in BACKLOG.md). Anything else
     falls back to ``free`` server-side.
+
+    RGPD (vague B / lot B3) — ``consent_cgv`` and ``consent_version`` are
+    left optional/defaulted here (not FastAPI-required) on purpose: a
+    missing or false consent must surface as an explicit 400 with a clear
+    message from the route handler, not a generic 422 from pydantic.
     """
     password: str = Field(..., min_length=8, max_length=100)
     requested_tier: str | None = Field(default=None, max_length=20)
+    consent_cgv: bool = False
+    consent_version: str | None = Field(default=None, max_length=16)
 
 
 class SignupRequest(BaseModel):
@@ -29,12 +36,18 @@ class SignupRequest(BaseModel):
 
     The user fills the form, we generate a verify-token and email the link.
     Nothing is persisted in the users table at this point.
+
+    RGPD (vague B / lot B3) — same rationale as ``UserCreate`` above for
+    ``consent_cgv``/``consent_version`` being optional here rather than
+    pydantic-required.
     """
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=8, max_length=100)
     requested_tier: str | None = Field(default=None, max_length=20)
     lang: str | None = Field(default="fr", max_length=4)
+    consent_cgv: bool = False
+    consent_version: str | None = Field(default=None, max_length=16)
 
 
 class SignupConfirm(BaseModel):

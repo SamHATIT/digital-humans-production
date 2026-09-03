@@ -9,8 +9,23 @@ proves they own the email.
 Token payload (signed with settings.SECRET_KEY):
 - purpose: "signup_verify"  # scoped — never accepted by the access-token verifier
 - email, name, hashed_password, requested_tier
+- consent_version, consent_ip_hash (vague B / lot B3 — RGPD, see below)
 - exp (30 min), iat
 - jti (random nonce — for one-shot replay protection if we add a blocklist later)
+
+RGPD (vague B / lot B3): explicit CGV consent is given by the visitor at
+signup-request time (the checkbox lives on that form, SignupPage.tsx), not
+at signup-confirm time (a bare link click, days later, possibly a different
+IP/device). The consent must therefore be captured NOW and carried through
+the signed token so `signup_confirm` can materialise it unaltered on the
+user row: ``consent_version`` (the CGV text version accepted) and
+``consent_ip_hash`` (SHA-256 hex of the visitor's IP, same method as
+``sophie_concierge_service._hash_ip`` — never the raw IP). The moment of
+consent itself is the token's own ``iat`` — no separate field needed.
+``consent_cgv`` is stored as ``True`` defensively: the caller already
+validated it before minting the token, but ``decode_signup_token`` requires
+the key to exist so a token minted by older code cannot be replayed against
+a consent-aware `signup_confirm`.
 
 Why JWT and not a DB table?
 - No background cleanup needed (expiration is native).
@@ -44,9 +59,16 @@ def create_signup_token(
     name: str,
     hashed_password: str,
     requested_tier: str,
+    consent_version: str,
+    consent_ip_hash: str,
     ttl_minutes: int = SIGNUP_TOKEN_TTL_MINUTES,
 ) -> str:
-    """Mint a short-lived token that materialises a user when redeemed."""
+    """Mint a short-lived token that materialises a user when redeemed.
+
+    ``consent_version``/``consent_ip_hash`` are required keyword args (no
+    default) so a caller cannot mint a signup token without having already
+    validated explicit CGV consent — see module docstring (RGPD, lot B3).
+    """
     now = datetime.now(timezone.utc)
     payload: Dict[str, Any] = {
         "purpose": SIGNUP_TOKEN_PURPOSE,
@@ -54,6 +76,9 @@ def create_signup_token(
         "name": name,
         "hashed_password": hashed_password,
         "requested_tier": requested_tier,
+        "consent_cgv": True,
+        "consent_version": consent_version,
+        "consent_ip_hash": consent_ip_hash,
         "iat": now,
         "exp": now + timedelta(minutes=ttl_minutes),
         "jti": secrets.token_urlsafe(12),
@@ -80,7 +105,10 @@ def decode_signup_token(token: str) -> Dict[str, Any]:
     if payload.get("purpose") != SIGNUP_TOKEN_PURPOSE:
         raise SignupTokenError("token_wrong_purpose")
 
-    required = {"email", "name", "hashed_password", "requested_tier"}
+    required = {
+        "email", "name", "hashed_password", "requested_tier",
+        "consent_cgv", "consent_version", "consent_ip_hash",
+    }
     missing = required - set(payload.keys())
     if missing:
         raise SignupTokenError(f"token_missing_fields:{','.join(sorted(missing))}")

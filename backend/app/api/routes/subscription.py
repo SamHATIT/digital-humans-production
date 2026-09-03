@@ -13,6 +13,7 @@ from app.models.subscription import (
     get_tier_config,
     compare_tiers
 )
+from app.services.tier_config_service import list_public_tiers
 from app.utils.feature_access import (
     get_user_tier_info,
     get_locked_features,
@@ -24,23 +25,39 @@ router = APIRouter()
 
 
 @router.get("/tiers")
-async def get_all_tiers():
+async def get_all_tiers(db: Session = Depends(get_db)):
     """
     Get all subscription tiers and their features.
-    Public endpoint for pricing page.
+    Public endpoint for pricing page — no auth dependency.
+
+    Vague B / lot B7 (D9) : les credits et le prix viennent de la table
+    `tier_config`, jamais de `TIER_FEATURES` (dict en dur ci-dessus dans
+    `app/models/subscription.py`). `TIER_FEATURES` reste la source des
+    feature flags (chat_full_team, build_phase, ...) et des libelles
+    (name, limitations) : `tier_config` ne porte pas ces colonnes, D9 ne
+    couvre que credits/prix.
     """
+    lignes_par_tier = {
+        row["tier_name"]: row for row in list_public_tiers(db)
+    }
+
     tiers = []
     for tier in SubscriptionTier:
         config = get_tier_config(tier)
+        ligne = lignes_par_tier.get(tier.value)  # absente pour Enterprise
         tiers.append({
             "tier": tier.value,
             "name": config["name"],
-            "price": config["price"],
-            "price_display": config["price_display"],
+            "price_eur_monthly": ligne["price_eur_monthly"] if ligne else None,
+            "monthly_credits": ligne["monthly_credits"] if ligne else None,
+            "daily_credits_cap": ligne["daily_credits_cap"] if ligne else None,
+            "credits": ligne["credits"] if ligne else None,
+            "credits_period": ligne["credits_period"] if ligne else None,
+            "description": ligne["description"] if ligne else None,
             "features": config["features"],
             "limitations": config["limitations"]
         })
-    
+
     return {"tiers": tiers}
 
 

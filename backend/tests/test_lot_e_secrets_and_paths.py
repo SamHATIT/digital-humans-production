@@ -21,33 +21,83 @@ from app.config import Settings, settings
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
-# Absolute prefixes that pinned the code to one particular machine.
+# `test_no_hardcoded_absolute_path_in_source` scans source *text* for a
+# literal machine path copied verbatim into app/config.py and friends — a
+# defect regardless of where the checkout itself happens to live. It is not
+# used to judge a *runtime* path value below: see ARBITRAGE_CHEMIN_PROD.md
+# (option A vs B) for why a fixed prefix list cannot do that job — the VPS
+# checkout lives under /root/workspace, so "no default may start with
+# /root/workspace" also condemns the correct, checkout-relative default.
 FORBIDDEN_PREFIXES = ("/opt/digital-humans", "/var/lib/digital-humans", "/root/workspace")
+
+# One DH_* env var overrides each of the ten path settings below (mirrors the
+# mapping documented in app/config.py's "Centralized paths" comment).
+_PATH_ENV_VAR = {attr: f"DH_{attr}" for attr in (
+    "PROJECT_ROOT", "BACKEND_ROOT", "OUTPUT_DIR", "METADATA_DIR", "CHROMA_PATH",
+    "LLM_CONFIG_PATH", "DELIVERABLES_DIR", "SFDX_PROJECT_PATH", "FORCE_APP_PATH",
+    "AGENTS_DIR",
+)}
+
+
+def _fresh_settings_default(monkeypatch, attr):
+    """
+    Build a Settings instance with `attr`'s own DH_* override removed, so
+    `getattr(result, attr)` is the *default* baked into app/config.py, not
+    whatever an operator's .env happens to set. That is the only thing "no
+    machine-specific default path" can mean: an operator is free to point
+    CHROMA_PATH at /opt on the VPS (documented in .env.example) — that is a
+    deliberate override, not a hardcoded default left in the code.
+    """
+    monkeypatch.delenv(_PATH_ENV_VAR[attr], raising=False)
+    return Settings(DEBUG=True, SECRET_KEY="f" * 40, CREDENTIALS_ENCRYPTION_KEY=None, _env_file=None)
 
 
 # ---------------------------------------------------------------- P2 : paths
 
-@pytest.mark.parametrize(
-    "attr",
-    [
-        "PROJECT_ROOT",
-        "BACKEND_ROOT",
-        "OUTPUT_DIR",
-        "METADATA_DIR",
-        "CHROMA_PATH",
-        "LLM_CONFIG_PATH",
-        "DELIVERABLES_DIR",
-        "SFDX_PROJECT_PATH",
-        "FORCE_APP_PATH",
-        "AGENTS_DIR",
-    ],
-)
-def test_no_machine_specific_default_path(attr):
-    """P2 — every configured path is derived from the checkout, not from /opt."""
-    value = str(getattr(settings, attr))
-    assert not value.startswith(FORBIDDEN_PREFIXES), (
-        f"settings.{attr} still defaults to a machine-specific absolute path: {value}"
+@pytest.mark.parametrize("attr", list(_PATH_ENV_VAR))
+def test_no_machine_specific_default_path(attr, monkeypatch):
+    """
+    P2 — every configured path *defaults* to somewhere under the checkout
+    (Path(__file__)-relative / PROJECT_ROOT), never to a location hardcoded
+    for one particular machine.
+
+    This does not forbid an explicit DH_* override pointing outside the
+    checkout — the VPS deliberately does this for CHROMA_PATH, DELIVERABLES_DIR,
+    SFDX_PROJECT_PATH, FORCE_APP_PATH and AGENTS_DIR (see .env.example): an
+    override is a deliberate operator decision, not a default left in the
+    code. What must never happen is the *default* itself escaping the
+    checkout — whatever prefix that checkout happens to have, /root/workspace
+    included.
+    """
+    cfg = _fresh_settings_default(monkeypatch, attr)
+    value = Path(str(getattr(cfg, attr))).resolve()
+    root = cfg.PROJECT_ROOT.resolve()
+    assert value.is_relative_to(root), (
+        f"settings.{attr} defaults to {value}, outside the checkout root {root} — "
+        "a hardcoded machine-specific path, not one derived from PROJECT_ROOT"
     )
+
+
+def test_no_machine_specific_default_path_rejects_a_real_machine_path(monkeypatch):
+    """
+    Contrôle négatif — the rule above (`is_relative_to(PROJECT_ROOT)`) must
+    still catch the actual defect P2 was written against: a machine path
+    copied verbatim as a *default*, e.g. an old /opt/digital-humans/rag left
+    in app/config.py instead of a Path(__file__)-relative expression. Forcing
+    CHROMA_PATH's default to such a path must fail this check — proving the
+    assertion has teeth, not just a prefix list that happened to overlap with
+    the VPS's own checkout location.
+    """
+    cfg = _fresh_settings_default(monkeypatch, "CHROMA_PATH")
+    monkeypatch.setattr(cfg, "CHROMA_PATH", Path("/opt/digital-humans/rag/chromadb_data"), raising=False)
+    value = Path(str(cfg.CHROMA_PATH)).resolve()
+    root = cfg.PROJECT_ROOT.resolve()
+    assert not value.is_relative_to(root), "test setup did not actually move the path outside the checkout"
+    with pytest.raises(AssertionError):
+        assert value.is_relative_to(root), (
+            f"settings.CHROMA_PATH defaults to {value}, outside the checkout root {root} — "
+            "a hardcoded machine-specific path, not one derived from PROJECT_ROOT"
+        )
 
 
 def test_paths_are_rooted_in_the_checkout():
@@ -78,8 +128,25 @@ def test_sf_admin_persist_dir_defaults_to_settings():
     from app.services.sf_admin_service import SFAdminService
 
     service = SFAdminService(target_org="lot-e-fixture")
-    assert service.persist_dir == str(settings.DELIVERABLES_DIR)
-    assert not service.persist_dir.startswith(FORBIDDEN_PREFIXES)
+    assert service.persist_dir == str(settings.DELIVERABLES_DIR), (
+        "sf_admin_service must delegate to settings.DELIVERABLES_DIR, never hardcode its own path"
+    )
+
+
+def test_sf_admin_persist_dir_default_is_under_the_checkout(monkeypatch):
+    """
+    kim:P2 — the *default* DELIVERABLES_DIR (no DH_DELIVERABLES_DIR override)
+    that sf_admin_service falls back to must live under the checkout, not a
+    machine path like the old /var/lib/digital-humans/livrables. Same rule as
+    test_no_machine_specific_default_path, checked at the point sf_admin_service
+    actually reads it.
+    """
+    cfg = _fresh_settings_default(monkeypatch, "DELIVERABLES_DIR")
+    value = Path(str(cfg.DELIVERABLES_DIR)).resolve()
+    root = cfg.PROJECT_ROOT.resolve()
+    assert value.is_relative_to(root), (
+        f"settings.DELIVERABLES_DIR defaults to {value}, outside the checkout root {root}"
+    )
 
 
 # ------------------------------------------------- P12 : a single .env wins
