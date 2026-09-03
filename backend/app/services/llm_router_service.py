@@ -48,6 +48,40 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class CreditOwnerMissingError(RuntimeError):
+    """Un appel LLM est arrive sans proprietaire de credits identifiable.
+
+    VAGUE B / LOT B1 (decision D10 du 03/09). Avant ce lot, `LLMRequest.user_id`
+    valait `None` par defaut et les deux crochets de credit faisaient un no-op
+    silencieux : `credit_transactions` contenait 0 ligne pour 222
+    `llm_interactions` sur 30 jours de production. Le no-op est remplace par un
+    refus qui nomme l'appelant — un appel dont on ne sait pas a qui le facturer
+    ne part pas.
+
+    Le seul chemin autorise sans proprietaire est explicite :
+    `LLMRequest(sans_compte=True)`, reserve au concierge public.
+    """
+
+
+def nommer_appelant(profondeur: int = 2) -> str:
+    """Rend `module.fonction:ligne` du cadre situe `profondeur` niveaux plus haut.
+
+    Sert uniquement a rendre les messages d'erreur exploitables : « appel LLM
+    sans proprietaire » sans le nom de l'appelant obligerait a fouiller la pile
+    dans les journaux.
+    """
+    import sys
+
+    try:
+        cadre = sys._getframe(profondeur)
+    except ValueError:
+        return "appelant inconnu"
+    return (
+        f"{cadre.f_globals.get('__name__', '?')}."
+        f"{cadre.f_code.co_name}:{cadre.f_lineno}"
+    )
+
+
 class AgentTier(str, Enum):
     """Logical tiers for agent routing (2 tiers only — was 4 before session3)."""
     ORCHESTRATOR = "orchestrator"   # PM, BA, Architect, Research — raisonnement
@@ -81,7 +115,8 @@ class LLMRequest:
     agent_type: Optional[str] = None                # Preferred : routing via agent_tier_map
     project_id: Optional[int] = None
     execution_id: Optional[int] = None
-    user_id: Optional[int] = None                   # Phase 3.1 : credit owner. None = skip credit hook.
+    user_id: Optional[int] = None                   # B1 : proprietaire des credits. Obligatoire sauf sans_compte.
+    sans_compte: bool = False                       # B1 : chemin public explicite (concierge). Aucun debit, jamais None implicite.
     subscription_tier: Optional[str] = None         # Phase 3.4 : free/pro/team/enterprise. None = ignore tier_overrides.
     cache_system: bool = False                       # Phase 3.5 : Anthropic prompt caching on system prompt
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -970,16 +1005,18 @@ class LLMRouterService:
     # ----------------------------------------------------------------------
 
     async def complete(self, request: LLMRequest) -> LLMResponse:
+        # B1 : derniere barriere. Aucun appel ne part sans proprietaire de
+        # credits declare, ou sans le chemin public explicite.
+        self._verifier_proprietaire_credits(request)
+
         provider_str = self._select_provider(request)
         logger.info(
             "LLM Request: agent=%s, profile=%s, provider=%s",
             request.agent_type, self.profile, provider_str,
         )
 
-        # Phase 3.1 : credit pre-flight (no-op if request.user_id is None).
-        preflight_error = self._credit_preflight(request, provider_str)
-        if preflight_error is not None:
-            return preflight_error
+        # Phase 3.1 / B1 : credit pre-flight. Leve si le quota est atteint.
+        self._credit_preflight(request, provider_str)
 
         response = await self._call_provider(request, provider_str)
 
@@ -989,9 +1026,7 @@ class LLMRouterService:
             if fallback and fallback != provider_str:
                 logger.warning("Falling back from %s to %s (profile=%s)", provider_str, fallback, self.profile)
                 # Re-check credits for the fallback model in case it changes tier.
-                preflight_error = self._credit_preflight(request, fallback)
-                if preflight_error is not None:
-                    return preflight_error
+                self._credit_preflight(request, fallback)
                 response = await self._call_provider(request, fallback)
             elif fallback == provider_str:
                 logger.info("No-op fallback for %s in profile %s", provider_str, self.profile)
@@ -1012,60 +1047,69 @@ class LLMRouterService:
     # Phase 3.1 — Credit hooks
     # ------------------------------------------------------------------
 
-    def _credit_preflight(
-        self, request: LLMRequest, provider_str: str
-    ) -> Optional[LLMResponse]:
+    @staticmethod
+    def _verifier_proprietaire_credits(request: LLMRequest) -> None:
+        """Refuse tout appel LLM dont on ne sait pas a qui il est facture.
+
+        Deux cas legitimes, tous deux explicites :
+          - `user_id` renseigne  -> appel d'un compte, debite ;
+          - `sans_compte=True`   -> concierge public, non debite.
+
+        Tout le reste leve. C'est le remplacement du no-op silencieux qui a
+        laisse `credit_transactions` vide (voir CreditOwnerMissingError).
         """
-        Run credit pre-flight for ``request``. Returns an error LLMResponse
-        if the user cannot afford or is not authorized for the model, ``None``
-        otherwise. No-op when ``request.user_id`` is None.
-        """
+        if request.sans_compte:
+            if request.user_id is not None:
+                raise CreditOwnerMissingError(
+                    "requete LLM incoherente : sans_compte=True ET "
+                    f"user_id={request.user_id}. Le chemin public sans compte "
+                    "ne porte pas de proprietaire de credits. "
+                    f"Appelant : {nommer_appelant(3)}."
+                )
+            return
         if request.user_id is None:
-            return None
-        try:
-            from app.database import SessionLocal
-            from app.services.credit_service import (
-                CreditError,
-                CreditService,
-                InsufficientCreditsError,
-                ModelNotAllowedError,
+            raise CreditOwnerMissingError(
+                "appel LLM sans proprietaire de credits : "
+                f"agent_type={request.agent_type!r}, "
+                f"execution_id={request.execution_id!r}, "
+                f"appelant={nommer_appelant(3)}. "
+                "Renseigner user_id (propage depuis executions.user_id), ou "
+                "passer sans_compte=True pour le chemin public sans compte."
             )
-        except Exception as exc:
-            logger.error("Credit module unavailable, skipping pre-flight: %s", exc)
-            return None
+
+    def _credit_preflight(self, request: LLMRequest, provider_str: str) -> None:
+        """
+        Controle de credits AVANT l'appel. Ne rend rien ; leve si l'appel ne
+        doit pas partir :
+
+          - ``InsufficientCreditsError`` : quota journalier (Free) ou mensuel
+            (Pro/Team) atteint ;
+          - ``ModelNotAllowedError``     : le palier n'a pas droit au modele ;
+          - ``UnknownModelError``        : aucune ligne ``model_pricing`` pour
+            ce modele — on ne sait pas le facturer, donc on ne l'appelle pas.
+
+        B1 : ces trois cas etaient auparavant avales (les deux premiers rendus
+        sous forme de LLMResponse en echec, le troisieme journalise puis
+        ignore). Le no-op sur ``user_id is None`` est remplace par le chemin
+        explicite ``sans_compte``.
+        """
+        if request.sans_compte:
+            return
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService
 
         model_id = self._get_model_id(provider_str)
         db = SessionLocal()
         try:
-            service = CreditService(db)
-            service.preflight(request.user_id, model_id, request.max_tokens)
-        except ModelNotAllowedError as exc:
-            logger.warning("Credit pre-flight blocked: %s", exc)
-            return LLMResponse(
-                content="", provider=provider_str, model_id=model_id,
-                tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=0,
-                success=False, error=f"model_not_allowed: {exc}",
-            )
-        except InsufficientCreditsError as exc:
-            logger.warning("Credit pre-flight blocked: %s", exc)
-            return LLMResponse(
-                content="", provider=provider_str, model_id=model_id,
-                tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=0,
-                success=False, error=f"insufficient_credits: {exc}",
-            )
-        except CreditError as exc:
-            logger.error("Credit pre-flight error (skipping): %s", exc)
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.error("Unexpected credit pre-flight failure: %s", exc, exc_info=True)
+            CreditService(db).preflight(request.user_id, model_id, request.max_tokens)
         finally:
             db.close()
-        return None
 
     def _credit_post_charge(
         self, request: LLMRequest, response: LLMResponse
     ) -> None:
         """Debit credits after a successful LLM call. Errors are logged, never raised."""
-        if request.user_id is None:
+        if request.sans_compte or request.user_id is None:
             return
         if not response.success:
             return
@@ -1087,10 +1131,15 @@ class LLMRouterService:
                 project_id=request.project_id,
             )
         except Exception as exc:
-            # Don't fail the user response just because the ledger choked.
-            logger.error(
-                "Credit post-charge failed for user=%s model=%s: %s",
-                request.user_id, response.model_id, exc,
+            # Don't fail the user response just because the ledger choked : le
+            # jeton est deja consomme, echouer ici ne le rendrait pas. Mais le
+            # niveau est CRITICAL, pas ERROR : une ligne de credit perdue est
+            # exactement le defaut que le lot B1 corrige, elle ne doit pas
+            # passer inapercue dans les journaux.
+            logger.critical(
+                "Ligne de credit PERDUE (user=%s, model=%s, jetons=%s/%s) : %s",
+                request.user_id, response.model_id,
+                response.tokens_in, response.tokens_out, exc,
             )
         finally:
             db.close()
@@ -1199,6 +1248,7 @@ class LLMRouterService:
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            sans_compte=bool(kwargs.get("sans_compte", False)),
             subscription_tier=sub_tier,
             cache_system=bool(cache_system),
         )
@@ -1225,6 +1275,7 @@ class LLMRouterService:
             project_id=kwargs.get("project_id"),
             execution_id=kwargs.get("execution_id"),
             user_id=kwargs.get("user_id"),
+            sans_compte=bool(kwargs.get("sans_compte", False)),
             subscription_tier=sub_tier,
             cache_system=bool(cache_system),
         )

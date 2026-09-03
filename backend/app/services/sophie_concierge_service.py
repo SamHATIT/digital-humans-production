@@ -253,7 +253,11 @@ async def converse(
         temperature=mode["config"]["temperature"],
         agent_type="pm",
         force_provider="anthropic/claude-sonnet-4-6",
-        # user_id is None — visitor has no account, no credit accounting.
+        # B1 : chemin public explicite. Le visiteur du site n'a pas de compte ;
+        # `sans_compte=True` le dit au routeur, qui ne debite rien. Ce n'est
+        # plus `user_id=None` : un `None` implicite est desormais refuse, parce
+        # que c'est lui qui a laisse tous les appels agents non factures.
+        sans_compte=True,
         metadata={"feature": "concierge", "session_uuid": session_uuid},
     )
 

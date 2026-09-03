@@ -14,11 +14,125 @@ Symbols publics conservés pour backward compatibility :
 """
 
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar, Token
 from enum import Enum
 from functools import lru_cache
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# VAGUE B / LOT B1 — proprietaire des credits
+# ---------------------------------------------------------------------------
+# Defaut mesure le 02/09 : `credit_transactions` = 0 ligne pour 222
+# `llm_interactions` sur 30 jours. Aucun appel ne renseignait `user_id`, et le
+# routeur sautait silencieusement ses crochets de credit dans ce cas.
+#
+# Deux sources de verite, dans cet ordre :
+#   1. `execution_id` -> `executions.user_id` (colonne NOT NULL, renseignee sur
+#      131/131 lignes en production) : c'est le chemin de tous les agents, qui
+#      passent deja `execution_id` a chaque appel ;
+#   2. la variable de contexte ci-dessous, posee par l'orchestrateur pour la
+#      duree d'une execution : elle couvre les rares appels du meme run qui ne
+#      portent pas d'`execution_id` (`sds_section_writer`, par exemple).
+#
+# Faute des deux, l'appel leve `CreditOwnerMissingError` en nommant l'appelant.
+
+_proprietaire_credits: ContextVar[Optional[int]] = ContextVar(
+    "proprietaire_credits", default=None
+)
+
+
+def set_credit_owner(user_id: Optional[int]) -> Token:
+    """Fixe le proprietaire des credits du contexte courant. Rend un jeton."""
+    return _proprietaire_credits.set(user_id)
+
+
+def reset_credit_owner(token: Token) -> None:
+    _proprietaire_credits.reset(token)
+
+
+@contextmanager
+def credit_owner(user_id: Optional[int]):
+    """Version context manager de :func:`set_credit_owner`."""
+    token = set_credit_owner(user_id)
+    try:
+        yield
+    finally:
+        reset_credit_owner(token)
+
+
+def _resolve_user_for_execution(execution_id: int, db=None) -> Optional[int]:
+    """Lit `executions.user_id`. Rend None si l'execution n'existe pas.
+
+    Volontairement SANS cache, a la difference de `_resolve_tier_for_execution`
+    juste en dessous : un cache indexe par `execution_id` survit au
+    `drop_all`/`create_all` des tests (les sequences repartent a 1) et
+    attribuerait alors les credits d'une execution a l'utilisateur d'une autre.
+    La requete est un acces par cle primaire, negligeable devant un appel LLM.
+    """
+    if not execution_id:
+        return None
+    from app.models.execution import Execution
+
+    if db is not None:
+        execution = db.query(Execution).filter(Execution.id == execution_id).first()
+        return execution.user_id if execution else None
+
+    from app.database import SessionLocal
+
+    session = SessionLocal()
+    try:
+        execution = (
+            session.query(Execution).filter(Execution.id == execution_id).first()
+        )
+        return execution.user_id if execution else None
+    finally:
+        session.close()
+
+
+def _resoudre_proprietaire(
+    clean_kwargs: Dict[str, Any],
+    execution_id: Optional[int],
+    db=None,
+    profondeur_appelant: int = 3,
+) -> None:
+    """Renseigne `clean_kwargs["user_id"]`, ou leve en nommant l'appelant."""
+    from app.services.llm_router_service import (
+        CreditOwnerMissingError,
+        nommer_appelant,
+    )
+
+    sans_compte = bool(clean_kwargs.get("sans_compte", False))
+    user_id = clean_kwargs.get("user_id")
+
+    if user_id is None and execution_id:
+        user_id = _resolve_user_for_execution(execution_id, db=db)
+    if user_id is None:
+        user_id = _proprietaire_credits.get()
+
+    if sans_compte:
+        if user_id is not None:
+            raise CreditOwnerMissingError(
+                "appel LLM incoherent : sans_compte=True avec un proprietaire "
+                f"resolu (user_id={user_id}). Appelant : "
+                f"{nommer_appelant(profondeur_appelant)}."
+            )
+        return
+
+    if user_id is None:
+        raise CreditOwnerMissingError(
+            "appel LLM sans proprietaire de credits : "
+            f"agent_type={clean_kwargs.get('agent_type') or 'inconnu'!r}, "
+            f"execution_id={execution_id!r}, "
+            f"appelant={nommer_appelant(profondeur_appelant)}. "
+            "Passer user_id, ou un execution_id resoluble, ou poser "
+            "set_credit_owner(user_id) autour de l'appel ; pour le chemin "
+            "public sans compte, passer sans_compte=True."
+        )
+    clean_kwargs["user_id"] = user_id
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +346,12 @@ def generate_llm_response(
             from app.services.budget_service import BudgetService
             BudgetService(db_session).check_budget(execution_id)
 
+        # B1 : proprietaire des credits. Resolu ici, une fois, pour tous les
+        # agents — aucun d'eux ne passait `user_id` (grep `user_id=` sur
+        # backend/agents/ : zero occurrence avant ce lot).
+        clean_kwargs["agent_type"] = agent_type
+        _resoudre_proprietaire(clean_kwargs, execution_id, db=db_session)
+
         # FEAT-LANG-001 : directive de langue projet
         system_prompt = _apply_language_directive(system_prompt, execution_id)
 
@@ -245,7 +365,7 @@ def generate_llm_response(
             system_prompt=system_prompt,
             max_tokens=clean_kwargs.pop("max_tokens", 16000),
             temperature=clean_kwargs.pop("temperature", 0.7),
-            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
+            **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "sans_compte", "subscription_tier", "cache_system")},
         )
 
         # Budget tracking post-call
@@ -303,6 +423,12 @@ async def generate_llm_response_async(
             clean_kwargs["subscription_tier"] = resolved_tier
             logger.debug("Resolved tier=%s for execution=%s (async)", resolved_tier, execution_id)
 
+    # B1 : proprietaire des credits. `sds_section_writer` (seul appelant de
+    # cette variante) ne porte pas d'`execution_id` : il est couvert par la
+    # variable de contexte posee par l'orchestrateur.
+    clean_kwargs["agent_type"] = agent_type
+    _resoudre_proprietaire(clean_kwargs, execution_id)
+
     # FEAT-LANG-001 : directive de langue projet
     system_prompt = _apply_language_directive(system_prompt, execution_id)
     from app.services.platform_state import apply_platform_state
@@ -314,7 +440,7 @@ async def generate_llm_response_async(
         system_prompt=system_prompt,
         max_tokens=clean_kwargs.pop("max_tokens", 16000),
         temperature=clean_kwargs.pop("temperature", 0.7),
-        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "subscription_tier", "cache_system")},
+        **{k: v for k, v in clean_kwargs.items() if k in ("project_id", "execution_id", "user_id", "sans_compte", "subscription_tier", "cache_system")},
     )
 
 
