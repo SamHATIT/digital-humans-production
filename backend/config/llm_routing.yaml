@@ -250,101 +250,74 @@ providers:
   # notre argument de souverainete. Diego, Raj, Zara et Elena sont autorises :
   # ils ne voient que des metadonnees de structure (avis juridique du 09/08).
   gpu_local:
-    enabled: true           # actif depuis le 10/08/2026, serveurs verifies
-    # Joignable par un tunnel SSH permanent (service tunnel-gpu sur le VPS).
-    # Les ports du serveur GPU ne sont PAS exposes sur internet — c'est
-    # deliberé : le tunnel evite d'ouvrir llama.cpp au monde, sachant qu'il
-    # n'a aucune authentification.
-    base_url: "http://127.0.0.1:18080/v1"
-    base_url_qwen: "http://127.0.0.1:18081/v1"
-    base_url_oss: "http://127.0.0.1:18082/v1"
-    base_url_qwen38: "http://127.0.0.1:18083/v1"
-    # Le Spark, via le tunnel SSH permanent. Ajoute le 19/08.
-    base_url_nemotron: "http://127.0.0.1:18080/v1"
+    enabled: true
+    # ── ETAT MESURE LE 03/09/2026 (revue vague A, A9) ─────────────────────
+    # Le bloc decrivait un monde disparu : les ports 18080-18083 visaient le
+    # GPU loue Packet.ai (adresse differente a chaque location, eteint depuis
+    # le 19/08), et "Gemma 4 31B" / "Qwen 3.6" n ont jamais tourne sur le
+    # Spark. Pire : base_url_nemotron pointait 18080 — tenu par le tunnel
+    # Packet mort — et model_id "nemotron-3-nano-30b-a3b" que vLLM refuse en
+    # 404. Depuis le 31/08 (reprise de 18084 par le Spark), AUCUN appel LLM
+    # de la plateforme ne pouvait aboutir. Rien ne l a signale : pas de SDS
+    # lance, et un timeout de 600 s avant l erreur.
+    #
+    # Ce qui est REELLEMENT servi par le Spark (ssh, 03/09) :
+    #   port 8001 -> VPS 18084 : vLLM, modele "nemotron-lightning"
+    #                (Nemotron 3.5 Lightning NVFP4, comite + plateforme)
+    #   port 8090 -> VPS 18090 : llama.cpp, Gemma 4 12B Q8 — pont linguistique
+    #                UNIQUEMENT, hors routeur plateforme
+    # Sur disque, NON demarres : gpt-oss-120b, qwen38-nvfp4. Ils reviennent
+    # ici avec leur base_url_<nom> le jour ou un service les sert, pas avant :
+    # une URL declaree sans serveur derriere est une panne differee.
+    #
+    # Tunnel : tunnel-spark-vllm.service (VPS -> Spark:8001, publie 0.0.0.0
+    # pour que le conteneur dh-comite l atteigne via 172.19.0.1). Les ports
+    # ne sont pas exposes sur internet, deliberement : vLLM n authentifie pas.
+    base_url: "http://127.0.0.1:18084/v1"
+    base_url_nemotron: "http://127.0.0.1:18084/v1"
+    # GPU loue (Packet.ai ou autre) : adresse variable, jamais en dur ici.
+    # Definir GPU_LOCAL_BASE_URL dans .env le temps de la location.
     base_url_env: "GPU_LOCAL_BASE_URL"
-    api_key: "aucune"       # llama.cpp n'en exige pas
+    api_key: "aucune"
     timeout_seconds: 600
     models:
-      gemma:
-        model_id: "gemma"
-        display_name: "Gemma 4 31B Q8 (GPU dedie)"
-        context_length: 32768
-        supports_temperature: true
-        port: 8080
-      qwen:
-        model_id: "qwen"
-        display_name: "Qwen 3.6 27B Q8 (GPU dedie)"
-        context_length: 32768
-        supports_temperature: true
-        port: 8081
-      # Ajoute le 13/08 pour le BUILD de validation (DEC-2026-0809-03).
-      # MXFP4 est le format NATIF de ce modele, pas une requantification :
-      # aucune dette de precision, contrairement aux variantes 2 bits des
-      # modeles plus gros. 117 Md de parametres dont 5,1 actifs — decodage
-      # rapide, ce qui compte dans une boucle agentique.
-      # Mesure du 12/08 : 60 jetons/s en generation, 35,7 Go de VRAM.
-      # ATTENTION : llama.cpp exige --device CUDA0 explicite, sinon il tourne
-      # sur CPU sans le dire. Et --n-cpu-moe 0 est CONTRE-PRODUCTIF ici : le
-      # mode hybride par defaut donne 60 jetons/s, le tout-GPU s effondre a 1,5.
-      # Ajoute le 16/08 pour le premier BUILD complet (projet 77, TechTalent).
-      # Qwen 3.8 27B : 27 milliards de parametres contre 120 pour gpt-oss, donc
-      # plus rapide et beaucoup plus leger — 29 Go en Q8_0 contre 60.
-      # Aux bancs d essai publies par Qwen : 61,7 sur SWE-bench Pro contre 53,4
-      # pour Opus 4.6 Max, et 73,0 sur Terminal Bench contre 78,2. Il gagne sur
-      # deux mesures, perd sur deux autres.
-      # RESERVE A GARDER EN TETE : aucun de ces bancs ne teste APEX ni les
-      # metadonnees Salesforce. Ils mesurent du Python et du JavaScript sur des
-      # depots GitHub. Un modele excellent sur SWE-bench peut etre mediocre sur
-      # un trigger handler — c est precisement ce que ce BUILD doit trancher.
-      # ── NEMOTRON 3 NANO — 19/08 ─────────────────────────────────────────
-      # 30 milliards au total, 3 SEULEMENT lus a chaque jeton (melange
-      # d experts). Le goulot du Spark est la bande passante memoire : ce
-      # modele le contourne au lieu de le subir. NVIDIA le concoit nommement
-      # pour cette machine.
-      #
-      # Mesures du 19/08, sur les taches reelles :
-      #   latence     1,4 s contre 7,8 s pour Qwen 27B
-      #   debit       42,5 jetons/s contre 12,2
-      #   contexte    262144 nativement, 131072 servis par conversation
-      #   outils      4 tests sur 4, y compris celui ou il ne faut PAS appeler
-      #
+      # ── NEMOTRON 3.5 LIGHTNING — 19/08, identifiant corrige le 03/09 ──────
+      # Melange d experts : 3 milliards lus par jeton. Le goulot du Spark est
+      # la bande passante memoire ; ce modele le contourne. NVIDIA le concoit
+      # nommement pour cette machine.
+      # Mesures du 19/08 : latence 1,4 s (7,8 s pour Qwen 27B), 42,5 jetons/s
+      # (12,2), contexte 262144 natif / 131072 servi, outils 4/4.
       # POURQUOI IL EST BRANCHE ICI : le Delivery a besoin de VOLUME pour
-      # valider que la chaine SDS -> BUILD -> sandbox fonctionne. Un modele
-      # local sans facturation vaut mieux qu un modele excellent qu on
-      # rationne. Le tour de qualite se fera ensuite, sur API.
+      # valider la chaine SDS -> BUILD -> sandbox. Le tour de qualite se fera
+      # ensuite, sur API.
       nemotron:
-        model_id: "nemotron-3-nano-30b-a3b"
-        display_name: "Nemotron 3 Nano (Spark, local)"
+        model_id: "nemotron-lightning"      # id EXACT retourne par /v1/models
+        display_name: "Nemotron 3.5 Lightning NVFP4 (Spark, local)"
         context_length: 131072
         supports_temperature: true
-        port: 18080
+        port: 18084
         reasoning: false
 
-      qwen38:
-        model_id: "qwen3.8-27b"
-        display_name: "Qwen 3.8 27B Q8_0 (GPU dedie)"
-        context_length: 32768
-        supports_temperature: true
-        port: 8083
-        # reasoning: false — la reflexion est DESACTIVEE pour ce modele.
-        # Mesure du 16/08 : laisse libre, il a produit 1400 jetons de reflexion
-        # et un contenu VIDE. Avec enable_thinking=false, reponse complete et
-        # code Apex correct du premier coup.
-        # Remarque de Sam : le SDS gagnerait a garder la reflexion (Marcus fait
-        # de l architecture, Emma de la recherche). Le BUILD transforme une
-        # specification deja ecrite, il en a moins besoin. Passer a true quand
-        # on voudra le mesurer — le routeur elargit alors le budget a 6000
-        # jetons, sans quoi la reflexion mange tout.
-        reasoning: false
-      oss:
-        model_id: "gpt-oss-120b"
-        display_name: "gpt-oss-120b MXFP4 (GPU dedie)"
-        context_length: 32768
-        supports_temperature: true
-        port: 8082
+      # ── ARCHIVES DE MESURE, modeles non servis (conserves pour l histoire) ─
+      # gpt-oss-120b MXFP4 — 12/08 : 60 jetons/s, 35,7 Go. llama.cpp exige
+      #   --device CUDA0 explicite (sinon CPU en silence) ; --n-cpu-moe 0 est
+      #   contre-productif (1,5 jeton/s). Ecarte pour le comite le 30/08 :
+      #   appels d outils 1/4, franglais.
+      # Qwen 3.8 27B — 16/08 : 29 Go en Q8_0. SWE-bench Pro 61,7 (Opus 4.6 Max
+      #   53,4), Terminal Bench 73,0 (78,2). Aucun de ces bancs ne teste APEX.
+      #   reasoning DOIT rester false : libre, 1400 jetons de reflexion et
+      #   contenu vide ; enable_thinking=false, Apex correct du premier coup.
+      #   Le 30/08 sur le Spark : 4/4 aux appels d outils, JSON propre.
+      # Pour les reactiver : demarrer le service sur le Spark, ajouter le
+      # tunnel, puis remettre ici model_id + base_url_<nom> + port.
 
   ollama:
-    enabled: true
+    enabled: false
+    # 03/09 (A9) : passe a false. Le pipeline SDS V3 / Mistral 7B / Ollama a
+    # ete supprime en aout (tag legacy/sds_v3_synthesis_before_removal) et
+    # rien n ecoute sur 11434. Laisse a true, ce fournisseur etait enregistre
+    # au demarrage et pouvait etre choisi par un repli : 600 s d attente pour
+    # une erreur de connexion. Constate par la sonde des fournisseurs locaux.
     base_url: "http://localhost:11434"
     timeout_seconds: 300
     models:

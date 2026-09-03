@@ -273,6 +273,21 @@ async def startup_event():
     except Exception as e:
         logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
 
+    # A9 (03/09) — sonde des fournisseurs LLM locaux, meme regle qu A6 :
+    # en tache de fond, jamais sur le chemin du boot. Un port mort ou un
+    # model_id refuse par vLLM doit se lire dans le journal AU DEMARRAGE,
+    # pas au premier client apres 600 s de timeout.
+    async def _llm_local_probe() -> None:
+        try:
+            from app.services.llm_router_service import get_llm_router
+            await asyncio.to_thread(get_llm_router().verifier_fournisseurs_locaux)
+        except Exception as e:  # pragma: no cover
+            logger.error("[LLM] sonde des fournisseurs locaux en echec : %s", e)
+    try:
+        app.state.llm_local_probe_task = asyncio.create_task(_llm_local_probe())
+    except Exception as e:
+        logger.error("[LLM] sonde des fournisseurs locaux non lancee : %s", e)
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup services on shutdown."""
