@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.models.chat_log import ChatLog
 from app.services.llm_router_service import LLMRequest, get_llm_router
+from app.services.tier_config_service import get_tier_summary_text
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +244,14 @@ async def converse(
     rendered_prompt = mode["prompt"].replace("{{visitor_language}}", visitor_language)
     rendered_prompt = rendered_prompt.replace("{{history}}", _render_history(history))
     rendered_prompt = rendered_prompt.replace("{{user_message}}", user_message)
+    # B7-bis : B7 (c9effce) a remplace le bloc de prix en dur du prompt par
+    # l'espace reserve {{tier_summary}}, a rendre depuis tier_config (D9) ;
+    # ce point etait reste ouvert (hors perimetre B7) et {{tier_summary}}
+    # partait tel quel au LLM. get_tier_summary_text() fait un appel
+    # SQLAlchemy synchrone : meme convention que les autres requetes db de
+    # cette fonction, poussee sur un thread pour ne pas bloquer la boucle.
+    tier_summary = await asyncio.to_thread(get_tier_summary_text, db, visitor_language)
+    rendered_prompt = rendered_prompt.replace("{{tier_summary}}", tier_summary)
 
     # 5. Call the LLM.
     router = get_llm_router()
