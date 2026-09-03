@@ -149,11 +149,17 @@ profiles:
     # Les autres tiers (free, team, enterprise) ne sont pas listés ici car
     # ils utilisent les mappings tier→provider standard sans override agent-level.
     tier_overrides:
-      # Free tier (8 juin) — Sophie/Olivia en Sonnet : jamais Opus, jamais Haiku.
-      # Opus est reserve aux tiers PAYANTS (Pro et au-dessus). Maitrise des couts demo publique.
+      # Free tier — D2/D6 (Sam, 03/09/2026) : Sophie/Olivia sur Nemotron 3.5
+      # Lightning, en local sur le Spark. Jamais Opus, jamais Haiku (D5).
+      # Le 8 juin le Free tournait en Sonnet ; depuis B1 (user_id obligatoire,
+      # prefligth qui ne saute plus) ce reglage bloquait tout appel Free :
+      # model_pricing n autorise Sonnet qu a pro,team. Le modele local est
+      # tarife par la migration 014 (D12 : 0,2 / 1,0 credit pour 1 000 jetons,
+      # autorise free,pro,team). Sam : « on fera des tests et on verra le vrai
+      # rendu ; si ce n est pas au niveau on passera sur Sonnet ».
       free:
-        orchestrator_default: "anthropic/claude-sonnet"
-        # worker deja en Sonnet via le mapping cloud standard
+        orchestrator_default: "gpu_nemotron/nemotron"
+        worker_default: "gpu_nemotron/nemotron"
       pro:
         # Par défaut : tous les orchestrators tournent en Sonnet pour le tier Pro
         orchestrator_default: "anthropic/claude-sonnet"

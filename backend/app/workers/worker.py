@@ -3,8 +3,10 @@
 Run with: python -m arq app.workers.worker.WorkerSettings
 """
 import logging
+from arq import cron
 from arq.connections import ArqRedis
 from app.workers.arq_config import REDIS_SETTINGS
+from app.workers.retention import purge_chat_logs_task
 from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
 
 logger = logging.getLogger("arq.worker")
@@ -63,3 +65,6 @@ class WorkerSettings:
     job_timeout = 3600  # 1 hour max per execution
     health_check_interval = 30
     queue_name = "digital-humans"
+    # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,
+    # chaque nuit a 03:17 UTC. Voir app/workers/retention.py.
+    cron_jobs = [cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False)]

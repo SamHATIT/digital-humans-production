@@ -652,8 +652,17 @@ class LLMRouterService:
                         sub_tier, agent_normalized, forced, provider,
                     )
                     return forced
-            # Worker tier : pas d'override actuellement (Sonnet partout sur Pro).
-            # Ajout futur possible : override.get("worker_default")
+            # Worker tier — B2 (03/09/2026) : `worker_default` honore, meme
+            # mecanisme que l orchestrateur. Sans lui, le Free sous profil cloud
+            # envoyait ses ouvriers en Sonnet, que model_pricing refuse au Free.
+            if tier == AgentTier.WORKER:
+                forced = override.get("worker_default")
+                if forced:
+                    logger.debug(
+                        "tier_override: tier=%s agent=%s → forcing worker %s (was %s)",
+                        sub_tier, agent_normalized, forced, provider,
+                    )
+                    return forced
 
         return provider
 
