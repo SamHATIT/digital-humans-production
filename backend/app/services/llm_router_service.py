@@ -226,6 +226,50 @@ class LLMRouterService:
                 f"Profile '{self.profile}' is missing required tiers: {missing}"
             )
 
+    def verifier_fournisseurs_locaux(self, timeout_s: float = 3.0) -> List[str]:
+        """Sonde chaque fournisseur LOCAL declare : l endpoint repond-il, et
+        sert-il bien le model_id du YAML ?
+
+        Retourne la liste des anomalies (vide = tout repond). Ne leve jamais :
+        c est le journal qui porte l alerte, la plateforme doit demarrer meme
+        Spark eteint (Free = chat, auth, pages ; ce n est pas le LLM local).
+
+        Pourquoi (03/09/2026, revue vague A) : du 31/08 au 03/09, gpu_nemotron
+        pointait un port mort (18080, tunnel Packet.ai eteint) ET un model_id
+        que vLLM refusait en 404 ("nemotron-3-nano-30b-a3b" pour un serveur
+        qui n a que "nemotron-lightning"). Aucun appel ne pouvait aboutir, et
+        rien ne l a dit : pas de SDS lance, timeout de 600 s avant l erreur.
+        Le comite, lui, a un garde-fou identique depuis le 30/08 et s est
+        arrete proprement — c est comme ca qu on a vu le probleme.
+        """
+        anomalies: List[str] = []
+        for nom, p in self.providers.items():
+            if p.get("type") != ProviderType.LOCAL:
+                continue
+            base = (p.get("base_url") or "").rstrip("/")
+            attendus = [m.get("model_id") for m in p.get("models", {}).values()]
+            if not base:
+                anomalies.append(f"{nom}: base_url vide")
+                continue
+            try:
+                r = httpx.get(f"{base}/models", timeout=timeout_s)
+                r.raise_for_status()
+                servis = [m.get("id") for m in r.json().get("data", [])]
+            except Exception as e:
+                anomalies.append(f"{nom}: {base} injoignable ({type(e).__name__}: {e})")
+                continue
+            for mid in attendus:
+                if mid not in servis:
+                    anomalies.append(
+                        f"{nom}: model_id '{mid}' absent de {base}/models — servis : {servis}"
+                    )
+        for a in anomalies:
+            logger.error("[LLM] FOURNISSEUR LOCAL INOPERANT — %s", a)
+        if not anomalies:
+            logger.info("[LLM] fournisseurs locaux verifies : %d OK",
+                        sum(1 for p in self.providers.values() if p.get("type") == ProviderType.LOCAL))
+        return anomalies
+
     def reload_config(self, profile: Optional[str] = None):
         """Reload YAML + re-init providers. Useful for tests and profile switching."""
         self.config = self._load_config()
