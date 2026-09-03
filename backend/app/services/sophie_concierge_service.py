@@ -292,8 +292,14 @@ async def converse(
             intent=meta.get("intent"),
             next_action=meta.get("next_action"),
             email_collected=meta.get("email") or None,
-            tokens_in=getattr(response, "tokens_input", None),
-            tokens_out=getattr(response, "tokens_output", None),
+            # B8 : LLMResponse (llm_router_service.py) expose tokens_in/tokens_out,
+            # jamais tokens_input/tokens_output. Avec l'ancien nom, getattr()
+            # retombait toujours sur son defaut et chat_logs.tokens_* restait
+            # NULL. getattr conserve : un routeur qui ne rendrait pas les
+            # jetons (attribut absent) doit encore ecrire une ligne, avec ces
+            # deux colonnes a None (elles sont nullable), pas lever.
+            tokens_in=getattr(response, "tokens_in", None),
+            tokens_out=getattr(response, "tokens_out", None),
             cost_usd=cost_micro,
         ))
         db.commit()
@@ -310,8 +316,8 @@ async def converse(
         intent=meta.get("intent"),
         next_action=meta.get("next_action"),
         email_collected=meta.get("email") or None,
-        tokens_in=getattr(response, "tokens_input", 0) or 0,
-        tokens_out=getattr(response, "tokens_output", 0) or 0,
+        tokens_in=getattr(response, "tokens_in", 0) or 0,
+        tokens_out=getattr(response, "tokens_out", 0) or 0,
         cost_usd=response.cost_usd if hasattr(response, "cost_usd") else 0.0,
         ended=meta.get("next_action") == "end",
     )
