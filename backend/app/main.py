@@ -261,10 +261,18 @@ async def startup_event():
     # s'en echapperait sort en `probe crashed` — jamais avalee. La tache est
     # referencee par `app.state` pour ne pas etre ramassee avant d'avoir fini :
     # asyncio ne garde qu'une reference faible sur les taches en cours.
+    # VAGUE B / LOT B6 — `/health` recomptait les chunks a chaque appel du
+    # watchdog (`_check_chroma` appelait `rag_health_check()` en direct) :
+    # 50 ms a chaud, 11-16 s dans les pics, d'ou les fausses alertes `000`.
+    # Le comptage de demarrage ci-dessous est desormais reutilise comme
+    # premiere valeur du cache (D8, TTL 30 min) au lieu d'etre journalise
+    # puis jete : voir `rag_service.set_rag_health_cache` /
+    # `rag_service.get_cached_rag_health`, lue par `_check_chroma`.
     async def _rag_health_probe() -> None:
         try:
-            from app.services.rag_service import rag_health_check
-            await asyncio.to_thread(rag_health_check)
+            from app.services import rag_service
+            resultat = await asyncio.to_thread(rag_service.rag_health_check)
+            rag_service.set_rag_health_cache(resultat)
         except Exception as e:
             logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
 
@@ -291,6 +299,15 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup services on shutdown."""
+    # VAGUE B / LOT B6 (ouvert d'A6) — la sonde RAG de demarrage est une
+    # tache unique, pas une boucle : elle finit d'elle-meme dans la grande
+    # majorite des cas. Si le shutdown survient avant sa fin (redemarrage
+    # rapide), on l'annule proprement plutot que de la laisser pendante :
+    # asyncio journalise sinon "Task was destroyed but it is pending".
+    tache_rag = getattr(app.state, "rag_health_task", None)
+    if tache_rag is not None and not tache_rag.done():
+        tache_rag.cancel()
+
     try:
         await shutdown_notification_service()
         logger.info("NotificationService shutdown complete")
@@ -359,11 +376,19 @@ def _check_chroma() -> tuple[bool, str]:
     et rendent des livrables plausibles mais pauvres**. C'est exactement la
     panne qu'on ne voit pas sans sonde, d'ou le `chroma.count` demande par Kimi
     plutot qu'un simple « le client repond ».
+
+    VAGUE B / LOT B6 — `rag_health_check()` fait un `coll.count()` par
+    collection (cinq collections, disque + SQLite) : 50 ms a chaud, 11-16 s
+    dans les pics. Appele ici a chaque `GET /health`, il faisait du watchdog
+    un generateur de fausses alertes `000` des que la charge disque montait.
+    `get_cached_rag_health` (D8) sert le dernier comptage, TTL 30 min,
+    rafraichi en tache de fond — jamais de recomptage synchrone dans le
+    chemin normal de `/health`.
     """
     try:
-        from app.services.rag_service import rag_health_check
+        from app.services.rag_service import get_cached_rag_health
 
-        result = rag_health_check()
+        result = get_cached_rag_health()
         if result.get("error"):
             return False, str(result["error"])
         total = result.get("total_chunks", 0)
