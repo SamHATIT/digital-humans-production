@@ -25,8 +25,9 @@ add_pb() {
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://127.0.0.1:8002/health || true)
 [ "$HTTP" != "200" ] && add_pb "backend /health = $HTTP"
 
-# Sonde Spark (tunnel LLM local).
-SPARK=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:18001/v1/models || true)
+# Sonde Spark : 18084 = tunnel-spark-vllm vers Spark:8001 (vLLM nemotron-lightning).
+# 03/09 : la mission disait 18001, port qui n a jamais existe sur le VPS.
+SPARK=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://127.0.0.1:18084/v1/models || true)
 [ "$SPARK" != "200" ] && add_pb "spark /v1/models = $SPARK"
 
 if command -v systemctl >/dev/null 2>&1; then
