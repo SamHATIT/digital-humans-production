@@ -310,6 +310,14 @@ absentes de `backend/.env.example`. Gestionnaire de secrets : « à décider ».
 
 ## 3. Ouvert — ce qui reste, et pourquoi
 
+> **Relecture Sam + Claude, 03/09.** A9 : clos sans correctif — `gemma`/`qwen`
+> (ports 18080/18081) désignent le GPU Packet.ai, loué à la demande, où
+> tournaient le 10/08 exactement Gemma 4 31B Q8 et Qwen 3.6 27B Q8 (llama.cpp).
+> Les `display_name` sont justes ; LLM-DISPLAY (30/08) confondait avec les
+> modèles du Spark, déclarés à part. Reste : `base_url_nemotron` (Spark) et
+> `gemma` (Packet) partagent le port 18080 → vague B.
+> `premium → pro` : le test était faux, corrigé en `→ team` (commit suivant).
+
 - **A9 — `display_name` de `gemma` (port 8080) et `qwen` (port 8081) : à trancher par Sam.** Aucun commit. L'énoncé dit quelles chaînes doivent disparaître (« Gemma 4 31B », « Qwen 3.6 »), pas par quoi les remplacer. Le sous-agent a cherché une source indépendante du YAML : les seules occurrences sont dans `llm_routing.yaml` lui-même (lignes 199, 241, 270 ; 242, 276) ; `docs/benchmarks/local-llm-bench-2026-04-30/` décrit un bench Ollama CPU d'avril, pas le serveur GPU du 10/08 ; ADR-001 précède le GPU ; `CHANGELOG.md` s'arrête au 15/07 ; `PROGRESS.log` absent du clone. L'orchestrateur a complété par lecture seule sur le VPS : `PROGRESS.log` absent aussi, `/root/bin-gpu-demarrage.sh` ne lance que `gpt-oss-120b`, `curl 127.0.0.1:{18080,18081,18082,18083,18001}/v1/models` ne répond sur aucun port, le journal du comité ne nomme pas de version. Question précise : quels modèles exacts (nom et version, tels que lancés par `llama.cpp`) sont derrière `gemma` et `qwen` ? `display_name` n'est lu par aucun code Python (grep) : c'est de la documentation dans le YAML.
 - **`test_credit_service::test_resolve_credit_tier_maps_legacy_premium_to_pro` reste rouge.** Son nom et son assertion (`premium → pro`) contredisent le mapping voulu et documenté (`credit_service.py:94`, migration 009 : `premium → team`). Deux issues : corriger le test (asserter `team`, le renommer), ou — si Sam veut réellement `premium → pro` — changer `credit_service.py` et la migration 009. Décision produit, hors A3.
 - **Les 3 rouges de `test_auth` et celui de `test_emma_phase3`** préexistent à la vague et n'ont de lot dans aucun document. Non touchés.

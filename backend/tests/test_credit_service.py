@@ -144,9 +144,13 @@ def seeded_db():
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_credit_tier_maps_legacy_premium_to_pro(seeded_db):
+def test_resolve_credit_tier_maps_legacy_premium_to_team(seeded_db):
+    # Premium (99 EUR, BUILD inclus) equivaut a Team : mapping de
+    # credit_service._TIER_ALIAS et de la migration 009. 0 utilisateur
+    # premium en prod le 03/09 (6 free, 1 pro, 1 team).
     user = _create_user(seeded_db, "premium@example.com", tier="premium")
-    assert resolve_credit_tier(user) == "pro"
+    assert resolve_credit_tier(user) == "team"
+    assert resolve_credit_tier(user) != "pro"
 
 
 def test_resolve_credit_tier_maps_enterprise_to_team(seeded_db):
