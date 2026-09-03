@@ -216,7 +216,7 @@ export const auth = {
   // a CURRENT_TERMS_VERSION cote backend (backend/app/api/routes/auth.py) :
   // le backend refuse (400) toute version differente plutot que d'en deduire
   // silencieusement "la version actuelle".
-  CGV_VERSION: '1.0',
+  CGV_VERSION: '2026-08-30', // = CURRENT_TERMS_VERSION cote backend (date de publication)
 
   register: async (
     email: string,

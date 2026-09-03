@@ -40,7 +40,7 @@ SELF_SERVE_TIERS = {"free"}
 # un choix delibere ci-dessous (repli refuse, pas silencieux) plutot que de
 # faire confiance au client. A incrementer manuellement si le texte des CGV
 # ou de la politique de confidentialite change.
-CURRENT_TERMS_VERSION = "1.0"
+CURRENT_TERMS_VERSION = "2026-08-30"  # date de publication des CGV / legal / privacy (Sam + Legal). Pas un numero arbitraire.
 
 # kim:COH-05 (meme regle que sophie_concierge_service.IP_SALT) — aucun
 # defaut public : un sel connu rendrait les hachages d'IP reversibles par
