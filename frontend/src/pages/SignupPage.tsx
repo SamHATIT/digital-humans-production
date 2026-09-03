@@ -105,7 +105,10 @@ function SignupInner() {
       if (requestedIntent) {
         sessionStorage.setItem('onboarding:pendingIntent', requestedIntent);
       }
-      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang);
+      // RGPD (lot B3) — explicit, non-pre-checked consent (acceptedTerms,
+      // the "Terms of Sale" / "Privacy Policy" checkbox below) travels with
+      // the request; the backend rejects with 400 if it's missing or false.
+      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang, acceptedTerms);
       setMailSent(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
@@ -131,7 +134,7 @@ function SignupInner() {
     setError('');
     setIsLoading(true);
     try {
-      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang);
+      await auth.signupRequest(email.trim(), name.trim(), password, requestedTier, lang, acceptedTerms);
     } catch {
       // Silent — anti-enumeration. The user already has the original mail (or not).
     } finally {

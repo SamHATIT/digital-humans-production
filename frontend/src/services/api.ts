@@ -211,7 +211,20 @@ export const auth = {
     return apiCall('/api/auth/me', { method: 'GET' });
   },
 
-  register: async (email: string, name: string, password: string, requestedTier?: string) => {
+  // RGPD (vague B / lot B3) — version des CGV/politique de confidentialite
+  // couverte par le consentement envoye ci-dessous. Doit correspondre EXACTEMENT
+  // a CURRENT_TERMS_VERSION cote backend (backend/app/api/routes/auth.py) :
+  // le backend refuse (400) toute version differente plutot que d'en deduire
+  // silencieusement "la version actuelle".
+  CGV_VERSION: '1.0',
+
+  register: async (
+    email: string,
+    name: string,
+    password: string,
+    requestedTier?: string,
+    consentCgv?: boolean,
+  ) => {
     // ⚠️ Legacy single-step signup. Kept for back-compat — new UI uses
     // signupRequest + signupConfirm instead (ONBOARDING-002).
     return apiCall('/api/auth/register', {
@@ -221,6 +234,8 @@ export const auth = {
         name,
         password,
         ...(requestedTier ? { requested_tier: requestedTier } : {}),
+        consent_cgv: !!consentCgv,
+        consent_version: auth.CGV_VERSION,
       }),
     });
   },
@@ -231,8 +246,13 @@ export const auth = {
     password: string,
     requestedTier?: string,
     lang?: string,
+    consentCgv?: boolean,
   ) => {
     // ONBOARDING-002 — step 1: send the verification email. No account yet.
+    // RGPD (lot B3) — consent_cgv/consent_version travel here: this is the
+    // form where the checkbox actually lives (SignupPage.tsx). The backend
+    // rejects with 400 if consent_cgv is missing/false, or if the version
+    // doesn't match what it currently serves.
     return apiCall('/api/auth/signup-request', {
       method: 'POST',
       body: JSON.stringify({
@@ -241,6 +261,8 @@ export const auth = {
         password,
         ...(requestedTier ? { requested_tier: requestedTier } : {}),
         ...(lang ? { lang } : {}),
+        consent_cgv: !!consentCgv,
+        consent_version: auth.CGV_VERSION,
       }),
     });
   },

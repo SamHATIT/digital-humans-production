@@ -4,8 +4,11 @@ Authentication routes for user registration, login, and profile management.
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session
 
+import hashlib
 import logging
 import os
+from datetime import datetime, timezone
+from typing import Optional
 
 from app.database import get_db
 from app.models.user import User
@@ -19,13 +22,90 @@ from app.utils.email_token import (
     create_signup_token, decode_signup_token, SignupTokenError,
 )
 from app.services.email_sender import send_signup_verification_email
-from app.rate_limiter import limiter, RateLimits
+from app.rate_limiter import limiter, RateLimits, get_client_ip
 
 logger = logging.getLogger(__name__)
 
 # ONBOARDING-002: tiers that can sign up self-serve (mirror of the same set
 # in the legacy /register endpoint — kept in sync explicitly).
 SELF_SERVE_TIERS = {"free"}
+
+# ─────────────────────────────────────────────────────────────────────
+# RGPD — vague B / lot B3 : consentement CGV explicite a l'inscription
+# ─────────────────────────────────────────────────────────────────────
+#
+# Version du texte CGV/politique de confidentialite couverte par ce
+# consentement. Doit correspondre exactement a la constante CGV_VERSION du
+# frontend (frontend/src/pages/SignupPage.tsx) : la faire correspondre est
+# un choix delibere ci-dessous (repli refuse, pas silencieux) plutot que de
+# faire confiance au client. A incrementer manuellement si le texte des CGV
+# ou de la politique de confidentialite change.
+CURRENT_TERMS_VERSION = "1.0"
+
+# kim:COH-05 (meme regle que sophie_concierge_service.IP_SALT) — aucun
+# defaut public : un sel connu rendrait les hachages d'IP reversibles par
+# dictionnaire, ce qui viderait la protection RGPD de son sens.
+IP_SALT = os.getenv("CHAT_IP_SALT", "")
+
+
+def _hash_consent_ip(ip: str) -> str:
+    """SHA-256 hex de (ip + sel) — meme methode que
+    ``sophie_concierge_service._hash_ip`` (chat_logs.ip_hash), reutilisee
+    ici pour ``users.consent_ip_hash``. Jamais l'IP en clair en base.
+
+    Leve ``RuntimeError`` si ``CHAT_IP_SALT`` n'est pas configure : hacher
+    avec un sel vide ne protegerait rien (regle 6, jamais de repli
+    silencieux).
+    """
+    if not IP_SALT:
+        raise RuntimeError(
+            "CHAT_IP_SALT is not configured — refusing to hash the consent "
+            "IP with an empty salt. Set CHAT_IP_SALT in the backend "
+            "environment."
+        )
+    return hashlib.sha256(f"{ip}{IP_SALT}".encode("utf-8")).hexdigest()
+
+
+def _consent_ip_hash_or_503(request: Request, where: str) -> str:
+    """Wrap ``_hash_consent_ip`` for a route handler: turn the RuntimeError
+    above into a loud, explicit 500 rather than letting an unconfigured
+    salt crash unhandled or silently fall back to no hash."""
+    try:
+        return _hash_consent_ip(get_client_ip(request))
+    except RuntimeError as exc:
+        logger.error("[%s] cannot hash consent IP: %s", where, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="signup_temporarily_unavailable",
+        ) from exc
+
+
+def _require_consent(consent_cgv: bool, consent_version: Optional[str]) -> None:
+    """Reject signup with no explicit, correctly-versioned CGV consent.
+
+    Regle 6 (jamais de repli silencieux) : un consentement manquant/faux, ou
+    une version qui ne correspond pas a ce que le backend sert aujourd'hui,
+    est refuse avec un message nommant ce qui a ete recu et ce qui est
+    attendu — jamais suppose « accepte » ou coerce vers la version courante.
+    """
+    if not consent_cgv:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Vous devez accepter explicitement les CGV et la politique "
+                "de confidentialite pour creer un compte (consent_cgv "
+                "manquant ou faux)."
+            ),
+        )
+    if consent_version != CURRENT_TERMS_VERSION:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"consent_version invalide : recu {consent_version!r}, "
+                f"attendu {CURRENT_TERMS_VERSION!r}."
+            ),
+        )
+
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -54,6 +134,11 @@ async def register(request: Request, response: Response, user_data: UserCreate, 
             detail="Email already registered"
         )
 
+    # RGPD (lot B3) — consentement CGV explicite obligatoire avant toute
+    # creation de compte, y compris sur ce chemin legacy.
+    _require_consent(user_data.consent_cgv, user_data.consent_version)
+    consent_ip_hash = _consent_ip_hash_or_503(request, "register")
+
     # Resolve the requested tier (ONBOARDING-001) — only `free` is self-serve
     # for now. Pro/Team need a Stripe checkout flow which doesn't bypass /register
     # (so we don't trust an arbitrary `requested_tier=pro` from the wire).
@@ -70,6 +155,9 @@ async def register(request: Request, response: Response, user_data: UserCreate, 
         hashed_password=hashed_password,
         is_active=True,
         subscription_tier=resolved_tier,
+        consent_cgv_at=datetime.now(timezone.utc),
+        consent_version=user_data.consent_version,
+        consent_ip_hash=consent_ip_hash,
     )
 
     db.add(new_user)
@@ -113,6 +201,13 @@ async def signup_request(
     when the email is already registered — so we don't leak account
     existence to scrapers.
     """
+    # RGPD (lot B3) — consent is given HERE, on this form (SignupPage.tsx
+    # renders the checkbox next to this call). Validate and hash the IP
+    # before anything else: a rejected consent must not depend on whether
+    # the email is already taken (anti-enumeration cuts both ways).
+    _require_consent(body.consent_cgv, body.consent_version)
+    consent_ip_hash = _consent_ip_hash_or_503(request, "signup-request")
+
     # Resolve the requested tier with the same fallback rules as /register.
     resolved_tier = "free"
     if body.requested_tier and body.requested_tier in SELF_SERVE_TIERS:
@@ -130,11 +225,17 @@ async def signup_request(
     # Hash the password NOW — the hash travels in the signed token.
     hashed_password = get_password_hash(body.password)
 
+    # Consent proof travels through the token too (RGPD, lot B3): the
+    # moment of consent is this request, not the later signup-confirm click,
+    # so consent_version/consent_ip_hash must be captured now and carried
+    # unaltered — see app/utils/email_token.py docstring.
     token = create_signup_token(
         email=body.email,
         name=body.name.strip(),
         hashed_password=hashed_password,
         requested_tier=resolved_tier,
+        consent_version=body.consent_version,
+        consent_ip_hash=consent_ip_hash,
     )
 
     base_url = os.getenv("STUDIO_PUBLIC_URL", "https://app.digital-humans.fr").rstrip("/")
@@ -183,6 +284,23 @@ async def signup_confirm(
     hashed_password = payload["hashed_password"]
     resolved_tier = payload["requested_tier"]
 
+    # RGPD (lot B3) — defensive re-check: the signed token is trusted, but a
+    # token minted by pre-B3 code (or a hand-crafted payload, which the
+    # signature would already reject) must not silently pass through as
+    # "consented". Same generic 400 as any other rejected token — we don't
+    # want to give a forger a signal about which field tripped.
+    if not payload.get("consent_cgv"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="invalid_or_expired_token",
+        )
+    consent_version = payload["consent_version"]
+    consent_ip_hash = payload["consent_ip_hash"]
+    # The consent moment is when the visitor checked the box and submitted
+    # signup-request, i.e. this token's own issuance time — not "now" (this
+    # confirm click can happen minutes later, from a different IP/device).
+    consent_cgv_at = datetime.fromtimestamp(payload["iat"], tz=timezone.utc)
+
     # Race-condition guard: in the 30 minutes between request and confirm,
     # someone else could have signed up with the same email through a
     # different channel. Re-check.
@@ -205,6 +323,9 @@ async def signup_confirm(
         hashed_password=hashed_password,
         is_active=True,
         subscription_tier=resolved_tier,
+        consent_cgv_at=consent_cgv_at,
+        consent_version=consent_version,
+        consent_ip_hash=consent_ip_hash,
     )
     db.add(new_user)
     db.commit()

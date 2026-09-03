@@ -4,6 +4,24 @@ Tests for authentication routes.
 import pytest
 from fastapi import status
 
+# Vague B / lot B3 (RGPD) — /register exige desormais un consentement CGV
+# explicite et un CHAT_IP_SALT configure pour hacher l'IP (sinon 500, voulu
+# — voir app/api/routes/auth.py). Ce fichier n'est pas le perimetre B3, mais
+# ses deux tests de /register cassaient sans ce sel et ce consentement ; on
+# les ajoute ici a l'identique du sel de test utilise par
+# tests/test_vague_b_b3_consentement.py, pour ne pas introduire deux rouges
+# etrangers au sujet de ces tests (regle 6 de docs/vague-a/MISSION.md :
+# periphere exclusif — ecrit ici, hors perimetre declare de B3, par
+# necessite mecanique).
+from app.api.routes import auth as auth_module
+
+_CONSENT = {"consent_cgv": True, "consent_version": auth_module.CURRENT_TERMS_VERSION}
+
+
+@pytest.fixture(autouse=True)
+def _sel_ip_pour_register(monkeypatch):
+    monkeypatch.setattr(auth_module, "IP_SALT", "sel-de-test-test-auth", raising=False)
+
 
 def test_register_user_success(client):
     """Test successful user registration."""
@@ -12,7 +30,8 @@ def test_register_user_success(client):
         json={
             "email": "test@example.com",
             "name": "Test User",
-            "password": "testpassword123"
+            "password": "testpassword123",
+            **_CONSENT,
         }
     )
 
@@ -33,7 +52,8 @@ def test_register_user_duplicate_email(client):
         json={
             "email": "test@example.com",
             "name": "Test User",
-            "password": "testpassword123"
+            "password": "testpassword123",
+            **_CONSENT,
         }
     )
 
@@ -43,7 +63,8 @@ def test_register_user_duplicate_email(client):
         json={
             "email": "test@example.com",
             "name": "Another User",
-            "password": "anotherpassword123"
+            "password": "anotherpassword123",
+            **_CONSENT,
         }
     )
 
