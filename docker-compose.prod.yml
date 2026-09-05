@@ -10,7 +10,7 @@ services:
     container_name: digital-humans-backend
     network_mode: "host"
     environment:
-      DATABASE_URL: postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db
+      DATABASE_URL: postgresql://digital_humans:${DH_DB_PASSWORD:?DH_DB_PASSWORD manquant dans l environnement}@127.0.0.1:5432/digital_humans_db
       SECRET_KEY: ${SECRET_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: gpt-4o

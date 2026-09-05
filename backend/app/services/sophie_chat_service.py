@@ -203,6 +203,13 @@ class SophieChatService:
                 user_id=user_id,
             )
             
+            # 05/09 : un echec LLM ne doit jamais devenir un 200 vide. Le 03/09,
+            # un 404 de vLLM est arrive au client comme une reponse de Sophie
+            # de zero caractere. Repli silencieux n 8.
+            if not response.get("success", True) or not (response.get("content") or "").strip():
+                motif = response.get("error") or "reponse vide"
+                logger.error(f"[Sophie Chat] ECHEC LLM (model={response.get('model')}) : {motif}")
+                raise RuntimeError(f"Sophie n a pas pu repondre : {motif}")
             assistant_message = response["content"]
             tokens_used = response.get("tokens_used", 0)
             model_used = response.get("model", "unknown")
