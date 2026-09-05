@@ -54,6 +54,8 @@ def test_vllm_recoit_le_model_id_pas_la_cle(monkeypatch):
     assert resp.success, resp.error
     assert envoye["model"] == "nemotron-lightning", envoye.get("model")
     assert envoye["model"] != "nemotron"
+    # et la reponse rapporte le modele servi : c est lui que le tarif attend
+    assert resp.model_id == "nemotron-lightning", resp.model_id
 
 
 def test_sophie_chat_ne_rend_pas_un_200_vide(monkeypatch):
