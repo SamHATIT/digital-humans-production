@@ -762,6 +762,11 @@ class LLMRouterService:
 
         base = (cfg.get("base_url") or "").rstrip("/")
         cfg_modele = (cfg.get("models") or {}).get(model, {}) or {}
+        # 05/09 : identifiant SERVI (model_id), pas la cle YAML. La cle dans
+        # LLMResponse.model_id faisait echouer le tarif ("No pricing row for
+        # model nemotron") : ligne de credit PERDUE, constate au premier
+        # parcours Free reel.
+        modele_servi = cfg_modele.get("model_id") or model
         messages = []
         if getattr(request, "system_prompt", None):
             messages.append({"role": "system", "content": request.system_prompt})
@@ -772,7 +777,7 @@ class LLMRouterService:
         # 404, reponse vide, et Sophie repondait 200 avec une chaine vide.
         # Constate au premier parcours Free de bout en bout, le 03/09.
         charge = {
-            "model": cfg_modele.get("model_id") or model,
+            "model": modele_servi,
             "messages": messages,
             # Plancher a 2000 : en dessous, la reflexion mange tout.
             "max_tokens": max(int(getattr(request, "max_tokens", 4096) or 4096), 2000),
@@ -817,7 +822,7 @@ class LLMRouterService:
             async with httpx.AsyncClient(timeout=cfg.get("timeout", 600)) as client:
                 r = await client.post(f"{base}/chat/completions", json=charge)
                 if r.status_code != 200:
-                    return LLMResponse(content="", provider=provider_name, model_id=model,
+                    return LLMResponse(content="", provider=provider_name, model_id=modele_servi,
                                        tokens_in=0, tokens_out=0, cost_usd=0.0,
                                        latency_ms=int((time.time()-debut)*1000),
                                        success=False,
@@ -836,7 +841,7 @@ class LLMRouterService:
 
             u = d.get("usage") or {}
             return LLMResponse(
-                content=contenu, provider=provider_name, model_id=model, success=True,
+                content=contenu, provider=provider_name, model_id=modele_servi, success=True,
                 tokens_in=u.get("prompt_tokens", 0),
                 tokens_out=u.get("completion_tokens", 0),
                 latency_ms=int((time.time() - debut) * 1000),
@@ -844,7 +849,7 @@ class LLMRouterService:
                 stop_reason=(d.get("choices") or [{}])[0].get("finish_reason"),
             )
         except Exception as e:
-            return LLMResponse(content="", provider=provider_name, model_id=model,
+            return LLMResponse(content="", provider=provider_name, model_id=modele_servi,
                                tokens_in=0, tokens_out=0, cost_usd=0.0,
                                latency_ms=int((time.time() - debut) * 1000),
                                success=False, error=str(e)[:200])
