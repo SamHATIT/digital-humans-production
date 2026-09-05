@@ -767,8 +767,12 @@ class LLMRouterService:
             messages.append({"role": "system", "content": request.system_prompt})
         messages.append({"role": "user", "content": request.prompt})
 
+        # 05/09 : envoyer le model_id du YAML, pas la CLE. La cle "nemotron"
+        # arrivait telle quelle a vLLM, qui ne connait que "nemotron-lightning" :
+        # 404, reponse vide, et Sophie repondait 200 avec une chaine vide.
+        # Constate au premier parcours Free de bout en bout, le 03/09.
         charge = {
-            "model": model,
+            "model": cfg_modele.get("model_id") or model,
             "messages": messages,
             # Plancher a 2000 : en dessous, la reflexion mange tout.
             "max_tokens": max(int(getattr(request, "max_tokens", 4096) or 4096), 2000),
@@ -1038,7 +1042,11 @@ class LLMRouterService:
                 self._credit_preflight(request, fallback)
                 response = await self._call_provider(request, fallback)
             elif fallback == provider_str:
-                logger.info("No-op fallback for %s in profile %s", provider_str, self.profile)
+                # 05/09 : un echec sans repli est une ERREUR, pas une info.
+                logger.error(
+                    "[LLM] echec de %s sans repli (profile=%s, agent=%s) : %s",
+                    provider_str, self.profile, request.agent_type, response.error,
+                )
             else:
                 logger.warning(
                     "No fallback configured for %s in profile %s — error surfaced as-is",
