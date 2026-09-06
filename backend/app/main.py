@@ -138,7 +138,13 @@ app.include_router(analytics.router)
 app.include_router(artifacts.router)
 
 # Agent Tester (Salesforce integration testing)
-app.include_router(agent_tester.router, prefix=f"{settings.API_V1_PREFIX}")
+# SEC-02 (audit du 06/09) : le testeur d agents etait monte pour tout compte
+# authentifie, avec project_id=53 / user_id=2 par defaut dans AgentExecutor et
+# un executeur singleton partage entre requetes. Un compte Free pouvait lancer
+# une execution imputee au compte 2. Demonte cote serveur pour l ouverture ;
+# reouverture ulterieure = autorisation operateur + projet possede + executeur
+# par tache (SEC-02, effort 10-16 h).
+# app.include_router(agent_tester.router, prefix=f"{settings.API_V1_PREFIX}")
 
 # Business Requirements Validation
 app.include_router(business_requirements.router)

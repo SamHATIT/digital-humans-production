@@ -10,8 +10,29 @@ from datetime import datetime
 
 # Configuration
 GHOST_URL = "https://blog-admin.digital-humans.fr"
-GHOST_ADMIN_KEY = "695a5936e3b3d60001bcd398:1e384dc5f1c00c38c1deb03594c10369904f81e3e0c0b3a809bb6a41ac66e430"
-GHOST_CONTENT_KEY = "9985b20698251c494e823ca162"
+
+# SEC-01 (audit du 06/09) : les cles Ghost etaient en clair ici, et la cle Admin
+# etait encore valide. Rotation faite le 06/09 ; les cles vivent dans backend/.env.
+# Absence = arret explicite, jamais une valeur par defaut (regle 5).
+import os as _os
+from pathlib import Path as _Path
+def _cle_ghost(nom):
+    v = _os.environ.get(nom)
+    if not v:
+        env = _Path(__file__).resolve()
+        for parent in [env, *env.parents]:
+            f = parent / "backend" / ".env"
+            if f.is_file():
+                for ligne in f.read_text().splitlines():
+                    if ligne.startswith(nom + "="):
+                        v = ligne.split("=", 1)[1].strip(); break
+            if v: break
+    if not v:
+        raise SystemExit(f"{nom} manquant : definir la variable dans backend/.env (rotation Ghost du 06/09)")
+    return v
+
+GHOST_ADMIN_KEY = _cle_ghost("GHOST_ADMIN_KEY")
+GHOST_CONTENT_KEY = _cle_ghost("GHOST_CONTENT_KEY")
 
 # Les 10 agents blogueurs
 AGENTS = [
