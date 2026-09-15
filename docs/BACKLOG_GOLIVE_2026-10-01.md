@@ -1,0 +1,37 @@
+# Backlog go-live 1er octobre 2026 — source unique (ouvert le 15/09/2026)
+
+> Ce fichier devient le backlog unique du go-live. Il absorbera, à la revue du 15/09 après-midi,
+> les 41 décisions accordées du comité, les 49 tâches `a_faire` et les 58 constats de l'audit Astra
+> (docs/audit-20260906/rapport-astra.md). Une entrée = un défaut mesuré (commande, date), pas une impression.
+> Périmètre décidé par Sam le 15/09 : ouverture **Free + Pro** le 1er octobre.
+> Statuts : ❌ à faire · 🟡 en cours / à valider · ✅ fait (avec preuve).
+
+## 1. Bugs découverts par la calibration SDS sur modèles locaux (15/09, exécution 172, Muse Glimmer 30B)
+
+| Id | Sévérité | Constat (mesuré) | Correctif attendu | Statut |
+|---|---|---|---|---|
+| CAL-01 | Haute | `worker.py` : `job_timeout = 3600` constante globale. Le job de reprise de l'exec 172 (démarré 09:24:31) a été annulé à 10:24:31 en plein appel de Marcus (« Patching architecture, attempt 1 »). Un 30B local à 12 tok/s ne tient pas 1 h. | Rendre le délai dépendant du profil de routage (cloud vs gpu_local) ou du modèle ; ne pas annuler un job dont un appel LLM est en cours de réponse. | 🟡 porté à 21600 pour la calibration (commentaire dans worker.py) — **à rendre configurable et à remettre à 3600 pour le profil cloud** |
+| CAL-02 | Haute | Une exécution tuée par CAL-01 reste `RUNNING` / `sds_phase3_running`, sans erreur visible, jusqu'au prochain redémarrage du worker (`[Startup] Found stuck execution`). Un client Pro verrait « en cours » indéfiniment. | Sur `TimeoutError` / `CancelledError` du job : passer l'exécution en FAILED avec message explicite, notifier, libérer les crédits réservés. | ❌ |
+| CAL-03 | Moyenne | La route `POST /execute/{id}/resume` ne connaît que `phase2_ba` pour une exécution FAILED, alors que `last_completed_phase` (= `phase2_5_emma` pour 172) et `execute_workflow(resume_from="phase3")` permettent de reprendre sans rejouer Sophie/Olivia/Emma. Repris à la main le 15/09 via `pool.enqueue_job(..., resume_from='phase3', _queue_name='digital-humans')`. | `_determine_resume_point()` doit dériver le point de reprise de `last_completed_phase`. | ❌ |
+| CAL-04 | Basse | Machine à états : à la reprise en phase 3, `[StateMachine] transition failed: sds_phase3_running → queued` puis `→ sds_phase3_running` (refusées, non bloquantes). | Autoriser la transition de reprise ou remettre l'état à `queued` avant l'enqueue. | ❌ |
+| CAL-05 | Basse | `tasks.py` ignore comme « fantôme » tout job dont l'exécution est FAILED — correct pour les jobs orphelins, mais empêche une reprise explicite depuis FAILED sans passer par la route. | Distinguer job orphelin et reprise demandée (drapeau `resume_from`). | ❌ |
+| CAL-06 | Info | Débit mesuré Muse Glimmer 30B Q8 + DFlash sur Spark (llama.cpp) : 12,4 tok/s génération, ~460 tok/s ingestion. Phase 1 Sophie 20 min (4 738 tokens), phases 1→2.5 ≈ 1 h 35. Qualité phase 1 : 20 BR atomiques, fidèles au brief, rien d'inventé. | Alimente D2 (modèle Pro) — suite de la calibration : Nemotron, Qwen3.8, gpt-oss-120b. | 🟡 |
+
+## 2. Constats du 15/09 hors calibration (bloquants ou à traiter avant l'ouverture)
+
+| Id | Sévérité | Constat (mesuré) | Correctif attendu | Statut |
+|---|---|---|---|---|
+| GL-01 | **Bloquant** | `backend/.env` : `DH_DEPLOYMENT_PROFILE=test_gpu_complet` en prod (environnement des processus backend PID 2425519 et worker, journal 12/09 « profile=test_gpu_complet, build_enabled=True »). Tout est routé sur le GPU local ; un client Pro aurait Nemotron, pas Sonnet/Opus. Commentaire « À RETIRER après la validation » présent. | Repasser sur `cloud` (et remettre `gpu_local.timeout_seconds` à 600, profil `test_gpu_complet` → nemotron) après la calibration ; smoke test Free (Nemotron) et Pro (Sonnet) avant l'ouverture. | ❌ |
+| GL-02 | **Bloquant** | Mentions légales digital-humans.fr : numéro de TVA intracommunautaire `[À COMPLÉTER]`. VIES répond INVALID pour FR28343172490 ; la fiche Guichet Unique du 19/05 dit « franchise en base ». Facturer 79 € HT + TVA sans assujettissement = erreur de facturation dès la première vente. | Sam : demande du numéro (ou option TVA) sur impots.gouv ; injecter le numéro ; sinon afficher « TVA non applicable, art. 293 B » et facturer sans TVA. | ❌ (action Sam) |
+| GL-03 | Haute | Relecture juridique des clauses IA (AI Act art. 50) ajoutées le 15/09 sur les trois sites (mentions légales + CGV §6 DH ; `/legal` et `/privacy` DEOS et SH Conseil). Rédigées par Claude, pas par un juriste. | Relecture par un professionnel avant le 1er. | ❌ (action Sam) |
+| GL-04 | Moyenne | Trois sites chargent Google Fonts (transfert IP vers Google LLC, déclaré dans les politiques de confidentialité). | Auto-héberger Cormorant / Inter / JetBrains Mono sur les trois sites, puis retirer le paragraphe « Polices » des politiques. | ❌ |
+| GL-05 | Moyenne | Bundle digital-humans.fr : Babel « in-browser » sur 16 Mo ; un bloc CSS collé dans un script JSX le 30/08 a rendu le site et `/cgv` `/legal` `/privacy` noirs pendant 16 jours sans que personne ne le mesure (corrigé 15/09, `index.html.pre-fix-css-20260915`). | Contrôle Chromium automatique (console vide + texte rendu) après chaque modification du bundle ; envisager le bundle précompilé pour l'ouverture. Outils : `/root/workspace/site-work/pack.py`, `/tmp/chk_apercu.py`. | ❌ |
+| GL-06 | Basse | nginx : `sites-enabled/` contient des copies `.pre-*` chargées par `include sites-enabled/*` (avertissements « conflicting server name »). `/var/www/digital-humans.fr/` contient des SDS clients, une archive de livrables et un `login-test.html` (non servis — vhost ailleurs — mais à sortir de `/var/www`). `/test-site/` et `/apercu-recent/` accessibles sans mot de passe. | Déplacer les `.pre-*` hors de `sites-enabled`, nettoyer `/var/www/digital-humans.fr/`, retirer `/test-site/` à la bascule. | ❌ |
+| GL-07 | Basse | Spark : ComfyUI, vox-tts, lobe-chat se relancent au démarrage et occupent de la mémoire unifiée en permanence (mesuré après le redémarrage du 15/09 : 50 Go utilisés avant chargement des modèles). | Décider ce qui tourne au boot ; désactiver le reste. | ❌ |
+| GL-08 | Basse | `model_pricing` : lignes `muse-glimmer`, `qwen38`, `gpt-oss-120b` ajoutées à la main le 15/09 (palier team) pour la calibration ; `credit_balances` admin (user 2) initialisé à 100 000 (palier Team, était 0). | Migration Alembic si un modèle local est retenu ; sinon supprimer les lignes de calibration. | 🟡 |
+| GL-09 | Info | Comité DEOS : cron rituels suspendus le 15/09 (`/etc/cron.d/dh-comite-rituels`, sauvegarde `dh-comite/dh-comite-rituels.pre-suspension-20260915`). Retour conditionné : une décision accordée = une branche + un test. | Traité dans la revue backlog/curseur. | 🟡 |
+
+## 3. À absorber (revue du 15/09 après-midi)
+- 41 décisions `accordees` du comité (`next_owner` vide sur les 41) — table `decisions`.
+- 49 tâches `a_faire` — table `tasks`.
+- 58 constats Astra — `docs/audit-20260906/rapport-astra.md` (confrontation au code non faite : pas de `CONFRONTATION.md`).
