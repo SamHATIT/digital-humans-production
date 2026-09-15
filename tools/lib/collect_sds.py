@@ -90,14 +90,20 @@ def _db_conn():
     
     Lit les paramètres depuis backend/.env, ou utilise les défauts de prod.
     """
-    # Pour le dev/test on hardcode les valeurs de prod (même DSN que les agents)
-    return psycopg2.connect(
-        dbname="digital_humans_db",
-        user="digital_humans",
-        password="DH_SecurePass2025!",
-        host="127.0.0.1",
-        port=5432,
-    )
+    # 15/09/2026 : plus de mot de passe en dur. Source unique = DATABASE_URL (env du process,
+    # sinon backend/.env). Le mot de passe en dur datait d'avant la rotation SEC-01 du 06/09
+    # et cassait l'assemblage du SDS en phase 5 pour toutes les executions.
+    import os
+    dsn = os.getenv("DATABASE_URL")
+    if not dsn:
+        env_path = Path(__file__).resolve().parents[2] / "backend" / ".env"
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("DATABASE_URL="):
+                dsn = line.split("=", 1)[1].strip().strip('"').strip("'")
+                break
+    if not dsn:
+        raise RuntimeError("DATABASE_URL introuvable (env ou backend/.env) — refus d'utiliser un secret par defaut")
+    return psycopg2.connect(dsn)
 
 
 # ─── 1. Project & Execution metadata ───────────────────────────────────────
