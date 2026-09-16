@@ -1,7 +1,7 @@
 """Vague 1 / file C — trace des degradations sur l'execution (GL-10)
 
-Revision ID: 017_execution_degraded
-Revises: 016_execution_job_arq
+Revision ID: 020_execution_degraded
+Revises: 019_execution_job_arq
 Create Date: 2026-09-16
 
 `executions.degraded` : liste des degradations subies pendant l'execution.
@@ -18,8 +18,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy import inspect
 
-revision = "017_execution_degraded"
-down_revision = "016_execution_job_arq"
+revision = "020_execution_degraded"
+down_revision = "019_execution_job_arq"
 branch_labels = None
 depends_on = None
 

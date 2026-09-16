@@ -1,6 +1,6 @@
 """Vague 1 / file C — identite du job ARQ sur l'execution (PROD-04, CAL-07)
 
-Revision ID: 016_execution_job_arq
+Revision ID: 019_execution_job_arq
 Revises: 015_free_50_credits_jour
 Create Date: 2026-09-16
 
@@ -22,8 +22,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
-revision = "016_execution_job_arq"
-down_revision = "015_free_50_credits_jour"
+revision = "019_execution_job_arq"
+down_revision = "018_budget_concierge"
 branch_labels = None
 depends_on = None
 
