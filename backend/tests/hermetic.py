@@ -254,7 +254,7 @@ def _resolve_base_database_url() -> str:
             + "Posez un gabarit de base jetable (la session en dérive une base par "
             "exécution, la crée et la détruit) :\n"
             "    export TEST_DATABASE_URL="
-            "postgresql://dh_test:dh_test@127.0.0.1:5432/digital_humans_test\n"
+            "postgresql://dh_test:changeme@127.0.0.1:5432/digital_humans_test\n"
             "Le rôle doit avoir CREATEDB. Voir backend/tests/README.md.\n"
         )
     assert_not_production_database(base)
