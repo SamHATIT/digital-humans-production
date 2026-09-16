@@ -191,6 +191,26 @@ DELIVERABLE_EXTENSIONS = (".docx", ".pdf")
 STATE_CONTENT_READY = "sds_phase4_complete"
 STATE_SDS_COMPLETE = "sds_complete"
 
+#: VAGUE 1 / FILE C — PROD-06, deuxieme point. Les etats d'ATTENTE DE PORTE
+#: comptent aussi comme « contenu pret » : ce sont les etats reels au moment ou
+#: le client decide.
+#:
+#: `waiting_sds_validation` en particulier etait absent, alors que c'est l'etat
+#: de toute execution qui attend la validation de la porte
+#: `after_sds_generation` — laquelle emet `phase6_export` a l'approbation.
+#: `resolve_export_action` rendait donc `resume_upstream` pour la totalite des
+#: approbations de cette porte, soit un 409 systematique, apres consommation.
+#:
+#: `waiting_expert_validation` y figure pour la meme raison : la porte
+#: `after_expert_specs` est posee depuis `sds_phase4_complete`, et l'etat
+#: devient l'attente. Le contenu, lui, n'a pas bouge.
+STATES_CONTENT_READY = frozenset({
+    STATE_CONTENT_READY,
+    "waiting_expert_validation",
+    "sds_phase5_running",
+    "waiting_sds_validation",
+})
+
 
 def resolve_export_action(
     state: Optional[str], sds_document_path: Optional[str]
@@ -247,14 +267,15 @@ def resolve_export_action(
             ),
         }
 
-    if state == STATE_CONTENT_READY:
+    if state in STATES_CONTENT_READY:
         return {
             "action": "resume_workflow",
             "path": None,
             "resume_from": "phase5",
             "reason": (
-                "Contenu complet mais SDS non ecrit : Emma reprend la redaction "
-                "(phase5), puis l'export suit."
+                f"Etat {state!r} : le contenu est complet mais le livrable n'est "
+                f"pas exporte. Emma reprend la redaction (phase5), puis l'export "
+                f"suit. Aucun agent d'amont n'est relance."
             ),
         }
 
@@ -3514,18 +3535,20 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         from app.services.validation_gate_service import ValidationGateService
         gate_service = ValidationGateService(self.db)
-        if gate_service.should_pause(execution_id, "after_expert_specs"):
-            expert_summary = {
-                "completed_experts": [
-                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
-                    if item.get("result", {}).get("success")
-                ],
-                "failed_experts": [
-                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
-                    if not item.get("result", {}).get("success")
-                ],
-                "phase": "Phase 4 — Expert Specifications",
-            }
+        expert_summary = {
+            "completed_experts": [
+                item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                if item.get("result", {}).get("success")
+            ],
+            "failed_experts": [
+                item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                if not item.get("result", {}).get("success")
+            ],
+            "phase": "Phase 4 — Expert Specifications",
+        }
+        # PROD-06 : le livrable est passe a `should_pause`, qui refuse de
+        # reposer une porte deja approuvee pour ce meme contenu.
+        if gate_service.should_pause(execution_id, "after_expert_specs", expert_summary):
             gate_service.pause_for_validation(
                 execution_id=execution_id,
                 gate_name="after_expert_specs",
@@ -3696,12 +3719,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # P2-Full: Configurable gate — after SDS generation
         # ========================================
-        if gate_service.should_pause(execution_id, "after_sds_generation"):
-            sds_summary = {
-                "sds_length": len(sds_markdown),
-                "has_annexe": bool(uc_section_3_content),
-                "phase": "Phase 5 — SDS Document Generation",
-            }
+        sds_summary = {
+            "sds_length": len(sds_markdown),
+            "has_annexe": bool(uc_section_3_content),
+            "phase": "Phase 5 — SDS Document Generation",
+        }
+        if gate_service.should_pause(execution_id, "after_sds_generation", sds_summary):
             gate_service.pause_for_validation(
                 execution_id=execution_id,
                 gate_name="after_sds_generation",

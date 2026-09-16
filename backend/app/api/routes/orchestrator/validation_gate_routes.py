@@ -132,6 +132,11 @@ async def submit_validation_decision(
     If rejected, stores annotations and resumes the previous phase
     so the agent can retry with feedback.
     """
+    from app.services.pm_orchestrator_service_v2 import (
+        EXPORT_RESUME_POINTS,
+        resolve_export_action,
+    )
+
     execution = verify_execution_access(execution_id, current_user.id, db)
 
     # Ensure execution is in a waiting state
@@ -147,13 +152,17 @@ async def submit_validation_decision(
         )
 
     service = ValidationGateService(db)
-    result = service.submit_validation(
-        execution_id=execution_id,
-        approved=submission.approved,
-        annotations=submission.annotations,
-    )
 
-    gate_name = result.get("gate", "")
+    # VAGUE 1 / FILE C — PROD-06, deuxieme point : la porte n'est consommee
+    # qu'une fois la reprise jugee possible.
+    #
+    # Avant, `submit_validation` etait appele ici : il commitait la decision et
+    # effacait `pending_validation`, et la faisabilite n'etait examinee
+    # qu'ensuite. Une reprise impossible rendait alors un 409 sur une porte
+    # deja consommee : la decision du client etait perdue et la porte ne
+    # pouvait plus etre soumise. On lit donc le nom de la porte sur
+    # `pending_validation`, on verifie, puis on enregistre.
+    gate_name = (service.get_pending_validation(execution_id) or {}).get("gate", "")
 
     # VAGUE 3 / §3.3 et §3.4 — les six valeurs emises par ces deux tables
     # etaient toutes mortes. Elles tombaient dans la branche generique
@@ -190,6 +199,32 @@ async def submit_validation_decision(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown validation gate: {gate_name!r}",
         )
+
+    # PROD-06 — refus AVANT consommation : `resolve_export_action` est la seule
+    # decision de reprise qui peut conclure « impossible ». On la joue a blanc
+    # ici, sur l'etat courant ; l'aiguillage la rejouera pour agir.
+    if resume_point in EXPORT_RESUME_POINTS:
+        decision = resolve_export_action(
+            state=execution.execution_state,
+            sds_document_path=execution.sds_document_path,
+        )
+        if decision["action"] == "resume_upstream":
+            logger.warning(
+                f"[ValidationGate] Porte {gate_name!r} non consommee pour "
+                f"l'execution {execution_id} : {decision['reason']}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=decision["reason"],
+            )
+
+    # La reprise est possible : la decision peut etre enregistree.
+    result = service.submit_validation(
+        execution_id=execution_id,
+        approved=submission.approved,
+        annotations=submission.annotations,
+    )
+    assert result.get("gate", gate_name) == gate_name
 
     return await _relancer_apres_porte(
         db=db,

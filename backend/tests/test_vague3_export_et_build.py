@@ -209,9 +209,16 @@ def porte_after_build_code(monkeypatch):
     def _submit(self, execution_id, approved, annotations=None):
         return {"success": True, "gate": "after_build_code"}
 
+    # VAGUE 1 / FILE C (PROD-06) : la route lit la porte en cours AVANT de
+    # consommer la decision, donc avant `submit_validation`.
+    def _pending(self, execution_id):
+        return {"gate": "after_build_code", "gate_label": "Build Code Review",
+                "deliverables": {}}
+
     from app.services.validation_gate_service import ValidationGateService
 
     monkeypatch.setattr(ValidationGateService, "submit_validation", _submit)
+    monkeypatch.setattr(ValidationGateService, "get_pending_validation", _pending)
 
 
 def test_approuver_after_build_code_ne_rejoue_pas_le_sds(
@@ -250,9 +257,17 @@ def porte(monkeypatch):
         def _submit(self, execution_id, approved, annotations=None):
             return {"success": True, "gate": nom}
 
+        # VAGUE 1 / FILE C (PROD-06) : la route lit desormais la porte en cours
+        # sur l'execution, AVANT de consommer la decision — elle ne peut plus
+        # apprendre son nom par le retour de `submit_validation`, qui arrive
+        # trop tard. La porte simulee se nomme donc la ou la route regarde.
+        def _pending(self, execution_id):
+            return {"gate": nom, "gate_label": nom, "deliverables": {}}
+
         from app.services.validation_gate_service import ValidationGateService
 
         monkeypatch.setattr(ValidationGateService, "submit_validation", _submit)
+        monkeypatch.setattr(ValidationGateService, "get_pending_validation", _pending)
 
     return _fabrique
 
