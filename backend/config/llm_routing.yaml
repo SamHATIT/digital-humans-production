@@ -219,6 +219,75 @@ profiles:
       # derriere un timeout de 600 s : on preferre l'erreur franche.
       "gpu_nemotron/nemotron": "gpu_nemotron/nemotron"
 
+  calib_ark_dsv4pro:
+    build_enabled: true
+    # Les noms doivent correspondre aux cles enregistrees par le routeur :
+    # gpu_gemma, gpu_qwen et gpu_oss (un fournisseur par port).
+    #
+    # BASCULE DU 13/08 — gpt-oss-120b remplace Gemma et Qwen sur ce profil.
+    # Motif : au benchmark du 10/08, Gemma 4 31B a produit ZERO des quatre
+    # familles d analyse attendues. gpt-oss repond correctement en francais et
+    # produit un modele de donnees Salesforce structure (verifie le 12/08).
+    # Gemma et Qwen restent declares en repli, mais ne sont plus le defaut.
+    # BASCULE DU 16/08 — Qwen 3.8 27B pour le premier BUILD complet.
+    # gpt-oss reste declare en repli : il a produit du code Apex correct le
+    # 13/08, c est le seul repere qu on ait.
+    # Bascule du 19/08 : le GPU loue n existe plus, le Spark le remplace.
+    orchestrator: "gpu_dsv4pro/dsv4pro"
+    worker:       "gpu_dsv4pro/dsv4pro"
+    fallback_chain:
+      # 21/08 : les ports 18081-18083 pointaient vers le GPU loue Packet.ai,
+      # eteint depuis (pay-per-use). Seul 18080 repond, via le tunnel
+      # autossh VPS -> Spark. Un repli vers un port mort masquerait la panne
+      # derriere un timeout de 600 s : on preferre l'erreur franche.
+      "gpu_dsv4pro/dsv4pro": "gpu_dsv4pro/dsv4pro"
+
+  calib_ark_dsv4flash:
+    build_enabled: true
+    # Les noms doivent correspondre aux cles enregistrees par le routeur :
+    # gpu_gemma, gpu_qwen et gpu_oss (un fournisseur par port).
+    #
+    # BASCULE DU 13/08 — gpt-oss-120b remplace Gemma et Qwen sur ce profil.
+    # Motif : au benchmark du 10/08, Gemma 4 31B a produit ZERO des quatre
+    # familles d analyse attendues. gpt-oss repond correctement en francais et
+    # produit un modele de donnees Salesforce structure (verifie le 12/08).
+    # Gemma et Qwen restent declares en repli, mais ne sont plus le defaut.
+    # BASCULE DU 16/08 — Qwen 3.8 27B pour le premier BUILD complet.
+    # gpt-oss reste declare en repli : il a produit du code Apex correct le
+    # 13/08, c est le seul repere qu on ait.
+    # Bascule du 19/08 : le GPU loue n existe plus, le Spark le remplace.
+    orchestrator: "gpu_dsv4flash/dsv4flash"
+    worker:       "gpu_dsv4flash/dsv4flash"
+    fallback_chain:
+      # 21/08 : les ports 18081-18083 pointaient vers le GPU loue Packet.ai,
+      # eteint depuis (pay-per-use). Seul 18080 repond, via le tunnel
+      # autossh VPS -> Spark. Un repli vers un port mort masquerait la panne
+      # derriere un timeout de 600 s : on preferre l'erreur franche.
+      "gpu_dsv4flash/dsv4flash": "gpu_dsv4flash/dsv4flash"
+
+  calib_ark_glm53:
+    build_enabled: true
+    # Les noms doivent correspondre aux cles enregistrees par le routeur :
+    # gpu_gemma, gpu_qwen et gpu_oss (un fournisseur par port).
+    #
+    # BASCULE DU 13/08 — gpt-oss-120b remplace Gemma et Qwen sur ce profil.
+    # Motif : au benchmark du 10/08, Gemma 4 31B a produit ZERO des quatre
+    # familles d analyse attendues. gpt-oss repond correctement en francais et
+    # produit un modele de donnees Salesforce structure (verifie le 12/08).
+    # Gemma et Qwen restent declares en repli, mais ne sont plus le defaut.
+    # BASCULE DU 16/08 — Qwen 3.8 27B pour le premier BUILD complet.
+    # gpt-oss reste declare en repli : il a produit du code Apex correct le
+    # 13/08, c est le seul repere qu on ait.
+    # Bascule du 19/08 : le GPU loue n existe plus, le Spark le remplace.
+    orchestrator: "gpu_glm53/glm53"
+    worker:       "gpu_glm53/glm53"
+    fallback_chain:
+      # 21/08 : les ports 18081-18083 pointaient vers le GPU loue Packet.ai,
+      # eteint depuis (pay-per-use). Seul 18080 repond, via le tunnel
+      # autossh VPS -> Spark. Un repli vers un port mort masquerait la panne
+      # derriere un timeout de 600 s : on preferre l'erreur franche.
+      "gpu_glm53/glm53": "gpu_glm53/glm53"
+
   on-premise:
     build_enabled: true
     orchestrator: "local/mixtral"
@@ -281,6 +350,10 @@ providers:
     # ne sont pas exposes sur internet, deliberement : vLLM n authentifie pas.
     base_url: "http://127.0.0.1:18084/v1"
     base_url_nemotron: "http://127.0.0.1:18084/v1"
+    base_url_muse:     "http://127.0.0.1:18084/v1"   # calibration 15/09 : meme tunnel, Nemotron arrete pendant les tests
+    base_url_dsv4pro:   "http://127.0.0.1:18110/v1"  # calibration 15/09 : relais nginx -> ModelArk (BytePlus, Singapour)
+    base_url_dsv4flash: "http://127.0.0.1:18110/v1"
+    base_url_glm53:     "http://127.0.0.1:18110/v1"
     # GPU loue (Packet.ai ou autre) : adresse variable, jamais en dur ici.
     # Definir GPU_LOCAL_BASE_URL dans .env le temps de la location.
     base_url_env: "GPU_LOCAL_BASE_URL"
@@ -303,6 +376,34 @@ providers:
         supports_temperature: true
         port: 18084
         reasoning: false
+      muse:
+        model_id: "muse-glimmer"           # alias servi par llama-server sur le Spark (calibration 15/09)
+        display_name: "Muse Glimmer 30B Q8_0 (Spark, local, llama.cpp)"
+        context_length: 65536
+        supports_temperature: true
+        port: 18084
+        reasoning: true
+      dsv4pro:
+        model_id: "deepseek-v4-pro-ga-260813"
+        display_name: "DeepSeek V4 Pro GA (ModelArk)"
+        context_length: 262144
+        supports_temperature: true
+        port: 18110
+        reasoning: true
+      dsv4flash:
+        model_id: "deepseek-v4-flash-ga-260731"
+        display_name: "DeepSeek V4 Flash GA (ModelArk)"
+        context_length: 262144
+        supports_temperature: true
+        port: 18110
+        reasoning: true
+      glm53:
+        model_id: "glm-5-3-flash-260828"
+        display_name: "GLM 5.3 Flash (ModelArk)"
+        context_length: 262144
+        supports_temperature: true
+        port: 18110
+        reasoning: true
 
       # ── ARCHIVES DE MESURE, modeles non servis (conserves pour l histoire) ─
       # gpt-oss-120b MXFP4 — 12/08 : 60 jetons/s, 35,7 Go. llama.cpp exige

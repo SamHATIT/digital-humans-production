@@ -62,7 +62,7 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 10  # Max concurrent executions (P3 done : SFDX no longer blocks event loop)
-    job_timeout = 3600  # 1 hour max per execution
+    job_timeout = 3600  # 1 hour max per execution — CAL-01 : a rendre dependant du profil de routage
     health_check_interval = 30
     queue_name = "digital-humans"
     # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,
