@@ -122,3 +122,7 @@ backend/.env.*
 # Il ne contient aucun secret (valeurs vides ou prefixees dh-test-fake-), et
 # tests/hermetic.py refuse la session s'il en portait un.
 !backend/.env.test
+
+# Harnais de rendu Chromium (vague 1 / file D) — artefact de build
+frontend/tests/harness/dist-harness/
+frontend/dist-harness/
