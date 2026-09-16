@@ -230,7 +230,9 @@ class ExecutionAnnulee(Exception):
 
 
 def resolve_export_action(
-    state: Optional[str], sds_document_path: Optional[str]
+    state: Optional[str],
+    sds_document_path: Optional[str],
+    fichier_present: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Que faire d'une demande de reprise d'export (`phase6_export`) ?
 
@@ -254,7 +256,24 @@ def resolve_export_action(
     """
     chemin = (sds_document_path or "").strip()
     extension = ("." + chemin.rsplit(".", 1)[1].lower()) if "." in chemin else ""
-    est_livrable = bool(chemin) and extension in DELIVERABLE_EXTENSIONS
+
+    # VAGUE 1 / FILE C — PROD-12 : « la decision "livrable present" verifie
+    # l'extension, pas l'existence du fichier ». Un chemin en base ne prouve
+    # pas un fichier sur le disque : l'export avorte de la phase 6 laissait un
+    # `.docx` enregistre que personne n'avait ecrit, et il etait servi.
+    #
+    # `fichier_present` permet a un appelant de trancher lui-meme (decision
+    # jouee a blanc, test de la logique d'extension seule) ; a defaut, on
+    # regarde le disque.
+    if fichier_present is None:
+        try:
+            fichier_present = bool(chemin) and Path(chemin).is_file()
+        except OSError:
+            fichier_present = False
+
+    est_livrable = (
+        bool(chemin) and extension in DELIVERABLE_EXTENSIONS and fichier_present
+    )
 
     if state == STATE_SDS_COMPLETE:
         if est_livrable:
@@ -269,10 +288,14 @@ def resolve_export_action(
             }
         if not chemin:
             constat = "chemin absent"
-        elif extension:
-            constat = f"extension {extension} non remettable"
+        elif extension not in DELIVERABLE_EXTENSIONS:
+            constat = (
+                f"extension {extension} non remettable"
+                if extension
+                else "fichier sans extension"
+            )
         else:
-            constat = "fichier sans extension"
+            constat = f"fichier {chemin} absent du disque"
         return {
             "action": "regenerate_export",
             "path": None,
@@ -2913,9 +2936,24 @@ class PMOrchestratorServiceV2:
             try:
                 from app.services.markdown_to_docx import convert_markdown_to_docx
                 output_path = f"{output_dir}/SDS_Exec{execution_id}.docx"
-                convert_markdown_to_docx(sds_markdown, output_path, project.name)
-                logger.info(f"✅ SDS DOCX generated from Emma markdown: {output_path}")
-                return output_path
+                # VAGUE 1 / FILE C — PROD-12 : le chemin rendu par le
+                # convertisseur etait **jete** au profit du `.docx` compose
+                # ci-dessus. Or `convert_markdown_to_docx` ecrit un `.md` et
+                # rend son propre chemin quand python-docx manque : la base
+                # enregistrait alors un fichier qui n'existait pas, et la route
+                # de telechargement pointait dans le vide.
+                chemin_produit = convert_markdown_to_docx(
+                    sds_markdown, output_path, project.name
+                ) or output_path
+                if not Path(chemin_produit).is_file():
+                    # Regle 6 : un export qui n'a rien ecrit ne rend pas un
+                    # chemin comme si de rien n'etait. Le repli Markdown reste
+                    # possible — mais il ecrit vraiment un fichier.
+                    raise RuntimeError(
+                        f"l'export n'a produit aucun fichier a {chemin_produit!r}"
+                    )
+                logger.info(f"✅ SDS genere depuis le markdown d'Emma : {chemin_produit}")
+                return chemin_produit
             except ImportError:
                 logger.warning("markdown_to_docx not available, saving as markdown")
                 output_path = f"{output_dir}/SDS_Exec{execution_id}.md"

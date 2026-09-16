@@ -10,6 +10,7 @@ from typing import List
 import asyncio
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 import logging
 
 from app.database import get_db, SessionLocal
@@ -40,6 +41,18 @@ from app.utils.feature_access import require_feature
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["PM Orchestrator"])
+
+#: VAGUE 1 / FILE C (PROD-12) — type MIME par extension reellement produite.
+#: Le DOCX etait annonce pour tout, y compris pour un Markdown de repli.
+TYPES_MIME_LIVRABLE = {
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ),
+    ".pdf": "application/pdf",
+    ".md": "text/markdown; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+}
 
 
 @router.post("/execute", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -617,13 +630,33 @@ def download_sds_document(
     if not execution.sds_document_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SDS document not available")
 
+    # VAGUE 1 / FILE C — PROD-12. Deux defauts ici :
+    #
+    # 1. le chemin en base ne prouvait pas un fichier sur le disque : un export
+    #    avorte laissait la route servir un `FileResponse` sur un chemin
+    #    inexistant, soit une erreur serveur au lieu d'un message clair ;
+    # 2. le type et le nom annonçaient TOUJOURS du DOCX, meme pour un `.md` ou
+    #    un `.html` — le client enregistrait un `.docx` que Word refuse
+    #    d'ouvrir. Le format annonce suit desormais le fichier reellement
+    #    presnt. La forme de la reponse (un fichier) est inchangee.
+    chemin = Path(execution.sds_document_path)
+    if not chemin.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Livrable introuvable sur le disque ({chemin.name}) : "
+                f"l'export est a refaire. Aucun agent n'a besoin d'etre relance."
+            ),
+        )
+
     project = db.query(Project).filter(Project.id == execution.project_id).first()
-    filename = f"SDS_{project.name.replace(' ', '_')}_{execution.id}.docx"
+    extension = chemin.suffix.lower()
+    filename = f"SDS_{project.name.replace(' ', '_')}_{execution.id}{extension}"
 
     return FileResponse(
-        path=execution.sds_document_path,
+        path=str(chemin),
         filename=filename,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        media_type=TYPES_MIME_LIVRABLE.get(extension, "application/octet-stream"),
     )
 
 
