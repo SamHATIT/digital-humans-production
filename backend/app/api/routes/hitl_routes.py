@@ -54,12 +54,43 @@ class ChatResponse(BaseModel):
     change_request: Optional[ChangeRequestResponse] = None
 
 
+class AgentMetrics(BaseModel):
+    """Ce qu'un agent a reellement consomme sur cette execution."""
+    agent_id: str
+    tokens_input: int = 0
+    tokens_output: int = 0
+    tokens_total: int = 0
+    llm_seconds: float = 0.0
+    llm_calls: int = 0
+
+
+class MetricsTotals(BaseModel):
+    """GL-18 — les trois compteurs de l'ecran d'execution, mesures.
+
+    `tokens_*` et `llm_seconds` viennent de `llm_interactions` (une ligne par
+    appel, ecrite par le journal LLM) ; `credits` vient de
+    `credit_transactions`, c'est-a-dire de ce que le client paie reellement.
+    """
+    tokens_input: int = 0
+    tokens_output: int = 0
+    tokens_total: int = 0
+    llm_seconds: float = 0.0
+    llm_calls: int = 0
+    credits: int = 0
+    wall_seconds: Optional[float] = None
+
+
 class MetricsResponse(BaseModel):
     """Execution metrics."""
+    totals: MetricsTotals
+    by_agent: List[AgentMetrics]
+    source: str = "llm_interactions"
+    deliverables_count: int
+    # Conserves pour les consommateurs existants de cette route ; ils
+    # derivent desormais des memes mesures.
     tokens_by_agent: dict
     cost_by_phase: dict
     duration_by_phase: dict
-    deliverables_count: int
 
 
 class VersionEntry(BaseModel):
@@ -550,10 +581,23 @@ def get_execution_metrics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    """Compteurs d'une execution, mesures a la source (GL-18).
+
+    Avant : les jetons venaient de `agent_execution_status` (un JSON tenu par
+    l'orchestrateur, ou `tokens_used` n'est pas toujours ecrit) et le cout de
+    `execution.total_cost` (un cumul USD a deux ecrivains — BILL-10). L'ecran,
+    lui, ne lisait meme pas cette route : il derivait les trois compteurs de
+    `agent_progress`, qui ne porte aucun de ces champs — donc 0, 0, 0 pour
+    toute execution.
+
+    Desormais : `llm_interactions` pour les jetons et le temps passe en appel,
+    `credit_transactions` pour ce que le client paie. Une execution sans appel
+    rend des zeros et le dit (`llm_calls: 0`), ce qui se distingue d'une source
+    muette.
     """
-    Return aggregated metrics for an execution:
-    tokens_by_agent, cost_by_phase, duration_by_phase, deliverables_count.
-    """
+    from app.models.credit import TRANSACTION_TYPE_CHARGE, CreditTransaction
+    from app.models.llm_interaction import LLMInteraction
+
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if not execution:
         raise HTTPException(status_code=404, detail="Execution not found")
@@ -565,60 +609,76 @@ def get_execution_metrics(
     if not project:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Deliverables count
     deliverables_count = db.query(sa_func.count(AgentDeliverable.id)).filter(
         AgentDeliverable.execution_id == execution_id,
     ).scalar() or 0
 
-    # Tokens by agent from agent_execution_status (JSONB on execution)
-    tokens_by_agent: dict = {}
-    cost_by_phase: dict = {}
-    duration_by_phase: dict = {}
+    # Une ligne par agent, filtree sur CETTE execution.
+    lignes = (
+        db.query(
+            LLMInteraction.agent_id.label("agent_id"),
+            sa_func.coalesce(sa_func.sum(LLMInteraction.tokens_input), 0).label("entree"),
+            sa_func.coalesce(sa_func.sum(LLMInteraction.tokens_output), 0).label("sortie"),
+            sa_func.coalesce(
+                sa_func.sum(LLMInteraction.execution_time_seconds), 0.0
+            ).label("secondes"),
+            sa_func.count(LLMInteraction.id).label("appels"),
+        )
+        .filter(LLMInteraction.execution_id == execution_id)
+        .group_by(LLMInteraction.agent_id)
+        .all()
+    )
 
-    agent_status = execution.agent_execution_status
-    if isinstance(agent_status, str):
-        import json
-        try:
-            agent_status = json.loads(agent_status)
-        except Exception:
-            agent_status = {}
+    by_agent = [
+        AgentMetrics(
+            agent_id=ligne.agent_id,
+            tokens_input=int(ligne.entree or 0),
+            tokens_output=int(ligne.sortie or 0),
+            tokens_total=int((ligne.entree or 0) + (ligne.sortie or 0)),
+            llm_seconds=round(float(ligne.secondes or 0.0), 3),
+            llm_calls=int(ligne.appels or 0),
+        )
+        for ligne in lignes
+    ]
+    by_agent.sort(key=lambda a: a.tokens_total, reverse=True)
 
-    if isinstance(agent_status, dict):
-        for agent_id, info in agent_status.items():
-            if isinstance(info, dict):
-                tokens_by_agent[agent_id] = info.get("tokens_used", 0)
+    credits = (
+        db.query(sa_func.coalesce(sa_func.sum(CreditTransaction.credits_consumed), 0))
+        .filter(
+            CreditTransaction.execution_id == execution_id,
+            CreditTransaction.transaction_type == TRANSACTION_TYPE_CHARGE,
+        )
+        .scalar()
+        or 0
+    )
 
-    # Cost from execution totals
-    total_cost = execution.total_cost or 0.0
+    # Duree de bout en bout : celle consignee sur l'execution si elle existe,
+    # sinon derivee des horodatages. Jamais devinee (regle 6) : `None` si
+    # l'execution n'est pas terminee et n'a pas de duree.
+    wall_seconds = execution.duration_seconds
+    if wall_seconds is None and execution.started_at and execution.completed_at:
+        wall_seconds = (execution.completed_at - execution.started_at).total_seconds()
 
-    # Build phase info from state_history
-    state_history = execution.state_history or []
-    if isinstance(state_history, list):
-        for i, entry in enumerate(state_history):
-            if not isinstance(entry, dict):
-                continue
-            phase_name = entry.get("to", f"phase_{i}")
-            # Duration: diff between consecutive entries
-            if i + 1 < len(state_history) and isinstance(state_history[i + 1], dict):
-                try:
-                    from datetime import datetime as dt
-                    t1 = dt.fromisoformat(entry.get("at", ""))
-                    t2 = dt.fromisoformat(state_history[i + 1].get("at", ""))
-                    duration_by_phase[phase_name] = (t2 - t1).total_seconds()
-                except Exception:
-                    pass
-
-    # Cost per phase: distribute proportionally by token count if available
-    if tokens_by_agent and total_cost > 0:
-        total_agent_tokens = sum(tokens_by_agent.values()) or 1
-        for agent_id, tok in tokens_by_agent.items():
-            cost_by_phase[agent_id] = round(total_cost * tok / total_agent_tokens, 4)
+    totals = MetricsTotals(
+        tokens_input=sum(a.tokens_input for a in by_agent),
+        tokens_output=sum(a.tokens_output for a in by_agent),
+        tokens_total=sum(a.tokens_total for a in by_agent),
+        llm_seconds=round(sum(a.llm_seconds for a in by_agent), 3),
+        llm_calls=sum(a.llm_calls for a in by_agent),
+        credits=int(credits),
+        wall_seconds=float(wall_seconds) if wall_seconds is not None else None,
+    )
 
     return MetricsResponse(
-        tokens_by_agent=tokens_by_agent,
-        cost_by_phase=cost_by_phase,
-        duration_by_phase=duration_by_phase,
+        totals=totals,
+        by_agent=by_agent,
+        source="llm_interactions",
         deliverables_count=deliverables_count,
+        # Formes historiques, derivees des memes mesures pour qu'aucun
+        # consommateur ne lise deux chiffres differents.
+        tokens_by_agent={a.agent_id: a.tokens_total for a in by_agent},
+        cost_by_phase={},
+        duration_by_phase={a.agent_id: a.llm_seconds for a in by_agent},
     )
 
 
