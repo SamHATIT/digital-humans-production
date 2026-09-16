@@ -83,25 +83,62 @@ async function fetchAuthenticatedBlob(endpoint: string): Promise<Blob> {
 }
 
 /**
- * Affiche une ressource protégée *inline* dans un nouvel onglet (SDS HTML).
- * L'onglet est ouvert de façon synchrone, avant l'`await`, pour rester dans
- * le geste utilisateur — sinon les bloqueurs de popup le rejettent.
+ * Affiche une ressource protégée *inline* (SDS HTML) dans une visionneuse
+ * **cloisonnée**.
+ *
+ * SEC-10 (audit du 06/09, vague 1 / file A). Cette fonction ouvrait le
+ * contenu en document de premier niveau via `window.open` + `blob:` — donc
+ * dans l'origine du Studio, où un script issu du livrable lit
+ * `localStorage.token` et appelle les API au nom du lecteur. Le contenu est
+ * désormais assaini côté serveur, mais on ne s'en remet pas à une seule
+ * barrière : il est affiché dans une `iframe` `sandbox` **sans**
+ * `allow-scripts` ni `allow-same-origin`, donc sans script et dans une
+ * origine opaque, qui n'a accès ni au `localStorage` ni aux cookies du
+ * Studio. La CSP posée par la réponse API ne suffirait pas ici : recréer un
+ * document `blob:` la perdrait.
  */
 async function openAuthenticated(endpoint: string): Promise<void> {
-  const tab = window.open('', '_blank');
-  try {
-    const blob = await fetchAuthenticatedBlob(endpoint);
-    const blobUrl = URL.createObjectURL(blob);
-    if (tab) {
-      tab.location.href = blobUrl;
-    } else {
-      window.location.href = blobUrl;
-    }
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
-  } catch (err) {
-    tab?.close();
-    throw err;
-  }
+  const blob = await fetchAuthenticatedBlob(endpoint);
+  const contenu = await blob.text();
+
+  const fond = document.createElement('div');
+  fond.setAttribute('role', 'dialog');
+  fond.setAttribute('aria-modal', 'true');
+  fond.style.cssText =
+    'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);' +
+    'display:flex;flex-direction:column;padding:2rem;gap:.75rem';
+
+  const fermer = document.createElement('button');
+  fermer.type = 'button';
+  fermer.textContent = 'Fermer';
+  fermer.style.cssText =
+    'align-self:flex-end;padding:.5rem 1rem;border-radius:.5rem;border:0;cursor:pointer';
+
+  const cadre = document.createElement('iframe');
+  // `srcdoc` + sandbox sans allow-scripts/allow-same-origin : le document
+  // vit dans une origine opaque et n'exécute aucun script.
+  cadre.setAttribute('sandbox', '');
+  cadre.setAttribute('referrerpolicy', 'no-referrer');
+  cadre.srcdoc = contenu;
+  cadre.style.cssText = 'flex:1;width:100%;border:0;border-radius:.5rem;background:#fff';
+
+  const retirer = () => {
+    document.removeEventListener('keydown', surTouche);
+    fond.remove();
+  };
+  const surTouche = (evenement: KeyboardEvent) => {
+    if (evenement.key === 'Escape') retirer();
+  };
+
+  fermer.addEventListener('click', retirer);
+  fond.addEventListener('click', (evenement) => {
+    if (evenement.target === fond) retirer();
+  });
+  document.addEventListener('keydown', surTouche);
+
+  fond.append(fermer, cadre);
+  document.body.appendChild(fond);
+  fermer.focus();
 }
 
 /**
