@@ -7,6 +7,7 @@ from arq import cron
 from arq.connections import ArqRedis
 from arq.jobs import Job, JobStatus
 from app.workers.arq_config import ARQ_QUEUE_NAME, REDIS_SETTINGS
+from app.workers.job_timeout import job_timeout_seconds
 from app.workers.retention import purge_chat_logs_task
 from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
 
@@ -179,7 +180,19 @@ class WorkerSettings:
     on_startup = startup
     on_shutdown = shutdown
     max_jobs = 10  # Max concurrent executions (P3 done : SFDX no longer blocks event loop)
-    job_timeout = 3600  # 1 hour max per execution — CAL-01 : a rendre dependant du profil de routage
+    # CAL-01 — le delai suivait un chiffre en dur, identique pour un Sonnet
+    # cloud et un 30B local a 12,4 tok/s : le job de l'execution 172 a ete
+    # coupe a 10:24:31 en plein appel de Marcus. Il suit desormais le profil
+    # de routage (`DH_DEPLOYMENT_PROFILE`), surchargeable par
+    # `DH_JOB_TIMEOUT_SECONDS`.
+    job_timeout = job_timeout_seconds()
+    # CAL-07 — sans ce drapeau, `Job.abort()` n'a aucun effet : le seul moyen
+    # d'arreter une execution etait de redemarrer le worker, ce qui tuait
+    # toutes les autres (PROD-04). L'annulation cooperative
+    # (`executions.cancel_requested_at`, lue entre deux phases) le complete :
+    # l'abandon ARQ arrete le job, la lecture cooperative ferme proprement
+    # l'execution et conserve le travail deja produit.
+    allow_abort_jobs = True
     health_check_interval = 30
     queue_name = ARQ_QUEUE_NAME  # une seule source : arq_config (vague 0 / AS-02)
     # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,

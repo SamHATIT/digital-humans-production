@@ -212,6 +212,16 @@ STATES_CONTENT_READY = frozenset({
 })
 
 
+class ExecutionAnnulee(Exception):
+    """Une annulation a ete demandee : on s'arrete proprement.
+
+    VAGUE 1 / FILE C — CAL-07. Levee par le point d'arret cooperatif, entre
+    deux phases. Elle n'est pas un echec : le travail deja produit est
+    conserve, l'execution se ferme en CANCELLED, et aucun agent de plus n'est
+    appele.
+    """
+
+
 def resolve_export_action(
     state: Optional[str], sds_document_path: Optional[str]
 ) -> Dict[str, Any]:
@@ -626,6 +636,10 @@ class PMOrchestratorServiceV2:
             execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
             if not execution:
                 raise ValueError(f"Execution {execution_id} not found")
+
+            # CAL-07 — premier point d'arret : une annulation demandee pendant
+            # que le job attendait en file ne doit pas se payer une phase 1.
+            self._point_d_arret(execution, "le demarrage du workflow")
 
             # B1 : tous les appels LLM de ce run sont factures au proprietaire
             # de l'execution. Couvre aussi les appels qui ne portent pas
@@ -1768,6 +1782,34 @@ class PMOrchestratorServiceV2:
                 project, execution, execution_id, project_id, results, selected_agents
             )
             
+        except ExecutionAnnulee as annulation:
+            # CAL-07 — ce n'est pas un echec : l'execution s'arrete ou on le lui
+            # a demande, au bord d'une phase, et ce qui est produit reste en
+            # base. Le dire comme un echec ferait croire a une panne.
+            logger.info(f"[Annulation] Execution {execution_id} : {annulation}")
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution_id
+            ).first()
+            if execution is not None:
+                self._clore_annulee(execution, str(annulation))
+            audit_service.log(
+                actor_type=ActorType.SYSTEM,
+                actor_id="orchestrator",
+                action=ActionCategory.EXECUTION_FAIL,
+                entity_type="execution",
+                entity_id=str(execution_id),
+                project_id=project_id,
+                execution_id=execution_id,
+                success="false",
+                error_message=f"annulation demandee : {annulation}",
+            )
+            return {
+                "success": False,
+                "cancelled": True,
+                "status": "cancelled",
+                "execution_id": execution_id,
+                "message": str(annulation),
+            }
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {str(e)}")
             import traceback
@@ -2237,8 +2279,67 @@ class PMOrchestratorServiceV2:
     # CHECKPOINT/RESUME METHODS
     # ============================================================================
     
+    # ========================================================================
+    # ANNULATION COOPERATIVE (VAGUE 1 / FILE C — CAL-07)
+    # ========================================================================
+
+    def _point_d_arret(self, execution: Execution, etape: str) -> None:
+        """Releve l'annulation demandee, entre deux phases.
+
+        CAL-07 : « aucun point d'arret cooperatif dans `execute_workflow` :
+        seul un redemarrage du worker interrompt une execution, et il tue
+        toutes les autres ». L'abandon ARQ (`allow_abort_jobs`) coupe le job ;
+        ce point d'arret-ci ferme l'execution proprement, au bord d'une phase,
+        sans perdre ce qui est deja en base.
+
+        Lit l'etat **en base** et non l'objet en memoire : la demande arrive par
+        une autre session (la route `/cancel`), pendant que ce workflow tourne.
+
+        Raises:
+            ExecutionAnnulee: si une annulation a ete demandee.
+        """
+        try:
+            self.db.refresh(execution, ["cancel_requested_at"])
+        except Exception:  # objet detache, session recyclee : on relit a plat
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution.id
+            ).first()
+            if execution is None:
+                return
+        if execution.cancel_requested_at:
+            raise ExecutionAnnulee(
+                f"Annulation demandee le "
+                f"{execution.cancel_requested_at.isoformat()} — arret avant "
+                f"{etape}. Le travail deja produit est conserve."
+            )
+
+    def _clore_annulee(self, execution: Execution, message: str) -> None:
+        """Ferme une execution annulee : statut, etat, journal."""
+        try:
+            ExecutionStateMachine(self.db, execution.id).transition_to(
+                "cancelled", metadata={"raison": "annulation_demandee"}
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Annulation] Transition vers 'cancelled' refusee pour "
+                f"l'execution {execution.id} ({e}) — statut et etat poses "
+                f"directement"
+            )
+            execution.status = ExecutionStatus.CANCELLED
+            execution.execution_state = "cancelled"
+        execution.logs = (execution.logs or "") + "\n[Annulation] " + message
+        execution.completed_at = datetime.now(timezone.utc)
+        self.db.commit()
+        logger.info(f"[Annulation] Execution {execution.id} close : {message}")
+
     def _save_checkpoint(self, execution: Execution, phase: str):
-        """Save checkpoint after successful phase completion for resume capability"""
+        """Save checkpoint after successful phase completion for resume capability
+
+        CAL-07 : c'est aussi le point d'arret cooperatif. Un checkpoint marque
+        la fin d'une phase reussie — l'endroit exact ou s'arreter sans rien
+        perdre ni rien repayer. La verification suit l'ecriture : le travail de
+        la phase qui vient de finir est acquis avant qu'on decide d'arreter.
+        """
         try:
             execution.last_completed_phase = phase
             self.db.commit()
@@ -2246,6 +2347,7 @@ class PMOrchestratorServiceV2:
         except Exception as e:
             logger.warning(f"Failed to save checkpoint: {e}")
             self.db.rollback()
+        self._point_d_arret(execution, f"la phase suivant {phase}")
     
     def _update_progress(self, execution: Execution, agent_id: str, state: str, progress: int, message: str):
         """Update execution progress for SSE and send real-time notification"""

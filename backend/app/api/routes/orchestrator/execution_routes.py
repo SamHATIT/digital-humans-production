@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from app.database import get_db, SessionLocal
@@ -23,6 +23,8 @@ from app.schemas.execution import (
     ExecutionResultResponse,
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from arq.jobs import Job
+
 from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
 from app.workers.enqueue import enfiler_execution, file_de_reprise
 from app.services.budget_service import BudgetService, BudgetExceededError
@@ -279,6 +281,94 @@ async def resume_execution(
         status="resumed",
         message=f"Execution resumed from {resume_point}. Use the progress endpoint to track status.",
     )
+
+
+@router.post("/execute/{execution_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
+async def cancel_execution(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Demande l'annulation d'une execution en cours (CAL-07).
+
+    VAGUE 1 / FILE C. Avant, aucune route n'existait : « seul un redemarrage du
+    worker interrompt une execution, et il tue toutes les autres » — c'est-a-
+    dire le geste que PROD-04 vient de desarmer.
+
+    Deux mecanismes, complementaires :
+
+    1. **abandon ARQ** (`Job.abort()`, rendu effectif par `allow_abort_jobs`) :
+       coupe le job, sur la file ou l'execution a ete enfilee et non sur celle
+       de ce processus ;
+    2. **annulation cooperative** : `cancel_requested_at` est relue par
+       l'orchestrateur entre deux phases. C'est elle qui ferme proprement
+       l'execution en CANCELLED et conserve le travail deja produit ; l'abandon
+       seul laisserait une execution RUNNING sans job (que le demarrage du
+       worker reconcilierait, mais plus tard).
+
+    La reponse dit lequel des deux a pu etre engage : une annulation qui ne
+    dirait pas ce qu'elle a fait serait indistinguable d'un accuse de reception.
+    """
+    execution = await asyncio.to_thread(
+        verify_execution_access, execution_id, current_user.id, db
+    )
+
+    statuts_terminaux = (
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.CANCELLED,
+    )
+    if execution.status in statuts_terminaux:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Execution deja terminee (statut {execution.status.value}) : "
+                f"il n'y a rien a annuler."
+            ),
+        )
+
+    def _noter_la_demande():
+        try:
+            execution.cancel_requested_at = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    # La demande est notee AVANT l'abandon : si l'abandon echoue, l'annulation
+    # reste lisible par l'orchestrateur au prochain point d'arret.
+    await asyncio.to_thread(_noter_la_demande)
+
+    job_abandonne = False
+    if execution.arq_job_id:
+        file_du_job = execution.arq_queue_name or ARQ_QUEUE_NAME
+        try:
+            pool = await get_redis_pool()
+            job_abandonne = bool(
+                await Job(
+                    execution.arq_job_id, pool, _queue_name=file_du_job
+                ).abort(timeout=0)
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Cancel] Abandon du job {execution.arq_job_id} impossible "
+                f"({e}) — l'annulation cooperative reste active"
+            )
+    else:
+        logger.info(
+            f"[Cancel] Execution {execution_id} sans arq_job_id : seule "
+            f"l'annulation cooperative s'applique"
+        )
+
+    return {
+        "execution_id": execution_id,
+        "status": "cancel_requested",
+        "job_aborted": job_abandonne,
+        "message": (
+            "Annulation demandee. L'execution s'arretera a la fin de la phase "
+            "en cours ; le travail deja produit est conserve."
+        ),
+    }
 
 
 @router.get("/execute/{execution_id}/progress")
