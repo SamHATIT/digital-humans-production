@@ -37,7 +37,9 @@ LINK_BLUE = RGBColor(37, 99, 235)  # #2563EB
 GRAY_TEXT = RGBColor(107, 114, 128)
 
 # Database connection
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL manquant — aucun secret par defaut (purge du 16/09/2026, GL-11)")
 
 
 class ProfessionalDocumentGenerator:

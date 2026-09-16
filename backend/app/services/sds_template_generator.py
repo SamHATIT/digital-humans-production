@@ -21,7 +21,9 @@ from sqlalchemy import create_engine, text
 from app.config import settings
 
 # Configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@127.0.0.1:5432/digital_humans_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL manquant — aucun secret par defaut (purge du 16/09/2026, GL-11)")
 OUTPUT_DIR = str(settings.OUTPUT_DIR)
 COMPANY_NAME = "Digital-Humans.fr"
 COMPANY_ADDRESS = "Paris, France"

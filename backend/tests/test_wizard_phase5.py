@@ -1,3 +1,4 @@
+import pytest
 #!/usr/bin/env python3
 """
 Tests d'intégration pour Phase 5 - Wizard Configuration
@@ -179,7 +180,7 @@ def test_database_migration():
             host="172.17.0.1",
             database="digital_humans_db",
             user="digital_humans",
-            password="DH_SecurePass2025!"
+            password=os.environ.get("DH_TEST_DB_PASSWORD") or pytest.skip("DH_TEST_DB_PASSWORD absent — purge des secrets du 16/09")
         )
         cur = conn.cursor()
         

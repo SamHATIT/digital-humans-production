@@ -12,7 +12,7 @@
 #     (401 attendu sans jeton, 200 seulement avec).
 #   - "Frontend" (port 3000) n'a rien à faire dans un smoke test du backend.
 #
-# Assertions (exactement 5, dans cet ordre) :
+# Assertions (6 depuis le 16/09/2026, dans cet ordre) :
 #   1. GET  /health                    -> 200
 #   2. GET  /docs                      -> 404 (DEBUG=False doit fermer /docs)
 #   3. GET  $PROJECTS_PATH sans jeton  -> 401
@@ -135,6 +135,24 @@ if [ "$code" = "200" ]; then
     pass "Projects avec jeton ($code)"
 else
     fail "Projects avec jeton (obtenu $code, attendu 200)"
+fi
+
+# 6. Assemblage SDS (phase 5) — ajoute le 16/09/2026 (GL-11) : la rotation des secrets du 06/09
+#    avait casse build_sds pendant dix jours sans que ce smoke test le voie. On assemble une
+#    execution de reference (146) et on exige un document HTML non vide.
+SDS_EXEC="${SMOKE_SDS_EXEC:-146}"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if [ -x "$REPO_DIR/backend/venv/bin/python" ]; then
+    size=$(cd "$REPO_DIR/backend" && set -a && . ./.env 2>/dev/null; set +a; \
+        "$REPO_DIR/backend/venv/bin/python" "$REPO_DIR/tools/build_sds.py" --execution-id "$SDS_EXEC" --output /tmp/smoke_sds.html >/dev/null 2>&1 \
+        && wc -c < /tmp/smoke_sds.html || echo 0)
+else
+    size=0
+fi
+if [ "${size:-0}" -gt 100000 ]; then
+    pass "Assemblage SDS phase 5 (exec $SDS_EXEC, ${size} octets)"
+else
+    fail "Assemblage SDS phase 5 (exec $SDS_EXEC, obtenu ${size:-0} octets, attendu > 100000)"
 fi
 
 echo ""

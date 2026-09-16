@@ -13,7 +13,9 @@ router = APIRouter(prefix="/blog", tags=["blog"])
 # Database connection
 import asyncpg
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://digital_humans:DH_SecurePass2025!@localhost:5432/digital_humans_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL manquant — aucun secret par defaut (purge du 16/09/2026, GL-11)")
 
 class TopicRequest(BaseModel):
     id: int
