@@ -1,0 +1,46 @@
+# SEC-06 — diff destine a la FILE C
+# Non commis : app/services/pm_orchestrator_service_v2.py a un integrateur
+# unique.
+#
+# La route de snapshot alloue desormais son numero de version sous verrou
+# consultatif, et la contrainte unique (project_id, version_number) existe
+# (migration 016, commit « fix(SEC-06) » sur claude/vague1-a). Les DEUX
+# createurs de SDSVersion qui vivent dans l'orchestrateur allouent encore
+# `project.current_sds_version + 1` sans verrou : avec la contrainte en
+# place, une course s'y traduira par une IntegrityError au lieu d'un
+# doublon silencieux — c'est deja mieux, mais le job echouera. A traiter par
+# la file C avec le meme verrou.
+
+--- a/backend/app/services/pm_orchestrator_service_v2.py
++++ b/backend/app/services/pm_orchestrator_service_v2.py
+@@ _create_sds_version_for_cr
+-        current_version = project.current_sds_version or 0
+-        new_version = current_version + 1
++        # SEC-06 : serialiser l'allocation comme le fait la route de snapshot
++        # (app/api/routes/sds_versions.py, verrou consultatif 6006).
++        from sqlalchemy import text as sa_text
++
++        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
++            self.db.execute(
++                sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
++                {"espace": 6006, "projet": project.id},
++            )
++        current_version = project.current_sds_version or 0
++        new_version = current_version + 1
+@@ _create_sds_version
+-            current_version = project.current_sds_version or 0
+-            new_version = current_version + 1
++            from sqlalchemy import text as sa_text
++
++            if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
++                self.db.execute(
++                    sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
++                    {"espace": 6006, "projet": project.id},
++                )
++            current_version = project.current_sds_version or 0
++            new_version = current_version + 1
+#
+# Note : ces deux methodes posent `file_path=sds_path` tel quel, sans passer
+# par le chemin par projet. Si ce chemin vient d'un repertoire commun, le
+# defaut SEC-06 y subsiste — a verifier par la file C sur l'appelant
+# (`results.get("sds_path")`, ligne ~3726).

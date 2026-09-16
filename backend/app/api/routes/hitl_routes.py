@@ -25,6 +25,7 @@ from app.services.agents_registry import (
     resolve_agent_id,
 )
 from app.schemas.change_request import ChangeRequestResponse, ChangeRequestList
+from app.utils.feature_access import ensure_feature
 from app.utils.ownership import verify_execution_access
 
 logger = logging.getLogger(__name__)
@@ -304,6 +305,10 @@ def analyze_change_request(
         cr.status = "submitted"
         cr.submitted_at = datetime.utcnow()
         db.commit()
+
+    # BILL-05 (vague 1 / file A) : ce chemin secondaire ne portait pas sa
+    # porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "sds_document")
 
     service = ChangeRequestService(db)
     result = service.analyze_impact(cr_id, user_id=current_user.id)

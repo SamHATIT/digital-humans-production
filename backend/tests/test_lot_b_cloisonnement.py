@@ -43,6 +43,12 @@ def _make_user(db, email: str) -> User:
         hashed_password=get_password_hash("motdepasse-de-test"),
         name=email.split("@")[0],
         is_active=True,
+        # BILL-05 (vague 1 / file A, 16/09) : l'upload de document porte
+        # desormais sa porte `upload_documents`, absente du palier Free (qui
+        # etait le defaut implicite ici). Ce fichier teste le CLOISONNEMENT
+        # entre clients, pas la frontiere payante : les deux tenants sont
+        # donc Pro, et le cloisonnement reste ce qui est mesure.
+        subscription_tier="pro",
     )
     db.add(user)
     db.commit()

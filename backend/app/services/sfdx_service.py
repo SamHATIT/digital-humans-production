@@ -73,6 +73,21 @@ class SFDXService:
                 extra_data=extra
             )
     
+    def _refuser_ecriture(self, operation: str) -> None:
+        """SEC-08 : garde commune a toutes les ecritures de ce service.
+
+        Le garde-fou « jamais en production » etait local a SFAdminService ;
+        les deploiements de source et le testeur ne l'utilisaient pas. Il est
+        desormais pose ici, au point d'ecriture, pour toutes les operations
+        qui modifient une org.
+        """
+        from app.utils.build_guard import ensure_salesforce_write_allowed
+
+        ensure_salesforce_write_allowed(
+            self.target_org or "(org par defaut)",
+            preuve_org=getattr(self, "preuve_org", None),
+        )
+
     async def _run_command(
         self, 
         args: List[str], 
@@ -177,6 +192,7 @@ class SFDXService:
         Returns:
             Dict with deployment result
         """
+        self._refuser_ecriture("deploy_source")
         args = ["project", "deploy", "start", "--source-dir", source_path]
         
         if test_level:
@@ -230,6 +246,7 @@ class SFDXService:
         Returns:
             Dict with deployment result
         """
+        self._refuser_ecriture("deploy_metadata")
         # Create temp directory with SFDX project structure
         with tempfile.TemporaryDirectory(prefix="sfdx_deploy_") as temp_dir:
             # Create sfdx-project.json
@@ -303,6 +320,7 @@ class SFDXService:
         Returns:
             Dict with deployment result
         """
+        self._refuser_ecriture("deploy_lwc_bundle")
         import tempfile
         
         with tempfile.TemporaryDirectory(prefix="sfdx_lwc_") as temp_dir:
@@ -649,6 +667,7 @@ class SFDXService:
     
     async def rollback_deployment(self, snapshot_path: str, deployment_id: str = None) -> Dict[str, Any]:
         """Rollback to a previous snapshot state."""
+        self._refuser_ecriture("rollback_deployment")
         snapshot_dir = Path(snapshot_path)
         
         if not snapshot_dir.exists():
@@ -724,6 +743,7 @@ class SFDXService:
     
     async def promote_to_environment(self, source_path: str, target_env: str, test_level: str = "RunLocalTests", dry_run: bool = False) -> Dict[str, Any]:
         """Promote code from one environment to another."""
+        self._refuser_ecriture("promote_to_environment")
         target_service = SFDXService(target_org=target_env)
         
         conn_check = await target_service.check_connection()
@@ -846,6 +866,7 @@ class SFDXService:
         Returns:
             Dict with success status and execution output
         """
+        self._refuser_ecriture("execute_anonymous")
         import tempfile
         import os
         
@@ -897,6 +918,7 @@ class SFDXService:
         Returns:
             Dict with deployment result
         """
+        self._refuser_ecriture("deploy_with_manifest")
         cmd = [
             self.sfdx_path, "project", "deploy", "start",
             "--manifest", manifest_path,

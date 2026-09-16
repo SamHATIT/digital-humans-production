@@ -13,6 +13,7 @@ import logging
 from app.config import settings
 from app.database import get_db
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from app.utils.feature_access import ensure_feature
 from app.models.user import User
 from app.models.project import Project
 from app.models.execution import Execution
@@ -256,6 +257,10 @@ def create_sds_version_from_execution(
     cree une row sds_versions immuable. Le fichier ne doit JAMAIS etre modifie apres
     creation (immutabilite garantie par convention + pas de PUT/PATCH sur cette ressource).
     """
+    # BILL-05 (vague 1 / file A) : la creation de snapshot SDS ne portait
+    # pas sa porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "sds_document")
+
     execution_id = payload.get("execution_id")
     notes = payload.get("notes", "")
     if not execution_id:

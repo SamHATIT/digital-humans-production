@@ -577,6 +577,24 @@ class SFAdminService:
     def _deploy_via_sfdx(self, temp_dir: str) -> DeployResult:
         """Déploie les métadonnées via SFDX CLI."""
 
+        # ── SEC-08 (vague 1 / file A) : garde commune AVANT la garde locale ──
+        # GARDE-PROD-001 ci-dessous se contente d'une sous-chaine (`--` dans un
+        # alias) comme preuve de non-production. Un alias vient de l'appelant :
+        # ce n'est pas une preuve. La garde commune ferme d'abord toutes les
+        # ecritures (ouverture Free + Pro), puis exigera un resultat d'org
+        # authentifie le jour ou elles rouvriront.
+        from app.utils.build_guard import (
+            SalesforceOrgNonVerifiee,
+            SalesforceWritesDisabled,
+            ensure_salesforce_write_allowed,
+        )
+
+        try:
+            ensure_salesforce_write_allowed(self.target_org)
+        except (SalesforceWritesDisabled, SalesforceOrgNonVerifiee) as refus:
+            logger.error(f"[SFAdmin] {refus}")
+            return DeployResult(success=False, errors=[str(refus)], components_deployed=0)
+
         # ── GARDE-PROD-001 : refus absolu de déployer en production ──
         instance = getattr(self, "instance_url", "") or self._instance_de_l_org()
         if org_est_productive(self.target_org, instance):

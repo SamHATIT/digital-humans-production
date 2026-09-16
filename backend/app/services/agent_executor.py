@@ -359,7 +359,14 @@ class AgentExecutor:
         `--target-org None` et d'une erreur du CLI `sf`.
         """
         try:
+            # SEC-08 (vague 1 / file A) : ce deploiement n'utilisait aucun
+            # garde-fou de production — celui de SFAdminService lui etait
+            # inconnu. La garde commune est posee avant de construire la
+            # commande, donc avant tout sous-processus.
+            from app.utils.build_guard import ensure_salesforce_write_allowed
+
             salesforce_config.require("org_alias")
+            ensure_salesforce_write_allowed(salesforce_config.org_alias)
             result = subprocess.run(
                 [
                     "sf", "org", "display",
@@ -826,7 +833,14 @@ class AgentExecutor:
         CLI `sf` echouer sur `--target-org None`.
         """
         try:
+            # SEC-08 (vague 1 / file A) : ce deploiement n'utilisait aucun
+            # garde-fou de production — celui de SFAdminService lui etait
+            # inconnu. La garde commune est posee avant de construire la
+            # commande, donc avant tout sous-processus.
+            from app.utils.build_guard import ensure_salesforce_write_allowed
+
             salesforce_config.require("org_alias")
+            ensure_salesforce_write_allowed(salesforce_config.org_alias)
             result = subprocess.run(
                 [
                     "sf", "project", "deploy", "start",

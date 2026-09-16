@@ -48,6 +48,7 @@ from tests.test_vague_b_b1_credits import (  # noqa: F401
     JETONS_SORTIE,
     MODELE_FICTIF,
     compte_free,
+    compte_pro,
     socle_credits,
     transport_llm_simule,
 )
@@ -109,8 +110,13 @@ def test_le_chat_projet_de_sophie_facture_l_utilisateur_appelant(
 
 
 @pytest.fixture
-def cr_brouillon(db_session, compte_free):
-    utilisateur, projet, execution = compte_free
+def cr_brouillon(db_session, compte_pro):
+    # BILL-05 (vague 1 / file A, 16/09) : l'analyse d'impact d'une CR porte
+    # desormais sa porte `sds_document`, absente du palier Free. Ce test
+    # verifie la FACTURATION de l'appel, pas la frontiere payante : il se
+    # joue donc sur un compte Pro, qui a la capacite. Le controle de la
+    # porte elle-meme vit dans test_vague1_a_bill05_sec08_portes_build.py.
+    utilisateur, projet, execution = compte_pro
     cr = ChangeRequest(
         project_id=projet.id,
         execution_id=execution.id,
@@ -128,14 +134,14 @@ def cr_brouillon(db_session, compte_free):
 
 
 def test_l_analyse_d_impact_d_une_cr_facture_l_utilisateur_appelant(
-    db_session, client, compte_free, cr_brouillon, transport_llm_simule
+    db_session, client, compte_pro, cr_brouillon, transport_llm_simule
 ):
     """`POST /api/projects/{pid}/change-requests/{id}/submit` debite l'appelant.
 
     Avant correctif : `analyze_impact` levait `CreditOwnerMissingError`, captee
     par son propre `except`, et la route rendait 500 « Analysis failed ».
     """
-    utilisateur, projet, _ = compte_free
+    utilisateur, projet, _ = compte_pro
 
     reponse = client.post(
         f"/api/projects/{projet.id}/change-requests/{cr_brouillon.id}/submit",

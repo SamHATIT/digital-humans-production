@@ -1,0 +1,42 @@
+# SEC-19 — diff destine a la FILE C (reprise) / FILE D (contrats d'API)
+# Non commis : app/api/routes/orchestrator/execution_routes.py a un
+# integrateur unique.
+#
+# Mesure du 16/09 sur claude/vague1-a (bac a sable) : un appel ANONYME a
+# GET /api/pm-orchestrator/execute/{id}/budget repond 200 et rend le cout de
+# l'execution ET du projet. Test rouge joue, sortie :
+#     assert 200 in (401, 403, 404)
+# Le test correspondant est reproduit en fin de fichier.
+
+--- a/backend/app/api/routes/orchestrator/execution_routes.py
++++ b/backend/app/api/routes/orchestrator/execution_routes.py
+@@
+ @router.get("/execute/{execution_id}/budget")
+ def get_execution_budget(
+     execution_id: int,
+     db: Session = Depends(get_db),
++    current_user: User = Depends(get_current_user),
+ ):
+-    """Get budget status for an execution (P1.1)."""
++    """Get budget status for an execution (P1.1).
++
++    SEC-19 : cette lecture n'avait AUCUNE dependance d'authentification — un
++    anonyme lisait les couts d'une execution et de son projet.
++    """
++    verify_execution_access(execution_id, current_user.id, db)
+     service = BudgetService(db)
+
+# Test a ajouter (backend/tests/) une fois le correctif applique :
+#
+# def test_sec19_le_budget_n_est_pas_lisible_par_un_anonyme(client, db_session):
+#     app.dependency_overrides.clear()
+#     user = User(email="sec19-budget@example.test", hashed_password="x",
+#                 name="SEC19", subscription_tier="team")
+#     db_session.add(user); db_session.commit(); db_session.refresh(user)
+#     projet = Project(user_id=user.id, name="Projet prive")
+#     db_session.add(projet); db_session.commit(); db_session.refresh(projet)
+#     execution = Execution(project_id=projet.id, user_id=user.id, total_cost=12.34)
+#     db_session.add(execution); db_session.commit(); db_session.refresh(execution)
+#     reponse = client.get(f"/api/pm-orchestrator/execute/{execution.id}/budget")
+#     assert reponse.status_code in (401, 403, 404), reponse.text
+#     assert "12.34" not in reponse.text
