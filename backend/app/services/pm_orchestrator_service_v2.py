@@ -2046,7 +2046,17 @@ class PMOrchestratorServiceV2:
             org_result = await self._run_sfdx_async(org_cmd, timeout=30)
             if org_result.returncode == 0:
                 org_data = json.loads(org_result.stdout)
-                metadata["org_info"] = org_data.get("result", {})
+                # SEC-15 (diff de la file A) : liste blanche. `sf org display
+                # --json` rend `accessToken` — et selon les versions
+                # `refreshToken`, `clientId`, `sfdxAuthUrl`. Ce dictionnaire
+                # etait copie integralement dans un livrable, donc dans un
+                # prompt, donc dans tout ce qui conserve ce prompt. Aucun de ces
+                # champs n'est utile a une analyse d'architecture.
+                from app.utils.redaction import filtrer_resultat_org_salesforce
+
+                metadata["org_info"] = filtrer_resultat_org_salesforce(
+                    org_data.get("result", {})
+                )
                 logger.info(f"[Metadata] ✅ Org info retrieved: {metadata['org_info'].get('edition', 'Unknown')} edition")
             
             # 2. List available metadata types
