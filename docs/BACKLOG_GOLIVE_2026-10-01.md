@@ -39,7 +39,91 @@
 | GL-09 | Info | Comité DEOS : cron rituels suspendus le 15/09 (`/etc/cron.d/dh-comite-rituels`, sauvegarde `dh-comite/dh-comite-rituels.pre-suspension-20260915`). Retour conditionné : une décision accordée = une branche + un test. | Traité dans la revue backlog/curseur. | 🟡 |
 | GL-10 | **Bloquant** | Le RAG documentaire (collections technical / operations / business, embeddings OpenAI `text-embedding-3-large`) est tombé silencieusement toute la journée du 15/09 : `429 credit_balance_exhausted` sur le compte OpenAI, 146 requêtes RAG échouées (worker principal dès 09:24, workers de calibration dès 12:16). Les agents continuent sans corpus avec un simple avertissement — repli silencieux. Recrédité 5 € par Sam à 13:4x. | (1) Alerte **admin** (Telegram + journal + tableau de bord admin) dès la première collection RAG injoignable — pas de message au client (précisé par Sam le 15/09), mais l'exploitant doit le savoir dans la minute, avec l'exécution concernée et la cause ; la poursuite sans corpus est tolérée mais tracée sur l'exécution (`degraded: rag_unavailable`) pour pouvoir rejouer ensuite ; (2) surveillance du solde OpenAI ou bascule des embeddings sur un modèle local (re-indexation à chiffrer) ; (3) le contrôle de santé `[RAG HEALTH] OK` ne teste pas l'API d'embeddings — le corriger. | ❌ |
 
-## 3. À absorber (revue du 15/09 après-midi)
-- 41 décisions `accordees` du comité (`next_owner` vide sur les 41) — table `decisions`.
-- 49 tâches `a_faire` — table `tasks`.
-- 58 constats Astra — `docs/audit-20260906/rapport-astra.md` (confrontation au code non faite : pas de `CONFRONTATION.md`).
+## 3. Fusion des trois sources (revue du 16/09) — tri proposé, à valider par Sam
+
+Légende : ✅ fait (preuve) · ⛔ périmé (comité suspendu ou dépassé par Astra) · 🔀 fusionné dans une ligne CAL/GL/AS · 👤 décision ou action de Sam · ⏩ plus tard (après le 1er) · ❌ à faire avant le 1er
+
+### 3.1 — 41 décisions accordées du comité (02/08 → 23/08)
+
+| Décision | Objet | Tri | Où |
+|---|---|---|---|
+| DEC-0802-04 | Rationalisation support sur Salesforce (Email-to-Case, Knowledge) — canal de tickets client | ❌ | GL-13 canal support avant ouverture (Email-to-Case ou boîte hello@ + procédure) |
+| DEC-0802-01 | Démo phare Agentforce → DH → sandbox | ⏩ | Lot 3 Astra (BUILD) |
+| DEC-0802-02 | BUILD reprise sur incident | ⏩ | = PROD-13, Lot 3 |
+| DEC-0802-06 | Mission juridique — audit RGPD du parcours complet | 🔀 | rapport juridique 08/08 rendu ; reste = RGPD-01..04 (AS-06, Lot 2) |
+| DEC-0802-03 | BUILD travail incrémental (delta) | ⏩ | Lot 3 |
+| DEC-0804-02 | Suivi des 8 chantiers O2 (produit prêt 31/08) | ⛔ | dépassé par l'audit Astra du 06/09 |
+| DEC-0804-05 | Mission collective interface web globale | 👤 | Sam décide si l'admin dashboard actuel suffit au lancement |
+| DEC-0804-01 | Fiabilisation exécution, journalisation uvicorn | ✅ | commit c3e534c |
+| DEC-0805-01 | Offre canonique grands comptes (offre_dh.md) | ✅ | à relire une fois, cohérence avec le site (Enterprise sur devis) |
+| DEC-0806-09 | Offre intégrateur (12 intégrateurs FR) | ⏩ | après ouverture ; fiches déjà en base |
+| DEC-0806-08 | Audit de sécurité des accès, secrets → coffre | 🔀 | rotation faite (SEC-01 06/09), purge faite (GL-11 16/09) ; reste coffre = SEC-17 (AS-10) |
+| DEC-0806-14 | Opportunité DEOS Crédit Logement — présentation DSI | 👤 | Sam (commercial) |
+| DEC-0808-01 | Audit légal des deux sites vitrines | ✅ | pages légales DEOS + SH Conseil, 15/09 |
+| DEC-0808-10 | Clé de sauvegarde à l'abri (hors /etc/dh-backup) | ❌ | GL-14 — 30 min ops |
+| DEC-0808-08 | Relecture Elena étendue à tout ce qui part chez le client | ⏩ | après ouverture |
+| DEC-0809-05 | Sécurité des données clients B2/B3 | 🔀 | = SEC-04/05/06/19 → AS-03, AS-06 |
+| DEC-0809-01 | Réouverture du site (GO conditionnel du 08/08) | 🔀 | = bascule C.9, conditionnée à GL-02/GL-03 |
+| DEC-0809-04 | Hygiène du dispositif comité (garde-fou) | ⛔ | comité suspendu ; à reprendre avec la règle du curseur |
+| DEC-0809-08 | Concurrent NAAIA identifié | 🔀 | étude de marché 15/09 ; **NAAIA absent de l'étude, à ajouter** |
+| DEC-0809-10 | Carte bancaire à l'inscription, y compris Free | 👤 | décision produit go-live (Stripe sur le Free ?) — Sam |
+| DEC-0809-07 | GPU et souveraineté (rester sur le Spark) | ✅ | tranché, calibration 15/09 confirme la voie locale possible |
+| DEC-0810-23 | Tableau de bord comité périmé après exécution manuelle | ⛔ | comité |
+| DEC-0810-02 | Compte d'organisation Digital-Humans (GitHub org, Anthropic, Hostinger…) | 👤 ⏩ | Sam, après ouverture |
+| DEC-0810-08 | Marketing : production de contenu | 🔀 | = DEC-0814-02 |
+| DEC-0810-05 | Conduite du rituel CEO | ⛔ | comité |
+| DEC-0810-22 | Notification des décisions en attente | ⛔ | comité (à reprendre avec la règle du curseur) |
+| DEC-0810-11 | Déploiement entièrement local chez le client | ⏩ | Enterprise |
+| DEC-0811-01 | Écart de traçabilité PROP-0805-01 | ✅ | corrigé le 11/08 |
+| DEC-0811-05 | Supervision N8N hors service : réparer ou retirer | ❌ | GL-15 — à vérifier puis retirer si toujours 0 succès |
+| DEC-0811-10 | Documents Trust Center Hostinger (butoir 22/08 dépassé) | 👤 | Sam, accès nominatif |
+| DEC-0811-04 | Ce que chaque cran du curseur tient réellement (support Crédit Logement) | 👤 | Sam / DEOS commercial |
+| DEC-0811-02 | Garde-fou du comité, faux négatifs | ⛔ | comité |
+| DEC-0812-01 | Chiffrage B3 cloisonnement RAG/DB (RLS) | 🔀 | = SEC-04 → AS-06 |
+| DEC-0813-02 / 0817-04 | Rétention des conversations Sophie : 90 jours tranché, code à aligner (chat_log.py) | ❌ | GL-16 — cron de purge + politique de confidentialité alignée (lié RGPD-04) |
+| DEC-0813-03 | Intégration/déploiement des 3 sites | 🔀 | = bascule C.9 |
+| DEC-0814-02 | Pipeline de publication marketing (11 contenus, 0 publié) | ❌ | GL-17 — publier via Ghost (journal) avant/au lancement ; Sam choisit les 3 premiers |
+| DEC-0815-02 | Trois compteurs faux sur l'écran d'exécution | ❌ | GL-18 — UX, petit, = PROD-10 partiel |
+| DEC-0817-03 | Mentions IA art. 50 **dans l'application** (widget concierge, Studio, pied de livrable) | ❌ | GL-19 — obligatoire depuis le 02/08 ; le site est fait (15/09), l'app pas encore |
+| DEC-0817-05 | Journalisation BUILD | ⏩ | Lot 3 |
+| DEC-0823-03 | Suivi tasks/preflight | ⛔ | comité |
+
+Bilan : 6 faites · 9 périmées · 9 fusionnées · 7 à Sam · 7 plus tard · **7 à faire avant le 1er (GL-13 à GL-19)**.
+
+### 3.2 — 49 tâches `a_faire`
+
+44 sont du bruit de rondes (suivis, « vérifier l'initialisation du reporting » ×8, « Test task ») : **à archiver en bloc** (`statut = perimee`, motif « comité suspendu 15/09 »). Cinq ont un contenu :
+
+| Tâche | Objet | Tri |
+|---|---|---|
+| TASK-0823-01 | Mentions IA art. 50 dans le code | 🔀 GL-19 |
+| TASK-0826-02 | Traiter le lot de 30 contacts Growth non qualifiés | 👤 Sam |
+| TASK-0905-01 + 7 doublons | Reporting quotidien des dépenses (API, GPU) | ⏩ fonction DEOS ; pour le go-live, GL-08 (tarifs) suffit |
+| TASK-0822-02, 0906-03 | Outillage comité (CLI, preflight yaml) | ⛔ comité |
+| TASK-0905-03 | WebSearch pour le growth | ⛔ comité |
+
+### 3.3 — 58 constats Astra (06/09), par lot d'Astra
+
+**Lot 1 — avant le 1er octobre** (ordre d'Astra, effort/risque) :
+
+| AS | Chantier Astra | Constats | État 16/09 |
+|---|---|---|---|
+| AS-01 | Révoquer les secrets, fermer les surfaces internes | SEC-01/02/11 | ✅ SEC-01/02 (cc89ca8), GL-11 purge ; **SEC-11 (blog public → dépenses, injection CLI) à faire** |
+| AS-02 | Environnement de correction sûr | OPS-05 | ❌ — préalable aux vagues Claude Code |
+| AS-03 | Fuites interclients à correctif court | SEC-05/06/19, puis SEC-12 | ❌ |
+| AS-04 | Contenus actifs et sorties réseau | SEC-09/10/15, SEC-03 | ❌ |
+| AS-05 | Fermer toutes les écritures BUILD pour Free/Pro | SEC-08, BILL-05 | ❌ |
+| AS-06 | Sécuriser le RAG avant données réelles | SEC-04, PROD-09, RGPD-03 | ❌ (absorbe DEC-0809-05, 0812-01) |
+| AS-07 | Grand livre et Stripe | BILL-01/04/08/09/10 | ❌ (BILL-08 « modèles inconnus tarifés par ressemblance » = GL-08) |
+| AS-08 | Stabiliser LLM, jobs et reprises | PROD-01/07/12 + hotfix | ❌ — **absorbe CAL-01/02/03/04/05/07/11** (PROD-04/05/06 confirmés par la calibration) |
+| AS-09 | Parcours réellement vendus | BILL-06/07/11, PROD-10/11, OPS-09 | ❌ (absorbe GL-18) |
+| AS-10 | Dépendances, posture de déploiement, sondes | SEC-17/18, OPS-01/02/08 | ❌ (OPS-01 = GL-10, absorbe DEC-0806-08 coffre) |
+| AS-11 | Recette indépendante de fermeture | OPS-06 | ❌ — clôture du lot |
+
+**Lot 2 — 30 jours après l'ouverture** : RGPD-01/02, OPS-04, SEC-14/16, OPS-07, PROD-06/08 (si retirés du lancement), SEC-13 + BILL-09, OPS-06 (reste).
+**Lot 3 — avant activation des fonctions** : BUILD/Team (SEC-03/07/08, PROD-13/15), testeur interne (SEC-02), notifications (OPS-03), Alembic vierge, nettoyage routeurs morts.
+
+### 3.4 — Les trois décisions humaines qu'Astra demande (inchangées)
+1. Périmètre exact ouvert et fonctions explicitement fermées → **Free + Pro, BUILD fermé** (Sam, 15/09) ✅
+2. Modèle Pro et promesse correspondante → Sonnet + Marcus Opus (site) ; la calibration ouvre la voie DeepSeek V4 Flash pour les workers — **à arrêter avant la recette finale** 👤
+3. Politique de conservation des données personnelles → 90 jours tranchés (DEC-0813-02) ; **code à aligner** (GL-16) 👤 pour les pièces
