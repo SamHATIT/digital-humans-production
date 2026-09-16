@@ -306,21 +306,32 @@ class PhaseAggregator:
         """
         Normalise un chemin de fichier.
         Assure que le path commence par force-app/main/default/.
+
+        SEC-03 (audit du 06/09, vague 1 / file A) : cette « normalisation »
+        ne refusait ni `..` ni tous les chemins absolus — elle retirait un
+        slash de tete, ce qui transforme `/etc/passwd` en `etc/passwd` au
+        lieu de le refuser. Un chemin hors racine leve desormais
+        `CheminInterdit` : une valeur non reconnue se refuse, elle ne se
+        devine pas (regle « jamais de repli silencieux »).
         """
+        from app.utils.path_guard import CheminInterdit, resoudre_sous_racine
+
         # Supprimer les marqueurs de fichier
         path = path.replace("// FILE:", "").replace("<!-- FILE:", "").replace("-->", "").strip()
-        
-        # Supprimer un éventuel leading slash
+
         if path.startswith("/"):
-            path = path[1:]
-        
+            raise CheminInterdit(f"Chemin de livrable interdit : {path!r} est absolu.")
+
         # S'assurer que le path commence correctement
         if not path.startswith("force-app/"):
             if "classes/" in path or "triggers/" in path:
                 path = f"force-app/main/default/{path}"
             elif "lwc/" in path:
                 path = f"force-app/main/default/{path}"
-        
+
+        # Racine fictive : on ne valide ici que la FORME du chemin relatif.
+        # L'ecriture reelle revalide contre sa racine d'execution.
+        resoudre_sous_racine("/racine-de-validation", path)
         return path
     
     def validate_aggregated_output(self, phase: int, aggregated: Dict[str, Any]) -> Dict[str, Any]:

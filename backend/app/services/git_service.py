@@ -696,9 +696,22 @@ class GitService:
             return {"success": False, "error": "Repository not cloned"}
         
         # Write files
+        #
+        # SEC-03 (audit du 06/09, vague 1 / file A) : `path` vient d'une sortie
+        # d'agent et etait joint au depot sans controle. Dans un depot git, un
+        # chemin peut meme rester DANS la racine et rester dangereux :
+        # `.git/config` reecrit les remotes, `.git/hooks/*` s'execute au
+        # commit. La validation est faite AVANT la premiere ecriture, pour ne
+        # pas laisser un commit a moitie ecrit derriere un refus.
+        from app.utils.path_guard import resoudre_sous_racine
+
+        cibles = [
+            (path, resoudre_sous_racine(self.repo_path, path), content)
+            for path, content in files.items()
+        ]
+
         written_files = []
-        for path, content in files.items():
-            full_path = os.path.join(self.repo_path, path)
+        for path, full_path, content in cibles:
             os.makedirs(os.path.dirname(full_path), exist_ok=True)
             
             with open(full_path, 'w', encoding='utf-8') as f:
