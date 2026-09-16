@@ -1,7 +1,7 @@
 """SEC-12 : rattachement des conversations vitrine par revendication
 
-Revision ID: 017_sec12_chat_logs_reclamation
-Revises: 016_sec06_sds_versions_unicite
+Revision ID: 022_sec12_chat_logs_reclamation
+Revises: 021_sec06_sds_versions_unicite
 Create Date: 2026-09-16
 
 Audit Astra du 06/09, constat SEC-12 (L221). L'export et l'effacement RGPD
@@ -27,8 +27,8 @@ Idempotente et reversible.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "017_sec12_chat_logs_reclamation"
-down_revision = "016_sec06_sds_versions_unicite"
+revision = "022_sec12_chat_logs_reclamation"
+down_revision = "021_sec06_sds_versions_unicite"
 branch_labels = None
 depends_on = None
 

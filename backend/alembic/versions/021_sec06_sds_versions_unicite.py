@@ -1,6 +1,6 @@
 """SEC-06 : unicite (project_id, version_number) sur sds_versions
 
-Revision ID: 016_sec06_sds_versions_unicite
+Revision ID: 021_sec06_sds_versions_unicite
 Revises: 015_free_50_credits_jour
 Create Date: 2026-09-16
 
@@ -24,8 +24,8 @@ Reversible : le downgrade retire la contrainte.
 from alembic import op
 import sqlalchemy as sa
 
-revision = "016_sec06_sds_versions_unicite"
-down_revision = "015_free_50_credits_jour"
+revision = "021_sec06_sds_versions_unicite"
+down_revision = "020_execution_degraded"
 branch_labels = None
 depends_on = None
 
