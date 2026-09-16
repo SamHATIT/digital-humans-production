@@ -108,8 +108,8 @@ function FeatureValue({ value }: { value: boolean | string }) {
  * envoye vers /signup, et l'intention est memorisee pour reprendre le
  * checkout apres la creation du compte.
  *
- * Aucun repli silencieux (regle 6) : si le backend repond 503 « Billing is
- * not configured », l'appelant recoit le motif et l'affiche.
+ * Aucun repli silencieux (regle 6) : si le backend refuse (facturation non
+ * configuree, par exemple), l'appelant recoit le motif et l'affiche.
  */
 export async function startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
   const token = localStorage.getItem('token');
