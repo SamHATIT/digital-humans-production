@@ -170,6 +170,42 @@ CHECKPOINT_TO_RESUME_POINT = {
 }
 
 
+#: Ordre d'avancement des checkpoints. Sert a une seule chose : empecher un
+#: checkpoint de RECULER (PROD-05, dernier point : « ne jamais faire reculer le
+#: dernier checkpoint valide »).
+#:
+#: La reprise repasse par la branche « Phase 1 SKIPPED », qui reposait
+#: `phase1_pm` : une execution arretee apres Emma retombait a `phase1_pm` des
+#: la premiere seconde de sa reprise. Si cette reprise echouait avant le
+#: checkpoint suivant, la reprise d'apres rejouait Olivia ET Emma — le travail
+#: conserve par la vague 3 etait reperdu au deuxieme essai.
+ORDRE_CHECKPOINTS = (
+    "phase1_pm",
+    "phase2_ba",
+    "phase2_5_emma",
+    "phase3_3_coverage_gate",
+    "phase3_3_coverage_gate_low",
+    "phase3_wbs",
+    "phase4_experts",
+    "phase5_write_sds",
+    "phase6_export",
+)
+
+
+def checkpoint_recule(precedent: Optional[str], nouveau: str) -> bool:
+    """Le nouveau checkpoint est-il en arriere du precedent ?
+
+    Rend False des qu'un des deux noms est inconnu : on ne compare pas ce que
+    l'on ne sait pas ordonner, et on n'empeche pas une ecriture sur une
+    supposition.
+    """
+    if not precedent or precedent == nouveau:
+        return False
+    if precedent not in ORDRE_CHECKPOINTS or nouveau not in ORDRE_CHECKPOINTS:
+        return False
+    return ORDRE_CHECKPOINTS.index(nouveau) < ORDRE_CHECKPOINTS.index(precedent)
+
+
 def resume_point_depuis_checkpoint(last_completed_phase: Optional[str]) -> Optional[str]:
     """Point de reprise correspondant au dernier checkpoint atteint.
 
@@ -2458,6 +2494,18 @@ class PMOrchestratorServiceV2:
         perdre ni rien repayer. La verification suit l'ecriture : le travail de
         la phase qui vient de finir est acquis avant qu'on decide d'arreter.
         """
+        if checkpoint_recule(execution.last_completed_phase, phase):
+            # PROD-05 — la reprise repasse par des etapes deja franchies (la
+            # branche « Phase 1 SKIPPED » repose `phase1_pm`). Les reecrire
+            # ferait perdre, au prochain echec, le travail que la reprise
+            # venait justement de conserver.
+            logger.info(
+                f"Checkpoint '{phase}' ignore : l'execution {execution.id} est "
+                f"deja a '{execution.last_completed_phase}' (un checkpoint ne "
+                f"recule pas)"
+            )
+            self._point_d_arret(execution, f"la phase suivant {phase}")
+            return
         try:
             execution.last_completed_phase = phase
             self.db.commit()

@@ -297,3 +297,27 @@ async def test_une_execution_annulee_ne_repart_pas_meme_avec_resume_from(
 
     assert resultat.get("skipped") is True
     assert not workflow_appele
+
+
+# --------------------------------------------------------------------------
+# PROD-05, dernier point — « ne jamais faire reculer le dernier checkpoint »
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "precedent, nouveau, recule",
+    [
+        ("phase2_5_emma", "phase1_pm", True),
+        ("phase4_experts", "phase2_ba", True),
+        ("phase1_pm", "phase2_ba", False),
+        ("phase2_5_emma", "phase2_5_emma", False),
+        (None, "phase1_pm", False),
+        # Regle 6 : deux noms qu'on ne sait pas ordonner ne se comparent pas,
+        # et n'empechent surtout pas une ecriture.
+        ("phase_inconnue", "phase1_pm", False),
+        ("phase1_pm", "phase_inconnue", False),
+    ],
+)
+def test_un_checkpoint_ne_recule_pas(precedent, nouveau, recule):
+    from app.services.pm_orchestrator_service_v2 import checkpoint_recule
+
+    assert checkpoint_recule(precedent, nouveau) is recule
