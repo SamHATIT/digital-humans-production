@@ -48,6 +48,22 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class UnknownProviderPricingError(RuntimeError):
+    """BILL-09 — aucun tarif connu pour ce fournisseur/modele.
+
+    Rendre 0 dans ce cas neutralisait le plafond de depense du concierge
+    public : un tarif inconnu est refuse, pas devine (regle 6).
+    """
+
+    def __init__(self, provider_str: str):
+        self.provider_str = provider_str
+        super().__init__(
+            f"Aucun tarif connu pour '{provider_str}' dans le bloc `pricing` de "
+            f"config/llm_routing.yaml. Un cout inconnu ne vaut pas zero : "
+            f"ajoutez la cle, ou appelez un modele tarife."
+        )
+
+
 class CreditOwnerMissingError(RuntimeError):
     """Un appel LLM est arrive sans proprietaire de credits identifiable.
 
@@ -680,11 +696,72 @@ class LLMRouterService:
         model_config = models.get(model_name, {})
         return model_config.get("model_id", model_name)
 
+    def _resoudre_tarif(self, provider_str: str) -> Dict[str, float]:
+        """Tarif d'un fournisseur/modele, resolu EXPLICITEMENT (BILL-09).
+
+        `_calculate_cost` lisait `pricing[provider_str]` et, sur cle absente,
+        rendait un dictionnaire vide : `pricing.get("input", 0)` donnait alors
+        un cout de 0. Mesure du 16/09 : le concierge force
+        `anthropic/claude-sonnet-4-6`, cle qui n'existe pas dans le bloc
+        `pricing` (indexe par `anthropic/claude-sonnet`), donc chaque tour
+        public etait compte 0 et le plafond de 20 USD/jour ne montait jamais.
+
+        Resolution, dans l'ordre :
+          1. la cle exacte du bloc `pricing` ;
+          2. la cle `fournisseur/alias` dont le `model_id` correspond au
+             modele demande — c'est ce qui rattrape une forme versionnee ;
+          3. un fournisseur local ou GPU : cout CONNU et nul ;
+          4. sinon, refus explicite. Un tarif inconnu ne vaut pas zero.
+        """
+        tarifs = self.config.get("pricing", {}) or {}
+        exact = tarifs.get(provider_str)
+        if exact:
+            return exact
+
+        nom_fournisseur, _, nom_modele = provider_str.partition("/")
+
+        # Un modele servi localement ne coute rien, et c'est un zero connu.
+        if nom_fournisseur == "local" or nom_fournisseur.startswith("gpu_"):
+            return {"input": 0.0, "output": 0.0}
+
+        # Forme versionnee : on cherche la cle dont le model_id correspond.
+        for cle, tarif in tarifs.items():
+            cle_fournisseur, _, cle_alias = cle.partition("/")
+            if cle_fournisseur != nom_fournisseur:
+                continue
+            modeles = (self.providers.get(cle_fournisseur, {}) or {}).get("models", {}) or {}
+            model_id = (modeles.get(cle_alias, {}) or {}).get("model_id")
+            if model_id and model_id == nom_modele:
+                return tarif
+
+        raise UnknownProviderPricingError(provider_str)
+
     def _calculate_cost(self, provider_str: str, tokens_in: int, tokens_out: int) -> float:
-        pricing = self.config.get("pricing", {}).get(provider_str, {})
+        """Cout en USD d'un appel. Leve si le tarif est inconnu (BILL-09)."""
+        pricing = self._resoudre_tarif(provider_str)
         cost_in = (tokens_in / 1_000_000) * pricing.get("input", 0)
         cost_out = (tokens_out / 1_000_000) * pricing.get("output", 0)
         return round(cost_in + cost_out, 6)
+
+    def _cout_ou_zero_journalise(self, provider_str: str, tokens_in: int,
+                                 tokens_out: int) -> float:
+        """Cout de l'appel pour les chemins qui ne peuvent pas echouer ici.
+
+        Un appel deja parti et deja facture par le fournisseur ne doit pas se
+        transformer en erreur cote client parce que notre table de prix est
+        incomplete. Mais le trou est CRIE, pas avale : c'est la difference avec
+        le zero silencieux d'avant.
+        """
+        try:
+            return self._calculate_cost(provider_str, tokens_in, tokens_out)
+        except UnknownProviderPricingError:
+            logger.critical(
+                "[LLM] TARIF INCONNU pour %s : le cout de cet appel est compte 0 "
+                "faute de tarif. Ajoutez-le au bloc `pricing` de "
+                "config/llm_routing.yaml — un garde-fou de budget qui compte 0 "
+                "ne garde rien.", provider_str,
+            )
+            return 0.0
 
     # ----------------------------------------------------------------------
     # Provider calls
@@ -959,7 +1036,7 @@ class LLMRouterService:
                 )
 
             latency_ms = int((time.time() - start_time) * 1000)
-            cost_usd = self._calculate_cost(provider_str, tokens_in, tokens_out)
+            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out)
 
             return LLMResponse(
                 content=content, provider=provider_str, model_id=model_id,
@@ -1002,7 +1079,7 @@ class LLMRouterService:
             tokens_in = response.usage.prompt_tokens
             tokens_out = response.usage.completion_tokens
             latency_ms = int((time.time() - start_time) * 1000)
-            cost_usd = self._calculate_cost(provider_str, tokens_in, tokens_out)
+            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out)
             return LLMResponse(
                 content=content, provider=provider_str, model_id=model_id,
                 tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
@@ -1033,8 +1110,10 @@ class LLMRouterService:
             request.agent_type, self.profile, provider_str,
         )
 
-        # Phase 3.1 / B1 : credit pre-flight. Leve si le quota est atteint.
-        self._credit_preflight(request, provider_str)
+        # BILL-01 : RESERVATION avant reseau. Les credits estimes sont retenus
+        # sous verrou de la ligne de solde ; deux appels concurrents ne peuvent
+        # plus passer sur le meme disponible. Leve si le quota est atteint.
+        reservation = self._credit_reserve(request, provider_str)
 
         response = await self._call_provider(request, provider_str)
 
@@ -1043,8 +1122,12 @@ class LLMRouterService:
             fallback = self._fallback_for(provider_str)
             if fallback and fallback != provider_str:
                 logger.warning("Falling back from %s to %s (profile=%s)", provider_str, fallback, self.profile)
-                # Re-check credits for the fallback model in case it changes tier.
-                self._credit_preflight(request, fallback)
+                # La reservation du fournisseur d'origine est rendue, puis une
+                # nouvelle est prise pour le repli : il peut changer de palier
+                # et de tarif. Sans cela, le repli serait facture au tarif du
+                # modele qui a echoue.
+                self._credit_release(reservation, f"repli vers {fallback} : {response.error}")
+                reservation = self._credit_reserve(request, fallback)
                 response = await self._call_provider(request, fallback)
             elif fallback == provider_str:
                 # 05/09 : un echec sans repli est une ERREUR, pas une info.
@@ -1058,9 +1141,13 @@ class LLMRouterService:
                     provider_str, self.profile,
                 )
 
-        # Phase 3.1 : debit credits ONLY on success (failures cost nothing).
+        # BILL-01 : reglement au cout MESURE, ou liberation si l'appel a
+        # echoue. Dans les deux cas la tentative laisse une ligne au journal —
+        # un appel echoue coute 0 credit mais n'est plus invisible.
         if response.success:
-            self._credit_post_charge(request, response)
+            self._credit_settle(request, reservation, response)
+        else:
+            self._credit_release(reservation, response.error or "appel en echec")
 
         self._track_usage(request, response)
         return response
@@ -1099,10 +1186,12 @@ class LLMRouterService:
                 "passer sans_compte=True pour le chemin public sans compte."
             )
 
-    def _credit_preflight(self, request: LLMRequest, provider_str: str) -> None:
+    def _credit_reserve(self, request: LLMRequest, provider_str: str):
         """
-        Controle de credits AVANT l'appel. Ne rend rien ; leve si l'appel ne
-        doit pas partir :
+        BILL-01 — retient les credits AVANT l'appel reseau et rend la ligne de
+        reservation (ou None pour le chemin public sans compte).
+
+        Leve, comme l'ancien pre-flight, si l'appel ne doit pas partir :
 
           - ``InsufficientCreditsError`` : quota journalier (Free) ou mensuel
             (Pro/Team) atteint ;
@@ -1110,58 +1199,79 @@ class LLMRouterService:
           - ``UnknownModelError``        : aucune ligne ``model_pricing`` pour
             ce modele — on ne sait pas le facturer, donc on ne l'appelle pas.
 
-        B1 : ces trois cas etaient auparavant avales (les deux premiers rendus
-        sous forme de LLMResponse en echec, le troisieme journalise puis
-        ignore). Le no-op sur ``user_id is None`` est remplace par le chemin
-        explicite ``sans_compte``.
+        Difference avec le pre-flight qu'il remplace : le controle n'est plus
+        seulement une lecture, il ECRIT la retenue dans la meme transaction que
+        le controle. C'est ce qui rend le plafond opposable a la concurrence.
+        La session de credits est autonome (SessionLocal) : la retenue est
+        commise avant que l'appel parte, elle survit a un echec de l'appelant.
         """
         if request.sans_compte:
-            return
+            return None
         from app.database import SessionLocal
         from app.services.credit_service import CreditService
 
         model_id = self._get_model_id(provider_str)
         db = SessionLocal()
         try:
-            CreditService(db).preflight(request.user_id, model_id, request.max_tokens)
-        finally:
-            db.close()
-
-    def _credit_post_charge(
-        self, request: LLMRequest, response: LLMResponse
-    ) -> None:
-        """Debit credits after a successful LLM call. Errors are logged, never raised."""
-        if request.sans_compte or request.user_id is None:
-            return
-        if not response.success:
-            return
-        try:
-            from app.database import SessionLocal
-            from app.services.credit_service import CreditService
-        except Exception as exc:
-            logger.error("Credit module unavailable, skipping post-charge: %s", exc)
-            return
-
-        db = SessionLocal()
-        try:
-            CreditService(db).charge(
+            return CreditService(db).reserve(
                 user_id=request.user_id,
-                model=response.model_id or response.provider,
-                tokens_in=response.tokens_in or 0,
-                tokens_out=response.tokens_out or 0,
+                model=model_id,
+                max_tokens=request.max_tokens,
                 execution_id=request.execution_id,
                 project_id=request.project_id,
             )
-        except Exception as exc:
-            # Don't fail the user response just because the ledger choked : le
-            # jeton est deja consomme, echouer ici ne le rendrait pas. Mais le
-            # niveau est CRITICAL, pas ERROR : une ligne de credit perdue est
-            # exactement le defaut que le lot B1 corrige, elle ne doit pas
-            # passer inapercue dans les journaux.
+        finally:
+            db.close()
+
+    def _credit_settle(self, request: LLMRequest, reservation,
+                       response: LLMResponse) -> None:
+        """Regle la reservation au cout mesure (jetons reels, modele servi).
+
+        Une erreur ici ne fait pas echouer la reponse — le jeton est deja
+        consomme, echouer ne le rendrait pas. Mais la reservation reste alors
+        EN COURS au journal : les credits restent retenus et la ligne est
+        reconciliable durablement (`CreditService.list_pending_reservations`),
+        au lieu de disparaitre dans un message de journal. Le niveau est
+        CRITICAL : une ligne de credit perdue est le defaut que ce lot corrige.
+        """
+        if reservation is None:
+            return
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService
+
+        db = SessionLocal()
+        try:
+            CreditService(db).settle(
+                reservation_id=reservation.id,
+                tokens_in=response.tokens_in or 0,
+                tokens_out=response.tokens_out or 0,
+                model=response.model_id or None,
+            )
+        except Exception as exc:  # noqa: BLE001
             logger.critical(
-                "Ligne de credit PERDUE (user=%s, model=%s, jetons=%s/%s) : %s",
-                request.user_id, response.model_id,
-                response.tokens_in, response.tokens_out, exc,
+                "Reglement de credits EN ECHEC, reservation %s laissee en cours "
+                "(user=%s, model=%s, jetons=%s/%s) : %s",
+                getattr(reservation, "id", None), request.user_id,
+                response.model_id, response.tokens_in, response.tokens_out, exc,
+            )
+        finally:
+            db.close()
+
+    def _credit_release(self, reservation, reason: str) -> None:
+        """Rend une reservation dont l'appel a echoue ; la ligne reste au
+        journal a 0 credit avec le motif."""
+        if reservation is None:
+            return
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService
+
+        db = SessionLocal()
+        try:
+            CreditService(db).release(reservation.id, reason=str(reason))
+        except Exception as exc:  # noqa: BLE001
+            logger.critical(
+                "Liberation de credits EN ECHEC, reservation %s laissee en cours : %s",
+                getattr(reservation, "id", None), exc,
             )
         finally:
             db.close()

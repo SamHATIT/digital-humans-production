@@ -272,17 +272,41 @@ def test_pricing_calculation_opus(seeded_db):
     user = _create_user(seeded_db, "opus@example.com", tier="enterprise")
     service = CreditService(seeded_db)
     # 1000 in, 1000 out → 5 + 25 = 30 credits
-    tx = service.charge(user.id, "claude-opus-4-7", tokens_in=1000, tokens_out=1000)
+    # BILL-08 : la ligne de tarif d'Opus porte `requires_opt_in=True` depuis la
+    # migration 008 ; cette colonne est désormais appliquée. L'appel déclare
+    # donc son opt-in. Le prédicat du test — le calcul du tarif — est inchangé.
+    tx = service.charge(user.id, "claude-opus-4-7", tokens_in=1000, tokens_out=1000,
+                        opt_in=True)
     assert tx.credits_consumed == 30
 
 
-def test_substring_fallback_resolves_provider_alias(seeded_db):
-    """A model passed as 'anthropic/claude-sonnet' must still resolve."""
+def test_le_prefixe_fournisseur_est_retire_mais_le_nom_doit_etre_exact(seeded_db):
+    """BILL-08 — remplace `test_substring_fallback_resolves_provider_alias`.
+
+    Ce test affirmait qu'« un modèle passé sous la forme 'anthropic/claude-sonnet'
+    doit encore se résoudre », et vérifiait qu'il était facturé au tarif de
+    `claude-sonnet-4-6`. C'était la tarification par ressemblance que l'audit
+    Astra relève en BILL-08 (L754) : le tarif d'une AUTRE version, et cette
+    autre version écrite dans `model_used`.
+
+    Le contrat est désormais : le préfixe fournisseur est retiré (c'est une
+    normalisation déclarée), mais le nom obtenu doit correspondre EXACTEMENT à
+    une ligne active de `model_pricing`. Les deux moitiés sont vérifiées ici.
+    """
     user = _create_user(seeded_db, "sub@example.com", tier="premium")
     service = CreditService(seeded_db)
-    tx = service.charge(user.id, "anthropic/claude-sonnet", tokens_in=1000, tokens_out=1000)
+
+    # Moitié positive : le préfixe est bien retiré, le nom exact résout.
+    tx = service.charge(user.id, "anthropic/claude-sonnet-4-6",
+                        tokens_in=1000, tokens_out=1000)
     assert tx.credits_consumed > 0
     assert tx.model_used == "claude-sonnet-4-6"
+
+    # Moitié négative : un alias de famille sans ligne à lui n'est plus
+    # tarifé au plus proche, il est refusé.
+    with pytest.raises(UnknownModelError):
+        service.charge(user.id, "anthropic/claude-sonnet",
+                       tokens_in=1000, tokens_out=1000)
 
 
 def test_unknown_model_raises(seeded_db):

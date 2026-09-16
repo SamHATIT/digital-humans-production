@@ -373,11 +373,17 @@ def generate_llm_response(
             try:
                 from app.services.budget_service import BudgetService
                 budget = BudgetService(db_session)
+                # BILL-10 : on transmet le cout MESURE par le routeur plutot
+                # que de le reestimer. `cost_usd` peut valoir 0.0 (modele
+                # local) : c'est une mesure, pas une absence — d'ou le test
+                # `is not None` et non un test de verite.
+                cout_mesure = response.get("cost_usd")
                 cost = budget.record_cost(
                     execution_id,
                     response.get("model") or response.get("provider", ""),
                     response.get("input_tokens", 0),
                     response.get("output_tokens", 0),
+                    cost_usd=cout_mesure if cout_mesure is not None else None,
                 )
                 db_session.commit()
                 logger.info("[Budget] +$%.4f (execution %d)", cost, execution_id)

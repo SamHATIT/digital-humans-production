@@ -1,0 +1,100 @@
+Diff BILL-10 destiné à la FILE C — NON COMMIS par la file B
+===========================================================
+
+Fichier : backend/app/services/pm_orchestrator_service_v2.py (intégrateur : file C)
+
+Constat mesuré le 16/09 sur 173d88e (commande et sortie dans le message du
+commit 66042e4) : le même appel LLM est compté deux fois dans
+`executions.total_cost` — 0.018 écrit par `BudgetService.record_cost` depuis
+`llm_service.generate_llm_response`, puis 0.018 de nouveau par
+`_track_tokens` / `_accumulate_cost`. Et un coût mesuré à 0.0 (modèle local)
+tombe dans la branche d'estimation : $0.066 fictifs pour 10 000 jetons.
+
+La file B a corrigé l'écrivain de son périmètre (commit à suivre) :
+`BudgetService.record_cost` accepte désormais `cost_usd=` (le coût MESURÉ par
+le routeur), distingue 0.0 (connu) de None (inconnu), et refuse d'inventer un
+montant pour un modèle sans tarif. Il est l'écrivain unique de `total_cost`.
+
+Reste à faire côté orchestrateur : cesser d'y ajouter le coût. Les compteurs
+de jetons par agent (`results["metrics"]`) sont conservés — ils ne sont pas
+en double, eux.
+
+--- a/backend/app/services/pm_orchestrator_service_v2.py
++++ b/backend/app/services/pm_orchestrator_service_v2.py
+@@
+     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
+-        """Track tokens per agent and accumulate cost on execution"""
++        """Compteurs de jetons par agent.
++
++        BILL-10 : cette méthode n'écrit PLUS `executions.total_cost`. Le coût
++        est écrit une seule fois, par `BudgetService.record_cost` appelé depuis
++        `llm_service.generate_llm_response`, avec le coût mesuré par le
++        routeur. Écrire ici rajoutait une estimation par-dessus la mesure :
++        le même appel comptait double (mesuré 0.018 -> 0.036) et le garde-fou
++        de 30 USD arrêtait un SDS à la moitié du budget réellement dépensé.
++        """
+         metadata = output.get("metadata", {})
+         tokens = metadata.get("tokens_used", 0)
+         model = metadata.get("model", "")
+         results["metrics"]["tokens_by_agent"][agent_id] = tokens
+         results["metrics"]["total_tokens"] += tokens
+-        # COST-001: Use real cost_usd from LLM router if available, else estimate
+-        if tokens > 0:
+-            real_cost = metadata.get("cost_usd", 0.0)
+-            cost = real_cost if real_cost > 0 else self._calculate_cost(tokens, model)
+-            if real_cost > 0:
+-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (real from router)")
+-            else:
+-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (estimated 70/30)")
+-            execution = self.db.query(Execution).filter(
+-                Execution.id == results["execution_id"]
+-            ).first()
+-            if execution:
+-                execution.total_cost = (execution.total_cost or 0.0) + cost
+-                try:
+-                    self.db.commit()
+-                except Exception:
+-                    self.db.rollback()
+ 
+-    def _accumulate_cost(self, execution: Execution, tokens: int, model: str):
+-        """BUG-007: Add cost for tokens to execution.total_cost and commit."""
+-        if tokens <= 0:
+-            return
+-        cost = self._calculate_cost(tokens, model)
+-        execution.total_cost = (execution.total_cost or 0.0) + cost
+-        try:
+-            self.db.commit()
+-        except Exception:
+-            self.db.rollback()
++    def _accumulate_cost(self, execution: Execution, tokens: int, model: str):
++        """BILL-10 — conservée sans effet sur le coût, le temps que les sept
++        appelants soient retirés.
++
++        Elle estimait un coût à partir d'un nombre total de jetons et d'un
++        ratio 70/30 supposé, parfois avec un modèle vide (`_accumulate_cost(
++        execution, architect_tokens, "")`, deux appels, commentés BUG-007) :
++        l'estimation tombait alors sur le tarif « default » niveau Sonnet.
++        Ce coût s'ajoutait à celui déjà écrit par le wrapper LLM.
++
++        Ne rien écrire est correct : `BudgetService.record_cost` a déjà compté
++        cet appel au coût mesuré.
++        """
++        return
+
+Appelants à retirer (grep du 16/09, sept sites) :
+  pm_orchestrator_service_v2.py:712   self._track_tokens("pm_extract", ...)
+  pm_orchestrator_service_v2.py:890   self._accumulate_cost(execution, tokens_used, model_used)
+  pm_orchestrator_service_v2.py:1031  self._accumulate_cost(execution, emma_tokens, ...)
+  pm_orchestrator_service_v2.py:1703  self._accumulate_cost(execution, architect_tokens, "")   # BUG-007
+  pm_orchestrator_service_v2.py:3462  self._track_tokens(agent_id, ...)
+  pm_orchestrator_service_v2.py:3652  self._accumulate_cost(execution, emma_write_tokens, ...)
+  pm_orchestrator_service_v2.py:4097  self._accumulate_cost(execution, architect_tokens, "")   # BUG-007
+
+Les deux appels de `_track_tokens` doivent être CONSERVÉS (ils remplissent les
+compteurs de jetons) ; ce sont les cinq `_accumulate_cost` qui peuvent partir.
+
+Vérification suggérée à la file C, après application : rejouer
+`backend/tests/test_vague1_b_bill10_cout_usd_ecrit_une_fois.py` (7 verts chez
+la file B) puis, sur une exécution réelle, comparer `executions.total_cost` à
+`SUM(cost_usd)` des `llm_interactions` de la même exécution — ils doivent être
+égaux, alors qu'aujourd'hui le premier vaut environ le double.
