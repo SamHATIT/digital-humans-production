@@ -13,7 +13,7 @@ Privacy / RGPD:
   - retention: 12 mois (D3, 03/09/2026), purge nocturne arq — app/workers/retention.py
   - visitor can request deletion of their session via /api/public/forget
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, Index
+from sqlalchemy import Column, Integer, String, Text, DateTime, Index, ForeignKey
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -44,6 +44,17 @@ class ChatLog(Base):
     intent = Column(String(32), nullable=True)
     next_action = Column(String(32), nullable=True)
     email_collected = Column(String(255), nullable=True)
+
+    # SEC-12 (audit du 06/09, vague 1 / file A) : l'export et l'effacement
+    # RGPD rattachaient au compte toutes les conversations portant son
+    # adresse. Or un visiteur peut saisir l'adresse d'un tiers dans le
+    # widget : « adresse citee » n'est pas « session possedee ». Le
+    # rattachement passe desormais par cette colonne, posee quand le
+    # proprietaire REVENDIQUE sa session en presentant son session_uuid,
+    # qui est un secret detenu par son seul navigateur.
+    claimed_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Cost tracking per turn (so we can cap daily budget).
     tokens_in = Column(Integer, nullable=True)

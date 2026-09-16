@@ -148,7 +148,7 @@ class AccountService:
         versions_sds = self._par_projet(SDSVersion, ids_projets)
         livrables = self._par_projet(Output, ids_projets)
 
-        conversations_vitrine = self._chat_logs_du_compte(utilisateur.email)
+        conversations_vitrine = self._chat_logs_du_compte(utilisateur)
 
         journal = (
             self.db.query(AuditLog)
@@ -289,7 +289,7 @@ class AccountService:
 
         # 5. Conversations du site vitrine : la session entière, pas seulement
         #    le tour qui porte l'e-mail.
-        supprimes_chat = self._supprimer_chat_logs(utilisateur.email)
+        supprimes_chat = self._supprimer_chat_logs(utilisateur)
 
         # 6. Journal d'audit : la trace reste, les champs identifiants partent.
         anonymises_audit = (
@@ -378,20 +378,30 @@ class AccountService:
             return []
         return self.db.query(modele).filter(modele.project_id.in_(ids_projets)).all()
 
-    def _sessions_vitrine(self, email: Optional[str]) -> List[str]:
-        """UUID des sessions du site vitrine où ce compte a laissé son e-mail."""
-        if not email:
+    def _sessions_reclamees(self, utilisateur: Optional[User]) -> List[str]:
+        """UUID des sessions vitrine que ce compte a REVENDIQUEES.
+
+        SEC-12 (audit du 06/09, vague 1 / file A) : cette selection se faisait
+        sur `ChatLog.email_collected == email`. Un visiteur peut saisir
+        l'adresse d'un tiers dans le widget public ; creer ensuite le compte
+        correspondant a cette adresse donnait acces a la conversation, en
+        export comme en effacement. « Adresse citee » n'est pas « session
+        possedee » : seule une revendication explicite, qui suppose de
+        connaitre le `session_uuid` detenu par le navigateur du visiteur,
+        rattache une session a un compte.
+        """
+        if utilisateur is None or not getattr(utilisateur, "id", None):
             return []
         lignes = (
             self.db.query(ChatLog.session_uuid)
-            .filter(ChatLog.email_collected == email)
+            .filter(ChatLog.claimed_by_user_id == utilisateur.id)
             .distinct()
             .all()
         )
         return [ligne[0] for ligne in lignes]
 
-    def _chat_logs_du_compte(self, email: Optional[str]) -> List[ChatLog]:
-        sessions = self._sessions_vitrine(email)
+    def _chat_logs_du_compte(self, utilisateur: Optional[User]) -> List[ChatLog]:
+        sessions = self._sessions_reclamees(utilisateur)
         if not sessions:
             return []
         return (
@@ -401,8 +411,8 @@ class AccountService:
             .all()
         )
 
-    def _supprimer_chat_logs(self, email: Optional[str]) -> int:
-        sessions = self._sessions_vitrine(email)
+    def _supprimer_chat_logs(self, utilisateur: Optional[User]) -> int:
+        sessions = self._sessions_reclamees(utilisateur)
         if not sessions:
             return 0
         return (
@@ -410,6 +420,34 @@ class AccountService:
             .filter(ChatLog.session_uuid.in_(sessions))
             .delete(synchronize_session=False)
         )
+
+    def revendiquer_session(self, utilisateur: User, session_uuid: str) -> int:
+        """Rattache une session vitrine au compte qui en presente l'UUID.
+
+        Le `session_uuid` est genere cote client et conserve par le
+        navigateur du visiteur : le presenter est la preuve de possession que
+        l'adresse e-mail ne fournissait pas. Une session deja revendiquee par
+        un autre compte n'est pas volee : la revendication est refusee.
+        """
+        if not session_uuid:
+            raise ValueError("session_uuid manquant")
+
+        lignes = self.db.query(ChatLog).filter(ChatLog.session_uuid == session_uuid).all()
+        if not lignes:
+            raise LookupError("Session inconnue")
+
+        deja = {
+            ligne.claimed_by_user_id
+            for ligne in lignes
+            if ligne.claimed_by_user_id is not None
+        }
+        if deja - {utilisateur.id}:
+            raise PermissionError("Session deja revendiquee par un autre compte")
+
+        for ligne in lignes:
+            ligne.claimed_by_user_id = utilisateur.id
+        self.db.commit()
+        return len(lignes)
 
     def _purger_chroma(self, documents: List[ProjectDocument]) -> int:
         """Supprime les chunks des documents du compte.

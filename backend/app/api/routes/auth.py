@@ -114,7 +114,40 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @limiter.limit(RateLimits.AUTH_REGISTER)
 async def register(request: Request, response: Response, user_data: UserCreate, db: Session = Depends(get_db)):
     """
-    Register a new user account.
+    SEC-12 (audit du 06/09, vague 1 / file A) — CHEMIN LEGACY FERME.
+
+    Ce point d'entree creait un compte **actif** (`is_active=True`) avec
+    l'adresse d'un tiers sans en prouver la possession. Combine au
+    rattachement des conversations concierge par adresse, il permettait de
+    prendre l'adresse vue dans une conversation et d'en exporter le contenu.
+
+    Le parcours reel du Studio est `signup-request` + `signup-confirm`
+    (ONBOARDING-002), qui verifie l'adresse avant de creer la ligne. Aucun
+    appelant ne subsiste : `frontend/src/services/api.ts` porte encore un
+    helper `auth.register` marque « legacy », mais SignupPage.tsx appelle
+    `auth.signupRequest`. On repond 410 Gone plutot que de demonter la route,
+    pour qu'un client tiers qui l'appellerait encore recoive une raison
+    lisible au lieu d'un 404 ambigu.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail={
+            "error": "legacy_signup_closed",
+            "message": (
+                "L'inscription en une etape est fermee : elle ne verifiait pas "
+                "l'adresse. Utilisez /api/auth/signup-request puis le lien de "
+                "confirmation recu par courriel."
+            ),
+        },
+    )
+
+
+async def _register_legacy_desactive(request: Request, response: Response, user_data: UserCreate, db: Session):
+    """Corps historique, conserve pour memoire et jamais appele (SEC-12).
+
+    Il est garde intact le temps de la vague 1 : si Sam decidait de rouvrir
+    une inscription en une etape, elle devrait passer par le meme mecanisme
+    de verification que `signup-request`, pas par ce corps.
 
     Args:
         user_data: User registration data (email, name, password)
@@ -306,15 +339,32 @@ async def signup_confirm(
     # different channel. Re-check.
     existing = db.query(User).filter(User.email == email).first()
     if existing:
-        # If THIS user clicks their own link twice (idempotent confirm),
-        # we already created the account on the first click — issue a fresh
-        # token so they keep going. If a different account squatted the
-        # email, we still log them in; the first-finger-on-the-link wins.
-        logger.info("[signup-confirm] account already exists for %s — re-issuing token", email)
-        access_token = create_access_token(
-            data={"sub": str(existing.id), "email": existing.email}
+        # SEC-12 : « le premier doigt sur le lien gagne » donnait un jeton
+        # d'acces au compte d'autrui. Si un squatteur a pose un compte sur
+        # cette adresse entre la demande et la confirmation, le porteur du
+        # lien recevait un jeton pour CE compte, dont le squatteur gardait le
+        # mot de passe : les deux entraient.
+        #
+        # On n'accepte donc que la reutilisation du MEME echange : le compte
+        # existant doit etre celui que ce jeton a lui-meme cree, ce que
+        # prouve l'egalite des empreintes de mot de passe (le hash voyage
+        # dans le jeton signe). Sinon, refus generique.
+        if existing.hashed_password == hashed_password:
+            logger.info(
+                "[signup-confirm] meme lien rejoue pour %s — nouveau jeton", email
+            )
+            access_token = create_access_token(
+                data={"sub": str(existing.id), "email": existing.email}
+            )
+            return {"access_token": access_token, "token_type": "bearer"}
+
+        logger.warning(
+            "[signup-confirm] refus : un autre compte occupe deja %s", email
         )
-        return {"access_token": access_token, "token_type": "bearer"}
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="account_already_exists",
+        )
 
     # Materialise the user.
     new_user = User(
