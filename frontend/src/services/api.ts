@@ -1,6 +1,7 @@
 /**
  * API Service - Centralized API calls using native fetch
  */
+import { parseApiError } from '../lib/apiContracts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -44,12 +45,27 @@ async function apiCall(endpoint: string, options: RequestInit = {}) {
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    const errorMsg = Array.isArray(error.detail) ? error.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join(", ") : (error.detail || 'Request failed');
-    throw new Error(errorMsg);
+    // PROD-10 : `new Error(error.detail)` sur un detail objet donnait
+    // « [object Object] » et perdait le code, le palier requis et l'URL
+    // d'upgrade. `parseApiError` les conserve.
+    const corps = await response.json().catch(() => null);
+    throw parseApiError(response.status, corps);
   }
 
-  return response.json();
+  // PROD-10 : une reponse sans corps (204 No Content sur une suppression
+  // reussie, ou 205) faisait jeter `json()` — l'interface annoncait un echec
+  // apres une suppression bien effectuee.
+  if (response.status === 204 || response.status === 205) return null;
+  const longueur = response.headers.get('content-length');
+  if (longueur === '0') return null;
+
+  const type = response.headers.get('content-type') || '';
+  if (type && !type.includes('json')) {
+    const texte = await response.text();
+    return texte ? { raw: texte } : null;
+  }
+
+  return response.json().catch(() => null);
 }
 
 // ============ ACCÈS AUTHENTIFIÉ AUX FICHIERS (kim:SEC-07) ============
@@ -188,8 +204,8 @@ async function streamAuthenticated(endpoint: string, body?: unknown): Promise<Re
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-    throw new Error(error.detail || `Request failed (${response.status})`);
+    const corps = await response.json().catch(() => null);
+    throw parseApiError(response.status, corps);
   }
 
   return response;

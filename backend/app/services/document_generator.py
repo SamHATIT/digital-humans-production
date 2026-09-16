@@ -18,6 +18,8 @@ import tempfile
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 
+from app.utils.ai_disclosure import sauvegarder_docx_avec_mention
+
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -319,9 +321,11 @@ class ProfessionalDocumentGenerator:
             i += 1
     
     def save(self, filepath: str):
-        """Save the document"""
+        """Save the document, with the AI-disclosure notice (GL-19)."""
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        self.doc.save(filepath)
+        # GL-19 (AI Act art. 50) : aucun livrable Word ne sort sans sa mention,
+        # dans le corps et dans les proprietes du fichier.
+        sauvegarder_docx_avec_mention(self.doc, filepath)
         logger.info(f"Document saved to: {filepath}")
         return filepath
 

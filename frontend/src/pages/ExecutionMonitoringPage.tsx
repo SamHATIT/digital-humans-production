@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Download, Loader2, MessageCircle, RotateCcw, BarChart3, ClipboardList } from 'lucide-react';
-import { executions } from '../services/api';
+import { api, executions } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import {
   useExecutionStream,
@@ -17,6 +17,11 @@ import {
   type StudioAgent,
 } from '../lib/agents';
 import { useExecutionTracker } from '../contexts/ExecutionTrackerContext';
+import {
+  canRetryExecution,
+  failureAction,
+  readFailureReason,
+} from '../lib/executionFailure';
 import AgentStage from '../components/studio/AgentStage';
 import StudioTimeline, {
   type StepStatus,
@@ -30,6 +35,27 @@ import DeliverableViewer from '../components/DeliverableViewer';
 import ArchitectureReviewPanel from '../components/ArchitectureReviewPanel';
 import ValidationGatePanel from '../components/ValidationGatePanel';
 import ExecutionMetrics from '../components/ExecutionMetrics';
+
+/** Forme servie par `GET /api/pm-orchestrator/executions/{id}/metrics` (GL-18). */
+interface ExecutionMetricsPayload {
+  totals: {
+    tokens_input: number;
+    tokens_output: number;
+    tokens_total: number;
+    llm_seconds: number;
+    llm_calls: number;
+    credits: number;
+    wall_seconds: number | null;
+  };
+  by_agent: {
+    agent_id: string;
+    tokens_total: number;
+    llm_seconds: number;
+    llm_calls: number;
+  }[];
+  source: string;
+  deliverables_count: number;
+}
 
 type WorkPhase = 1 | 2 | 3 | 4 | 5 | 6 | 0;
 
@@ -187,6 +213,12 @@ export default function ExecutionMonitoringPage() {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [showMetrics, setShowMetrics] = useState(false);
+  // GL-18 — les trois compteurs etaient derives de `agent_progress`, qui ne
+  // porte ni jetons, ni cout, ni duree : ils affichaient 0 pour toute
+  // execution. Ils viennent desormais de `/executions/{id}/metrics`, mesure
+  // sur `llm_interactions` et `credit_transactions`.
+  const [metrics, setMetrics] = useState<ExecutionMetricsPayload | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [selectedDeliverablePhase, setSelectedDeliverablePhase] = useState<number | null>(null);
   const [pendingGate, setPendingGate] = useState<any>(null);
   const [isArchAction, setIsArchAction] = useState(false);
@@ -196,6 +228,11 @@ export default function ExecutionMonitoringPage() {
   const status = (progress?.status || '').toLowerCase();
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed';
+  // BILL-11 — le motif sert par `/progress` etait ignore : la page proposait
+  // toujours de rejouer, y compris a un client dont les credits sont epuises.
+  const failureReason = readFailureReason(progress);
+  const canRetry = canRetryExecution(progress);
+  const rescueAction = failureAction(failureReason);
   const canDownload = isCompleted && !!progress?.sds_document_path;
 
   // ─── Track this execution so the header CreditCounter can show elapsed.
@@ -246,6 +283,29 @@ export default function ExecutionMonitoringPage() {
     }
     return map;
   }, [timeline]);
+
+  useEffect(() => {
+    if (!showMetrics || !id) return;
+    let annule = false;
+    api
+      .get(`/api/pm-orchestrator/executions/${id}/metrics`)
+      .then((data: ExecutionMetricsPayload) => {
+        if (!annule) {
+          setMetrics(data);
+          setMetricsError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        // Regle 6 : une source muette ne doit pas ressembler a « zero ».
+        if (!annule) {
+          setMetrics(null);
+          setMetricsError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      annule = true;
+    };
+  }, [showMetrics, id, status]);
 
   // Configurable gate fetch.
   useEffect(() => {
@@ -527,24 +587,49 @@ export default function ExecutionMonitoringPage() {
               />
             )}
 
-            {/* Failure rescue */}
+            {/* Failure rescue — BILL-11 : dire pourquoi, puis proposer ce qui
+                est reellement possible. */}
             {isFailed && (
-              <div className="border border-error/40 bg-error/5 p-5 flex items-center justify-between gap-4">
-                <p className="font-serif italic text-error text-lg">
-                  {t(
-                    'The performance was interrupted.',
-                    'La représentation a été interrompue.',
+              <div className="border border-error/40 bg-error/5 p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <p className="font-serif italic text-error text-lg">
+                    {t(
+                      'The performance was interrupted.',
+                      'La représentation a été interrompue.',
+                    )}
+                  </p>
+                  {failureReason?.message && (
+                    <p className="mt-2 font-mono text-[12px] leading-relaxed text-bone-2">
+                      {failureReason.message}
+                    </p>
                   )}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={isRetrying}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-warning text-ink hover:bg-warning/80 font-mono text-[10px] tracking-cta uppercase disabled:opacity-50"
-                >
-                  {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                  {t('Retry the act', 'Rejouer l’acte')}
-                </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  {rescueAction && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(rescueAction.href)}
+                      className="inline-flex items-center gap-2 px-5 py-2 bg-brass text-ink hover:bg-brass-2 font-mono text-[10px] tracking-cta uppercase"
+                    >
+                      {t(rescueAction.label.en, rescueAction.label.fr)}
+                    </button>
+                  )}
+                  {canRetry ? (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      disabled={isRetrying}
+                      className="inline-flex items-center gap-2 px-5 py-2 bg-warning text-ink hover:bg-warning/80 font-mono text-[10px] tracking-cta uppercase disabled:opacity-50"
+                    >
+                      {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                      {t('Retry the act', 'Rejouer l’acte')}
+                    </button>
+                  ) : (
+                    <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                      {t('Replay unavailable', 'Rejeu indisponible')}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -582,17 +667,59 @@ export default function ExecutionMonitoringPage() {
               </div>
             )}
 
-            {showMetrics && progress?.agent_progress && (
-              <ExecutionMetrics
-                agents={progress.agent_progress.map((a) => ({
-                  agent_name: a.agent_name,
-                  tokens_used: (a as any).tokens_used || 0,
-                  cost: (a as any).cost || 0,
-                  duration_seconds: (a as any).duration_seconds || 0,
-                  status: a.status,
-                }))}
-                totalCost={budget?.execution_cost}
-              />
+            {showMetrics && (
+              <>
+                {metricsError && (
+                  <p className="border border-error/40 bg-error/5 px-4 py-3 font-mono text-[11px] text-error">
+                    {t(
+                      `Metrics unavailable (${metricsError}).`,
+                      `Métriques indisponibles (${metricsError}).`,
+                    )}
+                  </p>
+                )}
+                {metrics && (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {[
+                        {
+                          label: t('Tokens', 'Jetons'),
+                          value: metrics.totals.tokens_total.toLocaleString(),
+                        },
+                        {
+                          label: t('Credits', 'Crédits'),
+                          value: metrics.totals.credits.toLocaleString(),
+                        },
+                        {
+                          label: t('Time in agents', 'Temps en agents'),
+                          value: `${Math.round(metrics.totals.llm_seconds)}s`,
+                        },
+                        {
+                          label: t('LLM calls', 'Appels LLM'),
+                          value: metrics.totals.llm_calls.toLocaleString(),
+                        },
+                      ].map((tuile) => (
+                        <div key={tuile.label} className="border border-bone/10 bg-ink-2 px-4 py-3">
+                          <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                            {tuile.label}
+                          </p>
+                          <p className="mt-1 font-serif text-2xl text-bone tabular-nums">
+                            {tuile.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <ExecutionMetrics
+                      agents={metrics.by_agent.map((a) => ({
+                        agent_name: a.agent_id,
+                        tokens_used: a.tokens_total,
+                        duration_seconds: a.llm_seconds,
+                        cost: 0,
+                      }))}
+                      totalCost={budget?.execution_cost}
+                    />
+                  </>
+                )}
+              </>
             )}
           </div>
 

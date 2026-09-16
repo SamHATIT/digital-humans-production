@@ -198,6 +198,7 @@ app.include_router(billing.router, prefix=settings.API_V1_PREFIX)
 # Leads capture
 from app.api.routes import leads
 from app.api.routes import journal_webhook
+from app.api.routes import studio_chat
 app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
 app.include_router(journal_webhook.router, prefix=settings.API_V1_PREFIX)
 
@@ -220,6 +221,12 @@ app.include_router(config_routes.router, prefix=settings.API_V1_PREFIX)
 
 # B4 (vague B) : droits RGPD du compte — export (art. 15/20) et effacement (art. 17)
 app.include_router(account.router, prefix=settings.API_V1_PREFIX)
+
+# BILL-06 (vague 1 / file D) : dialogue authentifie hors projet. Le palier Free
+# vend Sophie + Olivia mais ne peut creer aucun projet (max_projects: 0) ; les
+# deux autres portes de dialogue exigent un projet ou une execution. Le routeur
+# porte deja son prefixe /api/studio.
+app.include_router(studio_chat.router)
 
 # Environment routes (Section 6.2, 6.3, 6.4)
 

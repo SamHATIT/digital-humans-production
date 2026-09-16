@@ -10,6 +10,8 @@ import tempfile
 from datetime import datetime
 from typing import Optional, List
 
+from app.utils.ai_disclosure import mention_ia, sauvegarder_docx_avec_mention
+
 try:
     from docx import Document
     from docx.shared import Inches, Pt, RGBColor, Cm
@@ -157,8 +159,8 @@ def convert_markdown_to_docx(markdown_content: str, output_path: str, project_na
     _setup_document(doc)
     _add_title_page(doc, project_name, client_name, version)
     _parse_markdown_enhanced(doc, markdown_content)
-    doc.save(output_path)
-    return output_path
+    # GL-19 (AI Act art. 50) : mention dans le corps ET dans les metadonnees.
+    return sauvegarder_docx_avec_mention(doc, output_path)
 
 
 def _setup_document(doc: Document):
@@ -206,6 +208,13 @@ def _add_title_page(doc: Document, project_name: str, client_name: str, version:
     run = meta.add_run("Document généré par Digital Humans Platform")
     run.font.size = Pt(10)
     run.font.color.rgb = FONT_COLORS["muted"]
+    # GL-19 : « genere par la plateforme » ne dit pas que le contenu vient
+    # d'une IA. La mention de l'article 50 est ajoutee des la page de garde.
+    meta.add_run("\n")
+    mention = meta.add_run(mention_ia("fr"))
+    mention.font.size = Pt(9)
+    mention.italic = True
+    mention.font.color.rgb = FONT_COLORS["muted"]
     
     doc.add_page_break()
 

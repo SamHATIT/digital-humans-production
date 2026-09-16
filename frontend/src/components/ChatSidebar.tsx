@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { X, Send, Loader2, User, Bot, ChevronDown } from 'lucide-react';
 import { api } from '../services/api';
+import AiDisclosureBanner from './AiDisclosureBanner';
 import DiffViewer from './DiffViewer';
 import { renderInlineMarkdown } from '../lib/safeMarkdown';
 
@@ -230,6 +231,9 @@ export default function ChatSidebar({
           <X className="w-5 h-5" />
         </button>
       </div>
+
+      {/* GL-19 (AI Act art. 50) — mention au premier contact, puis permanente. */}
+      <AiDisclosureBanner />
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">

@@ -7,18 +7,18 @@ Périmètres validés par Sam les 26 + 29 avril 2026.
 Tier scopes
 -----------
 FREE        — Sophie + Olivia chat seul. Pas d'upload, pas de mémoire.
-              Modèle Haiku uniquement. Vitrine + qualification prospect.
+              Vitrine + qualification prospect. Le modèle servi au Free est un
+              réglage d'exploitation (backend/config/llm_routing.yaml,
+              tier_overrides), pas un élément du produit vendu : BILL-07.
 PRO   79€   — Équipe complète, upload, mémoire persistante, 15 000 crédits/mois.
               Livrable final = SDS (BR + UC + Solution Design + document Word/PDF).
               PAS de BUILD (pas de génération de code), PAS de déploiement.
-              Modèles Haiku + Sonnet. Pas d'Opus.
 TEAM 1490€  — Pipeline complet jusqu'à sandbox.
               SDS + BUILD (Apex, LWC, Admin) + déploiement SFDX vers sandbox.
               PAS de mise en production (raison de sécurité, validé Sam 29 avril).
-              Modèles Haiku + Sonnet + Opus opt-in.
 ENTERPRISE  — On-premise, sur devis.
               Tout TEAM + déploiement prod négocié au contrat.
-              Choix du LLM (Claude/GPT/Mistral), customisation, SSO, audit logs.
+              Choix du moteur, customisation, SSO, audit logs.
 
 Migration historique
 -------------------
@@ -89,7 +89,11 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
             "Chat avec Sophie et Olivia uniquement",
             "Pas d'upload de fichiers",
             "Pas de mémoire persistante (sessions stateless)",
-            "Modèle Haiku uniquement",
+            # BILL-07 : disait « Modèle Haiku uniquement » alors que le
+            # profil `cloud` route le Free sur Nemotron (llm_routing.yaml,
+            # tier_overrides). Une annonce commerciale ne nomme pas un
+            # modèle : il change, et la règle de sortie client l'interdit.
+            "Qualité de rédaction standard (les paliers payants passent sur les modèles les plus capables)",
         ],
     },
     SubscriptionTier.PRO: {
@@ -138,7 +142,8 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
         "limitations": [
             "Pas de génération de code (BUILD)",
             "Pas de déploiement Salesforce",
-            "Modèle Opus indisponible",
+            # BILL-07 : ne nomme plus de modèle (voir le palier Free).
+            "Raisonnement approfondi réservé au palier Team",
             "Maximum 20 projets",
         ],
     },
@@ -187,7 +192,8 @@ TIER_FEATURES: Dict[SubscriptionTier, Dict[str, Any]] = {
         },
         "limitations": [
             "Déploiement limité aux sandboxes (pas de production)",
-            "Opus en opt-in (coût supplémentaire affiché avant envoi)",
+            # BILL-07 : ne nomme plus de modèle (voir le palier Free).
+            "Raisonnement approfondi en opt-in (coût supplémentaire affiché avant envoi)",
             "Pas d'API publique",
         ],
     },

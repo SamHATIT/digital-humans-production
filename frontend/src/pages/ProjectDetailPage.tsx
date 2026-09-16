@@ -20,6 +20,8 @@ import ChangeRequestCard from '../components/projects/ChangeRequestCard';
 import type { ChangeRequestItem, CRStatus, CRPriority } from '../components/projects/ChangeRequestCard';
 import ChangeRequestModal from '../components/projects/ChangeRequestModal';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
+import AiDisclosureBanner from '../components/AiDisclosureBanner';
+import { readChatReply, readCrStatus } from '../lib/apiContracts';
 
 interface Project {
   id: number;
@@ -175,16 +177,30 @@ export default function ProjectDetailPage() {
     setChatPosting(true);
     try {
       const resp = await api.post(`/api/projects/${projectId}/chat`, { message });
-      if (resp?.assistant_message) {
-        setChatMessages((prev) => [...prev, resp.assistant_message]);
-      }
-    } catch (err: any) {
+      // PROD-10 : la page lisait `assistant_message`, que la route ne rend
+      // pas (`SophieResponse` rend `message`) — la reponse **reussie** de
+      // Sophie n'apparaissait jamais.
+      const reponse = readChatReply(resp);
       setChatMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           role: 'assistant',
-          message: t('Sorry — I could not respond.', 'Désolée — je n’ai pas pu répondre.'),
+          message:
+            reponse ??
+            t('Sophie replied with an empty message.', 'Sophie a répondu un message vide.'),
+          created_at: new Date().toISOString(),
+        },
+      ]);
+    } catch (err) {
+      // Regle 6 : le motif du refus (credits, palier) est montre, pas remplace
+      // par une excuse generique.
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + 1,
+          role: 'assistant',
+          message: err instanceof Error ? err.message : String(err),
           created_at: new Date().toISOString(),
         },
       ]);
@@ -196,20 +212,25 @@ export default function ProjectDetailPage() {
   const submitCR = async (crId: number) => {
     if (!projectId) return;
     try {
-      await api.post(`/api/projects/${projectId}/change-requests/${crId}/submit`);
-      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: 'submitted' } : c)));
-    } catch {
-      window.alert(t('Could not submit.', 'Soumission impossible.'));
+      const resp = await api.post(`/api/projects/${projectId}/change-requests/${crId}/submit`);
+      // PROD-10 : la route soumet *et* analyse — elle rend `analyzed`. Forcer
+      // « submitted » faisait disparaitre le bouton d'approbation jusqu'au
+      // rechargement de la page.
+      const statut = readCrStatus(resp, 'submitted');
+      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: statut } : c)));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t('Could not submit.', 'Soumission impossible.'));
     }
   };
 
   const approveCR = async (crId: number) => {
     if (!projectId) return;
     try {
-      await api.post(`/api/projects/${projectId}/change-requests/${crId}/approve`, {});
-      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: 'approved' } : c)));
-    } catch {
-      window.alert(t('Could not approve.', 'Approbation impossible.'));
+      const resp = await api.post(`/api/projects/${projectId}/change-requests/${crId}/approve`, {});
+      const statut = readCrStatus(resp, 'approved');
+      setCrs((prev) => prev.map((c) => (c.id === crId ? { ...c, status: statut } : c)));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t('Could not approve.', 'Approbation impossible.'));
     }
   };
 
@@ -254,13 +275,27 @@ export default function ProjectDetailPage() {
 
   const snapshotSDS = async () => {
     if (!projectId) return;
+    // PROD-10 : le corps envoye etait `{}` alors que la route exige
+    // `execution_id` (400 « execution_id is required »). L'identifiant est
+    // celui de la derniere execution du projet, deja resolu au chargement.
+    if (!latestExecutionId) {
+      window.alert(
+        t(
+          'No execution to snapshot yet.',
+          'Aucune exécution à figer pour le moment.',
+        ),
+      );
+      return;
+    }
     setSnapshotting(true);
     try {
-      await api.post(`/api/projects/${projectId}/sds-versions`, {});
+      await api.post(`/api/projects/${projectId}/sds-versions`, {
+        execution_id: latestExecutionId,
+      });
       const sds = await api.get(`/api/projects/${projectId}/sds-versions`).catch(() => ({ versions: [] }));
       setSdsVersions(sds?.versions ?? sds ?? []);
-    } catch {
-      window.alert(t('Could not snapshot SDS.', 'Snapshot impossible.'));
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : t('Could not snapshot SDS.', 'Snapshot impossible.'));
     } finally {
       setSnapshotting(false);
     }
@@ -583,6 +618,9 @@ export default function ProjectDetailPage() {
               {t('What would you like to discuss?', 'De quoi voulez-vous parler ?')}
             </p>
           </div>
+
+          {/* GL-19 (AI Act art. 50) — Sophie est une IA, dit avant le premier message. */}
+          <AiDisclosureBanner />
 
           <div className="max-h-[480px] overflow-y-auto p-5 space-y-4">
             {chatMessages.length === 0 ? (

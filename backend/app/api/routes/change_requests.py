@@ -1,5 +1,5 @@
 """API routes for Change Request management."""
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import Optional
@@ -298,11 +298,33 @@ def submit_change_request(
             "status": "analyzed",
             "impact_analysis": result["impact_analysis"],
             "estimated_cost": result["estimated_cost"],
-            "agents_to_rerun": result["agents_to_rerun"]
+            "agents_to_rerun": result["agents_to_rerun"],
+            # BILL-11 : ce drapeau existait dans le resultat du service mais
+            # n'etait jamais transmis. Le client lisait une estimation par
+            # categorie en croyant a une analyse par l'agent.
+            "fallback_used": bool(result.get("fallback_used")),
         }
-    else:
-        logger.error(f"[CR Route] Impact analysis failed: {result.get('error')}")
-        raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+
+    # BILL-11 : un refus de credits n'est pas une erreur serveur. 402 Payment
+    # Required, avec un motif structure lisible par l'interface (meme forme que
+    # `FeatureAccessError` : error / message / upgrade_url).
+    if result.get("code") == "insufficient_credits":
+        logger.warning(f"[CR Route] CR {cr.cr_number} : credits insuffisants")
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "insufficient_credits",
+                "cr_number": result.get("cr_number"),
+                "message": (
+                    "Credits insuffisants pour analyser cette demande. "
+                    "Recharge ou changement de palier necessaire."
+                ),
+                "upgrade_url": "/pricing",
+            },
+        )
+
+    logger.error(f"[CR Route] Impact analysis failed: {result.get('error')}")
+    raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
 
 
 @router.post("/{project_id}/change-requests/{cr_id}/approve")

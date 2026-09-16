@@ -266,7 +266,13 @@ PRIVACY_FR = {
             "p": [
                 "<strong>Données de compte</strong> : adresse électronique, mot de passe haché, nom (optionnel), date d'inscription. Base légale : exécution du contrat (article 6.1.b RGPD).",
                 "<strong>Données de facturation</strong> : raison sociale, numéro de TVA, identifiant client Stripe, historique des paiements. Base légale : exécution du contrat et obligation légale comptable.",
-                "<strong>Contenu des conversations</strong> : pour les paliers Pro et Team, les échanges avec les agents et les fichiers téléversés sont conservés pour assurer la continuité du service. Pour le palier Free, les conversations ne sont pas conservées au-delà de la session.",
+                # GL-16 / RGPD-04 (16/09/2026) : la version precedente promettait que
+                # les conversations du palier Free « ne sont pas conservées au-delà de
+                # la session ». C'etait faux : les echanges avec Sophie sont ecrits en
+                # base (`project_conversations` pour le Studio, `chat_logs` pour le
+                # concierge du site) et conserves jusqu'a la purge automatique. La
+                # promesse est remplacee par la duree reellement appliquee.
+                "<strong>Contenu des conversations</strong> : les échanges avec les agents et les fichiers téléversés sont conservés pour assurer la continuité du service, quel que soit le palier. Ils sont supprimés automatiquement au terme de la durée indiquée ci-dessous, et à tout moment sur demande.",
                 "<strong>Données techniques</strong> : adresse IP, identifiants de session, type de navigateur, traces d'erreur. Base légale : intérêt légitime (sécurité du service).",
             ],
         },
@@ -282,7 +288,11 @@ PRIVACY_FR = {
             "p": [
                 "<strong>Compte actif</strong> : pour la durée de l'abonnement, plus douze mois après la dernière connexion.",
                 "<strong>Données comptables</strong> : dix ans (obligation légale).",
-                "<strong>Conversations Pro/Team</strong> : pour la durée de l'abonnement, plus trente jours après résiliation. Suppression automatisée ensuite, hors archives techniques de sécurité.",
+                # GL-16 : la duree annoncee est celle que le code applique
+                # (`app/workers/retention.py` et `app/services/retention_service.py`,
+                # douze mois par defaut — decision D3 du 03/09/2026), et non une duree
+                # differente par palier que rien n'implemente.
+                "<strong>Conversations avec les agents</strong> : douze mois à compter du dernier message, tous paliers confondus. Suppression automatisée ensuite, hors archives techniques de sécurité. La suppression anticipée peut être demandée à tout moment (article 17 RGPD).",
                 "<strong>Logs techniques</strong> : douze mois maximum.",
             ],
         },

@@ -12,6 +12,8 @@ from datetime import datetime
 from typing import List
 from collections import defaultdict
 
+from app.utils.ai_disclosure import sauvegarder_docx_avec_mention
+
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -250,10 +252,18 @@ class SDSTemplateGenerator:
         doc_id = f"SDS-{self.execution_id:04d}-{self.project_info['project_id']:02d}"
         filename = f"{doc_id}-{self.project_info['client_name'].replace(' ', '_')}.docx"
         output_path = os.path.join(OUTPUT_DIR, filename)
-        self.doc.save(output_path)
+        self._finaliser_document(output_path)
         
         print(f"\n✅ SDS Document generated: {output_path}")
         return output_path
+
+    def _finaliser_document(self, output_path: str) -> str:
+        """Mention IA (GL-19, AI Act art. 50) puis sauvegarde.
+
+        Extraite de `generate()` pour etre jouable sans base de donnees :
+        `generate()` charge l'execution, ses livrables et son projet.
+        """
+        return sauvegarder_docx_avec_mention(self.doc, output_path)
     
     def _setup_styles(self):
         """Setup document styles"""

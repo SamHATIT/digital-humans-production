@@ -12,6 +12,7 @@ import {
   STUDIO_ENSEMBLE,
   type StudioAgent,
 } from '../../lib/agents';
+import AiDisclosureBanner from '../AiDisclosureBanner';
 import DiffViewer from '../DiffViewer';
 import { renderInlineMarkdown } from '../../lib/safeMarkdown';
 
@@ -266,6 +267,9 @@ export default function ChatSidebarStudio({
           <X className="w-4 h-4" />
         </button>
       </header>
+
+      {/* GL-19 (AI Act art. 50) — mention au premier contact, puis permanente. */}
+      <AiDisclosureBanner />
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
