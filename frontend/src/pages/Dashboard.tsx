@@ -43,17 +43,35 @@ interface EmptyCard {
   external?: boolean;
 }
 
-const EMPTY_CARDS: EmptyCard[] = [
-  {
-    index: '№ 01',
-    title: { en: 'Cast your first ensemble', fr: 'Distribuez votre premier ensemble' },
-    body: {
-      en: 'Pick a brief, summon eleven agents and let the studio begin.',
-      fr: 'Choisissez un brief, convoquez les onze agents, laissez le studio jouer.',
-    },
-    cta: { en: 'Open the wizard →', fr: 'Ouvrir le wizard →' },
-    href: '/wizard',
+// BILL-06 — la premiere carte proposait le wizard a tout le monde. Un compte
+// Free (`max_projects: 0`) y suivait cinq actes pour se faire refuser la
+// creation du projet a la derniere etape. Le droit est demande au serveur
+// (`GET /api/subscription/can-create-project`) et la carte change en
+// consequence ; on ne devine pas le palier cote client.
+const CARTE_PROJET: EmptyCard = {
+  index: '№ 01',
+  title: { en: 'Cast your first ensemble', fr: 'Distribuez votre premier ensemble' },
+  body: {
+    en: 'Pick a brief, summon eleven agents and let the studio begin.',
+    fr: 'Choisissez un brief, convoquez les onze agents, laissez le studio jouer.',
   },
+  cta: { en: 'Open the wizard →', fr: 'Ouvrir le wizard →' },
+  href: '/wizard',
+};
+
+const CARTE_DIALOGUE: EmptyCard = {
+  index: '№ 01',
+  title: { en: 'Talk to Sophie', fr: 'Parlez à Sophie' },
+  body: {
+    en: 'Describe what you need. Sophie frames it, Olivia turns it into requirements — no project required.',
+    fr: "Décrivez votre besoin. Sophie le cadre, Olivia le traduit en exigences — sans créer de projet.",
+  },
+  cta: { en: 'Start the conversation →', fr: "Démarrer l'entretien →" },
+  href: '/chat',
+};
+
+const EMPTY_CARDS: EmptyCard[] = [
+  CARTE_PROJET,
   {
     index: '№ 02',
     title: { en: 'Browse the gallery', fr: 'Parcourir la galerie' },
@@ -117,6 +135,9 @@ export default function Dashboard() {
   const [activeExecutions, setActiveExecutions] = useState<ExecutionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // `null` = pas encore su. On n'affiche pas de carte tant qu'on ignore le
+  // droit, plutot que d'en proposer une qui finira en 403.
+  const [peutCreerProjet, setPeutCreerProjet] = useState<boolean | null>(null);
 
   // ONBOARDING-003 — if the user just signed up via a marketing CTA with
   // an industry intent, deep-link straight into the wizard with the
@@ -157,6 +178,14 @@ export default function Dashboard() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Unable to load projects.';
         if (!cancelled) setError(msg);
+      }
+
+      // 2-bis. Droit de créer un projet (BILL-06). Le serveur tranche.
+      try {
+        const limites = await api.get('/api/subscription/can-create-project');
+        if (!cancelled) setPeutCreerProjet(limites?.allowed === true);
+      } catch {
+        if (!cancelled) setPeutCreerProjet(null);
       }
 
       // 3. Exécutions actives — endpoint optionnel, fallback silencieux
@@ -244,7 +273,10 @@ export default function Dashboard() {
       {/* Empty state */}
       {!loading && !error && !hasProjects && (
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {EMPTY_CARDS.map((card) => {
+          {(peutCreerProjet === null
+            ? EMPTY_CARDS.slice(1)
+            : [peutCreerProjet ? CARTE_PROJET : CARTE_DIALOGUE, ...EMPTY_CARDS.slice(1)]
+          ).map((card) => {
             const cardInner = (
               <article className="group border border-bone/5 bg-ink-2 p-8 h-full flex flex-col transition-colors hover:border-brass/40">
                 <p className="font-mono text-[11px] tracking-eyebrow uppercase text-bone-4">
@@ -287,10 +319,12 @@ export default function Dashboard() {
               </h2>
             </div>
             <Link
-              to="/wizard"
+              to={peutCreerProjet === false ? '/chat' : '/wizard'}
               className="font-mono text-[11px] tracking-cta uppercase text-brass hover:text-brass-2"
             >
-              {t('+ New production', '+ Nouvelle production')}
+              {peutCreerProjet === false
+                ? t('Talk to Sophie', 'Parler à Sophie')
+                : t('+ New production', '+ Nouvelle production')}
             </Link>
           </header>
 

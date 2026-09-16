@@ -30,10 +30,13 @@ const TIER_COPY: Record<
       fr: 'Sophie lit les briefs. Olivia les traduit en use cases. Parle à Sophie de ton premier projet — elle s\u2019occupe du reste.',
     },
     cta: {
-      en: 'Start a project',
-      fr: 'Démarrer un projet',
+      en: 'Talk to Sophie',
+      fr: 'Parler à Sophie',
     },
-    next: '/projects/new',
+    // BILL-06 : envoyait vers /projects/new, que le Free ne peut pas jouer
+    // (max_projects: 0) — le premier geste propose apres l'inscription se
+    // soldait par un refus.
+    next: '/chat',
   },
 };
 

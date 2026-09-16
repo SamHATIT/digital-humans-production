@@ -13,6 +13,7 @@ import AppShell from './components/layout/AppShell';
 // Tout le reste = lazy pour alléger le bundle initial.
 const NewProject              = lazy(() => import('./pages/NewProject'));
 const ProjectWizard           = lazy(() => import('./pages/ProjectWizard'));
+const StudioChatPage          = lazy(() => import('./pages/StudioChatPage'));
 const BRValidationPage        = lazy(() => import('./pages/BRValidationPage'));
 const ExecutionPage           = lazy(() => import('./pages/ExecutionPage'));
 const ExecutionMonitoringPage = lazy(() => import('./pages/ExecutionMonitoringPage'));
@@ -114,6 +115,19 @@ function App() {
               <ProtectedRoute>
                 <AppShell>
                   <AgentTesterPage />
+                </AppShell>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* BILL-06 — dialogue authentifie hors projet : le seul parcours
+              que le palier Free puisse reellement jouer. */}
+          <Route
+            path="/chat"
+            element={
+              <ProtectedRoute>
+                <AppShell>
+                  <StudioChatPage />
                 </AppShell>
               </ProtectedRoute>
             }
