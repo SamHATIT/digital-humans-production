@@ -212,3 +212,7 @@ from app.models.chat_log import ChatLog  # noqa: F401
 # BILL-04 (vague 1 / file B) : etat Stripe persiste — deduplication des
 # evenements et abonnement canonique.
 from app.models.stripe_state import StripeEvent, StripeSubscription  # noqa: F401
+
+# BILL-09 (vague 1 / file B) : budget operationnel du concierge public,
+# sans donnee personnelle, hors de portee de l effacement RGPD.
+from app.models.concierge_budget import ConciergeBudgetJour  # noqa: F401

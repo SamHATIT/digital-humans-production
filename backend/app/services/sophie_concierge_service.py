@@ -29,7 +29,10 @@ from typing import List, Optional
 import yaml
 from sqlalchemy.orm import Session
 
+from sqlalchemy.exc import IntegrityError
+
 from app.models.chat_log import ChatLog
+from app.models.concierge_budget import ConciergeBudgetJour
 from app.services.llm_router_service import LLMRequest, get_llm_router
 from app.services.tier_config_service import get_tier_summary_text
 
@@ -40,6 +43,23 @@ logger = logging.getLogger(__name__)
 PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "agents" / "sophie_pm.yaml"
 HISTORY_TURNS_MAX = 20            # hard cap on conversation length per session
 DAILY_BUDGET_USD = 20.0           # global ceiling, all sessions combined
+
+# BILL-09 — le fournisseur du concierge, sous la forme DECLAREE dans le bloc
+# `pricing` de config/llm_routing.yaml. L'ancienne valeur forcee,
+# `anthropic/claude-sonnet-4-6`, n'y a pas de cle : chaque tour public etait
+# compte 0 USD et le plafond ci-dessus ne montait jamais (mesure du 16/09).
+# L'alias resout vers le model_id reellement servi, et il a un tarif.
+FOURNISSEUR_CONCIERGE = "anthropic/claude-sonnet"
+
+# « un cout monetaire nul n'est pas une capacite infinie » (audit L777) : le
+# nombre de tours servis par jour est borne independamment du cout, sans quoi
+# un modele local gratuit ouvrirait un service public illimite.
+MAX_REQUETES_JOUR = int(os.getenv("DH_CONCIERGE_MAX_REQUETES_JOUR", "2000") or 2000)
+
+# Estimation retenue par tour AVANT l'appel, en micro-dollars. Elle est
+# reglee au cout mesure juste apres. Sans reservation prealable, N tours
+# simultanes lisent le meme reste et passent tous.
+ESTIMATION_TOUR_MICRO = int(os.getenv("DH_CONCIERGE_ESTIMATION_MICRO", "60000") or 60000)
 # kim:COH-05 — no public default. A shipped, well-known salt makes the stored
 # IP hashes reversible by dictionary, which breaks the RGPD commitment written
 # into chat_log.py. Unset means the concierge refuses to serve, the same way
@@ -131,20 +151,101 @@ def _split_message_and_meta(raw: str) -> tuple[str, dict]:
     return clean, meta
 
 
-def _check_daily_budget(db: Session) -> bool:
-    """Return True if we're still under the daily $ ceiling.
+class BudgetConciergeDepasse(RuntimeError):
+    """Le plafond journalier du concierge public est atteint."""
 
-    Checks SUM(cost_usd) on chat_logs from the last 24h. Cheap query thanks
-    to the created_at index. We use the DB rather than Redis to avoid
-    introducing a Redis dependency for a low-volume endpoint — if traffic
-    grows we'll move to a cached counter."""
-    from sqlalchemy import func
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-    total_micro_cents = db.query(func.coalesce(func.sum(ChatLog.cost_usd), 0)).filter(
-        ChatLog.created_at >= cutoff
-    ).scalar()
-    total_usd = (total_micro_cents or 0) / 1_000_000.0
-    return total_usd < DAILY_BUDGET_USD
+
+def _ligne_du_jour(db: Session, verrouillee: bool = False) -> ConciergeBudgetJour:
+    """Ligne de compteur du jour, créée si absente.
+
+    ``verrouillee`` prend ``SELECT … FOR UPDATE`` : c'est ce verrou qui
+    sérialise la vérification du plafond et la dépense (BILL-09, volet 3).
+    ``populate_existing`` force la relecture des colonnes — sans lui, une
+    session ayant déjà chargé la ligne calculerait sur une valeur périmée.
+    """
+    aujourdhui = datetime.now(timezone.utc).date()
+    requete = db.query(ConciergeBudgetJour).filter_by(jour=aujourdhui)
+    if verrouillee:
+        requete = requete.populate_existing().with_for_update()
+    ligne = requete.first()
+    if ligne is not None:
+        return ligne
+
+    ligne = ConciergeBudgetJour(jour=aujourdhui, cout_micro_usd=0, requetes=0)
+    db.add(ligne)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Course à la création entre deux tours simultanés : l'autre a gagné.
+        db.rollback()
+        requete = db.query(ConciergeBudgetJour).filter_by(jour=aujourdhui)
+        if verrouillee:
+            requete = requete.populate_existing().with_for_update()
+        ligne = requete.first()
+        if ligne is None:
+            raise
+    return ligne
+
+
+def budget_restant_micro(db: Session) -> int:
+    """Ce qu'il reste à dépenser aujourd'hui, en micro-dollars.
+
+    Lu sur ``concierge_budget_jours``, jamais sur ``chat_logs`` : le visiteur
+    peut effacer ses messages (il en a le droit), il ne doit pas pouvoir
+    effacer le garde-fou de dépense.
+    """
+    plafond = int(DAILY_BUDGET_USD * 1_000_000)
+    ligne = _ligne_du_jour(db)
+    return max(0, plafond - int(ligne.cout_micro_usd or 0))
+
+
+def reserver_budget(db: Session, estimation_micro: int) -> int:
+    """Retient ``estimation_micro`` sur le budget du jour, sous verrou.
+
+    Lève :class:`BudgetConciergeDepasse` si le plafond de dépense OU le nombre
+    de tours du jour est atteint. Rend le total du jour après réservation.
+    """
+    plafond = int(DAILY_BUDGET_USD * 1_000_000)
+    _ligne_du_jour(db)                      # garantit l'existence de la ligne
+    try:
+        ligne = _ligne_du_jour(db, verrouillee=True)
+        total = int(ligne.cout_micro_usd or 0)
+        requetes = int(ligne.requetes or 0)
+        if requetes + 1 > MAX_REQUETES_JOUR:
+            raise BudgetConciergeDepasse(
+                f"plafond de tours atteint : {requetes}/{MAX_REQUETES_JOUR} aujourd'hui"
+            )
+        if total + max(0, int(estimation_micro)) > plafond:
+            raise BudgetConciergeDepasse(
+                f"plafond de depense atteint : {total / 1_000_000:.2f} / "
+                f"{DAILY_BUDGET_USD:.2f} USD aujourd'hui"
+            )
+        ligne.cout_micro_usd = total + max(0, int(estimation_micro))
+        ligne.requetes = requetes + 1
+        db.commit()
+        return int(ligne.cout_micro_usd)
+    except BudgetConciergeDepasse:
+        db.rollback()
+        raise
+
+
+def regler_budget(db: Session, estimation_micro: int, reel_micro: int) -> int:
+    """Remplace l'estimation retenue par le coût mesuré (rend le reliquat)."""
+    ligne = _ligne_du_jour(db, verrouillee=True)
+    ligne.cout_micro_usd = max(
+        0, int(ligne.cout_micro_usd or 0) - int(estimation_micro) + int(reel_micro)
+    )
+    db.commit()
+    return int(ligne.cout_micro_usd)
+
+
+def liberer_budget(db: Session, estimation_micro: int) -> int:
+    """Rend l'estimation d'un tour qui n'a pas abouti. Le tour reste compté
+    dans ``requetes`` : il a bien occupé le service."""
+    ligne = _ligne_du_jour(db, verrouillee=True)
+    ligne.cout_micro_usd = max(0, int(ligne.cout_micro_usd or 0) - int(estimation_micro))
+    db.commit()
+    return int(ligne.cout_micro_usd)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -190,8 +291,17 @@ async def converse(
     #    kim:P0 — this coroutine runs on the event loop: every synchronous
     #    SQLAlchemy call below is pushed to a worker thread so a public,
     #    unauthenticated endpoint cannot freeze the loop for every other client.
-    if not await asyncio.to_thread(_check_daily_budget, db):
-        logger.warning("Daily concierge budget exceeded — refusing turn")
+    # BILL-09 — RESERVATION avant l'appel, sous verrou de la ligne du jour.
+    # L'ancien controle lisait une somme puis appelait : N tours simultanes
+    # lisaient le meme reste et passaient tous. La retenue est reglee au cout
+    # mesure juste apres, ou liberee si le tour n'aboutit pas.
+    budget_reserve = False
+    try:
+        await asyncio.to_thread(reserver_budget, db, ESTIMATION_TOUR_MICRO)
+        budget_reserve = True
+    except BudgetConciergeDepasse as motif:
+        logger.warning("Budget du concierge atteint, tour refuse : %s", motif)
+    if not budget_reserve:
         return ConciergeReply(
             text=(
                 "Sorry — I'm taking a short break. "
@@ -261,7 +371,7 @@ async def converse(
         max_tokens=mode["config"]["max_tokens"],
         temperature=mode["config"]["temperature"],
         agent_type="pm",
-        force_provider="anthropic/claude-sonnet-4-6",
+        force_provider=FOURNISSEUR_CONCIERGE,
         # B1 : chemin public explicite. Le visiteur du site n'a pas de compte ;
         # `sans_compte=True` le dit au routeur, qui ne debite rien. Ce n'est
         # plus `user_id=None` : un `None` implicite est desormais refuse, parce
@@ -274,6 +384,7 @@ async def converse(
         response = await router.complete(request)
     except Exception:
         logger.exception("Sophie LLM call failed")
+        await asyncio.to_thread(liberer_budget, db, ESTIMATION_TOUR_MICRO)
         return ConciergeReply(
             text=(
                 "Sorry, something went wrong on my side. "
@@ -290,6 +401,9 @@ async def converse(
 
     # 6. Persist the assistant turn with metadata + cost.
     cost_micro = int((response.cost_usd or 0) * 1_000_000) if hasattr(response, "cost_usd") else 0
+    # BILL-09 : la retenue est remplacee par le cout mesure. Le compteur du
+    # jour vit dans `concierge_budget_jours`, hors de portee de `/forget`.
+    await asyncio.to_thread(regler_budget, db, ESTIMATION_TOUR_MICRO, cost_micro)
 
     def _persist_assistant_turn():
         db.add(ChatLog(

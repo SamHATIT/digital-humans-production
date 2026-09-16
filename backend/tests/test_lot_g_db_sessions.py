@@ -254,7 +254,13 @@ def test_concierge_source_pushes_sync_sql_off_the_event_loop():
     from app.services import sophie_concierge_service as concierge
 
     source = inspect.getsource(concierge.converse)
-    assert "asyncio.to_thread(_check_daily_budget" in source
+    # BILL-09 : `_check_daily_budget` (lecture seule de chat_logs) est remplacé
+    # par une réservation sous verrou, réglée au coût mesuré. Le prédicat du
+    # test est inchangé — aucun appel SQLAlchemy synchrone sur la boucle — il
+    # porte désormais sur les trois fonctions de budget qui ont pris sa place.
+    assert "asyncio.to_thread(reserver_budget" in source
+    assert "asyncio.to_thread(regler_budget" in source
+    assert "asyncio.to_thread(liberer_budget" in source
     assert "asyncio.to_thread(_load_history)" in source
     assert "asyncio.to_thread(_persist_user_turn)" in source
     assert "asyncio.to_thread(_persist_assistant_turn)" in source

@@ -48,6 +48,22 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class UnknownProviderPricingError(RuntimeError):
+    """BILL-09 — aucun tarif connu pour ce fournisseur/modele.
+
+    Rendre 0 dans ce cas neutralisait le plafond de depense du concierge
+    public : un tarif inconnu est refuse, pas devine (regle 6).
+    """
+
+    def __init__(self, provider_str: str):
+        self.provider_str = provider_str
+        super().__init__(
+            f"Aucun tarif connu pour '{provider_str}' dans le bloc `pricing` de "
+            f"config/llm_routing.yaml. Un cout inconnu ne vaut pas zero : "
+            f"ajoutez la cle, ou appelez un modele tarife."
+        )
+
+
 class CreditOwnerMissingError(RuntimeError):
     """Un appel LLM est arrive sans proprietaire de credits identifiable.
 
@@ -680,11 +696,72 @@ class LLMRouterService:
         model_config = models.get(model_name, {})
         return model_config.get("model_id", model_name)
 
+    def _resoudre_tarif(self, provider_str: str) -> Dict[str, float]:
+        """Tarif d'un fournisseur/modele, resolu EXPLICITEMENT (BILL-09).
+
+        `_calculate_cost` lisait `pricing[provider_str]` et, sur cle absente,
+        rendait un dictionnaire vide : `pricing.get("input", 0)` donnait alors
+        un cout de 0. Mesure du 16/09 : le concierge force
+        `anthropic/claude-sonnet-4-6`, cle qui n'existe pas dans le bloc
+        `pricing` (indexe par `anthropic/claude-sonnet`), donc chaque tour
+        public etait compte 0 et le plafond de 20 USD/jour ne montait jamais.
+
+        Resolution, dans l'ordre :
+          1. la cle exacte du bloc `pricing` ;
+          2. la cle `fournisseur/alias` dont le `model_id` correspond au
+             modele demande — c'est ce qui rattrape une forme versionnee ;
+          3. un fournisseur local ou GPU : cout CONNU et nul ;
+          4. sinon, refus explicite. Un tarif inconnu ne vaut pas zero.
+        """
+        tarifs = self.config.get("pricing", {}) or {}
+        exact = tarifs.get(provider_str)
+        if exact:
+            return exact
+
+        nom_fournisseur, _, nom_modele = provider_str.partition("/")
+
+        # Un modele servi localement ne coute rien, et c'est un zero connu.
+        if nom_fournisseur == "local" or nom_fournisseur.startswith("gpu_"):
+            return {"input": 0.0, "output": 0.0}
+
+        # Forme versionnee : on cherche la cle dont le model_id correspond.
+        for cle, tarif in tarifs.items():
+            cle_fournisseur, _, cle_alias = cle.partition("/")
+            if cle_fournisseur != nom_fournisseur:
+                continue
+            modeles = (self.providers.get(cle_fournisseur, {}) or {}).get("models", {}) or {}
+            model_id = (modeles.get(cle_alias, {}) or {}).get("model_id")
+            if model_id and model_id == nom_modele:
+                return tarif
+
+        raise UnknownProviderPricingError(provider_str)
+
     def _calculate_cost(self, provider_str: str, tokens_in: int, tokens_out: int) -> float:
-        pricing = self.config.get("pricing", {}).get(provider_str, {})
+        """Cout en USD d'un appel. Leve si le tarif est inconnu (BILL-09)."""
+        pricing = self._resoudre_tarif(provider_str)
         cost_in = (tokens_in / 1_000_000) * pricing.get("input", 0)
         cost_out = (tokens_out / 1_000_000) * pricing.get("output", 0)
         return round(cost_in + cost_out, 6)
+
+    def _cout_ou_zero_journalise(self, provider_str: str, tokens_in: int,
+                                 tokens_out: int) -> float:
+        """Cout de l'appel pour les chemins qui ne peuvent pas echouer ici.
+
+        Un appel deja parti et deja facture par le fournisseur ne doit pas se
+        transformer en erreur cote client parce que notre table de prix est
+        incomplete. Mais le trou est CRIE, pas avale : c'est la difference avec
+        le zero silencieux d'avant.
+        """
+        try:
+            return self._calculate_cost(provider_str, tokens_in, tokens_out)
+        except UnknownProviderPricingError:
+            logger.critical(
+                "[LLM] TARIF INCONNU pour %s : le cout de cet appel est compte 0 "
+                "faute de tarif. Ajoutez-le au bloc `pricing` de "
+                "config/llm_routing.yaml — un garde-fou de budget qui compte 0 "
+                "ne garde rien.", provider_str,
+            )
+            return 0.0
 
     # ----------------------------------------------------------------------
     # Provider calls
@@ -959,7 +1036,7 @@ class LLMRouterService:
                 )
 
             latency_ms = int((time.time() - start_time) * 1000)
-            cost_usd = self._calculate_cost(provider_str, tokens_in, tokens_out)
+            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out)
 
             return LLMResponse(
                 content=content, provider=provider_str, model_id=model_id,
@@ -1002,7 +1079,7 @@ class LLMRouterService:
             tokens_in = response.usage.prompt_tokens
             tokens_out = response.usage.completion_tokens
             latency_ms = int((time.time() - start_time) * 1000)
-            cost_usd = self._calculate_cost(provider_str, tokens_in, tokens_out)
+            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out)
             return LLMResponse(
                 content=content, provider=provider_str, model_id=model_id,
                 tokens_in=tokens_in, tokens_out=tokens_out, cost_usd=cost_usd,
