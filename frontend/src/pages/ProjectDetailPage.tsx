@@ -20,6 +20,7 @@ import ChangeRequestCard from '../components/projects/ChangeRequestCard';
 import type { ChangeRequestItem, CRStatus, CRPriority } from '../components/projects/ChangeRequestCard';
 import ChangeRequestModal from '../components/projects/ChangeRequestModal';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
+import AiDisclosureBanner from '../components/AiDisclosureBanner';
 
 interface Project {
   id: number;
@@ -583,6 +584,9 @@ export default function ProjectDetailPage() {
               {t('What would you like to discuss?', 'De quoi voulez-vous parler ?')}
             </p>
           </div>
+
+          {/* GL-19 (AI Act art. 50) — Sophie est une IA, dit avant le premier message. */}
+          <AiDisclosureBanner />
 
           <div className="max-h-[480px] overflow-y-auto p-5 space-y-4">
             {chatMessages.length === 0 ? (
