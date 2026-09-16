@@ -393,6 +393,12 @@ def get_execution_progress(
         # B1-bis : `status: "failed"` seul ne disait pas pourquoi. Ce champ vaut
         # `None` tant que la cause n'est pas reconnue — on ne devine pas.
         "failure_reason": motif_echec_execution(db, execution),
+        # VAGUE 1 / FILE C (PROD-07, GL-10) — champ ADDITIF : ce qui a manque
+        # pendant l'execution sans l'arreter (RAG injoignable, expert en echec,
+        # livrable non persiste). Sans lui, un SDS annonce termine ne disait pas
+        # ce qu'il ne contenait pas. Liste vide = rien a signaler ; l'absence de
+        # degradation se lit, elle ne se devine pas.
+        "degraded": execution.degraded or [],
     }
 
 
@@ -432,6 +438,9 @@ def _load_progress_snapshot(execution_id: int, user_id: int):
             # front suit reellement pendant une execution ; sans lui le motif
             # n'arriverait qu'a un rechargement de page.
             "failure_reason": motif_echec_execution(db, execution),
+            # PROD-07 / GL-10 : idem, les degradations suivent le meme chemin
+            # que le motif d'echec.
+            "degraded": execution.degraded or [],
         }
         return payload, current_status, overall
     finally:

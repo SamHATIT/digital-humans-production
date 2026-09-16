@@ -2296,6 +2296,85 @@ class PMOrchestratorServiceV2:
     # ============================================================================
     
     # ========================================================================
+    # DEGRADATIONS ET FINALISATION (VAGUE 1 / FILE C — PROD-07, GL-10)
+    # ========================================================================
+
+    #: Degradations qui interdisent de declarer un SDS termine. Astra : « une
+    #: etape obligatoire ou une persistance echouee interdit la finalisation ».
+    #: Les autres (RAG tombe, expert en echec) sont tolerees — mais visibles.
+    DEGRADATIONS_BLOQUANTES = ("deliverable_not_persisted",)
+
+    def _tracer_degradation(self, execution_id: int, motif: str, detail: str) -> None:
+        """Note sur l'execution ce qui s'est mal passe sans l'arreter.
+
+        PROD-07 : « pas de succes partiel cache ». Un lot BA perdu, un expert
+        en echec, un livrable non persiste etaient journalises puis oublies :
+        l'API annoncait un SDS termine, et rien ne disait ce qui manquait.
+
+        Meme colonne que GL-10 (`executions.degraded`) : c'est la meme
+        question — qu'est-ce qui n'a pas ete fait, et faut-il rejouer ?
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        try:
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution_id
+            ).first()
+            if execution is None:
+                return
+            degradations = list(execution.degraded or [])
+            if any(
+                d.get("motif") == motif and d.get("detail") == detail
+                for d in degradations
+            ):
+                return
+            degradations.append({
+                "motif": motif,
+                "detail": detail,
+                "at": datetime.now(timezone.utc).isoformat(),
+            })
+            execution.degraded = degradations
+            flag_modified(execution, "degraded")
+            self.db.commit()
+            logger.warning(
+                f"[Degradation] Execution {execution_id} : {motif} — {detail}"
+            )
+        except Exception as e:
+            logger.error(
+                f"[Degradation] Trace impossible sur l'execution {execution_id} : {e}"
+            )
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
+    def _verifier_finalisation_possible(self, execution_id: int) -> None:
+        """Interdit de finaliser sur une degradation bloquante (PROD-07).
+
+        Raises:
+            Exception: si un livrable obligatoire n'a pas ete persiste. Le
+                message nomme ce qui manque : un echec qui ne dit pas quoi
+                refaire est aussi couteux qu'un succes menteur.
+        """
+        execution = self.db.query(Execution).filter(
+            Execution.id == execution_id
+        ).first()
+        if execution is None:
+            return
+        bloquantes = [
+            d for d in (execution.degraded or [])
+            if d.get("motif") in self.DEGRADATIONS_BLOQUANTES
+        ]
+        if not bloquantes:
+            return
+        details = " ; ".join(str(d.get("detail", d.get("motif"))) for d in bloquantes)
+        raise Exception(
+            f"Finalisation refusee : un livrable obligatoire n'a pas ete "
+            f"persiste ({details}). Un SDS annonce termine dont le livrable "
+            f"n'est pas en base n'est pas un SDS termine (PROD-07)."
+        )
+
+    # ========================================================================
     # ANNULATION COOPERATIVE (VAGUE 1 / FILE C — CAL-07)
     # ========================================================================
 
@@ -2486,8 +2565,14 @@ class PMOrchestratorServiceV2:
         except Exception:
             self.db.rollback()
 
-    def _save_deliverable(self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict):
-        """Save agent deliverable to database"""
+    def _save_deliverable(
+        self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict
+    ) -> bool:
+        """Save agent deliverable to database. Rend True si le livrable est en base.
+
+        VAGUE 1 / FILE C (PROD-07) : rendait None dans tous les cas, succes
+        comme echec. Un appelant ne pouvait pas distinguer les deux.
+        """
         try:
             # Convert dict to JSON string for PostgreSQL
             content_json = json.dumps(content, ensure_ascii=False) if isinstance(content, dict) else content
@@ -2513,11 +2598,22 @@ class PMOrchestratorServiceV2:
             self.db.add(deliverable)
             self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
             logger.info(f"✅ Saved deliverable: {agent_id}_{deliverable_type} (execution {execution_id})")
+            return True
         except Exception as e:
             logger.error(f"❌ Failed to save deliverable {agent_id}_{deliverable_type}: {e}")
             import traceback
             traceback.print_exc()
             self.db.rollback()
+            # VAGUE 1 / FILE C — PROD-07 : l'echec etait journalise puis avale,
+            # et la methode ne rendait rien. Le workflow continuait jusqu'a
+            # COMPLETED sur un livrable qui n'existe pas. Il rend desormais
+            # False et laisse une trace lisible sur l'execution.
+            self._tracer_degradation(
+                execution_id,
+                "deliverable_not_persisted",
+                f"{agent_id}_{deliverable_type} : {type(e).__name__}: {e}",
+            )
+            return False
 
 
     # ============================================================================
@@ -3636,6 +3732,15 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     logger.info(f"[Phase 4] ✅ {agent_name} completed")
                     self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
                 else:
+                    # PROD-07 : l'echec reste non fatal (choix produit), mais il
+                    # cesse d'etre invisible — il est trace sur l'execution et
+                    # expose par l'API.
+                    self._tracer_degradation(
+                        execution_id,
+                        "expert_failed",
+                        f"{agent_id} ({agent_name}) : "
+                        f"{expert_result.get('error', 'echec sans message')}",
+                    )
                     # H21: Expert failures are non-fatal — warn and skip
                     logger.warning(f"[Phase 4] ⚠️ {agent_name} failed (non-fatal): {expert_result.get('error')}")
                     self._update_progress(execution, agent_id, "failed", 88, f"Skipped: {str(expert_result.get('error', 'Unknown'))[:50]}")
@@ -3889,6 +3994,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # FINALIZE
         # ========================================
+        # PROD-07 — une persistance obligatoire ratee interdit la finalisation.
+        # Leve avant toute ecriture d'etat terminal : l'exception remonte au
+        # `except` d'`execute_workflow`, qui ferme l'execution en FAILED avec
+        # le motif, au lieu d'annoncer COMPLETED sur un livrable absent.
+        self._verifier_finalisation_possible(execution_id)
+
         try:
             sm.transition_to("sds_complete")
         except Exception as e:
