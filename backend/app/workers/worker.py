@@ -5,6 +5,7 @@ Run with: python -m arq app.workers.worker.WorkerSettings
 import logging
 from arq import cron
 from arq.connections import ArqRedis
+from arq.jobs import Job, JobStatus
 from app.workers.arq_config import ARQ_QUEUE_NAME, REDIS_SETTINGS
 from app.workers.retention import purge_chat_logs_task
 from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
@@ -12,41 +13,157 @@ from app.workers.tasks import execute_sds_task, resume_architecture_task, execut
 logger = logging.getLogger("arq.worker")
 
 
+async def _job_absent_de_redis(redis, job_id: str, queue_name: str):
+    """Le job `job_id` est-il absent de Redis ?
+
+    VAGUE 1 / FILE C (PROD-04 = CAL-11). Rend `(absent, statut)`. `absent` ne
+    vaut True que pour `JobStatus.not_found` : ni resultat, ni cle
+    `arq:in-progress:` (un worker l'execute), ni entree en file. Un job
+    `complete`, `in_progress` ou `queued` n'est PAS un fantome — c'est
+    precisement ce que le nettoyage global detruisait.
+
+    Rend `(False, None)` si Redis ne repond pas : sans reponse, pas de
+    decision (regle 6 — on ne devine pas).
+    """
+    try:
+        statut = await Job(job_id, redis, _queue_name=queue_name).status()
+    except Exception as e:  # Redis injoignable, file inconnue...
+        logger.warning(
+            f"[Startup] Statut du job {job_id} illisible ({e}) — aucune decision prise"
+        )
+        return False, None
+    return statut == JobStatus.not_found, statut
+
+
+def _marquer_echouee(db, execution, job_id: str, statut) -> None:
+    """Passe une execution abandonnee en FAILED, statut ET etat de la machine.
+
+    L'ancien nettoyage n'ecrivait que `status` : `execution_state` restait a
+    `sds_phase3_running`, si bien que l'ecran de suivi et la machine a etats se
+    contredisaient (CAL-02/CAL-04).
+    """
+    from app.models.execution import ExecutionStatus
+    from app.services.execution_state import ExecutionStateMachine
+
+    motif = (
+        f"[Worker restart] Job ARQ {job_id} absent de Redis (statut={statut}) — "
+        f"execution abandonnee, reprenez-la avec /resume."
+    )
+    try:
+        ExecutionStateMachine(db, execution.id).transition_to(
+            "failed", metadata={"raison": "job_arq_absent", "job_id": job_id}
+        )
+    except Exception as e:
+        logger.warning(
+            f"[Startup] Transition vers 'failed' refusee pour l'execution "
+            f"{execution.id} ({e}) — statut et etat poses directement"
+        )
+        execution.status = ExecutionStatus.FAILED
+        execution.execution_state = "failed"
+    execution.logs = (execution.logs or "") + "\n" + motif
+    db.commit()
+    logger.warning(f"[Startup] Execution {execution.id} → FAILED : {motif}")
+
+
+async def _reconcilier_executions_actives(ctx: dict, redis) -> dict:
+    """Ne nettoie que les executions dont le job ARQ est reellement absent.
+
+    PROD-04 = CAL-11 (rapport Astra L422 ; mesure de calibration du 15/09
+    18:0x). Avant : le demarrage marquait FAILED **toutes** les executions
+    RUNNING, sans propriete ni preuve d'abandon — le redemarrage des trois
+    workers de calibration a tue l'execution 179, qui tournait dans le worker
+    principal. Avec plusieurs workers ou un redeploiement pendant un run,
+    l'incoherence etait garantie.
+
+    Desormais chaque execution RUNNING est jugee sur son job :
+
+    - job en cours, en file ou termine   -> on ne touche a rien ;
+    - job absent de Redis                -> FAILED, avec le motif dans `logs` ;
+    - pas d'`arq_job_id` (execution d'avant la colonne, ou enfilage manuel)
+      -> aucune decision possible, WARNING nomme l'execution ;
+    - enfilee sur une AUTRE file que celle de ce worker -> pas notre travail.
+
+    Rend un compte par categorie, pour le journal et pour les tests.
+    """
+    from app.database import SessionLocal
+    from app.models.execution import Execution, ExecutionStatus
+
+    comptes = {"vivantes": 0, "echouees": 0, "sans_job": 0, "autre_file": 0}
+    db = SessionLocal()
+    try:
+        actives = db.query(Execution).filter(
+            Execution.status == ExecutionStatus.RUNNING
+        ).all()
+        for execution in actives:
+            job_id = execution.arq_job_id
+            if not job_id:
+                comptes["sans_job"] += 1
+                logger.warning(
+                    f"[Startup] Execution {execution.id} est RUNNING sans "
+                    f"arq_job_id : impossible de dire si son job vit. Laissee "
+                    f"en l'etat — le statut seul n'est pas une preuve "
+                    f"d'abandon (PROD-04)."
+                )
+                continue
+
+            file_execution = execution.arq_queue_name or ARQ_QUEUE_NAME
+            if file_execution != ARQ_QUEUE_NAME:
+                comptes["autre_file"] += 1
+                logger.info(
+                    f"[Startup] Execution {execution.id} enfilee sur "
+                    f"{file_execution!r}, ce worker sert {ARQ_QUEUE_NAME!r} — "
+                    f"pas de decision."
+                )
+                continue
+
+            absent, statut = await _job_absent_de_redis(redis, job_id, file_execution)
+            if absent:
+                comptes["echouees"] += 1
+                _marquer_echouee(db, execution, job_id, statut)
+            else:
+                comptes["vivantes"] += 1
+                logger.info(
+                    f"[Startup] Execution {execution.id} laissee intacte : "
+                    f"job {job_id} statut={statut}"
+                )
+    finally:
+        db.close()
+    return comptes
+
+
 async def startup(ctx: dict):
-    """BUG-008: Flush stale jobs on worker startup to prevent ghost execution."""
+    """Reconcilie les executions actives avec les jobs reellement presents.
+
+    VAGUE 1 / FILE C — PROD-04 = CAL-11. Deux comportements ont ete retires :
+
+    1. **La purge de file.** Le demarrage appelait `job.abort()` sur tous les
+       jobs en attente (« BUG-008 : flush stale jobs »), sans critere de
+       vetuste : un job enfile trois secondes plus tot par un client etait
+       annule au premier redemarrage. Un job en file est du travail en
+       attente, pas un fantome.
+    2. **Le nettoyage global des RUNNING.** Voir
+       `_reconcilier_executions_actives`.
+    """
     redis: ArqRedis = ctx.get("redis") or ctx.get("pool")
-    if redis:
-        try:
-            # BUG-008: Flush stale queued jobs from previous worker instance
-            queued = await redis.queued_jobs()
-            if queued:
-                logger.warning(f"[Startup] Found {len(queued)} stale queued jobs — aborting them")
-                for job in queued:
-                    await job.abort()
-                logger.info(f"[Startup] Aborted {len(queued)} stale jobs")
-        except Exception as e:
-            logger.warning(f"[Startup] Redis queue flush failed (non-fatal): {e}")
-        try:
-            # Find executions stuck in RUNNING state (from previous worker crash)
-            from app.database import SessionLocal
-            from app.models.execution import Execution, ExecutionStatus
-            db = SessionLocal()
-            try:
-                # Find executions stuck in RUNNING state (from previous worker crash)
-                stuck = db.query(Execution).filter(
-                    Execution.status == ExecutionStatus.RUNNING
-                ).all()
-                for exec in stuck:
-                    logger.warning(f"[Startup] Found stuck execution {exec.id} — marking as FAILED for safe resume")
-                    exec.status = ExecutionStatus.FAILED
-                    exec.logs = (exec.logs or "") + "\n[Worker restart] Marked as failed — use resume to continue"
-                db.commit()
-                if stuck:
-                    logger.info(f"[Startup] Cleaned {len(stuck)} stuck executions")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.warning(f"[Startup] Cleanup failed (non-fatal): {e}")
+    if not redis:
+        logger.warning(
+            "[Startup] Aucune connexion Redis dans le contexte : aucune "
+            "reconciliation des executions actives (aucune decision sans preuve)."
+        )
+        logger.info("[Startup] ARQ worker ready")
+        return
+
+    try:
+        comptes = await _reconcilier_executions_actives(ctx, redis)
+        logger.info(
+            f"[Startup] Reconciliation : {comptes['echouees']} execution(s) "
+            f"abandonnee(s) marquee(s) FAILED, {comptes['vivantes']} laissee(s) "
+            f"intacte(s), {comptes['sans_job']} sans arq_job_id, "
+            f"{comptes['autre_file']} sur une autre file."
+        )
+    except Exception as e:
+        logger.warning(f"[Startup] Reconciliation impossible (non fatale) : {e}")
+
     logger.info("[Startup] ARQ worker ready")
 
 
