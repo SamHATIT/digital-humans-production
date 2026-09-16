@@ -64,6 +64,13 @@ from app.services.document_generator import generate_professional_sds
 from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
 # VAGUE B / LOT B1 — proprietaire des credits propage depuis executions.user_id.
 from app.services.llm_service import credit_owner, reset_credit_owner, set_credit_owner
+# VAGUE 1 / FILE C (GL-10) — l'execution courante suit le fil d'execution, pour
+# que les services appeles en aval (RAG) sachent quelle execution marquer
+# `degraded` et nommer dans l'alerte admin, sans traverser onze signatures.
+from app.services.execution_context import (
+    poser_execution_courante,
+    reprendre_execution_courante,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -626,6 +633,9 @@ class PMOrchestratorServiceV2:
         # B1 : pose avant le `try:` pour que le `finally:` puisse toujours le
         # reinitialiser, meme si l'execution est introuvable.
         jeton_credits = None
+        # GL-10 : pose des l'entree, pour couvrir aussi les appels qui ne
+        # passent pas par `_run_agent` (sds_section_writer en phase 4).
+        jeton_execution = poser_execution_courante(execution_id)
 
         try:
             # Get project and execution
@@ -1861,6 +1871,7 @@ class PMOrchestratorServiceV2:
             # B1 : le proprietaire des credits ne survit pas au run.
             if jeton_credits is not None:
                 reset_credit_owner(jeton_credits)
+            reprendre_execution_courante(jeton_execution)
 
             # Cleanup temp files
             import shutil
@@ -2147,11 +2158,16 @@ class PMOrchestratorServiceV2:
         # resout deja `executions.user_id` ; cette variable de contexte couvre
         # en plus les appels du meme run qui ne portent pas d'execution_id.
         jeton_credits = set_credit_owner(self._proprietaire_credits(execution_id))
+        # GL-10 : meme portee que le proprietaire des credits — tout ce que cet
+        # agent declenche appartient a cette execution, y compris ses requetes
+        # RAG.
+        jeton_execution = poser_execution_courante(execution_id)
         try:
             return await self._run_agent_interne(
                 agent_id, input_data, execution_id, project_id, mode
             )
         finally:
+            reprendre_execution_courante(jeton_execution)
             reset_credit_owner(jeton_credits)
 
     def _proprietaire_credits(self, execution_id: int) -> Optional[int]:

@@ -257,3 +257,56 @@ def test_sans_jeton_telegram_aucun_envoi_n_est_tente(monkeypatch, caplog):
         "l'alerte doit au moins exister dans le journal quand le transport "
         "n'est pas configure"
     )
+
+
+def test_l_orchestrateur_pose_l_execution_courante(db_session, monkeypatch):
+    """Sans cela, le dispositif serait inerte en production : `rag_service` ne
+    saurait jamais quelle execution marquer (regle 6)."""
+    from app.services.execution_context import execution_courante
+    from app.services.pm_orchestrator_service_v2 import PMOrchestratorServiceV2
+
+    user = User(
+        email="vague1c-gl10-ctx@example.test",
+        hashed_password="not-a-real-hash",
+        name="Vague1 C GL-10 ctx",
+        subscription_tier="pro",
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    project = Project(user_id=user.id, name="GL-10 ctx")
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    execution = Execution(
+        project_id=project.id,
+        user_id=user.id,
+        selected_agents=["pm"],
+        agent_execution_status={},
+        status=ExecutionStatus.RUNNING,
+    )
+    db_session.add(execution)
+    db_session.commit()
+    db_session.refresh(execution)
+
+    vues = []
+
+    async def _interne(self, agent_id, input_data, execution_id, project_id, mode=None):
+        vues.append(execution_courante())
+        return {"success": True, "output": {"content": {}, "metadata": {}}}
+
+    monkeypatch.setattr(PMOrchestratorServiceV2, "_run_agent_interne", _interne)
+
+    import asyncio
+
+    service = PMOrchestratorServiceV2(db_session)
+
+    async def _jouer():
+        await service._run_agent("pm", {}, execution.id, project.id)
+
+    asyncio.run(_jouer())
+
+    assert vues == [execution.id], (
+        f"l'execution courante n'est pas posee autour de l'agent : {vues}"
+    )
+    assert execution_courante() is None, "la valeur survit a l'agent"

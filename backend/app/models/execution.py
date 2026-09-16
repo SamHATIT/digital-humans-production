@@ -100,6 +100,16 @@ class Execution(Base):
     # l'orchestrateur entre deux agents.
     cancel_requested_at = Column(DateTime(timezone=True), nullable=True)
 
+    # VAGUE 1 / FILE C (GL-10) — degradations subies par cette execution.
+    #
+    # Le 15/09, le RAG documentaire est tombe toute la journee sans que rien ne
+    # le trace : impossible, le soir, de dire quelles executions avaient
+    # travaille sans corpus et lesquelles il fallait rejouer. Forme :
+    # [{"motif": "rag_unavailable", "detail": "...", "at": "2026-09-16T..."}].
+    #
+    # La poursuite sans corpus reste toleree (arbitrage Sam) — mais tracee.
+    degraded = Column(JSONB, nullable=True)
+
     # Relationships
     project = relationship("Project", back_populates="executions")
     user = relationship("User", back_populates="executions")
