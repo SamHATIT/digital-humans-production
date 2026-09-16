@@ -116,7 +116,7 @@ Bilan : 6 faites · 9 périmées · 9 fusionnées · 7 à Sam · 7 plus tard · 
 | AS | Chantier Astra | Constats | État 16/09 |
 |---|---|---|---|
 | AS-01 | Révoquer les secrets, fermer les surfaces internes | SEC-01/02/11 | ✅ SEC-01/02 (cc89ca8), GL-11 purge ; **SEC-11 (blog public → dépenses, injection CLI) à faire** |
-| AS-02 | Environnement de correction sûr | OPS-05 | ❌ — préalable aux vagues Claude Code |
+| AS-02 | Environnement de correction sûr | OPS-05 | ✅ PR #11 fusionnée 16/09 (fbc5f60) : base par exécution (rôle `dh_test` CREATEDB, DSN dans `/root/.dh_test_db.env`), `.env.test` seul lu, secrets factices, garde réseau comptée, Redis/file/Chroma/sorties isolés ; 24 tests dont 4 contrôles négatifs, rouges sur la base (6 failed / 12 errors), verts sur le VPS ; suite 671→694 passés, les 31 rouges préexistants inchangés (→ OPS-06, AS-11) |
 | AS-03 | Fuites interclients à correctif court | SEC-05/06/19, puis SEC-12 | ❌ |
 | AS-04 | Contenus actifs et sorties réseau | SEC-09/10/15, SEC-03 | ❌ |
 | AS-05 | Fermer toutes les écritures BUILD pour Free/Pro | SEC-08, BILL-05 | ❌ |
