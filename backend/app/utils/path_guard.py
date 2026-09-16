@@ -4,8 +4,8 @@ Les noms de fichiers produits par les agents servaient de chemins d'ecriture,
 et la « normalisation » en place ne refusait ni `..` ni tous les chemins
 absolus. **Le modele n'est pas une frontiere de confiance** : une sortie
 orientee par un brief client peut viser un fichier accessible au service. Le
-retrait de `shell=True` (LOT-C) ne corrige pas cette classe : il n'y a pas
-d'interpreteur a tromper, seulement un chemin a suivre.
+passage des commandes en liste d'arguments (LOT-C) ne corrige pas cette
+classe : il n'y a pas d'interpreteur a tromper, seulement un chemin a suivre.
 
 La validation est faite **au point d'ecriture**, pas au point de generation :
 c'est le seul endroit qui connait la racine reelle de l'execution.

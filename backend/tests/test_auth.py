@@ -23,8 +23,15 @@ def _sel_ip_pour_register(monkeypatch):
     monkeypatch.setattr(auth_module, "IP_SALT", "sel-de-test-test-auth", raising=False)
 
 
-def test_register_user_success(client):
-    """Test successful user registration."""
+def test_register_legacy_est_ferme(client):
+    """SEC-12 (vague 1 / file A, 16/09) : `/register` creait un compte ACTIF
+    avec l'adresse d'un tiers sans en prouver la possession (rapport Astra
+    L221). Le chemin est ferme ; l'inscription verifiee
+    (`signup-request` + `signup-confirm`) est exercee par
+    tests/test_vague_b_b3_consentement.py. Les deux tests d'inscription qui
+    vivaient ici — creation et doublon d'adresse — portaient sur ce chemin
+    ferme : ils sont remplaces par ce controle de fermeture.
+    """
     response = client.post(
         "/api/auth/register",
         json={
@@ -35,41 +42,8 @@ def test_register_user_success(client):
         }
     )
 
-    assert response.status_code == status.HTTP_201_CREATED
-    data = response.json()
-    assert data["email"] == "test@example.com"
-    assert data["name"] == "Test User"
-    assert data["is_active"] is True
-    assert "id" in data
-    assert "hashed_password" not in data
-
-
-def test_register_user_duplicate_email(client):
-    """Test registration with duplicate email fails."""
-    # Register first user
-    client.post(
-        "/api/auth/register",
-        json={
-            "email": "test@example.com",
-            "name": "Test User",
-            "password": "testpassword123",
-            **_CONSENT,
-        }
-    )
-
-    # Try to register with same email
-    response = client.post(
-        "/api/auth/register",
-        json={
-            "email": "test@example.com",
-            "name": "Another User",
-            "password": "anotherpassword123",
-            **_CONSENT,
-        }
-    )
-
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "already registered" in response.json()["detail"].lower()
+    assert response.status_code == status.HTTP_410_GONE, response.text
+    assert "signup-request" in str(response.json()["detail"])
 
 
 def test_login_success(client):
