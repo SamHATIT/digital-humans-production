@@ -133,7 +133,9 @@ class AgentIntegrationService:
         if agents_path is None:
             agents_path = str(AGENTS_BASE_PATH)
         self.agents_path = Path(agents_path)
-        self.output_dir = Path(__file__).resolve().parent.parent.parent / "outputs"
+        # Vague 0 / AS-02 : etait `backend/outputs` en dur — sur le VPS, l arbre
+        # de travail deploye. settings.OUTPUT_DIR est la seule source (DH_OUTPUT_DIR).
+        self.output_dir = Path(settings.OUTPUT_DIR)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._validate_agents_availability()
 
