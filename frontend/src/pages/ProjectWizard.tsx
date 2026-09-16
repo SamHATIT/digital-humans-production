@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Loader2, Upload, X, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
 import { auth, projects, executions } from '../services/api';
 import StudioInput from '../components/studio/StudioInput';
@@ -12,22 +12,24 @@ import StudioStepper from '../components/studio/StudioStepper';
 import WizardActHeader from '../components/studio/WizardActHeader';
 import EnsembleDisplay from '../components/studio/EnsembleDisplay';
 import { STUDIO_ENSEMBLE } from '../lib/agents';
-
-type Priority = 'standard' | 'express';
+import {
+  PRODUITS,
+  buildProjectPayload,
+  type SalesforceEdition,
+} from '../lib/wizardPayload';
 
 interface WizardData {
   // Act I — The opening
   name: string;
   industry: string;
-  salesforce_edition: 'enterprise' | 'unlimited' | 'other';
+  // PROD-11 : le produit est demande, il n'est plus deduit de l'edition.
+  salesforce_product: string;
+  salesforce_edition: SalesforceEdition;
   user_role: 'admin' | 'consultant' | 'project_lead' | 'other';
   // Act II — The brief
   description: string;
   business_goals: string;
   constraints: string;
-  uploaded_file_name: string;
-  // Act IV — The schedule
-  priority: Priority;
   // Act V — Curtain up
   agreed_terms: boolean;
 }
@@ -35,19 +37,14 @@ interface WizardData {
 const EMPTY_DATA: WizardData = {
   name: '',
   industry: '',
+  salesforce_product: 'service_cloud',
   salesforce_edition: 'enterprise',
   user_role: 'consultant',
   description: '',
   business_goals: '',
   constraints: '',
-  uploaded_file_name: '',
-  priority: 'standard',
   agreed_terms: false,
 };
-
-const SDS_CREDIT_COST = 800;
-const BUILD_CREDIT_COST = 3500;
-const EXPRESS_MULTIPLIER = 1.2;
 
 const DRAFT_KEY = (userId: string | number) => `wizard-draft-${userId}`;
 
@@ -267,51 +264,54 @@ export default function ProjectWizard() {
     setSubmitting(true);
     setError(null);
     try {
-      const businessRequirements = [
-        data.description.trim(),
-        '\n## Business Goals\n' + data.business_goals.trim(),
-        data.constraints.trim()
-          ? '\n## Constraints / Non-goals\n' + data.constraints.trim()
-          : '',
-      ]
-        .filter(Boolean)
-        .join('\n\n');
-
-      const result = await projects.create({
-        name: data.name.trim(),
-        description: data.description.trim(),
-        salesforce_product:
-          data.salesforce_edition === 'enterprise'
-            ? 'Sales Cloud'
-            : data.salesforce_edition === 'unlimited'
-              ? 'Service Cloud'
-              : 'Platform',
-        organization_type: 'New Implementation',
-        industry: data.industry,
-        business_requirements: businessRequirements,
-        selected_agents: STUDIO_ENSEMBLE.map((a) => a.id),
-      });
+      // PROD-11 : le corps est construit par `lib/wizardPayload`, qui ne
+      // deduit plus le produit de l'edition et n'envoie plus de champs que le
+      // schema ignore (`industry`, `selected_agents`) — le secteur et
+      // l'edition sont portes par le texte des exigences, qui est lu.
+      const result = await projects.create(buildProjectPayload(data));
       try {
         window.localStorage.removeItem(DRAFT_KEY(userKey));
       } catch {
         /* ignore */
       }
+
       const newId: number | undefined = result?.id ?? result?.project_id;
-      if (newId) {
-        // Demarrer l'execution (Phase 1 = extraction des BR par Sophie), puis ouvrir la
-        // validation avec l'executionId. Sans ce demarrage, br-validation affiche 0 BR
-        // (rien ne declenche l'extraction).
-        try {
-          const exec = await executions.start(newId, STUDIO_ENSEMBLE.map((a) => a.id));
-          const execId: number | undefined = exec?.execution_id;
-          navigate(execId ? `/br-validation/${newId}?executionId=${execId}` : `/br-validation/${newId}`);
-        } catch {
-          // Demarrage KO : on ouvre quand meme la page (l'utilisateur verra l'etat / pourra relancer).
-          navigate(`/br-validation/${newId}`);
-        }
-      } else {
-        navigate('/');
+      if (!newId) {
+        setError(
+          t(
+            'The project was not created. Please try again.',
+            "Le projet n'a pas été créé. Réessayez.",
+          ),
+        );
+        return;
       }
+
+      // PROD-11 : un echec de demarrage etait absorbe par une navigation vers
+      // la page BR, qui affichait alors zero exigence sans rien expliquer. Le
+      // refus est desormais montre, et le projet cree reste accessible.
+      let execId: number | undefined;
+      try {
+        const exec = await executions.start(newId, STUDIO_ENSEMBLE.map((a) => a.id));
+        execId = exec?.execution_id;
+      } catch (e) {
+        setError(
+          t(
+            `The project was created but the performance could not start: ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+            `Le projet a été créé mais la représentation n'a pas pu démarrer : ${
+              e instanceof Error ? e.message : String(e)
+            }`,
+          ),
+        );
+        return;
+      }
+
+      // PROD-11 : le wizard ouvrait immediatement la page BR, qui chargeait
+      // zero exigence (l'extraction commence a peine) et ne se rafraichissait
+      // pas. On ouvre le monitoring, qui suit l'execution jusqu'a
+      // `waiting_br_validation` et propose alors la revue.
+      navigate(execId ? `/execution/${execId}/monitor` : `/br-validation/${newId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('Submission failed.', "Échec de l'envoi."));
     } finally {
@@ -405,7 +405,7 @@ export default function ProjectWizard() {
               {actIndex === 0 && <ActOne data={data} update={update} lang={lang} />}
               {actIndex === 1 && <ActTwo data={data} update={update} />}
               {actIndex === 2 && <ActThree />}
-              {actIndex === 3 && <ActFour data={data} update={update} tier={tier} />}
+              {actIndex === 3 && <ActFour tier={tier} />}
               {actIndex === 4 && <ActFive data={data} update={update} acts={acts} />}
             </motion.div>
           </AnimatePresence>
@@ -507,6 +507,18 @@ function ActOne({ data, update, lang }: ActProps & { lang: 'en' | 'fr' }) {
           }))}
         />
 
+        <StudioSelect
+          name="salesforce_product"
+          label={t('Salesforce product', 'Produit Salesforce')}
+          value={data.salesforce_product}
+          onChange={(e) => update('salesforce_product', e.target.value)}
+          placeholder={t('Choose a product…', 'Choisissez un produit…')}
+          options={Object.entries(PRODUITS).map(([value, label]) => ({ value, label }))}
+        />
+
+        {/* PROD-11 : l'edition ne determine plus le produit — ce sont deux
+            choses differentes, et le projet partait avec un produit que
+            personne n'avait choisi. */}
         <StudioRadioGroup
           name="salesforce_edition"
           label={t('Salesforce edition', 'Édition Salesforce')}
@@ -543,11 +555,6 @@ function ActOne({ data, update, lang }: ActProps & { lang: 'en' | 'fr' }) {
 // ─────────────────────────────────────────────────────────────────────
 function ActTwo({ data, update }: ActProps) {
   const { t } = useLang();
-  const [dragOver, setDragOver] = useState(false);
-
-  const onPickFile = (file: File | null) => {
-    update('uploaded_file_name', file ? file.name : '');
-  };
 
   return (
     <>
@@ -600,74 +607,18 @@ function ActTwo({ data, update }: ActProps) {
           )}
         />
 
-        <div>
-          <p className="block font-mono text-[10px] tracking-eyebrow uppercase text-bone-3 mb-2">
-            {t('Brief PDF (optional)', 'Brief PDF (optionnel)')}
-          </p>
-          <label
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const f = e.dataTransfer.files?.[0];
-              if (f) onPickFile(f);
-            }}
-            className={[
-              'block border border-dashed bg-ink-2 px-6 py-8 cursor-pointer transition-colors',
-              dragOver
-                ? 'border-brass bg-ink-3'
-                : 'border-bone/15 hover:border-brass/40',
-            ].join(' ')}
-          >
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              className="sr-only"
-              onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-            />
-            {data.uploaded_file_name ? (
-              <span className="flex items-center justify-between gap-3">
-                <span className="flex items-center gap-3 min-w-0">
-                  <FileText className="w-4 h-4 text-brass shrink-0" />
-                  <span className="font-mono text-[12px] text-bone truncate">
-                    {data.uploaded_file_name}
-                  </span>
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onPickFile(null);
-                  }}
-                  aria-label={t('Remove file', 'Retirer le fichier')}
-                  className="p-1 text-bone-4 hover:text-error transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </span>
-            ) : (
-              <span className="flex items-center gap-3">
-                <Upload className="w-4 h-4 text-bone-3" />
-                <span className="font-mono text-[11px] tracking-[0.05em] text-bone-3">
-                  {t(
-                    'Drop a brief PDF here, or click to browse.',
-                    'Déposez un PDF ici, ou cliquez pour parcourir.',
-                  )}
-                </span>
-              </span>
-            )}
-          </label>
-          <p className="mt-2 font-mono text-[11px] text-bone-4">
-            {t(
-              'Optional — Sophie will read it during the casting.',
-              'Optionnel — Sophie le lira pendant le casting.',
-            )}
-          </p>
-        </div>
+        {/* PROD-11 — le champ « Brief PDF » est retire, pas desactive.
+            Mesure du 16/09 : le fichier n'etait conserve que par son nom
+            (`update('uploaded_file_name', file.name)`) et n'etait jamais
+            televerse, alors que l'ecran annoncait « Sophie le lira pendant le
+            casting ». Meme televerse, il ne serait pas lu au bon moment :
+            `agents/roles/salesforce_pm.py` (Sophie, qui extrait les BR) passe
+            `rag_context=None` et n'interroge jamais le RAG projet ; seuls
+            Olivia, Marcus et Lucas passent `project_id` a
+            `get_salesforce_context`. Et le palier Free n'a pas
+            `upload_documents`. La promesse est retiree plutot que simulee ;
+            le televersement reel vit deja dans la page projet
+            (`POST /api/projects/{id}/documents`). */}
       </div>
     </>
   );
@@ -696,25 +647,17 @@ function ActThree() {
 // ─────────────────────────────────────────────────────────────────────
 // Act IV — The schedule
 // ─────────────────────────────────────────────────────────────────────
-function ActFour({
-  data,
-  update,
-  tier,
-}: ActProps & { tier: BillingTier | null }) {
+function ActFour({ tier }: { tier: BillingTier | null }) {
   const { t } = useLang();
-  const baseSds = SDS_CREDIT_COST;
-  const baseBuild = BUILD_CREDIT_COST;
-  const multiplier = data.priority === 'express' ? EXPRESS_MULTIPLIER : 1;
-  const totalEstimate = Math.round((baseSds + baseBuild) * multiplier);
 
   return (
     <>
       <WizardActHeader
         eyebrow={t('Act IV · The schedule', 'Acte IV · Le calendrier')}
-        title={t('When and how much.', 'Quand et combien.')}
+        title={t('What it draws on.', 'Ce que cela mobilise.')}
         lede={t(
-          'We estimate the credits and pace. Express adds 20% to the bill but moves you to the head of the queue.',
-          "Estimation des crédits et du rythme. L'express ajoute 20 % à la facture mais vous place en tête de file.",
+          'The cost follows the complexity of your brief, not a fixed price list. Here is what your plan currently leaves you.',
+          "Le coût suit la complexité de votre brief, pas un forfait. Voici ce qu'il vous reste sur votre palier.",
         )}
       />
 
@@ -738,48 +681,15 @@ function ActFour({
           </div>
         </div>
 
-        <div className="border border-bone/10 bg-ink-2 px-5 py-4">
-          <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
-            {t('Estimated cost in credits', 'Coût estimé en crédits')}
-          </p>
-          <p className="mt-2 font-mono text-2xl text-brass">
-            ~ {totalEstimate.toLocaleString()}
-          </p>
-          <p className="mt-2 font-mono text-[11px] text-bone-3 leading-relaxed">
-            {t(
-              `SDS phase ~${baseSds.toLocaleString()} · BUILD phase ~${baseBuild.toLocaleString()}`,
-              `Phase SDS ~${baseSds.toLocaleString()} · Phase BUILD ~${baseBuild.toLocaleString()}`,
-            )}
-            {data.priority === 'express' && t(' · Express +20%', ' · Express +20 %')}
-          </p>
-        </div>
-
-        <StudioRadioGroup
-          name="priority"
-          label={t('Priority', 'Priorité')}
-          value={data.priority}
-          onChange={(v) => update('priority', v as Priority)}
-          options={[
-            {
-              value: 'standard',
-              label: t('Standard', 'Standard'),
-              description: t('Estimated 5–7 working days.', 'Délai estimé 5 à 7 jours ouvrés.'),
-            },
-            {
-              value: 'express',
-              label: t('Express', 'Express'),
-              description: t(
-                '+20% credits · Estimated 2–3 working days.',
-                '+20 % de crédits · Délai estimé 2 à 3 jours ouvrés.',
-              ),
-            },
-          ]}
-        />
-
-        <p className="font-mono text-[11px] text-bone-4">
+        {/* PROD-11 / BILL-07 — l'acte affichait « SDS ~800 · BUILD ~3 500 »
+            et une option « Express +20 % ». Les trois etaient des constantes
+            du fichier : aucune n'etait transmise, et aucun mecanisme
+            d'execution prioritaire n'existe. Annoncer un chiffre qu'on ne
+            calcule pas est pire que ne rien annoncer. */}
+        <p className="font-mono text-[11px] leading-relaxed text-bone-3">
           {t(
-            'Estimated completion is indicative — Sophie will refine it during BR validation.',
-            "L'estimation est indicative — Sophie l'affinera pendant la validation des BR.",
+            'Each agent consumes credits in proportion to the work your brief requires. The exact amount appears live on the execution screen, agent by agent.',
+            "Chaque agent consomme des crédits en proportion du travail que votre brief demande. Le montant exact s'affiche en direct sur l'écran d'exécution, agent par agent.",
           )}
         </p>
       </div>
@@ -805,9 +715,8 @@ function ActFive({
       value: data.salesforce_edition,
     },
     {
-      label: t('Priority', 'Priorité'),
-      value:
-        data.priority === 'express' ? t('Express', 'Express') : t('Standard', 'Standard'),
+      label: t('Salesforce product', 'Produit Salesforce'),
+      value: PRODUITS[data.salesforce_product] ?? '—',
     },
     {
       label: t('Brief excerpt', 'Extrait du brief'),
