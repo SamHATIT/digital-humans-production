@@ -1,9 +1,15 @@
 """
 Main FastAPI application entry point.
 """
-# Load environment variables from .env file FIRST
+# Load environment variables from .env file FIRST.
+#
+# Vague 0 / AS-02 (OPS-05) : DH_ENV_FILE designe le fichier a charger. La suite
+# de tests le pose sur backend/.env.test avant cet import, pour que backend/.env
+# (base et cles reelles) ne soit jamais lu par un test. Sans DH_ENV_FILE, le
+# comportement est inchange : .env cherche depuis ce fichier.
+import os
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(os.environ.get("DH_ENV_FILE") or None)
 
 # P5: Initialize structured JSON logging before any app imports
 from app.logging_config import setup_logging

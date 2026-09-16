@@ -200,5 +200,9 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-# Create global settings instance
-settings = Settings()
+# Create global settings instance.
+#
+# Vague 0 / AS-02 (OPS-05) : meme regle que `app.main` — DH_ENV_FILE, s'il est
+# pose, remplace `.env` comme fichier d'environnement. Les variables deja
+# presentes dans l'environnement gardent la priorite (pydantic-settings).
+settings = Settings(_env_file=os.environ.get("DH_ENV_FILE") or ".env")
