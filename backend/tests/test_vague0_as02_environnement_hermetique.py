@@ -48,7 +48,7 @@ TRACES_DE_CONNEXION = (
 )
 
 
-def _pytest_enfant(env_supplementaire, args=(PETITE_SUITE,), timeout=240):
+def _pytest_enfant(env_supplementaire, args=(PETITE_SUITE,), timeout=240, quiet=True):
     """Lance un pytest dans un environnement minimal, construit de zéro.
 
     Rien n'est hérité du processus courant : ni `DATABASE_URL`, ni
@@ -63,7 +63,7 @@ def _pytest_enfant(env_supplementaire, args=(PETITE_SUITE,), timeout=240):
     }
     env.update(env_supplementaire)
     return subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *args],
+        [sys.executable, "-m", "pytest", *(["-q"] if quiet else []), "-p", "no:cacheprovider", *args],
         cwd=str(BACKEND),
         env=env,
         capture_output=True,
@@ -286,7 +286,36 @@ def test_un_appel_sortant_avale_par_le_code_fait_quand_meme_echouer_le_test(cont
     sortie = resultat.stdout + resultat.stderr
     assert resultat.returncode != 0, sortie
     assert "192.0.2.1" in sortie, sortie
-    assert " passed" not in sortie.splitlines()[-1], sortie.splitlines()[-1]
+    bilan = sortie.strip().splitlines()[-1]
+    assert "error" in bilan or "failed" in bilan, bilan
+
+
+def test_psycopg2_refuse_une_base_reelle_avant_de_se_connecter(contexte):
+    """libpq (C) ne passe pas par `socket.socket` : la garde doit tenir sur
+    l'appel Python `psycopg2.connect`, avant toute connexion."""
+    import psycopg2
+    from sqlalchemy.engine import make_url
+
+    from tests.db_guard import ProductionDatabaseError
+
+    url = make_url(contexte.base_database_url)
+    with pytest.raises(ProductionDatabaseError):
+        psycopg2.connect(
+            host=url.host, port=url.port or 5432, user=url.username,
+            password=url.password, dbname="digital_humans_db",
+        )
+    dsn_prod = url.set(database="digital_humans_db").render_as_string(hide_password=False)
+    with pytest.raises(ProductionDatabaseError):
+        psycopg2.connect(dsn_prod)
+    with pytest.raises(hermetic_module().OutboundNetworkBlocked):
+        psycopg2.connect(host="192.0.2.1", port=5432, user="x", password="x", dbname="dh_test")
+    hermetic_module().consume_blocked_attempts()
+
+
+def hermetic_module():
+    from tests import hermetic
+
+    return hermetic
 
 
 def test_la_boucle_locale_reste_joignable():
@@ -305,6 +334,7 @@ def test_une_execution_enfant_a_sa_propre_base_et_la_detruit_en_sortant(contexte
     identifiant = f"enfant{os.getpid()}"
     resultat = _pytest_enfant(
         {"TEST_DATABASE_URL": contexte.base_database_url, "DH_TEST_RUN_ID": identifiant},
+        quiet=False,  # l'en-tête de session (nom de la base) n'apparaît pas en -q
     )
     sortie = resultat.stdout + resultat.stderr
     assert resultat.returncode == 0, sortie

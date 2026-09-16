@@ -30,6 +30,10 @@ KNOWN_PRODUCTION_DATABASES = frozenset({
     "digital_humans_db",
     "digital_humans",
     "digital_humans_prod",
+    # Vague 0 / AS-02 — bases presentes sur le VPS le 16/09 (mesure : pg_database).
+    "digital_humans_v3",
+    "n8n_db",
+    "postgres",
 })
 
 #: Marqueur qui autorise une base dont le nom ne prouve pas qu'elle est jetable.

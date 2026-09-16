@@ -1,37 +1,39 @@
 """
 Pytest configuration and fixtures for testing.
+
+VAGUE 0 / AS-02 (OPS-05, 16/09/2026) — ce fichier commence par rendre le
+processus hermétique, AVANT tout import de `app` :
+
+- `TEST_DATABASE_URL` est obligatoire (aucun repli sur `DATABASE_URL`) ; la
+  session en dérive une base par exécution, la crée et la détruit ;
+- `DATABASE_URL` et `TEST_DATABASE_URL` de l'environnement sont remplacées
+  par cette base : `settings`, `app.database.engine`, les lecteurs directs et
+  ce conftest voient la même chose, et `pytest_configure` le vérifie ;
+- `backend/.env.test` est le seul fichier d'environnement lu ; les secrets y
+  sont vides ou factices, et un secret réel dans l'environnement fait refuser
+  la session ;
+- Redis DB dédiée, file ARQ `test-<run_id>`, Chroma/sorties/livrables/uploads
+  sous un répertoire temporaire de session ;
+- toute connexion TCP hors boucle locale est refusée et fait échouer le test
+  qui l'a tentée, même si le code l'a avalée.
+
+Historique : la garde `assert_not_production_database` (vague 2, lot 1c,
+21/08) ne protégeait que l'URL de ce fichier — `app.main` chargeait ensuite
+`backend/.env`. Elle est conservée, appelée par le bootstrap sur le gabarit et
+sur la base dérivée.
 """
 import os
 
-# Test database URL.
-# Les modeles utilisent des colonnes JSONB : SQLite ne sait pas les compiler et
-# toute fixture qui cree les tables echouait en CompileError. La base de test
-# doit donc etre une PostgreSQL. TEST_DATABASE_URL permet a chaque execution
-# (ou chaque agent) d'isoler la sienne, sinon on retombe sur DATABASE_URL.
-SQLALCHEMY_DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL",
-    os.environ.get(
-        "DATABASE_URL",
-        "postgresql://postgres@127.0.0.1:5432/digital_humans_test",
-    ),
-)
+from tests import hermetic
 
-# VAGUE 2 / LOT 1c — garde DATABASE_URL.
-#
-# Le repli sur DATABASE_URL ci-dessus est commode et dangereux : sur le VPS, le
-# service backend et l'arbre de travail deploye lisent le meme backend/.env,
-# donc DATABASE_URL y pointe la base de production. La fixture `db_session`
-# plus bas fait `create_all` puis **`drop_all` apres chaque test**. Un `pytest`
-# lance depuis /root/workspace/digital-humans-production detruirait les donnees
-# reelles. Le 21/08 seule une vue du comite l'a empeche.
-#
-# La garde est **avant l'import de `app.main`**, et ce n'est pas cosmetique :
-# importer `app.main` ouvre deja une connexion et, en DEBUG, execute
-# `Base.metadata.create_all()` (voir LOT 4). Une garde posee apres cet import
-# refuserait la suite *apres* avoir ecrit dans la base qu'elle protege.
-from tests.db_guard import assert_not_production_database  # noqa: E402
+# Tout ce qui suit dépend de cet appel : il pose l'environnement, refuse ce
+# qui n'est pas hermétique, et n'importe rien de `app`.
+_HERMETIC = hermetic.bootstrap_hermetic_environment()
 
-assert_not_production_database(SQLALCHEMY_DATABASE_URL)
+# La base de la session, telle que le bootstrap l'a posée dans l'environnement.
+# Le nom SQLALCHEMY_DATABASE_URL est conservé : des tests le lisent.
+SQLALCHEMY_DATABASE_URL = os.environ["TEST_DATABASE_URL"]
+assert SQLALCHEMY_DATABASE_URL == _HERMETIC.database_url
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -40,6 +42,7 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app.main import app  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
+from app.database import engine as app_engine  # noqa: E402
 
 _connect_args = (
     {"check_same_thread": False}
@@ -55,6 +58,43 @@ engine = create_engine(
 
 # Create test session factory
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+# ---------------------------------------------------------------------------
+# Cycle de vie de la session : base créée, sources vérifiées, base détruite
+# ---------------------------------------------------------------------------
+
+def pytest_configure(config):
+    hermetic.create_run_database(_HERMETIC)
+    try:
+        hermetic.verify_application_sources(_HERMETIC)
+    except hermetic.HermeticEnvironmentError as exc:
+        hermetic.drop_run_database(_HERMETIC)
+        raise pytest.UsageError(str(exc)) from None
+
+
+def pytest_report_header(config):
+    return hermetic.report_header_lines(_HERMETIC)
+
+
+def pytest_unconfigure(config):
+    hermetic.teardown(_HERMETIC, engines=(engine, app_engine))
+
+
+@pytest.fixture(autouse=True)
+def _aucun_appel_reseau_sortant(request):
+    """Une tentative de connexion hors boucle locale fait échouer le test,
+    même si le code l'a attrapée et s'est replié en silence."""
+    avant = hermetic.blocked_attempts_count()
+    yield
+    tentatives = hermetic.blocked_attempts_since(avant)
+    if tentatives:
+        pytest.fail(
+            f"{request.node.nodeid} a tenté {len(tentatives)} connexion(s) réseau "
+            f"sortante(s) : {', '.join(tentatives)}. Un test ne joint que la boucle "
+            f"locale ; simulez le transport ou posez DH_TEST_ALLOW_HOSTS en "
+            f"connaissance de cause."
+        )
 
 
 @pytest.fixture(scope="function")
