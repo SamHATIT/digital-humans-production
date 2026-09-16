@@ -84,6 +84,22 @@ class Execution(Base):
     # que Marcus avait ecartes.
     expert_selection = Column(JSONB, nullable=True)
 
+    # VAGUE 1 / FILE C (PROD-04 = CAL-11, CAL-07) — identite du job ARQ qui
+    # porte l'execution. Sans elle, le demarrage d'un worker ne pouvait juger
+    # une execution RUNNING que sur son statut, et les marquait toutes FAILED,
+    # y compris celles dont le job tournait dans un autre worker (mesure
+    # 15/09 18:0x : 179 tuee par le redemarrage des workers de calibration).
+    # Posee par la route AVANT l'enfilage (identifiant deterministe), relue par
+    # le worker au demarrage (job present dans Redis ?) et a la prise du job
+    # (est-ce bien le job courant de cette execution ?).
+    arq_job_id = Column(String(64), nullable=True, index=True)
+    # CAL-07 — file ARQ sur laquelle l'execution a ete enfilee, reutilisee par
+    # les reprises pour ne pas changer de worker/profil en cours de route.
+    arq_queue_name = Column(String(100), nullable=True)
+    # CAL-07 — annulation cooperative : horodatage de la demande, relu par
+    # l'orchestrateur entre deux agents.
+    cancel_requested_at = Column(DateTime(timezone=True), nullable=True)
+
     # Relationships
     project = relationship("Project", back_populates="executions")
     user = relationship("User", back_populates="executions")
