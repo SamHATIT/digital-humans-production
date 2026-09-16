@@ -1033,8 +1033,10 @@ class LLMRouterService:
             request.agent_type, self.profile, provider_str,
         )
 
-        # Phase 3.1 / B1 : credit pre-flight. Leve si le quota est atteint.
-        self._credit_preflight(request, provider_str)
+        # BILL-01 : RESERVATION avant reseau. Les credits estimes sont retenus
+        # sous verrou de la ligne de solde ; deux appels concurrents ne peuvent
+        # plus passer sur le meme disponible. Leve si le quota est atteint.
+        reservation = self._credit_reserve(request, provider_str)
 
         response = await self._call_provider(request, provider_str)
 
@@ -1043,8 +1045,12 @@ class LLMRouterService:
             fallback = self._fallback_for(provider_str)
             if fallback and fallback != provider_str:
                 logger.warning("Falling back from %s to %s (profile=%s)", provider_str, fallback, self.profile)
-                # Re-check credits for the fallback model in case it changes tier.
-                self._credit_preflight(request, fallback)
+                # La reservation du fournisseur d'origine est rendue, puis une
+                # nouvelle est prise pour le repli : il peut changer de palier
+                # et de tarif. Sans cela, le repli serait facture au tarif du
+                # modele qui a echoue.
+                self._credit_release(reservation, f"repli vers {fallback} : {response.error}")
+                reservation = self._credit_reserve(request, fallback)
                 response = await self._call_provider(request, fallback)
             elif fallback == provider_str:
                 # 05/09 : un echec sans repli est une ERREUR, pas une info.
@@ -1058,9 +1064,13 @@ class LLMRouterService:
                     provider_str, self.profile,
                 )
 
-        # Phase 3.1 : debit credits ONLY on success (failures cost nothing).
+        # BILL-01 : reglement au cout MESURE, ou liberation si l'appel a
+        # echoue. Dans les deux cas la tentative laisse une ligne au journal —
+        # un appel echoue coute 0 credit mais n'est plus invisible.
         if response.success:
-            self._credit_post_charge(request, response)
+            self._credit_settle(request, reservation, response)
+        else:
+            self._credit_release(reservation, response.error or "appel en echec")
 
         self._track_usage(request, response)
         return response
@@ -1099,10 +1109,12 @@ class LLMRouterService:
                 "passer sans_compte=True pour le chemin public sans compte."
             )
 
-    def _credit_preflight(self, request: LLMRequest, provider_str: str) -> None:
+    def _credit_reserve(self, request: LLMRequest, provider_str: str):
         """
-        Controle de credits AVANT l'appel. Ne rend rien ; leve si l'appel ne
-        doit pas partir :
+        BILL-01 — retient les credits AVANT l'appel reseau et rend la ligne de
+        reservation (ou None pour le chemin public sans compte).
+
+        Leve, comme l'ancien pre-flight, si l'appel ne doit pas partir :
 
           - ``InsufficientCreditsError`` : quota journalier (Free) ou mensuel
             (Pro/Team) atteint ;
@@ -1110,58 +1122,79 @@ class LLMRouterService:
           - ``UnknownModelError``        : aucune ligne ``model_pricing`` pour
             ce modele — on ne sait pas le facturer, donc on ne l'appelle pas.
 
-        B1 : ces trois cas etaient auparavant avales (les deux premiers rendus
-        sous forme de LLMResponse en echec, le troisieme journalise puis
-        ignore). Le no-op sur ``user_id is None`` est remplace par le chemin
-        explicite ``sans_compte``.
+        Difference avec le pre-flight qu'il remplace : le controle n'est plus
+        seulement une lecture, il ECRIT la retenue dans la meme transaction que
+        le controle. C'est ce qui rend le plafond opposable a la concurrence.
+        La session de credits est autonome (SessionLocal) : la retenue est
+        commise avant que l'appel parte, elle survit a un echec de l'appelant.
         """
         if request.sans_compte:
-            return
+            return None
         from app.database import SessionLocal
         from app.services.credit_service import CreditService
 
         model_id = self._get_model_id(provider_str)
         db = SessionLocal()
         try:
-            CreditService(db).preflight(request.user_id, model_id, request.max_tokens)
-        finally:
-            db.close()
-
-    def _credit_post_charge(
-        self, request: LLMRequest, response: LLMResponse
-    ) -> None:
-        """Debit credits after a successful LLM call. Errors are logged, never raised."""
-        if request.sans_compte or request.user_id is None:
-            return
-        if not response.success:
-            return
-        try:
-            from app.database import SessionLocal
-            from app.services.credit_service import CreditService
-        except Exception as exc:
-            logger.error("Credit module unavailable, skipping post-charge: %s", exc)
-            return
-
-        db = SessionLocal()
-        try:
-            CreditService(db).charge(
+            return CreditService(db).reserve(
                 user_id=request.user_id,
-                model=response.model_id or response.provider,
-                tokens_in=response.tokens_in or 0,
-                tokens_out=response.tokens_out or 0,
+                model=model_id,
+                max_tokens=request.max_tokens,
                 execution_id=request.execution_id,
                 project_id=request.project_id,
             )
-        except Exception as exc:
-            # Don't fail the user response just because the ledger choked : le
-            # jeton est deja consomme, echouer ici ne le rendrait pas. Mais le
-            # niveau est CRITICAL, pas ERROR : une ligne de credit perdue est
-            # exactement le defaut que le lot B1 corrige, elle ne doit pas
-            # passer inapercue dans les journaux.
+        finally:
+            db.close()
+
+    def _credit_settle(self, request: LLMRequest, reservation,
+                       response: LLMResponse) -> None:
+        """Regle la reservation au cout mesure (jetons reels, modele servi).
+
+        Une erreur ici ne fait pas echouer la reponse — le jeton est deja
+        consomme, echouer ne le rendrait pas. Mais la reservation reste alors
+        EN COURS au journal : les credits restent retenus et la ligne est
+        reconciliable durablement (`CreditService.list_pending_reservations`),
+        au lieu de disparaitre dans un message de journal. Le niveau est
+        CRITICAL : une ligne de credit perdue est le defaut que ce lot corrige.
+        """
+        if reservation is None:
+            return
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService
+
+        db = SessionLocal()
+        try:
+            CreditService(db).settle(
+                reservation_id=reservation.id,
+                tokens_in=response.tokens_in or 0,
+                tokens_out=response.tokens_out or 0,
+                model=response.model_id or None,
+            )
+        except Exception as exc:  # noqa: BLE001
             logger.critical(
-                "Ligne de credit PERDUE (user=%s, model=%s, jetons=%s/%s) : %s",
-                request.user_id, response.model_id,
-                response.tokens_in, response.tokens_out, exc,
+                "Reglement de credits EN ECHEC, reservation %s laissee en cours "
+                "(user=%s, model=%s, jetons=%s/%s) : %s",
+                getattr(reservation, "id", None), request.user_id,
+                response.model_id, response.tokens_in, response.tokens_out, exc,
+            )
+        finally:
+            db.close()
+
+    def _credit_release(self, reservation, reason: str) -> None:
+        """Rend une reservation dont l'appel a echoue ; la ligne reste au
+        journal a 0 credit avec le motif."""
+        if reservation is None:
+            return
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService
+
+        db = SessionLocal()
+        try:
+            CreditService(db).release(reservation.id, reason=str(reason))
+        except Exception as exc:  # noqa: BLE001
+            logger.critical(
+                "Liberation de credits EN ECHEC, reservation %s laissee en cours : %s",
+                getattr(reservation, "id", None), exc,
             )
         finally:
             db.close()

@@ -34,6 +34,20 @@ TRANSACTION_TYPE_CHARGE = "charge"
 TRANSACTION_TYPE_REFUND = "refund"
 TRANSACTION_TYPE_RESET = "reset"
 TRANSACTION_TYPE_ADJUSTMENT = "adjustment"
+# BILL-01 (vague 1 / file B) — cycle de vie d'un appel LLM dans le journal :
+#   reservation : crédits retenus AVANT l'appel réseau (estimation), comptés
+#                 dans used_credits tant que l'appel n'est pas réglé ;
+#   charge      : réservation réglée au coût mesuré (ou débit direct) ;
+#   release     : appel échoué, réservation rendue, ligne à 0 conservée ;
+#   refused     : tentative refusée (quota), ligne à 0 pour la traçabilité.
+# Solde = journal : used_credits == SUM(credits_consumed) des lignes
+# `charge` + `reservation` créées depuis last_reset_at (CreditService.verify_ledger).
+TRANSACTION_TYPE_RESERVATION = "reservation"
+TRANSACTION_TYPE_RELEASE = "release"
+TRANSACTION_TYPE_REFUSED = "refused"
+
+#: Types qui comptent dans le solde (used_credits).
+LEDGER_DEBIT_TYPES = (TRANSACTION_TYPE_CHARGE, TRANSACTION_TYPE_RESERVATION)
 
 
 class CreditBalance(Base):
