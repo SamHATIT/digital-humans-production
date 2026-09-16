@@ -5,7 +5,7 @@ Run with: python -m arq app.workers.worker.WorkerSettings
 import logging
 from arq import cron
 from arq.connections import ArqRedis
-from app.workers.arq_config import REDIS_SETTINGS
+from app.workers.arq_config import ARQ_QUEUE_NAME, REDIS_SETTINGS
 from app.workers.retention import purge_chat_logs_task
 from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
 
@@ -64,7 +64,7 @@ class WorkerSettings:
     max_jobs = 10  # Max concurrent executions (P3 done : SFDX no longer blocks event loop)
     job_timeout = 3600  # 1 hour max per execution — CAL-01 : a rendre dependant du profil de routage
     health_check_interval = 30
-    queue_name = "digital-humans"
+    queue_name = ARQ_QUEUE_NAME  # une seule source : arq_config (vague 0 / AS-02)
     # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,
     # chaque nuit a 03:17 UTC. Voir app/workers/retention.py.
     cron_jobs = [cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False)]

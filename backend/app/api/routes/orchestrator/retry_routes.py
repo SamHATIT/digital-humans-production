@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.execution import Execution, ExecutionStatus
 from app.schemas.execution import ExecutionStartResponse
 from app.utils.dependencies import get_current_user
-from app.workers.arq_config import get_redis_pool
+from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
 from app.api.routes.orchestrator._helpers import verify_execution_access
 from app.utils.feature_access import ensure_feature, require_feature
 
@@ -117,7 +117,7 @@ async def retry_failed_execution(
             "execute_build_task",
             project_id=execution.project_id,
             execution_id=execution.id,
-            _queue_name="digital-humans",
+            _queue_name=ARQ_QUEUE_NAME,
         )
         logger.info(
             f"[ARQ] Job {job.job_id} enqueued for BUILD retry {execution.id} — "
@@ -137,7 +137,7 @@ async def retry_failed_execution(
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=resume_from,
-        _queue_name="digital-humans",
+        _queue_name=ARQ_QUEUE_NAME,
     )
     logger.info(f"[ARQ] Job {job.job_id} enqueued for retry {execution.id} from {resume_from}")
 
@@ -265,7 +265,7 @@ async def resume_build(
             "execute_build_task",
             project_id=execution.project_id,
             execution_id=execution_id,
-            _queue_name="digital-humans",
+            _queue_name=ARQ_QUEUE_NAME,
         )
         logger.info(f"[ARQ] Job {job.job_id} enqueued for build resume {execution_id}")
 
