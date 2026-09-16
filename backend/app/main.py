@@ -196,11 +196,21 @@ app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscr
 app.include_router(billing.router, prefix=settings.API_V1_PREFIX)
 
 # Leads capture
-from app.api.routes import leads, blog
+from app.api.routes import leads
 from app.api.routes import journal_webhook
 app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
-app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
 app.include_router(journal_webhook.router, prefix=settings.API_V1_PREFIX)
+
+# SEC-11 (audit du 06/09, vague 1 / file A) : le routeur blog etait monte
+# ici SANS authentification. /api/blog/generate-batch lancait
+# scripts/blog_generator.py (appels LLM, ecritures Ghost) pour n'importe quel
+# identifiant de sujet, sans verifier son statut « approved ». Aucun appelant
+# dans le depot (frontend, scripts, contrats d'API). Demonte cote serveur ;
+# le module app/api/routes/blog.py reste importable (le bootstrap hermetique
+# de la suite lit son DATABASE_URL). Reouverture eventuelle = outil interne
+# authentifie operateur, sujet approuve selectionne en base, lot borne.
+# from app.api.routes import blog
+# app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
 
 # P3: Document upload routes (RAG project isolation)
 app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
