@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_CEILING
 from typing import Optional
 
 from sqlalchemy import func
@@ -80,13 +80,16 @@ class InsufficientCreditsError(CreditError):
 class ModelNotAllowedError(CreditError):
     """The user's tier is not authorized to use this model."""
 
-    def __init__(self, user_id: int, model: str, tier: str):
+    def __init__(self, user_id: int, model: str, tier: str,
+                 raison: Optional[str] = None):
         self.user_id = user_id
         self.model = model
         self.tier = tier
-        super().__init__(
-            f"Model '{model}' not allowed for tier '{tier}' (user {user_id})"
-        )
+        self.raison = raison
+        message = f"Model '{model}' not allowed for tier '{tier}' (user {user_id})"
+        if raison:
+            message = f"{message} : {raison}"
+        super().__init__(message)
 
 
 class UnknownModelError(CreditError):
@@ -147,10 +150,17 @@ def _credits_for_tokens(
     pricing: ModelPricing, tokens_in: int, tokens_out: int
 ) -> int:
     """
-    Compute integer credits consumed for a (input, output) token pair.
+    Crédits entiers consommés pour un couple (entrée, sortie).
 
-    Uses Decimal to avoid float drift, rounds half-up, minimum 1 credit if the
-    raw cost is positive (so a 1-token call still costs something).
+    Decimal pour éviter la dérive flottante, **arrondi au plafond supérieur
+    par appel** (BILL-08), minimum 1 crédit dès que le coût brut est positif.
+
+    L'arrondi était ``ROUND_HALF_UP`` : 1,2 crédit brut devenait 1. L'engagement
+    publié (migration 015, FAQ crédits du site) est l'arrondi supérieur par
+    appel, et le minimum de 1 ne le tenait que sous 0,5. Un compte rond ne
+    monte pas d'un cran (1,0 reste 1) ; le moindre dépassement monte (1,001 → 2).
+
+    Unité publiée : 1 crédit, par appel.
     """
     # Use str() to keep Decimal precision when SQLAlchemy returns NUMERIC as float (SQLite).
     in_credits = (Decimal(int(tokens_in or 0)) / Decimal(1000)) * Decimal(
@@ -162,7 +172,7 @@ def _credits_for_tokens(
     raw = in_credits + out_credits
     if raw <= 0:
         return 0
-    rounded = int(raw.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    rounded = int(raw.to_integral_value(rounding=ROUND_CEILING))
     return max(rounded, 1)
 
 
@@ -265,6 +275,7 @@ class CreditService:
         execution_id: Optional[int] = None,
         project_id: Optional[int] = None,
         note: Optional[str] = None,
+        opt_in: bool = False,
     ) -> CreditTransaction:
         """
         Débit direct en une étape (coût déjà connu) : contrôle du quota et
@@ -277,7 +288,7 @@ class CreditService:
                                        cannot cover the cost. La tentative
                                        refusée laisse une ligne ``refused`` à 0.
         """
-        tier_name, pricing = self._tier_and_pricing(user_id, model)
+        tier_name, pricing = self._tier_and_pricing(user_id, model, opt_in=opt_in)
         credits = _credits_for_tokens(pricing, tokens_in, tokens_out)
         tier_cfg = self._get_tier_config(tier_name)
         self._ensure_balance(user_id)
@@ -326,6 +337,7 @@ class CreditService:
         execution_id: Optional[int] = None,
         project_id: Optional[int] = None,
         note: Optional[str] = None,
+        opt_in: bool = False,
     ) -> CreditTransaction:
         """
         Retient, sous verrou, l'estimation d'un appel (``max_tokens`` en
@@ -337,7 +349,7 @@ class CreditService:
         Rend la ligne de réservation ; son ``id`` sert à :meth:`settle` ou
         :meth:`release`. Une tentative refusée laisse une ligne ``refused`` à 0.
         """
-        tier_name, pricing = self._tier_and_pricing(user_id, model)
+        tier_name, pricing = self._tier_and_pricing(user_id, model, opt_in=opt_in)
         estimate = _credits_for_tokens(pricing, max_tokens, max_tokens)
         tier_cfg = self._get_tier_config(tier_name)
         self._ensure_balance(user_id)
@@ -535,6 +547,7 @@ class CreditService:
         user_id: int,
         model: str,
         max_tokens: int,
+        opt_in: bool = False,
     ) -> None:
         """
         Contrôle sans écriture, même estimation que :meth:`reserve`. Lève
@@ -542,7 +555,7 @@ class CreditService:
         peuvent passer sur le même disponible. Le routeur utilise
         :meth:`reserve` (BILL-01) ; ceci reste pour un contrôle d'affichage.
         """
-        tier_name, pricing = self._tier_and_pricing(user_id, model)
+        tier_name, pricing = self._tier_and_pricing(user_id, model, opt_in=opt_in)
         estimate = _credits_for_tokens(pricing, max_tokens, max_tokens)
         balance = self._ensure_balance(user_id)
         tier_cfg = self._get_tier_config(tier_name)
@@ -615,8 +628,15 @@ class CreditService:
     # Internals
     # ------------------------------------------------------------------
 
-    def _tier_and_pricing(self, user_id: int, model: str):
-        """Palier de l'utilisateur et tarif du modèle ; lève avant tout verrou."""
+    def _tier_and_pricing(self, user_id: int, model: str, opt_in: bool = False):
+        """Palier de l'utilisateur et tarif du modèle ; lève avant tout verrou.
+
+        BILL-08 : ``requires_opt_in`` est enfin lu. La colonne existe depuis la
+        migration 008 et Opus la porte ; aucun code ne la contrôlait, donc un
+        modèle « sur demande explicite » était servi sans demande. L'opt-in
+        s'ajoute au palier, il ne le remplace pas : un Free consentant n'a
+        toujours pas droit à un modèle réservé au Team.
+        """
         user = self.db.get(User, user_id)
         if user is None:
             raise CreditError(f"User {user_id} not found")
@@ -624,6 +644,15 @@ class CreditService:
         pricing = self._resolve_pricing(model)
         if not pricing.tier_allowed(tier_name):
             raise ModelNotAllowedError(user_id, pricing.model_name, tier_name)
+        if pricing.requires_opt_in and not opt_in:
+            raise ModelNotAllowedError(
+                user_id, pricing.model_name, tier_name,
+                raison=(
+                    f"le modèle '{pricing.model_name}' exige un opt-in explicite "
+                    f"(model_pricing.requires_opt_in) ; il n'a pas été donné "
+                    f"pour cet appel"
+                ),
+            )
         return tier_name, pricing
 
     def _check_quota(
@@ -764,8 +793,21 @@ class CreditService:
 
     def _resolve_pricing(self, model: str) -> ModelPricing:
         """
-        Look up pricing by exact model name, then by substring fallback on
-        opus / sonnet / haiku — same approach as :mod:`budget_service`.
+        Tarif du modèle, par correspondance EXACTE sur ``model_pricing``
+        (préfixe fournisseur retiré au passage : ``fictif/x`` → ``x``).
+
+        BILL-08 : le repli par sous-chaîne opus/sonnet/haiku est supprimé. Il
+        tarifait un modèle servi non listé au tarif d'une autre version, et
+        écrivait cette autre version dans ``credit_transactions.model_used`` —
+        le grand livre ne disait donc pas ce qui avait réellement été servi.
+
+        Un modèle inconnu est REFUSÉ (règle 6 : jamais de repli silencieux). Le
+        message dit quoi faire : ajouter la ligne dans ``model_pricing``. Pour
+        une nouvelle version, on ajoute un alias explicite vers un tarif
+        versionné — ce que fait déjà la migration 008 (``claude-sonnet-4.6``
+        à côté de ``claude-sonnet-4-6``) — on ne devine pas.
+
+        Une ligne ``is_active=False`` vaut retirée : elle ne tarife rien.
         """
         normalized = _normalize_model_name(model)
         if normalized:
@@ -773,29 +815,13 @@ class CreditService:
             if row is not None and row.is_active:
                 return row
 
-        lowered = (normalized or "").lower()
-        substring = None
-        if "opus" in lowered:
-            substring = "opus"
-        elif "sonnet" in lowered:
-            substring = "sonnet"
-        elif "haiku" in lowered:
-            substring = "haiku"
-
-        if substring:
-            row = (
-                self.db.query(ModelPricing)
-                .filter(
-                    ModelPricing.is_active.is_(True),
-                    ModelPricing.model_name.ilike(f"%{substring}%"),
-                )
-                .order_by(ModelPricing.model_name.asc())
-                .first()
-            )
-            if row is not None:
-                return row
-
-        raise UnknownModelError(f"No pricing row for model '{model}'")
+        raise UnknownModelError(
+            f"Modèle '{model}' absent de model_pricing (ou désactivé) : "
+            "aucun tarif connu, l'appel est refusé plutôt que facturé au "
+            "tarif d'un modèle au nom voisin. Ajoutez la ligne dans "
+            "model_pricing (migration Alembic), ou un alias explicite vers "
+            "un tarif versionné."
+        )
 
     def _get_tier_config(self, tier_name: str) -> Optional[TierConfig]:
         return self.db.query(TierConfig).filter_by(tier_name=tier_name).first()
