@@ -29,7 +29,43 @@ env -u GITHUB_TOKEN ./venv/bin/python -m pytest tests/ -q -p no:cacheprovider
 | Etat | Resultat |
 |---|---|
 | **`f78e8ad`** (tete de branche, avant tout changement) | `31 failed, 695 passed, 2 skipped, 7 xfailed in 194.12s` |
-| **`REMPLACER_TETE`** (fin de file C) | `REMPLACER_FINAL` |
+| **`2da2819`** (avant-dernier commit de code) | `33 failed, 819 passed, 2 skipped, 7 xfailed in 258.95s` |
+
+Les deux mesures ont ete jouees en entier, dans le meme bac a sable, avec la
+meme commande. Le nombre de tests passe de 695 a 819 : ce sont les **124 tests
+ajoutes par cette file** (dix-huit fichiers `test_vague1_c_*.py`).
+
+Ecart des rouges, par comparaison des listes `FAILED` (`comm` sur les deux
+listes triees) : **aucun rouge de reference n'a disparu** (je n'en ai corrige
+aucun, comme demande) et **deux sont apparus** :
+
+1. `test_hotfix_gpu_model_id.py::test_sophie_chat_ne_rend_pas_un_200_vide` —
+   **cause : mon correctif PROD-01.** Ce test remplacait `generate_llm_response`
+   (synchrone) ; `chat()` appelle desormais la variante asynchrone, donc le
+   double n'etait plus emprunte. Corrige au commit `64e7f21` : le double suit
+   le chemin reel, le critere du test est inchange. Verifie :
+   `6 passed, 24 warnings in 2.21s` sur
+   `tests/test_hotfix_gpu_model_id.py tests/test_vague1_c_prod01_boucle_api.py`.
+2. `test_lot_g_db_sessions.py::test_open_websockets_do_not_pin_connections` —
+   **non imputable a cette file**, et deja signale instable par la vague 0
+   (« 2 echecs sur 3 »). Mesure faite en ramenant le code a l'etat d'origine :
+
+   ```bash
+   git checkout f78e8ad -- backend/app backend/alembic
+   # trois executions du test seul :  1 failed / 1 failed / 1 failed
+   git checkout HEAD -- backend/app backend/alembic
+   ```
+
+   Il echoue donc 3 fois sur 3 sur le code d'origine lorsqu'il est joue seul,
+   et il etait passe dans ma mesure de reference (suite complete). Non corrige,
+   non marque xfail, signale.
+
+Etat attendu apres `64e7f21` : les 31 rouges de reference, plus ce test
+instable selon les jours. La suite complete a ete relancee sur `64e7f21` mais
+n'avait pas termine au moment d'ecrire ces lignes — la machine etait alors
+quatre a cinq fois plus lente qu'au premier passage. Je prefere donner le
+chiffre que j'ai reellement mesure, en disant sur quel commit, plutot qu'un
+chiffre plausible sur le dernier.
 
 Le chiffre annonce par l'orchestrateur (`32 failed, 694 passed`, mesure du
 matin sur `5d35156`) differait d'une unite : le 32e etait le test instable
