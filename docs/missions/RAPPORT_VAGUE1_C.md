@@ -29,15 +29,18 @@ env -u GITHUB_TOKEN ./venv/bin/python -m pytest tests/ -q -p no:cacheprovider
 | Etat | Resultat |
 |---|---|
 | **`f78e8ad`** (tete de branche, avant tout changement) | `31 failed, 695 passed, 2 skipped, 7 xfailed in 194.12s` |
-| **`2da2819`** (avant-dernier commit de code) | `33 failed, 819 passed, 2 skipped, 7 xfailed in 258.95s` |
+| **`2da2819`** (avant l'adaptation du test hotfix) | `33 failed, 819 passed, 2 skipped, 7 xfailed in 258.95s` |
+| **`64e7f21`** (dernier commit de code) | `32 failed, 824 passed, 2 skipped, 7 xfailed in 252.65s` |
 
-Les deux mesures ont ete jouees en entier, dans le meme bac a sable, avec la
-meme commande. Le nombre de tests passe de 695 a 819 : ce sont les **124 tests
-ajoutes par cette file** (dix-huit fichiers `test_vague1_c_*.py`).
+Les trois mesures ont ete jouees en entier, dans le meme bac a sable, avec la
+meme commande. Le nombre de tests passe de 695 a 824 : ce sont les **129 tests
+ajoutes par cette file** (dix-huit fichiers `test_vague1_c_*.py`, plus les
+ajustements de fichiers existants).
 
-Ecart des rouges, par comparaison des listes `FAILED` (`comm` sur les deux
-listes triees) : **aucun rouge de reference n'a disparu** (je n'en ai corrige
-aucun, comme demande) et **deux sont apparus** :
+Ecart des rouges, par comparaison des listes `FAILED` (`comm` sur les listes
+triees) : **aucun rouge de reference n'a disparu** (je n'en ai corrige aucun,
+comme demande). Sur `2da2819`, **deux etaient apparus** ; sur `64e7f21`, il
+n'en reste **qu'un**, le test instable :
 
 1. `test_hotfix_gpu_model_id.py::test_sophie_chat_ne_rend_pas_un_200_vide` —
    **cause : mon correctif PROD-01.** Ce test remplacait `generate_llm_response`
@@ -60,12 +63,9 @@ aucun, comme demande) et **deux sont apparus** :
    et il etait passe dans ma mesure de reference (suite complete). Non corrige,
    non marque xfail, signale.
 
-Etat attendu apres `64e7f21` : les 31 rouges de reference, plus ce test
-instable selon les jours. La suite complete a ete relancee sur `64e7f21` mais
-n'avait pas termine au moment d'ecrire ces lignes — la machine etait alors
-quatre a cinq fois plus lente qu'au premier passage. Je prefere donner le
-chiffre que j'ai reellement mesure, en disant sur quel commit, plutot qu'un
-chiffre plausible sur le dernier.
+Mesure finale sur `64e7f21`, apres correction du premier : **32 failed**, soit
+les 31 rouges de reference **plus** ce seul test instable. Le comptage est
+donc exactement celui attendu.
 
 Le chiffre annonce par l'orchestrateur (`32 failed, 694 passed`, mesure du
 matin sur `5d35156`) differait d'une unite : le 32e etait le test instable
