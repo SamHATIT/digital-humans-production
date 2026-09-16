@@ -72,7 +72,7 @@ Légende : ✅ fait (preuve) · ⛔ périmé (comité suspendu ou dépassé par 
 | DEC-0809-05 | Sécurité des données clients B2/B3 | 🔀 | = SEC-04/05/06/19 → AS-03, AS-06 |
 | DEC-0809-01 | Réouverture du site (GO conditionnel du 08/08) | 🔀 | = bascule C.9, conditionnée à GL-02/GL-03 |
 | DEC-0809-04 | Hygiène du dispositif comité (garde-fou) | ⛔ | comité suspendu ; à reprendre avec la règle du curseur |
-| DEC-0809-08 | Concurrent NAAIA identifié | 🔀 | étude de marché 15/09 ; **NAAIA absent de l'étude, à ajouter** |
+| DEC-0809-08 | Concurrent NAAIA identifié | ✅ | ajouté au business plan v3 §5.2 le 16/09 : AIMS ISO 42001, Série A 6 M€ Ventech (07/2026), 9 M€ levés — couche de conformité, pas de fonction opérée ; partenaire naturel plutôt que concurrent frontal de DEOS |
 | DEC-0809-10 | Carte bancaire à l'inscription, y compris Free | 👤 | décision produit go-live (Stripe sur le Free ?) — Sam |
 | DEC-0809-07 | GPU et souveraineté (rester sur le Spark) | ✅ | tranché, calibration 15/09 confirme la voie locale possible |
 | DEC-0810-23 | Tableau de bord comité périmé après exécution manuelle | ⛔ | comité |
