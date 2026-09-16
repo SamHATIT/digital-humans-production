@@ -137,7 +137,11 @@ def test_aucun_shell_true_dans_backend_app():
 def test_grep_litteral_shell_true_ne_renvoie_rien():
     """Le critere de fin tel qu'il est ecrit dans le plan, joue litteralement."""
     r = subprocess.run(
-        ["grep", "-rn", "shell=True", "app"],
+        # 16/09/2026 : le grep portait aussi sur les copies de sauvegarde non suivies
+        # (*.pre-*, *.bak, *.orig) qui trainent dans app/ sur le VPS — 21 le 16/09.
+        # Elles ne sont pas executees et ne sont pas dans le depot ; le test doit
+        # porter sur le code reel, sinon il echoue selon le repertoire de travail.
+        ["grep", "-rn", "--include=*.py", "shell=True", "app"],
         cwd=str(BACKEND_APP.parent), capture_output=True, text=True,
     )
     assert r.returncode == 1, f"grep a trouve :\n{r.stdout}"
