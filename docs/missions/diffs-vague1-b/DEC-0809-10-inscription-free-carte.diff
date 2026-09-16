@@ -1,0 +1,77 @@
+Diff DEC-2026-0809-10 (carte bancaire à l'inscription Free) — NON COMMIS
+=======================================================================
+
+Fichier : backend/app/api/routes/auth.py — parcours d'inscription.
+La file B a livré et testé les DEUX chemins dans `stripe_service`
+(`free_signup_requires_card()`, `preparer_inscription_free()`), pilotés par
+`DH_FREE_SIGNUP_REQUIRES_CARD`. Ne reste que le branchement du parcours, qui
+appartient à la file « parcours/recette ».
+
+Décision de Sam attendue avant le 22/09. Tant qu'elle n'est pas prise, ne rien
+brancher est le comportement sûr : le drapeau vaut faux, l'inscription se
+déroule comme aujourd'hui. Le jour de la décision, si la réponse est « oui »,
+appliquer ce diff ET poser la variable ; si « non », il n'y a rien à faire.
+
+Les deux emplacements sont identiques (`/register` legacy et le parcours
+courant) ; le diff montre le premier, le second est au même motif.
+
+--- a/backend/app/api/routes/auth.py
++++ b/backend/app/api/routes/auth.py
+@@
+-    # Create a Stripe Customer right at signup so the user can upgrade with
+-    # one click later. Best-effort : if Stripe is unreachable or misconfigured,
+-    # don't block the signup — the customer can still be created lazily on
+-    # the first checkout call (create_customer is idempotent).
+-    try:
+-        from app.services.stripe_service import create_customer, is_configured, StripeNotConfiguredError
+-        if is_configured():
+-            create_customer(new_user, db)
+-    except StripeNotConfiguredError:
+-        pass  # Stripe not set up in this environment, skip
+-    except Exception as exc:  # noqa: BLE001
+-        # Log and move on — signup must not fail because of Stripe.
+-        import logging
+-        logging.getLogger(__name__).warning(
+-            "Stripe customer creation failed for user %s: %s", new_user.id, exc
+-        )
+-
+-    return new_user
++    # DEC-2026-0809-10 — carte bancaire à l'inscription Free.
++    # Les deux chemins vivent dans stripe_service et sont pilotés par
++    # DH_FREE_SIGNUP_REQUIRES_CARD : drapeau faux = client Stripe seul
++    # (comportement historique) ; drapeau vrai = session Checkout en mode
++    # `setup`, qui recueille une carte sans la débiter. Best-effort dans les
++    # deux cas : l'inscription ne doit pas échouer à cause de Stripe.
++    carte = None
++    try:
++        from app.services.stripe_service import (
++            is_configured, preparer_inscription_free, StripeNotConfiguredError,
++        )
++        if is_configured():
++            carte = preparer_inscription_free(new_user, db)
++    except StripeNotConfiguredError:
++        pass  # Stripe non configuré dans cet environnement
++    except Exception as exc:  # noqa: BLE001
++        import logging
++        logging.getLogger(__name__).warning(
++            "Préparation Stripe impossible pour le compte %s : %s", new_user.id, exc
++        )
++
++    # Quand une carte est demandée, l'appelant doit rediriger vers `card_url`.
++    # Le compte est créé et utilisable : la carte conditionne la montée en
++    # gamme, pas l'ouverture du compte — sauf décision contraire de Sam, qui
++    # serait alors un second changement, explicite.
++    if carte and carte.get("requires_card"):
++        return {"user": new_user, "card_setup_url": carte.get("url")}
++    return new_user
+
+Tests déjà livrés par la file B, qui couvrent les deux chemins :
+  backend/tests/test_vague1_b_bill04_stripe_robuste.py
+    test_sans_le_drapeau_l_inscription_free_ne_demande_pas_de_carte
+    test_avec_le_drapeau_l_inscription_free_demande_une_carte
+    test_le_drapeau_est_lu_dans_l_environnement   (une valeur non reconnue vaut faux)
+
+Reste à jouer côté parcours, une fois branché : l'inscription rend bien
+`card_setup_url` quand le drapeau est vrai, et le frontend sait qu'en faire —
+c'est un changement de forme de réponse, à coordonner avec la file des
+contrats d'API.
