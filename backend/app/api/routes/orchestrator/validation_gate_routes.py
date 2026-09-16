@@ -25,6 +25,7 @@ from app.services.validation_gate_service import (
 )
 from app.api.routes.orchestrator._helpers import verify_execution_access
 from app.workers.arq_config import get_redis_pool
+from app.workers.enqueue import enfiler_execution, file_de_reprise
 
 logger = logging.getLogger(__name__)
 
@@ -286,14 +287,22 @@ async def _relancer_apres_porte(
 
         _tracer_annotations_non_relues(gate_name, annotations)
 
-        job = await pool.enqueue_job(
+        # VAGUE 1 / FILE C — la file etait ecrite en dur ici, alors que la
+        # vague 0 (AS-02) avait ramene les sept autres sites d'enfilage a
+        # `arq_config.ARQ_QUEUE_NAME` : une porte validee pendant un test
+        # enfilait sur la file de production. Job identifie (PROD-04) et file
+        # du lancement (CAL-07).
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_build_task",
+            file=file_de_reprise(execution),
             project_id=execution.project_id,
             execution_id=execution.id,
-            _queue_name="digital-humans",
         )
         logger.info(
-            f"[ValidationGate] Job {job.job_id} enqueued for BUILD after gate "
+            f"[ValidationGate] BUILD relance apres la porte "
             f"{gate_name} — {len(taches)} tasks reset to PENDING"
         )
         return {
@@ -340,17 +349,20 @@ async def _relancer_apres_porte(
         # regeneration de l'export en dependant.
         execution.status = ExecutionStatus.RUNNING
         db.commit()
-        job = await pool.enqueue_job(
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_sds_task",
+            file=file_de_reprise(execution),
             execution_id=execution.id,
             project_id=execution.project_id,
             selected_agents=execution.selected_agents,
             resume_from="phase5",
-            _queue_name="digital-humans",
         )
         logger.info(
-            f"[ValidationGate] Job {job.job_id} enqueued for export "
-            f"regeneration of execution {execution_id}"
+            f"[ValidationGate] Regeneration de l'export enfilee pour "
+            f"l'execution {execution_id}"
         )
         return {
             "execution_id": execution_id,
@@ -383,17 +395,20 @@ async def _relancer_apres_porte(
     # correctif — voir le rapport de vague 3.
     _tracer_annotations_non_relues(gate_name, annotations)
 
-    job = await pool.enqueue_job(
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
+        file=file_de_reprise(execution),
         execution_id=execution.id,
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=point_canonique,
-        _queue_name="digital-humans",
     )
     logger.info(
-        f"[ValidationGate] Job {job.job_id} enqueued for execution "
-        f"{execution_id} from {point_canonique} (gate {gate_name})"
+        f"[ValidationGate] Execution {execution_id} relancee depuis "
+        f"{point_canonique} (porte {gate_name})"
     )
     return {
         "execution_id": execution_id,

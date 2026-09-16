@@ -24,6 +24,7 @@ from app.schemas.execution import (
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
+from app.workers.enqueue import enfiler_execution, file_de_reprise
 from app.services.budget_service import BudgetService, BudgetExceededError
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
@@ -93,15 +94,20 @@ async def start_execution(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # VAGUE 1 / FILE C (PROD-04, CAL-07) — l'identifiant du job et la file sont
+    # notes sur l'execution AVANT l'enfilage : c'est ce qui permet au demarrage
+    # d'un worker de distinguer une execution abandonnee d'une execution en
+    # cours ailleurs, et a une reprise de rester sur le meme worker.
     pool = await get_redis_pool()
-    job = await pool.enqueue_job(
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
         execution_id=execution.id,
         project_id=project.id,
         selected_agents=execution_data.selected_agents,
-        _queue_name=ARQ_QUEUE_NAME,
     )
-    logger.info(f"[ARQ] Job {job.job_id} enqueued for execution {execution.id}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -154,14 +160,17 @@ async def resume_execution(
             )
         logger.info(f"[Resume] Architecture validation: action={action}, execution={execution_id}")
         pool = await get_redis_pool()
-        job = await pool.enqueue_job(
+        # CAL-07 — la reprise reste sur la file du lancement.
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "resume_architecture_task",
+            file=file_de_reprise(execution),
             execution_id=execution.id,
             project_id=execution.project_id,
             action=action,
-            _queue_name=ARQ_QUEUE_NAME,
         )
-        logger.info(f"[ARQ] Job {job.job_id} enqueued for architecture resume {execution.id}")
         return ExecutionStartResponse(
             execution_id=execution.id,
             status="resumed",
@@ -218,15 +227,18 @@ async def resume_execution(
     await asyncio.to_thread(_mark_running)
 
     pool = await get_redis_pool()
-    job = await pool.enqueue_job(
+    # CAL-07 — meme file qu'au lancement.
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
+        file=file_de_reprise(execution),
         execution_id=execution.id,
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=resume_point,
-        _queue_name=ARQ_QUEUE_NAME,
     )
-    logger.info(f"[ARQ] Job {job.job_id} enqueued for resume {execution.id} from {resume_point}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,

@@ -21,6 +21,7 @@ durablement en base, ecrites par `ValidationGateService`.
 import inspect
 
 import pytest
+from arq.connections import ArqRedis
 
 from app.main import app
 from app.models.execution import Execution, ExecutionStatus
@@ -110,6 +111,19 @@ def porte(monkeypatch):
     return _fabrique
 
 
+#: VAGUE 1 / FILE C — les kwargs consommes par ARQ lui-meme (`_job_id`,
+#: `_queue_name`, ...) ne sont jamais transmis a la tache : les exclure n'est
+#: pas affaiblir l'assertion, c'est la porter sur les seuls kwargs que la tache
+#: recevra vraiment. Ils sont lus dans la signature d'`enqueue_job` plutot
+#: qu'ecrits a la main : la liste en dur `{"_queue_name"}` a fait echouer ce
+#: test le jour ou les routes ont commence a passer `_job_id` (PROD-04).
+KWARGS_ARQ = {
+    nom
+    for nom in inspect.signature(ArqRedis.enqueue_job).parameters
+    if nom.startswith("_")
+}
+
+
 def _parametres_acceptes(fonction) -> set:
     """Noms de parametres que la tache ARQ accepte, `ctx` exclu."""
     return {
@@ -144,7 +158,7 @@ def test_un_rejet_avec_annotations_enfile_un_job_appelable(
 
     job = enfiles[0]
     accepte = _parametres_acceptes(worker_tasks.execute_sds_task)
-    passes = set(job["kwargs"]) - {"_queue_name"}
+    passes = set(job["kwargs"]) - KWARGS_ARQ
     refuses = passes - accepte
     assert not refuses, (
         f"le job {job['name']!r} porte des kwargs que la tache refuse : "
@@ -180,7 +194,7 @@ def test_aucune_porte_n_enfile_de_kwarg_refuse(
 
     for job in enfiles:
         tache = getattr(worker_tasks, job["name"])
-        refuses = (set(job["kwargs"]) - {"_queue_name"}) - _parametres_acceptes(tache)
+        refuses = (set(job["kwargs"]) - KWARGS_ARQ) - _parametres_acceptes(tache)
         assert not refuses, (
             f"porte {gate} -> {job['name']} : kwargs refuses {sorted(refuses)}"
         )
