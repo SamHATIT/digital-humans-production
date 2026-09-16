@@ -135,6 +135,47 @@ EMITTED_TO_RESUME_POINT = {
 }
 
 
+# VAGUE 1 / FILE C — PROD-05 = CAL-03 : le dernier checkpoint atteint donne le
+# point de reprise. Une seule table, publique, lue par les DEUX reprises :
+# la reprise automatique (`execute_workflow`, BUG-010) et la reprise demandee
+# (`/resume`, `execution_routes`). Elle vivait en variable locale dans
+# `execute_workflow` : la route n'y avait pas acces et rendait `phase2` pour
+# tout — l'execution 172 du 15/09, arretee apres Emma, a du etre reprise a la
+# main en `phase3`.
+#
+# Regle (Sam) : on repart **a la suite** du dernier qui a reussi, jamais au
+# dernier qui a reussi.
+CHECKPOINT_TO_RESUME_POINT = {
+    "phase1_pm": "phase2",              # Sophie a fini -> Olivia
+    "phase2_ba": "phase2_5",            # Olivia a fini -> Emma
+    "phase2_5_emma": "phase3",          # Emma a fini -> Marcus
+    # La porte de couverture n'est pas un point de reprise SDS : l'architecture
+    # est produite mais non validee. `resume_from_architecture_validation` la
+    # traite quand l'execution attend la decision ; pour une execution FAILED a
+    # cet endroit, le moins couteux qui reste juste est de laisser Marcus
+    # reprendre ses appels — UC et digest sont conserves.
+    "phase3_3_coverage_gate": "phase3",
+    "phase3_3_coverage_gate_low": "phase3",
+    "phase3_wbs": "phase4",             # Marcus a fini -> les experts
+    "phase4_experts": "phase5",         # les experts ont fini -> ecriture du SDS
+    "phase5_write_sds": "phase5",       # SDS a reecrire
+    "phase6_export": "phase5",          # l'export seul reste a refaire (voir §3.3)
+}
+
+
+def resume_point_depuis_checkpoint(last_completed_phase: Optional[str]) -> Optional[str]:
+    """Point de reprise correspondant au dernier checkpoint atteint.
+
+    Rend None si le checkpoint est absent ou inconnu : l'appelant decide alors
+    de sa regle par defaut. On ne devine pas un point de reprise a partir d'un
+    nom qu'on ne connait pas — une valeur fausse ici rejouerait des phases
+    deja payees (regle 6).
+    """
+    if not last_completed_phase:
+        return None
+    return CHECKPOINT_TO_RESUME_POINT.get(last_completed_phase)
+
+
 #: Extensions qui constituent un livrable remettable au client.
 #:
 #: VAGUE 3 / §3.3 — arbitrage Sam : **le Markdown n'est pas un livrable**. La
@@ -614,7 +655,9 @@ class PMOrchestratorServiceV2:
             # BUG-010: Auto-resume from last checkpoint if execution was previously running
             if not resume_from and execution.last_completed_phase:
                 last_phase = execution.last_completed_phase
-                # Map checkpoints to resume points
+                # VAGUE 1 / FILE C — table publique `CHECKPOINT_TO_RESUME_POINT`,
+                # partagee avec `/resume` (PROD-05). Elle vivait ici en local :
+                # la route n'y avait pas acces et rendait `phase2` pour tout.
                 # VAGUE 3 / §3.1 — la reprise automatique applique la meme regle
                 # que la reprise demandee : on repart **a la suite** du dernier
                 # qui a reussi, pas au dernier qui a reussi.
@@ -628,17 +671,7 @@ class PMOrchestratorServiceV2:
                 # Les valeurs doivent toutes appartenir a SDS_RESUME_POINTS :
                 # depuis §3.5 une valeur inconnue leve, donc une entree fausse
                 # ici casserait toute reprise automatique. Un test le verifie.
-                checkpoint_map = {
-                    "phase1_pm": "phase2",        # Sophie a fini -> Olivia
-                    "phase2_ba": "phase2_5",      # Olivia a fini -> Emma
-                    "phase2_5_emma": "phase3",    # Emma a fini -> Marcus
-                    "phase3_3_coverage_gate": None,  # Handled by resume_from_architecture_validation
-                    "phase3_wbs": "phase4",       # Marcus a fini -> les experts
-                    "phase4_experts": "phase5",   # les experts ont fini -> ecriture du SDS
-                    "phase5_write_sds": "phase5", # SDS a reecrire
-                    "phase6_export": "phase5",    # l'export seul reste a refaire (voir §3.3)
-                }
-                auto_resume = checkpoint_map.get(last_phase)
+                auto_resume = resume_point_depuis_checkpoint(last_phase)
                 if auto_resume:
                     logger.info(f"[BUG-010] Auto-resuming from checkpoint '{last_phase}' → resume_from='{auto_resume}'")
                     resume_from = auto_resume

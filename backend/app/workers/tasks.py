@@ -5,6 +5,43 @@ from app.services.pm_orchestrator_service_v2 import PMOrchestratorServiceV2
 
 logger = logging.getLogger("arq.worker")
 
+#: Statuts qui font d'un job un fantome : l'execution est deja close, le job
+#: qui arrive est un reliquat (worker redemarre, double enfilage).
+STATUTS_TERMINAUX = ("completed", "failed", "cancelled")
+
+
+def _est_un_fantome(execution, resume_from) -> bool:
+    """Ce job est-il un reliquat, ou une reprise demandee ?
+
+    VAGUE 1 / FILE C — CAL-05. La garde d'origine refusait toute execution
+    COMPLETED, FAILED ou CANCELLED. C'est juste pour un job orphelin ; c'est
+    faux pour une reprise explicite : `/resume` et `/retry` posent un
+    `resume_from`, et le job etait quand meme saute si le statut n'avait pas
+    ete remis a RUNNING entre-temps (course avec le nettoyage du demarrage,
+    reprise enfilee a la main, retry d'une execution reconciliee).
+
+    `resume_from` est precisement le drapeau qui distingue les deux cas.
+
+    Une execution CANCELLED reste refusee meme avec `resume_from` : une
+    annulation est une decision, on ne la contourne pas par un parametre.
+    """
+    from app.models.execution import ExecutionStatus
+
+    statut = execution.status
+    valeur = statut.value if hasattr(statut, "value") else str(statut)
+    if valeur not in STATUTS_TERMINAUX:
+        return False
+    if statut == ExecutionStatus.CANCELLED:
+        return True
+    if resume_from:
+        logger.info(
+            f"[ARQ] Execution {execution.id} est {valeur} mais le job porte "
+            f"resume_from={resume_from!r} : reprise explicite, ce n'est pas un "
+            f"job fantome (CAL-05)."
+        )
+        return False
+    return True
+
 
 async def execute_sds_task(ctx, execution_id: int, project_id: int,
                            selected_agents: list = None,
@@ -17,7 +54,7 @@ async def execute_sds_task(ctx, execution_id: int, project_id: int,
         # BUG-008: Ghost job guard — skip if execution already completed/failed
         from app.models.execution import Execution, ExecutionStatus
         execution = db.query(Execution).get(execution_id)
-        if execution and execution.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED):
+        if execution and _est_un_fantome(execution, resume_from):
             logger.warning(f"[ARQ] Ghost job detected for exec {execution_id} (status={execution.status.value}), skipping")
             return {"skipped": True, "reason": "ghost_job", "execution_id": execution_id}
 
@@ -58,7 +95,7 @@ async def resume_architecture_task(ctx, execution_id: int, project_id: int, acti
         # BUG-008: Ghost job guard
         from app.models.execution import Execution, ExecutionStatus
         execution = db.query(Execution).get(execution_id)
-        if execution and execution.status in (ExecutionStatus.COMPLETED, ExecutionStatus.FAILED, ExecutionStatus.CANCELLED):
+        if execution and _est_un_fantome(execution, None):
             logger.warning(f"[ARQ] Ghost resume detected for exec {execution_id} (status={execution.status.value}), skipping")
             return {"skipped": True, "reason": "ghost_job", "execution_id": execution_id}
 

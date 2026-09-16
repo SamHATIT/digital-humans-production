@@ -179,7 +179,16 @@ async def resume_execution(
 
     # ── BR validation resume (existing logic) ──
     def _determine_resume_point():
+        # VAGUE 1 / FILE C — PROD-05 = CAL-03. Cette fonction ne rendait que
+        # `phase2_ba` (traduit en `phase2`, Olivia rejouee) quel que soit
+        # l'avancement reel. Sur l'execution 172 du 15/09, arretee apres Emma
+        # (`last_completed_phase='phase2_5_emma'`), la reprise juste etait
+        # `phase3` : elle a du etre enfilee a la main. Le checkpoint commande
+        # desormais, via la table partagee avec `execute_workflow`.
         if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+            # La validation des BR vient d'avoir lieu : c'est elle qui
+            # commande, meme si un checkpoint plus avance traine d'une
+            # tentative precedente.
             return "phase2_ba", 0
         if execution.status == ExecutionStatus.FAILED:
             from app.models.business_requirement import BusinessRequirement, BRStatus
@@ -187,18 +196,43 @@ async def resume_execution(
                 BusinessRequirement.project_id == execution.project_id,
                 BusinessRequirement.status == BRStatus.VALIDATED,
             ).count()
+            depuis_checkpoint = resume_point_depuis_checkpoint(
+                execution.last_completed_phase
+            )
+            if depuis_checkpoint:
+                logger.info(
+                    f"[Resume] Execution {execution.id} : dernier checkpoint "
+                    f"{execution.last_completed_phase!r} -> reprise en "
+                    f"{depuis_checkpoint!r} (PROD-05)"
+                )
+                return depuis_checkpoint, validated_brs
+            if execution.last_completed_phase:
+                # Checkpoint inconnu : on ne devine pas un point de reprise a
+                # partir d'un nom qu'on ne connait pas, on le dit et on
+                # applique la regle par defaut.
+                logger.warning(
+                    f"[Resume] Checkpoint {execution.last_completed_phase!r} "
+                    f"inconnu de CHECKPOINT_TO_RESUME_POINT : reprise depuis "
+                    f"les BR valides."
+                )
             if validated_brs > 0:
                 return "phase2_ba", validated_brs
         return None, 0
+
+    # Import local, comme le reste du fichier (`pm_orchestrator_service_v2`
+    # tire python-docx et chromadb ; un test verrouille cette propriete).
+    from app.services.pm_orchestrator_service_v2 import (
+        resolve_resume_point,
+        resume_point_depuis_checkpoint,
+    )
 
     resume_point, validated_brs = await asyncio.to_thread(_determine_resume_point)
 
     # VAGUE 3 / §3.2 — `phase2_ba` etait une valeur morte de plus. Son effet
     # reel (rejouer depuis la phase 2) coincidait avec l'intention, mais par
     # accident : elle tombait dans la branche generique, comme les onze autres.
-    # On la traduit pour que la coincidence devienne un contrat.
-    from app.services.pm_orchestrator_service_v2 import resolve_resume_point
-
+    # On la traduit pour que la coincidence devienne un contrat. Idempotente :
+    # un point deja canonique (celui du checkpoint) traverse inchange.
     if resume_point:
         resume_point = resolve_resume_point(resume_point)
 
