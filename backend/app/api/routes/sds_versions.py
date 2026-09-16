@@ -3,11 +3,14 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from fastapi.responses import FileResponse, HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
+from sqlalchemy import text as sa_text
+from pathlib import Path
 from pathlib import Path as _Path
 import os
 import sys
 import logging
 
+from app.config import settings
 from app.database import get_db
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 from app.models.user import User
@@ -26,8 +29,16 @@ _REPO_ROOT = _Path(__file__).resolve().parents[4]
 _TOOLS_PATH = str(_REPO_ROOT / "tools")
 if _TOOLS_PATH not in sys.path:
     sys.path.insert(0, _TOOLS_PATH)
-_OUTPUTS_DIR = _REPO_ROOT / "outputs"
+# SEC-06 / vague 0 (AS-02) : le repertoire etait code en dur sur le depot
+# (`<repo>/outputs`). Il suit desormais `settings.OUTPUT_DIR`, que le
+# bootstrap hermetique des tests pointe sur un tmp de session — sinon les
+# snapshots d'une execution de tests s'ecrivent dans l'arbre de travail et
+# se percutent entre eux (mesure du 16/09 : 409 au deuxieme run).
+_OUTPUTS_DIR = Path(settings.OUTPUT_DIR)
 _OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+# SEC-06 : espace de noms du verrou consultatif d'allocation de version.
+_VERROU_SDS_VERSIONS = 6006
 
 router = APIRouter(prefix="/api/projects", tags=["sds-versions"])
 
@@ -267,6 +278,20 @@ def create_sds_version_from_execution(
         raise HTTPException(status_code=404, detail="Execution not found in this project")
     
     # Compute next version_number
+    #
+    # SEC-06 : deux snapshots concurrents lisaient le meme max(version)+1. On
+    # serialise l'allocation par un verrou CONSULTATIF de transaction, pas par
+    # un FOR UPDATE sur la ligne du projet : mesure du 16/09, ce dernier bloque
+    # les verifications de cle etrangere des autres transactions — audit_logs
+    # porte une FK vers projects, et le middleware d'audit attendait
+    # indefiniment (pg_blocking_pids l'a montre). La contrainte unique
+    # (project_id, version_number) ferme la course restante, y compris entre
+    # processus qui ne prendraient pas ce verrou.
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        db.execute(
+            sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
+            {"espace": _VERROU_SDS_VERSIONS, "projet": project_id},
+        )
     max_v = db.query(sa_func.max(SDSVersion.version_number)).filter(
         SDSVersion.project_id == project_id
     ).scalar() or 0
@@ -284,10 +309,29 @@ def create_sds_version_from_execution(
         )
     
     # Ecrire dans outputs/
-    safe_name = project.name.replace(" ", "_").replace("/", "_")
-    file_name = f"SDS_{safe_name}_v{version_number}.html"
-    file_path = _OUTPUTS_DIR / file_name
-    file_path.write_text(html, encoding="utf-8")
+    #
+    # SEC-06 : le nom etait `SDS_<nom_projet>_v<n>.html` dans un repertoire
+    # COMMUN. Deux projets homonymes a la meme version designaient le meme
+    # fichier : le second ecrasait le premier, et le premier client relisait
+    # ensuite le document du second malgre un controle SQL correct. Le chemin
+    # porte desormais l'identifiant du projet, et l'ecriture est exclusive
+    # ("x") : on n'ecrase jamais un snapshot existant, on le dit.
+    file_name = f"SDS_v{version_number}.html"
+    dossier = _OUTPUTS_DIR / "projects" / str(project_id)
+    dossier.mkdir(parents=True, exist_ok=True)
+    file_path = dossier / file_name
+    try:
+        with open(file_path, "x", encoding="utf-8") as f:
+            f.write(html)
+    except FileExistsError:
+        logger.error(
+            f"SEC-06 : le snapshot {file_path} existe deja pour le projet "
+            f"{project_id} — allocation de version incoherente, refus"
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=f"SDS version v{version_number} already exists for this project",
+        )
     file_size = file_path.stat().st_size
     
     # Persist DB row
