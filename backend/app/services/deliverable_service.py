@@ -7,6 +7,8 @@ from sqlalchemy import and_
 
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.agent import Agent
+from app.models.execution_agent import ExecutionAgent
+from app.models.output import Output
 from app.schemas.deliverable import (
     AgentDeliverableCreate,
     AgentDeliverableUpdate,
@@ -21,8 +23,55 @@ class DeliverableService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _verifier_references(
+        self,
+        execution_id: int,
+        output_file_id: Optional[int] = None,
+        execution_agent_id: Optional[int] = None,
+    ) -> None:
+        """Les references secondaires doivent vivre dans la MEME execution.
+
+        SEC-19 (audit du 06/09, vague 1 / file A) : la route verifie bien
+        l'execution demandee, mais `output_file_id` et `execution_agent_id`
+        etaient poses tels quels. L'existence d'une cle etrangere prouve que
+        la ligne existe, pas qu'elle appartient au meme client : un
+        proprietaire pouvait rattacher son livrable a l'artefact d'une autre
+        execution. Refus explicite, jamais de mise a zero silencieuse.
+        """
+        if output_file_id is not None:
+            existe = (
+                self.db.query(Output.id)
+                .filter(Output.id == output_file_id, Output.execution_id == execution_id)
+                .first()
+            )
+            if not existe:
+                raise ValueError(
+                    f"output_file_id {output_file_id} n'appartient pas a "
+                    f"l'execution {execution_id}"
+                )
+
+        if execution_agent_id is not None:
+            existe = (
+                self.db.query(ExecutionAgent.id)
+                .filter(
+                    ExecutionAgent.id == execution_agent_id,
+                    ExecutionAgent.execution_id == execution_id,
+                )
+                .first()
+            )
+            if not existe:
+                raise ValueError(
+                    f"execution_agent_id {execution_agent_id} n'appartient pas a "
+                    f"l'execution {execution_id}"
+                )
+
     def create_deliverable(self, data: AgentDeliverableCreate) -> AgentDeliverable:
         """Create new agent deliverable."""
+        self._verifier_references(
+            data.execution_id,
+            output_file_id=data.output_file_id,
+            execution_agent_id=data.execution_agent_id,
+        )
         deliverable = AgentDeliverable(
             execution_id=data.execution_id,
             agent_id=data.agent_id,
@@ -153,6 +202,10 @@ class DeliverableService:
         if data.content_metadata is not None:
             deliverable.content_metadata = data.content_metadata
         if data.output_file_id is not None:
+            # SEC-19 : meme controle qu'a la creation.
+            self._verifier_references(
+                deliverable.execution_id, output_file_id=data.output_file_id
+            )
             deliverable.output_file_id = data.output_file_id
 
         self.db.commit()
