@@ -148,22 +148,37 @@ async def cancel_subscription(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No active subscription to cancel",
         )
+    # BILL-04 : `limit=1` ne traitait que le PREMIER abonnement actif. Chaque
+    # Checkout pouvant en créer un de plus, un client ayant deux abonnements
+    # actifs en annulait un et continuait d'être débité pour l'autre. On les
+    # annule tous, et on rend la liste de ce qui a été annulé.
     import stripe
     subs = stripe.Subscription.list(
-        customer=current_user.stripe_customer_id, status="active", limit=1
+        customer=current_user.stripe_customer_id, status="active", limit=100
     )
     if not subs.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No active subscription found",
         )
-    sub = stripe.Subscription.modify(
-        subs.data[0].id, cancel_at_period_end=True
-    )
+    annules = [
+        stripe.Subscription.modify(abonnement.id, cancel_at_period_end=True)
+        for abonnement in subs.data
+    ]
+    premier = annules[0]
     return {
-        "subscription_id": sub.id,
-        "cancel_at_period_end": sub.cancel_at_period_end,
-        "current_period_end": sub.current_period_end,
+        # Champs historiques conservés pour le frontend existant.
+        "subscription_id": premier.id,
+        "cancel_at_period_end": premier.cancel_at_period_end,
+        "current_period_end": premier.current_period_end,
+        # Vue complète : tout ce qui a été annulé.
+        "canceled": [
+            {"subscription_id": sub.id,
+             "cancel_at_period_end": sub.cancel_at_period_end,
+             "current_period_end": sub.current_period_end}
+            for sub in annules
+        ],
+        "count": len(annules),
     }
 
 

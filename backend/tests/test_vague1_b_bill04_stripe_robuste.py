@@ -241,6 +241,10 @@ def test_un_evenement_rejoue_deux_fois_ne_recharge_qu_une_fois(
     solde.used_credits = 3000
     db_session.commit()
 
+    # L'allocation initiale a déjà écrit une ligne `reset` : on compte les
+    # recharges AJOUTÉES par le renouvellement, pas le total.
+    resets_avant = len(_resets(db_session, utilisateur.id))
+
     renouvellement = _evenement("invoice.payment_succeeded",
                                 _facture("subscription_cycle"))
     premiere = _poster(client, renouvellement)
@@ -258,7 +262,9 @@ def test_un_evenement_rejoue_deux_fois_ne_recharge_qu_une_fois(
     assert _solde(db_session, utilisateur.id).used_credits == 2500, (
         "l'événement rejoué a rechargé les crédits une seconde fois"
     )
-    assert len(_resets(db_session, utilisateur.id)) == 1
+    assert len(_resets(db_session, utilisateur.id)) == resets_avant + 1, (
+        "le renouvellement a été appliqué plus d'une fois"
+    )
 
 
 def test_l_evenement_est_journalise_une_seule_fois(client, socle, utilisateur, db_session):
