@@ -100,11 +100,18 @@ def test_no_machine_specific_default_path_rejects_a_real_machine_path(monkeypatc
         )
 
 
-def test_paths_are_rooted_in_the_checkout():
-    """P2 — defaults must live under PROJECT_ROOT so a fresh clone just runs."""
-    root = settings.PROJECT_ROOT.resolve()
+def test_paths_are_rooted_in_the_checkout(monkeypatch):
+    """P2 — defaults must live under PROJECT_ROOT so a fresh clone just runs.
+
+    Vague 0 / AS-02 (16/09) : lisait le `settings` global, donc l'environnement
+    de l'operateur (DH_* poses sur le VPS, repertoire temporaire de la suite
+    hermetique), pas le defaut annonce par la docstring. Chaque attribut est
+    desormais lu sur une instance construite sans sa variable DH_*.
+    """
     for attr in ("BACKEND_ROOT", "OUTPUT_DIR", "CHROMA_PATH", "DELIVERABLES_DIR"):
-        value = Path(str(getattr(settings, attr))).resolve()
+        cfg = _fresh_settings_default(monkeypatch, attr)
+        root = cfg.PROJECT_ROOT.resolve()
+        value = Path(str(getattr(cfg, attr))).resolve()
         assert value.is_relative_to(root), f"settings.{attr} ({value}) escapes PROJECT_ROOT ({root})"
 
 

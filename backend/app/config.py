@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -94,44 +94,54 @@ class Settings(BaseSettings):
     #   DH_PROJECT_ROOT, DH_BACKEND_ROOT, DH_OUTPUT_DIR, DH_METADATA_DIR,
     #   DH_CHROMA_PATH, DH_LLM_CONFIG_PATH, DH_DELIVERABLES_DIR,
     #   DH_SFDX_PROJECT_PATH, DH_FORCE_APP_PATH, DH_AGENTS_DIR.
-    PROJECT_ROOT: Path = Path(
+    # Vague 0 / AS-02 (16/09/2026) : ces defauts etaient evalues une fois, a la
+    # definition de la classe. Une instance construite plus tard (tests de P2,
+    # `Settings(_env_file=None)` apres suppression de la variable DH_*) heritait
+    # de la valeur lue a l'import et ne testait pas le defaut. Ils sont
+    # desormais evalues a chaque instanciation (default_factory) : meme resultat
+    # pour `settings`, et une instance fraiche relit l'environnement.
+    PROJECT_ROOT: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_PROJECT_ROOT")
         or str(Path(__file__).resolve().parent.parent.parent)
-    )
-    BACKEND_ROOT: Path = Path(
+    ))
+    BACKEND_ROOT: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_BACKEND_ROOT")
         or str(Path(__file__).resolve().parent.parent)
-    )
-    OUTPUT_DIR: Path = Path(os.environ.get("DH_OUTPUT_DIR") or str(Path(__file__).resolve().parent.parent / "outputs"))
-    METADATA_DIR: Path = Path(os.environ.get("DH_METADATA_DIR") or str(Path(__file__).resolve().parent.parent / "metadata"))
-    CHROMA_PATH: Path = Path(
+    ))
+    OUTPUT_DIR: Path = Field(default_factory=lambda: Path(
+        os.environ.get("DH_OUTPUT_DIR") or str(Path(__file__).resolve().parent.parent / "outputs")
+    ))
+    METADATA_DIR: Path = Field(default_factory=lambda: Path(
+        os.environ.get("DH_METADATA_DIR") or str(Path(__file__).resolve().parent.parent / "metadata")
+    ))
+    CHROMA_PATH: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_CHROMA_PATH")
         or str(Path(__file__).resolve().parent.parent.parent / "rag" / "chromadb_data")
-    )
-    LLM_CONFIG_PATH: Path = Path(
+    ))
+    LLM_CONFIG_PATH: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_LLM_CONFIG_PATH")
         or str(Path(__file__).resolve().parent.parent / "config" / "llm_routing.yaml")
-    )
+    ))
     # FIX-PERSIST-001 archive location (sf_admin_service).
-    DELIVERABLES_DIR: Path = Path(
+    DELIVERABLES_DIR: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_DELIVERABLES_DIR")
         or str(Path(__file__).resolve().parent.parent.parent / "livrables")
-    )
-    SFDX_PROJECT_PATH: Path = Path(
+    ))
+    SFDX_PROJECT_PATH: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_SFDX_PROJECT_PATH")
         or str(Path(__file__).resolve().parent.parent.parent / "salesforce-workspace" / "digital-humans-sf")
-    )
-    FORCE_APP_PATH: Path = Path(
+    ))
+    FORCE_APP_PATH: Path = Field(default_factory=lambda: Path(
         os.environ.get("DH_FORCE_APP_PATH")
         or str(
             Path(__file__).resolve().parent.parent.parent
             / "salesforce-workspace" / "digital-humans-sf"
             / "force-app" / "main" / "default"
         )
-    )
-    AGENTS_DIR: str = os.environ.get("DH_AGENTS_DIR") or str(
+    ))
+    AGENTS_DIR: str = Field(default_factory=lambda: os.environ.get("DH_AGENTS_DIR") or str(
         Path(__file__).resolve().parent.parent.parent / "salesforce-agents"
-    )
+    ))
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
@@ -200,5 +210,9 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-# Create global settings instance
-settings = Settings()
+# Create global settings instance.
+#
+# Vague 0 / AS-02 (OPS-05) : meme regle que `app.main` — DH_ENV_FILE, s'il est
+# pose, remplace `.env` comme fichier d'environnement. Les variables deja
+# presentes dans l'environnement gardent la priorite (pydantic-settings).
+settings = Settings(_env_file=os.environ.get("DH_ENV_FILE") or ".env")

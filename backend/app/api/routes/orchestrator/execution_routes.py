@@ -23,7 +23,7 @@ from app.schemas.execution import (
     ExecutionResultResponse,
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
-from app.workers.arq_config import get_redis_pool
+from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
 from app.services.budget_service import BudgetService, BudgetExceededError
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
@@ -99,7 +99,7 @@ async def start_execution(
         execution_id=execution.id,
         project_id=project.id,
         selected_agents=execution_data.selected_agents,
-        _queue_name="digital-humans",
+        _queue_name=ARQ_QUEUE_NAME,
     )
     logger.info(f"[ARQ] Job {job.job_id} enqueued for execution {execution.id}")
 
@@ -159,7 +159,7 @@ async def resume_execution(
             execution_id=execution.id,
             project_id=execution.project_id,
             action=action,
-            _queue_name="digital-humans",
+            _queue_name=ARQ_QUEUE_NAME,
         )
         logger.info(f"[ARQ] Job {job.job_id} enqueued for architecture resume {execution.id}")
         return ExecutionStartResponse(
@@ -224,7 +224,7 @@ async def resume_execution(
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=resume_point,
-        _queue_name="digital-humans",
+        _queue_name=ARQ_QUEUE_NAME,
     )
     logger.info(f"[ARQ] Job {job.job_id} enqueued for resume {execution.id} from {resume_point}")
 
@@ -578,7 +578,7 @@ async def worker_health():
     try:
         pool = await get_redis_pool()
         info = await pool.info()
-        queued = await pool.llen(b"arq:queue:digital-humans")
+        queued = await pool.llen(f"arq:queue:{ARQ_QUEUE_NAME}".encode())
         return {
             "redis": "connected",
             "redis_version": info.get("redis_version", "unknown"),

@@ -118,3 +118,7 @@ backend/requeue_build.py
 # Ajoute le 14/08 : .env.avant-maj-1620 etait visible dans git status.
 .env.*
 backend/.env.*
+# Vague 0 / AS-02 (16/09) : le fichier d'environnement de TEST est versionne.
+# Il ne contient aucun secret (valeurs vides ou prefixees dh-test-fake-), et
+# tests/hermetic.py refuse la session s'il en portait un.
+!backend/.env.test
