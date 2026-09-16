@@ -141,14 +141,21 @@ def chat_with_sophie_contextual(
         raise HTTPException(status_code=404, detail="Project not found or access denied")
 
     # Build deliverable context
+    #
+    # SEC-05 (audit du 06/09, vague 1 / file A) : ce filtre etait deja correct
+    # ici, mais un identifiant incoherent etait **ignore en silence** et
+    # transmis tel quel a `create_from_chat`, qui le rechargeait sans filtre.
+    # Une incoherence se refuse (regle « jamais de repli silencieux ») : 404,
+    # avant tout appel LLM, donc sans rien facturer.
     deliverable_context = ""
     if body.deliverable_id:
         deliverable = db.query(AgentDeliverable).filter(
             AgentDeliverable.id == body.deliverable_id,
             AgentDeliverable.execution_id == execution_id,
         ).first()
-        if deliverable:
-            deliverable_context = (deliverable.content or "")[:8000]
+        if not deliverable:
+            raise HTTPException(status_code=404, detail="Deliverable not found")
+        deliverable_context = (deliverable.content or "")[:8000]
 
     # Load conversation history for this agent only (N92 — chat is per-agent).
     history = db.query(ProjectConversation).filter(

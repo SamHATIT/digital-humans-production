@@ -88,8 +88,12 @@ class ChangeRequestService:
         # Load related BR if specified
         related_br_text = ""
         if cr.related_br_id:
+            # SEC-05 : un `related_br_id` pose avant la validation des routes
+            # (ou par une autre voie) pouvait designer le BR d'un autre projet.
+            # L'existence d'une FK ne garantit pas la coherence de tenant.
             br = self.db.query(BusinessRequirement).filter(
-                BusinessRequirement.id == cr.related_br_id
+                BusinessRequirement.id == cr.related_br_id,
+                BusinessRequirement.project_id == cr.project_id,
             ).first()
             if br:
                 related_br_text = f"{br.br_id}: {br.requirement}"
@@ -422,8 +426,12 @@ Retourne UNIQUEMENT le JSON, sans texte avant ou après."""
         # Build context for classification prompt
         deliverable_context = ""
         if deliverable_id:
+            # SEC-05 : sans le filtre d'execution, l'identifiant d'un livrable
+            # appartenant a un autre client etait recharge ici et ses 500
+            # premiers caracteres entraient dans le prompt de classification.
             deliverable = self.db.query(AgentDeliverable).filter(
-                AgentDeliverable.id == deliverable_id
+                AgentDeliverable.id == deliverable_id,
+                AgentDeliverable.execution_id == execution_id,
             ).first()
             if deliverable:
                 content_preview = (deliverable.content or "")[:500]
