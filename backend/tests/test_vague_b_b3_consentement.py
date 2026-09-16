@@ -251,3 +251,52 @@ def test_signup_confirm_rejette_un_token_avec_consent_cgv_false(client):
 
     response = client.post("/api/auth/signup-confirm", json={"token": token})
     assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Les deux verifications que le chemin legacy portait seul
+#
+# SEC-12 a ferme `/register`, et les cinq tests qui vivaient sur ce chemin
+# ont suivi. Trois d'entre eux avaient leur equivalent sur
+# `signup-request` / `signup-confirm` ci-dessus ; deux ne l'avaient pas :
+# la version de CGV perimee et le sel absent. Les deux comportements
+# existent toujours — `_require_consent` et `_hash_consent_ip` sont les
+# memes fonctions pour les deux routes — mais plus aucun test ne les
+# exercait. Ils sont donc reportes ici, sur le chemin reel.
+# ─────────────────────────────────────────────────────────────────────
+
+def test_signup_request_version_cgv_perimee_renvoie_400_en_nommant_les_deux_valeurs(client, monkeypatch):
+    """Regle 6 : une version inconnue est refusee, jamais repliee en silence
+    sur la version actuelle, et le message nomme recue ET attendue."""
+    monkeypatch.setattr(auth_module, "send_signup_verification_email", lambda **kw: None)
+    response = client.post(
+        "/api/auth/signup-request",
+        json=_payload(
+            "signup-request-version-perimee@example.com",
+            consent_cgv=True,
+            consent_version="0.1-perimee",
+        ),
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+    detail = response.json()["detail"]
+    assert "0.1-perimee" in detail
+    assert VERSION_ACTUELLE in detail
+
+
+def test_signup_request_sans_sel_configure_refuse_explicitement(client, monkeypatch):
+    """Regle 6 : `CHAT_IP_SALT` absent → refus explicite, jamais un hachage
+    avec un sel vide, et aucun compte cree au passage."""
+    envois = []
+    monkeypatch.setattr(
+        auth_module, "send_signup_verification_email",
+        lambda **kw: envois.append(kw),
+    )
+    monkeypatch.setattr(auth_module, "IP_SALT", "", raising=False)
+    email = "signup-request-sans-sel@example.com"
+    response = client.post(
+        "/api/auth/signup-request",
+        json=_payload(email, consent_cgv=True, consent_version=VERSION_ACTUELLE),
+    )
+    assert response.status_code >= 500, response.text
+    assert envois == [], "un mail est parti alors que le sel manquait"
+    assert db_utilisateur_absent(client, email)
