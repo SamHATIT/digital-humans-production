@@ -17,6 +17,11 @@ import {
   type StudioAgent,
 } from '../lib/agents';
 import { useExecutionTracker } from '../contexts/ExecutionTrackerContext';
+import {
+  canRetryExecution,
+  failureAction,
+  readFailureReason,
+} from '../lib/executionFailure';
 import AgentStage from '../components/studio/AgentStage';
 import StudioTimeline, {
   type StepStatus,
@@ -196,6 +201,11 @@ export default function ExecutionMonitoringPage() {
   const status = (progress?.status || '').toLowerCase();
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed';
+  // BILL-11 — le motif sert par `/progress` etait ignore : la page proposait
+  // toujours de rejouer, y compris a un client dont les credits sont epuises.
+  const failureReason = readFailureReason(progress);
+  const canRetry = canRetryExecution(progress);
+  const rescueAction = failureAction(failureReason);
   const canDownload = isCompleted && !!progress?.sds_document_path;
 
   // ─── Track this execution so the header CreditCounter can show elapsed.
@@ -527,24 +537,49 @@ export default function ExecutionMonitoringPage() {
               />
             )}
 
-            {/* Failure rescue */}
+            {/* Failure rescue — BILL-11 : dire pourquoi, puis proposer ce qui
+                est reellement possible. */}
             {isFailed && (
-              <div className="border border-error/40 bg-error/5 p-5 flex items-center justify-between gap-4">
-                <p className="font-serif italic text-error text-lg">
-                  {t(
-                    'The performance was interrupted.',
-                    'La représentation a été interrompue.',
+              <div className="border border-error/40 bg-error/5 p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <p className="font-serif italic text-error text-lg">
+                    {t(
+                      'The performance was interrupted.',
+                      'La représentation a été interrompue.',
+                    )}
+                  </p>
+                  {failureReason?.message && (
+                    <p className="mt-2 font-mono text-[12px] leading-relaxed text-bone-2">
+                      {failureReason.message}
+                    </p>
                   )}
-                </p>
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={isRetrying}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-warning text-ink hover:bg-warning/80 font-mono text-[10px] tracking-cta uppercase disabled:opacity-50"
-                >
-                  {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                  {t('Retry the act', 'Rejouer l’acte')}
-                </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  {rescueAction && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(rescueAction.href)}
+                      className="inline-flex items-center gap-2 px-5 py-2 bg-brass text-ink hover:bg-brass-2 font-mono text-[10px] tracking-cta uppercase"
+                    >
+                      {t(rescueAction.label.en, rescueAction.label.fr)}
+                    </button>
+                  )}
+                  {canRetry ? (
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      disabled={isRetrying}
+                      className="inline-flex items-center gap-2 px-5 py-2 bg-warning text-ink hover:bg-warning/80 font-mono text-[10px] tracking-cta uppercase disabled:opacity-50"
+                    >
+                      {isRetrying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                      {t('Retry the act', 'Rejouer l’acte')}
+                    </button>
+                  ) : (
+                    <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4">
+                      {t('Replay unavailable', 'Rejeu indisponible')}
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

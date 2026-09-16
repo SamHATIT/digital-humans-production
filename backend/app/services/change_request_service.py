@@ -12,6 +12,7 @@ from app.models.execution import Execution
 from app.models.change_request import ChangeRequest
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
+from app.services.credit_service import CreditError
 from app.services.llm_service import generate_llm_response
 from app.services.agents_registry import (
     get_agents_for_cr_category as _registry_cr_agents,
@@ -193,6 +194,23 @@ Sois précis et factuel. Base ton analyse sur les éléments fournis."""
                 "tokens_used": tokens_used
             }
             
+        except CreditError as e:
+            # BILL-11 : un refus de credits n'est pas une panne technique, et
+            # surtout pas une analyse reussie. L'`except Exception` ci-dessous
+            # l'attrapait, ecrivait un fallback, passait la CR en « analyzed »
+            # et rendait `success: True` — le client payait un abonnement pour
+            # lire une estimation par categorie en croyant a une analyse, sans
+            # jamais apprendre que son solde etait epuise.
+            #
+            # La CR reste dans son etat : rien n'a ete analyse.
+            logger.warning(f"[CR Service] Impact analysis refused (credits): {e}")
+            return {
+                "success": False,
+                "code": "insufficient_credits",
+                "cr_number": cr.cr_number,
+                "error": str(e),
+            }
+
         except Exception as e:
             logger.error(f"[CR Service] Impact analysis failed: {str(e)}")
             import traceback

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { executions } from '../services/api';
+import type { FailureReason } from '../lib/executionFailure';
 
 export interface AgentProgress {
   agent_name: string;
@@ -29,6 +30,12 @@ export interface ExecutionProgress {
   current_phase?: string;
   agent_progress: AgentProgress[];
   sds_document_path?: string;
+  /**
+   * BILL-11 — motif structure du dernier echec, servi par
+   * `/execute/{id}/progress` depuis le lot B1-bis. Vaut `null` tant que la
+   * cause n'est pas reconnue : le backend ne devine pas, le frontend non plus.
+   */
+  failure_reason?: FailureReason | null;
 }
 
 export interface BudgetInfo {
@@ -73,6 +80,10 @@ function progressChanged(
   if (prev.status !== next.status) return true;
   if (prev.execution_state !== next.execution_state) return true;
   if (prev.overall_progress !== next.overall_progress) return true;
+  // BILL-11 : sans cette ligne, un motif d'echec arrivant apres le passage en
+  // `failed` n'etait jamais pris en compte — la page restait sur l'etat
+  // precedent et continuait de proposer « rejouer ».
+  if ((prev.failure_reason?.code ?? null) !== (next.failure_reason?.code ?? null)) return true;
   if ((prev.agent_progress?.length || 0) !== (next.agent_progress?.length || 0)) return true;
   for (const a of prev.agent_progress || []) {
     const b = next.agent_progress?.find((x) => x.agent_name === a.agent_name);
