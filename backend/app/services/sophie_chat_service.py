@@ -11,7 +11,13 @@ from app.models.execution import Execution
 from app.models.business_requirement import BusinessRequirement
 from app.models.agent_deliverable import AgentDeliverable
 from app.models.project_conversation import ProjectConversation
-from app.services.llm_service import generate_llm_response
+from app.services.llm_service import (
+    # PROD-01 : conserve bien qu'inutilise — un test verrouille le fait que ce
+    # chemin synchrone n'est plus emprunte depuis cette coroutine, et il ne
+    # peut le faire qu'en le remplacant ici.
+    generate_llm_response,  # noqa: F401
+    generate_llm_response_async,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +199,18 @@ class SophieChatService:
             
             subscription_tier = self._resolve_subscription_tier(project_id)
             logger.info(f"[Sophie Chat] subscription_tier={subscription_tier} (routing tier-aware)")
-            response = generate_llm_response(
+            # VAGUE 1 / FILE C — PROD-01. `generate_llm_response` est
+            # synchrone : appele depuis cette coroutine, il descendait dans
+            # `LLMRouterService.complete_sync`, dont le
+            # `future.result(timeout=600)` attend **dans** la boucle
+            # d'evenements. Mesure : pendant un appel de 0,4 s, une tache
+            # temoin n'avançait pas d'un seul pas — toutes les requetes,
+            # sondes et flux SSE du processus attendaient avec Sophie.
+            #
+            # La variante asynchrone existait deja et rend exactement la meme
+            # forme (`_response_to_dict`), tier et proprietaire des credits
+            # compris.
+            response = await generate_llm_response_async(
                 prompt=full_prompt,
                 agent_type="sophie",  # tier-aware: free->Sonnet, payant->Opus (voir llm_routing.yaml)
                 system_prompt=system_prompt,
@@ -253,7 +270,7 @@ Tu es en charge du projet "{project_info.get('name', 'ce projet')}" qui est une 
 
 **Contexte du projet:**
 - Type d'organisation: {project_info.get('organization_type', 'Non spécifié')}
-- Description: {project_info.get('description', 'Non disponible')[:500]}
+- Description: {(project_info.get('description') or 'Non disponible')[:500]}
 
 **Business Requirements validés ({len(brs)} BRs):**
 """

@@ -168,10 +168,56 @@ async def test_un_echec_llm_reste_un_echec(db_session, projet, monkeypatch):
     )
 
     service = module.SophieChatService(db_session)
-    with pytest.raises(Exception) as echec:
-        await service.chat(
-            project_id=projet["project"].id,
-            user_message="Bonjour",
-            user_id=projet["user"].id,
-        )
-    assert "404" in str(echec.value) or "n a pas pu repondre" in str(echec.value)
+    reponse = await service.chat(
+        project_id=projet["project"].id,
+        user_message="Bonjour",
+        user_id=projet["user"].id,
+    )
+
+    # `chat()` attrape ses exceptions et rend un dict : c'est ce que la route
+    # lit. Ce qui compte est donc que l'echec reste un echec, avec son motif.
+    assert reponse["success"] is False, (
+        f"un echec LLM rendu comme un succes : {reponse}"
+    )
+    assert "404" in reponse.get("error", "") or "n a pas pu repondre" in reponse.get(
+        "error", ""
+    ), f"le motif de l'echec est perdu : {reponse}"
+
+
+@pytest.mark.asyncio
+async def test_un_projet_sans_description_ne_casse_pas_le_chat(
+    db_session, projet, monkeypatch
+):
+    """Constat annexe, rencontre en montant les tests ci-dessus.
+
+    `_build_system_prompt` faisait `project_info.get('description', 'Non
+    disponible')[:500]`. Le defaut d'un `.get` ne s'applique QUE si la cle est
+    absente : une colonne `description` a NULL — cas d'un projet cree sans
+    description, ce que le schema autorise — donnait `None[:500]`, donc un
+    TypeError, donc un 500 sur le chat. Le premier message de Sophie tombait
+    pour un projet parfaitement valide.
+    """
+    from app.services import sophie_chat_service as module
+
+    projet["project"].description = None
+    db_session.commit()
+
+    async def _llm_async(prompt, agent_type="worker", system_prompt=None, **kwargs):
+        return {
+            "success": True,
+            "content": "Bonjour, je suis Sophie.",
+            "tokens_used": 12,
+            "model": "simule",
+        }
+
+    monkeypatch.setattr(
+        module, "generate_llm_response_async", _llm_async, raising=False
+    )
+
+    service = module.SophieChatService(db_session)
+    reponse = await service.chat(
+        project_id=projet["project"].id,
+        user_message="Bonjour",
+        user_id=projet["user"].id,
+    )
+    assert reponse["success"] is True, f"chat casse sans description : {reponse}"
