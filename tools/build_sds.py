@@ -27,6 +27,17 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 from jinja2 import Environment, FileSystemLoader, ChainableUndefined  # noqa: E402
 from markupsafe import Markup, escape  # noqa: E402
 from lib.collect_sds import build_render_context  # noqa: E402
+import unicodedata  # noqa: E402
+
+
+def mermaid_safe(src):
+    """Mermaid refuse les caracteres non ASCII dans les identifiants (erDiagram, flowchart).
+    Translittere les lettres accentuees (Réclamation__c -> Reclamation__c) sans toucher au reste.
+    Ajoute le 16/09/2026 : exec 179, 'Syntax error in text' sur l'ERD."""
+    if not src:
+        return src
+    out = unicodedata.normalize("NFKD", str(src))
+    return "".join(c for c in out if not unicodedata.combining(c))
 
 
 TEMPLATES_DIR = REPO_ROOT / "docs" / "sds" / "templates"
@@ -119,6 +130,7 @@ def build_sds(execution_id: int) -> str:
     env.filters["dot_join"] = dot_join
     env.filters["etext"] = etext
     env.filters["ftrim"] = ftrim
+    env.filters["mermaid_safe"] = mermaid_safe
     template = env.get_template("sds_shell.html.j2")
     
     context = build_render_context(execution_id)
