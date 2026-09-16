@@ -3592,7 +3592,21 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
     ) -> int:
         """Create a new SDS version for a Change Request."""
         import os
-        
+
+        # SEC-06 (diff de la file A) : serialiser l'allocation du numero de
+        # version comme le fait la route de snapshot (`api/routes/sds_versions.py`,
+        # verrou consultatif 6006). Sans lui, deux creations concurrentes lisent
+        # le meme `current_sds_version` et allouent le meme numero ; avec la
+        # contrainte unique posee par la file A, la course se solde par une
+        # IntegrityError — le job echoue au lieu de produire un doublon, mais il
+        # echoue. Le verrou evite les deux.
+        from sqlalchemy import text as sa_text
+
+        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+            self.db.execute(
+                sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
+                {"espace": 6006, "projet": project.id},
+            )
         current_version = project.current_sds_version or 0
         new_version = current_version + 1
         
@@ -3633,6 +3647,20 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         
         try:
             # Determine version number
+            # SEC-06 (diff de la file A) : serialiser l'allocation du numero de
+            # version comme le fait la route de snapshot (`api/routes/sds_versions.py`,
+            # verrou consultatif 6006). Sans lui, deux creations concurrentes lisent
+            # le meme `current_sds_version` et allouent le meme numero ; avec la
+            # contrainte unique posee par la file A, la course se solde par une
+            # IntegrityError — le job echoue au lieu de produire un doublon, mais il
+            # echoue. Le verrou evite les deux.
+            from sqlalchemy import text as sa_text
+
+            if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+                self.db.execute(
+                    sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
+                    {"espace": 6006, "projet": project.id},
+                )
             current_version = project.current_sds_version or 0
             new_version = current_version + 1
             
