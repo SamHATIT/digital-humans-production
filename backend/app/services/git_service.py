@@ -15,7 +15,7 @@ import logging
 import os
 import shutil
 import tempfile
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Optional, Tuple
 from urllib.parse import urlparse
 from app.services.audit_service import audit_service
 import httpx
@@ -136,6 +136,36 @@ class GitService:
                 duration_ms=duration_ms
             )
     
+    def _ecrire_magasin_identifiants(self) -> Optional[str]:
+        """Ecrit le jeton dans un magasin git temporaire, lisible du seul
+        proprietaire. SEC-15 : le secret quitte argv et les journaux."""
+        if not self.token:
+            return None
+        from urllib.parse import quote
+
+        parsed = urlparse(self.repo_url)
+        hote = parsed.netloc or "github.com"
+        utilisateur = "oauth2" if self.provider == "gitlab" else quote(self.token, safe="")
+        mot_de_passe = quote(self.token, safe="") if self.provider == "gitlab" else "x-oauth-basic"
+        ligne = f"https://{utilisateur}:{mot_de_passe}@{hote}\n"
+
+        descripteur, chemin = tempfile.mkstemp(prefix="dh-git-", suffix=".cred")
+        try:
+            os.write(descripteur, ligne.encode("utf-8"))
+        finally:
+            os.close(descripteur)
+        os.chmod(chemin, 0o600)
+        return chemin
+
+    @staticmethod
+    def _effacer_magasin_identifiants(chemin: Optional[str]) -> None:
+        if not chemin:
+            return
+        try:
+            os.remove(chemin)
+        except OSError as erreur:  # pragma: no cover — journalise, jamais tu
+            logger.warning("[Git] magasin d'identifiants non efface : %s", erreur)
+
     def _get_auth_url(self) -> str:
         """Get URL with embedded auth token"""
         if not self.token:
@@ -163,7 +193,15 @@ class GitService:
         cmd = ["git"] + args
         work_cwd = cwd or self.repo_path or self.work_dir
         
-        logger.info(f"[Git] Running: git {' '.join(args)} in {work_cwd}")
+        # SEC-15 : cette ligne journalisait l'URL authentifiee du clone, donc
+        # le jeton, et le journal est conserve.
+        from app.utils.redaction import expurger, expurger_arguments
+
+        logger.info(
+            "[Git] Running: git %s in %s",
+            " ".join(expurger_arguments(args, secrets=[self.token])),
+            expurger(work_cwd, secrets=[self.token]),
+        )
         
         try:
             process = await asyncio.create_subprocess_exec(
@@ -184,7 +222,10 @@ class GitService:
             success = process.returncode == 0
             
             if not success:
-                logger.warning(f"[Git] Command failed: {stderr_str}")
+                # SEC-15 : git recrache l'URL authentifiee dans ses erreurs.
+                logger.warning(
+                    "[Git] Command failed: %s", expurger(stderr_str, secrets=[self.token])
+                )
             
             return success, stdout_str, stderr_str
             
@@ -192,7 +233,7 @@ class GitService:
             logger.error("[Git] Command timed out")
             return False, "", "Timeout"
         except Exception as e:
-            logger.error(f"[Git] Exception: {str(e)}")
+            logger.error("[Git] Exception: %s", expurger(str(e), secrets=[self.token]))
             return False, "", str(e)
     
     async def clone(self, shallow: bool = True) -> Dict[str, Any]:
@@ -212,17 +253,32 @@ class GitService:
         if os.path.exists(self.repo_path):
             shutil.rmtree(self.repo_path)
         
-        args = ["clone"]
+        # SEC-15 : l'URL authentifiee etait passee en argv — donc visible de
+        # `ps` par tout utilisateur de l'hote — puis conservee comme remote du
+        # depot clone. Le secret passe desormais par un magasin d'identifiants
+        # temporaire (fichier 0600, detruit apres le clone) : seul son CHEMIN
+        # est dans argv, et le remote reste l'URL propre.
+        magasin = self._ecrire_magasin_identifiants()
+        args = []
+        if magasin:
+            args.extend(["-c", f"credential.helper=store --file={magasin}"])
+        args.append("clone")
         if shallow:
             args.extend(["--depth", "1"])
-        args.extend(["-b", self.branch, self._get_auth_url(), self.repo_path])
+        args.extend(["-b", self.branch, self.repo_url, self.repo_path])
         
-        success, stdout, stderr = await self._run_git(args, cwd=self.work_dir)
+        try:
+            success, stdout, stderr = await self._run_git(args, cwd=self.work_dir)
+        finally:
+            self._effacer_magasin_identifiants(magasin)
         
         if success:
             # Configure user
             await self._run_git(["config", "user.email", "digital-humans@agent.ai"])
             await self._run_git(["config", "user.name", "Digital Humans Agent"])
+            # SEC-15 : le remote ne doit porter aucun secret, meme si une
+            # version future de git en recopiait un depuis le magasin.
+            await self._run_git(["remote", "set-url", "origin", self.repo_url])
             
             return {
                 "success": True,
