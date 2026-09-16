@@ -29,6 +29,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -100,3 +101,46 @@ async def supprimer_mon_compte(
     """
     logger.info("RGPD art.17 : effacement demandé par le compte %s", utilisateur.id)
     return AccountService(db).supprimer(utilisateur)
+
+
+class RevendicationSession(BaseModel):
+    """Corps de la revendication d'une conversation du site vitrine."""
+
+    session_uuid: str = Field(min_length=8, max_length=64)
+
+
+@router.post("/conversations/claim")
+async def revendiquer_ma_conversation(
+    corps: RevendicationSession,
+    utilisateur: User = Depends(proprietaire_du_compte),
+    db: Session = Depends(get_db),
+):
+    """Rattache au compte une conversation concierge qu'il a lui-même tenue.
+
+    SEC-12 (audit du 06/09, vague 1 / file A). L'export et l'effacement RGPD
+    rattachaient les conversations par `email_collected` : saisir l'adresse
+    d'un tiers dans le widget public suffisait à la lui faire perdre. Le
+    rattachement passe désormais par une revendication explicite, dont la
+    preuve est le `session_uuid` — généré côté client et conservé par le seul
+    navigateur du visiteur.
+
+    Une session déjà revendiquée par un autre compte n'est pas volée : refus.
+    """
+    try:
+        rattachees = AccountService(db).revendiquer_session(
+            utilisateur, corps.session_uuid
+        )
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Session inconnue")
+    except PermissionError:
+        raise HTTPException(
+            status_code=409, detail="Session déjà revendiquée par un autre compte"
+        )
+    except ValueError as erreur:
+        raise HTTPException(status_code=400, detail=str(erreur))
+
+    logger.info(
+        "SEC-12 : %s message(s) de la session revendiqués par le compte %s",
+        rattachees, utilisateur.id,
+    )
+    return {"session_uuid": corps.session_uuid, "messages_rattaches": rattachees}

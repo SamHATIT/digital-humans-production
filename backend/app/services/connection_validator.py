@@ -47,12 +47,29 @@ class ConnectionValidatorService:
         
         try:
             import requests
-            
+
             # Normalize URL
             if not instance_url.startswith('https://'):
                 instance_url = f'https://{instance_url}'
             instance_url = instance_url.rstrip('/')
-            
+
+            # SEC-09 (audit du 06/09, vague 1 / file A) : cette URL vient du
+            # wizard et recevait un bearer Salesforce. Un faux jeton suffisait
+            # a faire emettre au serveur une requete vers la destination du
+            # demandeur (metadonnees d'instance, services internes). On borne
+            # schema, port et adresses resolues AVANT d'envoyer quoi que ce
+            # soit.
+            from app.utils.url_guard import DestinationInterdite, valider_url_sortante
+
+            try:
+                valider_url_sortante(instance_url)
+            except DestinationInterdite as refus:
+                return ConnectionResult(
+                    success=False,
+                    message=str(refus),
+                    error="DESTINATION_REFUSEE",
+                )
+
             # Call Salesforce identity endpoint
             identity_url = f"{instance_url}/services/oauth2/userinfo"
             headers = {
@@ -60,7 +77,12 @@ class ConnectionValidatorService:
                 "Content-Type": "application/json"
             }
             
-            response = requests.get(identity_url, headers=headers, timeout=10)
+            # `allow_redirects=False` : une redirection revalide, elle ne se
+            # suit pas — sinon la garde ci-dessus ne vaut que pour le premier
+            # saut (SEC-09, « interdire les redirections non revalidees »).
+            response = requests.get(
+                identity_url, headers=headers, timeout=10, allow_redirects=False
+            )
             
             if response.status_code == 200:
                 user_info = response.json()
@@ -208,6 +230,24 @@ class ConnectionValidatorService:
             )
         
         try:
+            # SEC-09 : `git ls-remote` acceptait une URL et un protocole non
+            # bornes. On restreint aux fournisseurs supportes en https, et on
+            # pose GIT_ALLOW_PROTOCOL pour que git ne bascule pas ailleurs.
+            from app.utils.url_guard import (
+                DestinationInterdite,
+                ENV_GIT_PROTOCOLES,
+                valider_url_git,
+            )
+
+            try:
+                valider_url_git(repo_url)
+            except DestinationInterdite as refus:
+                return ConnectionResult(
+                    success=False,
+                    message=str(refus),
+                    error="DESTINATION_REFUSEE",
+                )
+
             # Build authenticated URL
             if 'github.com' in repo_url:
                 # GitHub format: https://TOKEN@github.com/org/repo.git
@@ -229,7 +269,7 @@ class ConnectionValidatorService:
                 capture_output=True,
                 text=True,
                 timeout=30,
-                env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'}
+                env={**os.environ, **ENV_GIT_PROTOCOLES}
             )
             
             if result.returncode == 0:

@@ -41,10 +41,15 @@ async def generate_single_article(topic: TopicRequest) -> GenerationResult:
     
     try:
         # Run the generator script
+        # SEC-11 : le titre est une DONNEE, jamais une option. Sans le
+        # separateur `--`, un titre egal a `--publish` devenait une option
+        # argparse et le script publiait son sujet par defaut. Les options
+        # du script sont posees avant `--`, le titre apres.
         process = await asyncio.create_subprocess_exec(
             "python3", script_path,
-            topic.title,
             "--agent", topic.agent,
+            "--",
+            topic.title,
             cwd=str(settings.PROJECT_ROOT / "scripts"),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

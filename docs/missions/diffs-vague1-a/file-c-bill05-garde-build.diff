@@ -1,0 +1,63 @@
+# BILL-05 / AS-05 — diffs destines a la FILE C (integrateur unique)
+# Ecrits et relus par la file A, NON COMMIS ici : ces trois fichiers
+# appartiennent a la file C (app/workers/*, app/api/routes/orchestrator/*).
+# La garde appelee existe deja sur la branche claude/vague1-a :
+# backend/app/utils/build_guard.py (commit « feat(BILL-05/SEC-08) »).
+#
+# Sans ces trois applications, trois chemins d'ecriture BUILD restent
+# ouverts a un compte Pro : la validation de porte, le retry, et le job ARQ
+# lui-meme (qui ne revalide rien au demarrage).
+
+--- a/backend/app/api/routes/orchestrator/validation_gate_routes.py
++++ b/backend/app/api/routes/orchestrator/validation_gate_routes.py
+@@
+     execution = verify_execution_access(execution_id, current_user.id, db)
+ 
++    # BILL-05 : approuver une porte BUILD enfile `execute_build_task` sans
++    # qu'aucune capacite ne soit verifiee. Un ancien Team retrograde Pro
++    # relancait ainsi un BUILD en attente. La porte se pose AVANT toute
++    # mutation d'etat (les TaskExecution sont remises a PENDING plus bas).
++    if execution.status == ExecutionStatus.WAITING_BUILD_VALIDATION:
++        from app.utils.build_guard import ensure_build_write_allowed
++
++        ensure_build_write_allowed(current_user)
++
+     # Ensure execution is in a waiting state
+     waiting_statuses = [
+
+--- a/backend/app/api/routes/orchestrator/retry_routes.py
++++ b/backend/app/api/routes/orchestrator/retry_routes.py
+@@
+     if failed_tasks:
+-        ensure_feature(current_user, "build_phase")
++        # BILL-05 : meme regle, exprimee par la garde commune — une seule
++        # definition du droit d'ecrire en BUILD pour tous les chemins.
++        from app.utils.build_guard import ensure_build_write_allowed
++
++        ensure_build_write_allowed(current_user)
+
+--- a/backend/app/workers/tasks.py
++++ b/backend/app/workers/tasks.py
+@@
+ async def execute_build_task(ctx, project_id: int, execution_id: int):
+     """ARQ task: Execute BUILD v2 with PhasedBuildExecutor."""
+     from app.services.phased_build_executor import PhasedBuildExecutor
+     from app.services.execution_state import ExecutionStateMachine, InvalidTransitionError
+     from app.models.task_execution import TaskExecution
++    from app.utils.build_guard import ensure_build_write_allowed_for_execution
+ 
+     db = SessionLocal()
+     try:
++        # BILL-05 / AS-05 : le worker ne revalidait aucun droit. Le palier a pu
++        # changer entre l'enfilage et l'execution, et un job peut etre enfile
++        # par un chemin qui aurait oublie sa porte. On relit le proprietaire en
++        # base ; une execution ou un proprietaire introuvable est un refus.
++        try:
++            ensure_build_write_allowed_for_execution(execution_id, db)
++        except Exception as refus:
++            logger.error(
++                f"[ARQ] BUILD v2 refuse pour l'execution {execution_id} : {refus}"
++            )
++            return {"success": False, "error": "build_not_allowed", "detail": str(refus)}
++
+         logger.info(f"[ARQ] BUILD v2 starting for project {project_id}, execution {execution_id}")

@@ -7,6 +7,8 @@ desormais l'authentification ET la verification de propriete
 (deliverable -> execution -> project -> user).
 """
 from typing import List
+from html import escape
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
@@ -235,14 +237,25 @@ def render_deliverable_html(
         # Content is not JSON-wrapped — return as-is
         pass
 
-    # If the content is already a complete HTML document, return it directly
+    # SEC-10 (audit du 06/09, vague 1 / file A) : le HTML du livrable etait
+    # renvoye tel quel, et le texte brut interpole dans `<pre>{html}</pre>`
+    # sans echappement. Un livrable est produit par des agents a partir d'un
+    # brief client : il est orientable, ce n'est pas une frontiere de
+    # confiance. Trois barrieres, dans cet ordre :
+    #   1. le contenu est assaini (liste blanche) ;
+    #   2. la reponse porte une CSP `sandbox` (origine opaque) ;
+    #   3. le frontend ne l'ouvre plus en document de premier niveau
+    #      (frontend/src/services/api.ts::openAuthenticated).
+    from app.utils.html_sanitizer import ENTETES_HTML_INERTE, assainir_html
+
     if html.lstrip().lower().startswith("<!doctype html") or html.lstrip().lower().startswith("<html"):
-        return HTMLResponse(content=html)
+        return HTMLResponse(content=assainir_html(html), headers=ENTETES_HTML_INERTE)
 
     # Otherwise wrap in a minimal HTML shell (for markdown/text content)
+    corps = escape(html)
     wrapped = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Deliverable {deliverable_id}</title>
 <style>body{{font-family:system-ui;max-width:900px;margin:2rem auto;padding:0 1rem;line-height:1.6}}
 pre{{background:#f4f4f4;padding:1rem;border-radius:4px;overflow-x:auto}}</style></head>
-<body><pre>{html}</pre></body></html>"""
-    return HTMLResponse(content=wrapped)
+<body><pre>{corps}</pre></body></html>"""
+    return HTMLResponse(content=wrapped, headers=ENTETES_HTML_INERTE)

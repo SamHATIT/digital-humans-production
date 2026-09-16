@@ -120,6 +120,17 @@ def _creer_compte(client, db_session, email: str, nom: str, mot_de_passe: str):
         )
     )
     db_session.commit()
+
+    # SEC-12 (vague 1 / file A, 16/09) : une conversation n'est rattachee au
+    # compte que s'il l'a REVENDIQUEE — porter l'adresse citee ne suffit plus
+    # (un visiteur peut saisir l'adresse d'un tiers dans le widget public).
+    # Ces tests portent sur l'export et l'effacement, pas sur la frontiere de
+    # rattachement : la session est donc revendiquee ici, comme le ferait le
+    # visiteur via POST /api/account/conversations/claim.
+    db_session.query(ChatLog).filter(
+        ChatLog.session_uuid == f"sess-{nom}"
+    ).update({ChatLog.claimed_by_user_id: user_id}, synchronize_session=False)
+    db_session.commit()
     return user_id, token, projet.id
 
 

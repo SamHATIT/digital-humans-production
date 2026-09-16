@@ -1,0 +1,49 @@
+# SEC-09 — diff destine a la FILE D (contrats d'API des routes projets)
+# Non commis : backend/app/api/routes/projects.py porte le contrat d'API du
+# wizard/parcours, perimetre de la file D. La garde existe deja sur
+# claude/vague1-a : backend/app/utils/url_guard.py (commit « fix(SEC-09) »).
+#
+# Constat (projects.py::test_salesforce_connection, branche OAuth) : l'URL
+# d'instance saisie sert a construire `api_url`, puis un VRAI jeton obtenu
+# du flux client_credentials y est envoye en bearer
+# (`GET {api_url}/services/data/v59.0/`). Astra : « le chemin OAuth obtient
+# un vrai jeton puis l'envoie a l'URL saisie, au lieu de l'instance
+# authentifiee retournee par Salesforce ».
+#
+# Deux corrections distinctes dans le meme bloc : borner la destination, et
+# surtout utiliser l'instance que Salesforce renvoie (`token_data["instance_url"]`)
+# plutot que celle saisie par le client.
+
+--- a/backend/app/api/routes/projects.py
++++ b/backend/app/api/routes/projects.py
+@@ test_salesforce_connection (branche OAuth)
+         try:
+             # Clean up instance URL
+             api_url = instance_url.strip().rstrip('/')
++
++            # SEC-09 : l'URL vient du formulaire. On borne la destination
++            # avant tout appel (schema, port, adresses resolues).
++            from app.utils.url_guard import DestinationInterdite, valider_url_sortante
++
++            try:
++                valider_url_sortante(api_url)
++            except DestinationInterdite as refus:
++                return {"success": False, "message": str(refus)}
+@@
+                 if token_response.status_code == 200:
+                     token_data = token_response.json()
+                     access_token = token_data.get("access_token")
++
++                    # SEC-09 : le jeton part vers l'instance que SALESFORCE
++                    # annonce, jamais vers celle saisie par le client.
++                    api_url = (token_data.get("instance_url") or api_url).rstrip('/')
++                    try:
++                        valider_url_sortante(api_url)
++                    except DestinationInterdite as refus:
++                        return {"success": False, "message": str(refus)}
+ 
+                     # Test the token
+                     test_response = await client.get(
+                         f"{api_url}/services/data/v59.0/",
+                         headers={"Authorization": f"Bearer {access_token}"},
++                        follow_redirects=False,

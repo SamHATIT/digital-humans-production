@@ -1,0 +1,36 @@
+# SEC-15 — diff destine a la FILE C
+# Non commis : app/services/pm_orchestrator_service_v2.py a un integrateur
+# unique. La liste blanche existe deja sur claude/vague1-a :
+# backend/app/utils/redaction.py::filtrer_resultat_org_salesforce
+# (commit « fix(SEC-15) », tests dans test_vague1_a_sec15_fuites_sorties.py).
+#
+# Constat : `metadata["org_info"] = org_data.get("result", {})` copie
+# integralement le resultat de `sf org display --json`, qui porte
+# `accessToken` (et selon les versions `refreshToken`, `clientId`,
+# `sfdxAuthUrl`). Ce dictionnaire est ensuite stocke comme livrable puis
+# injecte dans le contexte d'analyse — donc dans un prompt, et dans tout ce
+# qui conserve ce prompt.
+
+--- a/backend/app/services/pm_orchestrator_service_v2.py
++++ b/backend/app/services/pm_orchestrator_service_v2.py
+@@ _get_salesforce_metadata
+             if org_result.returncode == 0:
+                 org_data = json.loads(org_result.stdout)
+-                metadata["org_info"] = org_data.get("result", {})
++                # SEC-15 : liste blanche. `sf org display --json` rend
++                # `accessToken` ; ce dictionnaire finit dans un livrable puis
++                # dans un prompt. Aucun de ces champs n'est utile a une
++                # analyse d'architecture.
++                from app.utils.redaction import filtrer_resultat_org_salesforce
++
++                metadata["org_info"] = filtrer_resultat_org_salesforce(
++                    org_data.get("result", {})
++                )
+
+# Action d'exploitation associee, hors code (Astra) : examiner les livrables
+# et journaux DEJA produits, puis revoquer les jetons effectivement exposes.
+# Requete de reperage (base de production, lecture seule) :
+#
+#   SELECT id, execution_id, deliverable_type, created_at
+#   FROM agent_deliverables
+#   WHERE content LIKE '%accessToken%';

@@ -25,6 +25,8 @@ from app.services.agents_registry import (
     resolve_agent_id,
 )
 from app.schemas.change_request import ChangeRequestResponse, ChangeRequestList
+from app.utils.feature_access import ensure_feature
+from app.utils.ownership import verify_execution_access
 
 logger = logging.getLogger(__name__)
 
@@ -141,14 +143,21 @@ def chat_with_sophie_contextual(
         raise HTTPException(status_code=404, detail="Project not found or access denied")
 
     # Build deliverable context
+    #
+    # SEC-05 (audit du 06/09, vague 1 / file A) : ce filtre etait deja correct
+    # ici, mais un identifiant incoherent etait **ignore en silence** et
+    # transmis tel quel a `create_from_chat`, qui le rechargeait sans filtre.
+    # Une incoherence se refuse (regle « jamais de repli silencieux ») : 404,
+    # avant tout appel LLM, donc sans rien facturer.
     deliverable_context = ""
     if body.deliverable_id:
         deliverable = db.query(AgentDeliverable).filter(
             AgentDeliverable.id == body.deliverable_id,
             AgentDeliverable.execution_id == execution_id,
         ).first()
-        if deliverable:
-            deliverable_context = (deliverable.content or "")[:8000]
+        if not deliverable:
+            raise HTTPException(status_code=404, detail="Deliverable not found")
+        deliverable_context = (deliverable.content or "")[:8000]
 
     # Load conversation history for this agent only (N92 — chat is per-agent).
     history = db.query(ProjectConversation).filter(
@@ -296,6 +305,10 @@ def analyze_change_request(
         cr.status = "submitted"
         cr.submitted_at = datetime.utcnow()
         db.commit()
+
+    # BILL-05 (vague 1 / file A) : ce chemin secondaire ne portait pas sa
+    # porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "sds_document")
 
     service = ChangeRequestService(db)
     result = service.analyze_impact(cr_id, user_id=current_user.id)
@@ -632,10 +645,14 @@ def list_available_agents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List agents available for chat in this execution (those with deliverables)."""
-    execution = db.query(Execution).filter(Execution.id == execution_id).first()
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
+    """List agents available for chat in this execution (those with deliverables).
+
+    SEC-19 (audit du 06/09, vague 1 / file A) : cette lecture etait
+    authentifiee mais non cloisonnee — elle repondait sur l'execution d'un
+    autre client. `verify_execution_access` remonte l'execution jusqu'au
+    projet de l'appelant et rend 404 sinon.
+    """
+    execution = verify_execution_access(execution_id, current_user.id, db)
 
     # Get deliverable types for this execution
     deliverable_types = [

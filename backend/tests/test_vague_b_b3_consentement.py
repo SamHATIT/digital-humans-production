@@ -66,91 +66,40 @@ def _sha256_hex_len(s: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# /register — chemin legacy, toujours joignable (app.main inclut auth.router)
+# /register — chemin legacy FERME depuis SEC-12 (vague 1 / file A, 16/09)
+#
+# Les cinq tests qui vivaient ici verifiaient le consentement sur ce chemin.
+# Ils ne sont pas perdus : la meme verification est exercee ci-dessous sur
+# `signup-request` / `signup-confirm`, le chemin reellement emprunte par
+# SignupPage.tsx — c'est ce que disait deja l'en-tete de ce fichier. Le
+# chemin legacy creait un compte ACTIF avec l'adresse d'un tiers sans en
+# prouver la possession (rapport Astra L221) ; il repond desormais 410.
 # ─────────────────────────────────────────────────────────────────────
 
-def test_register_sans_consentement_renvoie_400(client):
-    """Rouge d'abord (voir rapport) : sans consent_cgv, l'inscription doit
-    etre refusee avec un message clair — pas un 201 silencieux."""
-    response = client.post("/api/auth/register", json=_payload("register-sans-consentement@example.com"))
-    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
-    detail = response.json()["detail"].lower()
-    assert "cgv" in detail or "consent" in detail
-
-
-def test_register_consentement_false_explicite_renvoie_400(client):
-    """Controle negatif : consent_cgv=false (present, mais faux) → 400 aussi,
-    pas seulement l'absence du champ."""
+def test_register_legacy_est_ferme(client):
+    """SEC-12 : plus de compte creable sans verification d'adresse."""
     response = client.post(
         "/api/auth/register",
         json=_payload(
-            "register-consentement-false@example.com",
-            consent_cgv=False,
+            "register-legacy@example.com",
+            consent_cgv=True,
             consent_version=VERSION_ACTUELLE,
         ),
     )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+    assert response.status_code == status.HTTP_410_GONE, response.text
+    assert db_utilisateur_absent(client, "register-legacy@example.com")
 
 
-def test_register_avec_consentement_renvoie_201_et_persiste_les_trois_colonnes(client, db_session):
-    """Controle positif : consent_cgv=true + version correcte → 201, et les
-    trois colonnes RGPD sont renseignees sur la ligne users (lue en base,
-    pas devinee depuis la reponse JSON)."""
-    email = "register-avec-consentement@example.com"
-    response = client.post(
-        "/api/auth/register",
-        json=_payload(email, consent_cgv=True, consent_version=VERSION_ACTUELLE),
-    )
-    assert response.status_code == status.HTTP_201_CREATED, response.text
+def db_utilisateur_absent(client, email: str) -> bool:
+    """Le refus doit etre total : aucune ligne `users` creee au passage."""
+    from app.database import get_db
+    from app.main import app as application
 
-    user = db_session.query(User).filter(User.email == email).first()
-    assert user is not None
-    assert user.consent_cgv_at is not None
-    # server_default-less DateTime(timezone=True) : verifie que c'est bien
-    # un datetime recent, pas juste "not None" par accident de colonne.
-    assert (datetime.now(timezone.utc) - user.consent_cgv_at.replace(tzinfo=timezone.utc)).total_seconds() < 60
-    assert user.consent_version == VERSION_ACTUELLE
-    assert user.consent_ip_hash is not None
-    assert _sha256_hex_len(user.consent_ip_hash), f"pas un sha256 hex: {user.consent_ip_hash!r}"
-    # Jamais l'IP en clair : l'IP vue par TestClient ne doit apparaitre nulle
-    # part telle quelle dans le hash stocke.
-    assert "testclient" not in user.consent_ip_hash
-
-
-def test_register_version_cgv_perimee_renvoie_400_avec_message_nommant_les_deux_valeurs(client):
-    """Une version qui ne correspond pas a CURRENT_TERMS_VERSION est refusee
-    (regle 6 : le message nomme la valeur recue et la valeur attendue, pas
-    de repli silencieux vers 'la version actuelle')."""
-    response = client.post(
-        "/api/auth/register",
-        json=_payload(
-            "register-version-perimee@example.com",
-            consent_cgv=True,
-            consent_version="0.1-perimee",
-        ),
-    )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
-    detail = response.json()["detail"]
-    assert "0.1-perimee" in detail
-    assert VERSION_ACTUELLE in detail
-
-
-def test_register_sans_sel_configure_refuse_explicitement_500(client):
-    """Regle 6 : CHAT_IP_SALT absent → refus explicite (500), jamais un
-    hachage avec un sel vide ni une creation de compte sans preuve d'IP."""
-    auth_module.IP_SALT = ""  # override direct : le fixture autouse remet SEL_TEST juste avant, donc ecrase ici pour CE test
-    try:
-        response = client.post(
-            "/api/auth/register",
-            json=_payload(
-                "register-sans-sel@example.com",
-                consent_cgv=True,
-                consent_version=VERSION_ACTUELLE,
-            ),
-        )
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR, response.text
-    finally:
-        auth_module.IP_SALT = SEL_TEST
+    generateur = application.dependency_overrides.get(get_db)
+    if generateur is None:  # pragma: no cover — le conftest le pose toujours
+        return True
+    session = next(generateur())
+    return session.query(User).filter(User.email == email).first() is None
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -302,3 +251,52 @@ def test_signup_confirm_rejette_un_token_avec_consent_cgv_false(client):
 
     response = client.post("/api/auth/signup-confirm", json={"token": token})
     assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Les deux verifications que le chemin legacy portait seul
+#
+# SEC-12 a ferme `/register`, et les cinq tests qui vivaient sur ce chemin
+# ont suivi. Trois d'entre eux avaient leur equivalent sur
+# `signup-request` / `signup-confirm` ci-dessus ; deux ne l'avaient pas :
+# la version de CGV perimee et le sel absent. Les deux comportements
+# existent toujours — `_require_consent` et `_hash_consent_ip` sont les
+# memes fonctions pour les deux routes — mais plus aucun test ne les
+# exercait. Ils sont donc reportes ici, sur le chemin reel.
+# ─────────────────────────────────────────────────────────────────────
+
+def test_signup_request_version_cgv_perimee_renvoie_400_en_nommant_les_deux_valeurs(client, monkeypatch):
+    """Regle 6 : une version inconnue est refusee, jamais repliee en silence
+    sur la version actuelle, et le message nomme recue ET attendue."""
+    monkeypatch.setattr(auth_module, "send_signup_verification_email", lambda **kw: None)
+    response = client.post(
+        "/api/auth/signup-request",
+        json=_payload(
+            "signup-request-version-perimee@example.com",
+            consent_cgv=True,
+            consent_version="0.1-perimee",
+        ),
+    )
+    assert response.status_code == status.HTTP_400_BAD_REQUEST, response.text
+    detail = response.json()["detail"]
+    assert "0.1-perimee" in detail
+    assert VERSION_ACTUELLE in detail
+
+
+def test_signup_request_sans_sel_configure_refuse_explicitement(client, monkeypatch):
+    """Regle 6 : `CHAT_IP_SALT` absent → refus explicite, jamais un hachage
+    avec un sel vide, et aucun compte cree au passage."""
+    envois = []
+    monkeypatch.setattr(
+        auth_module, "send_signup_verification_email",
+        lambda **kw: envois.append(kw),
+    )
+    monkeypatch.setattr(auth_module, "IP_SALT", "", raising=False)
+    email = "signup-request-sans-sel@example.com"
+    response = client.post(
+        "/api/auth/signup-request",
+        json=_payload(email, consent_cgv=True, consent_version=VERSION_ACTUELLE),
+    )
+    assert response.status_code >= 500, response.text
+    assert envois == [], "un mail est parti alors que le sel manquait"
+    assert db_utilisateur_absent(client, email)

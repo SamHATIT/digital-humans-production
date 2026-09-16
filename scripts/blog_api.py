@@ -9,8 +9,6 @@ from pydantic import BaseModel
 import uvicorn
 import subprocess
 import os
-import jwt
-import time
 
 app = FastAPI(title="Blog Generator API")
 
@@ -68,27 +66,10 @@ async def list_agents():
         ]
     }
 
-@app.get("/ghost-token")
-async def get_ghost_token():
-    """Generate a Ghost Admin API JWT token (valid 5 minutes)"""
-    ghost_key = os.getenv("GHOST_ADMIN_KEY")
-    if not ghost_key:
-        raise HTTPException(status_code=500, detail="GHOST_ADMIN_KEY not configured")
-    
-    try:
-        key_id, secret = ghost_key.split(':')
-    except ValueError:
-        raise HTTPException(status_code=500, detail="Invalid GHOST_ADMIN_KEY format")
-    
-    iat = int(time.time())
-    exp = iat + 300  # 5 minutes
-    
-    header = {'alg': 'HS256', 'typ': 'JWT', 'kid': key_id}
-    payload = {'iat': iat, 'exp': exp, 'aud': '/admin/'}
-    
-    token = jwt.encode(payload, bytes.fromhex(secret), algorithm='HS256', headers=header)
-    
-    return {"token": token, "expires_in": 300}
+# SEC-11 (audit du 06/09) : la route /ghost-token distribuait un JWT Ghost
+# Admin (5 min) a quiconque joignait ce port, sans authentification. Supprimee.
+# Un jeton Ghost se genere localement par l'operateur (scripts/blog_generator.py
+# le fait lui-meme a partir de GHOST_ADMIN_KEY), jamais via HTTP.
 
 @app.get("/health")
 async def health():

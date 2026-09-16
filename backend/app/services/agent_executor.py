@@ -359,7 +359,14 @@ class AgentExecutor:
         `--target-org None` et d'une erreur du CLI `sf`.
         """
         try:
+            # SEC-08 (vague 1 / file A) : ce deploiement n'utilisait aucun
+            # garde-fou de production — celui de SFAdminService lui etait
+            # inconnu. La garde commune est posee avant de construire la
+            # commande, donc avant tout sous-processus.
+            from app.utils.build_guard import ensure_salesforce_write_allowed
+
             salesforce_config.require("org_alias")
+            ensure_salesforce_write_allowed(salesforce_config.org_alias)
             result = subprocess.run(
                 [
                     "sf", "org", "display",
@@ -777,11 +784,23 @@ class AgentExecutor:
         return files
     
     def _save_to_workspace(self, code_files: Dict[str, str], agent_id: str) -> List[str]:
-        """Save code files to SFDX workspace"""
+        """Save code files to SFDX workspace.
+
+        SEC-03 (audit du 06/09, vague 1 / file A) : `filename` vient de la
+        sortie du modele et etait joint au dossier sans controle. Le nom est
+        desormais valide au point d'ecriture — une remontee, un chemin absolu
+        ou un `.git` leve `CheminInterdit`, qui n'est PAS rattrape par le
+        `except Exception` ci-dessous : une tentative d'ecriture hors racine
+        doit interrompre, pas etre journalisee puis oubliee.
+        """
+        from app.utils.path_guard import CheminInterdit, resoudre_sous_racine
+
         saved = []
         base_path = salesforce_config.force_app_path
         
         for filename, code in code_files.items():
+            # Hors du try : le refus remonte a l'appelant.
+            resoudre_sous_racine(base_path, filename)
             try:
                 if filename.endswith('.trigger'):
                     folder = os.path.join(base_path, 'triggers')
@@ -799,7 +818,13 @@ class AgentExecutor:
                 
                 os.makedirs(folder, exist_ok=True)
                 
-                filepath = os.path.join(folder, filename)
+                # SEC-03 : la racine est le workspace, pas le sous-dossier —
+                # sinon `../` remonterait d'un cran en restant « valide ». On
+                # revalide le chemin COMPLET (sous-dossier calcule + nom),
+                # relativement au workspace.
+                relatif = os.path.relpath(os.path.join(folder, filename), base_path)
+                filepath = str(resoudre_sous_racine(base_path, relatif))
+                os.makedirs(os.path.dirname(filepath), exist_ok=True)
                 with open(filepath, 'w') as f:
                     f.write(code)
                 saved.append(filepath)
@@ -826,7 +851,14 @@ class AgentExecutor:
         CLI `sf` echouer sur `--target-org None`.
         """
         try:
+            # SEC-08 (vague 1 / file A) : ce deploiement n'utilisait aucun
+            # garde-fou de production — celui de SFAdminService lui etait
+            # inconnu. La garde commune est posee avant de construire la
+            # commande, donc avant tout sous-processus.
+            from app.utils.build_guard import ensure_salesforce_write_allowed
+
             salesforce_config.require("org_alias")
+            ensure_salesforce_write_allowed(salesforce_config.org_alias)
             result = subprocess.run(
                 [
                     "sf", "project", "deploy", "start",

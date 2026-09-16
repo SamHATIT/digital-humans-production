@@ -9,6 +9,7 @@ from app.database import get_db
 from app.utils.dependencies import get_current_user
 from app.utils.ownership import verify_project_access
 from app.models.user import User
+from app.utils.feature_access import ensure_feature
 from app.models.project import Project
 from app.models.execution import Execution
 from app.models.change_request import ChangeRequest
@@ -159,6 +160,9 @@ def create_change_request(
     current_user: User = Depends(get_current_user)
 ):
     """Create a new change request."""
+    # BILL-05 (vague 1 / file A) : ce chemin secondaire ne portait pas sa
+    # porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "sds_document")
     # Verify project
     project = db.query(Project).filter(
         Project.id == project_id,
@@ -275,6 +279,10 @@ def submit_change_request(
     db.commit()
     logger.info(f"[CR Route] CR {cr.cr_number} status updated to submitted")
     
+    # BILL-05 (vague 1 / file A) : ce chemin secondaire ne portait pas sa
+    # porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "sds_document")
+
     # Run real impact analysis with Claude
     from app.services.change_request_service import ChangeRequestService
     service = ChangeRequestService(db)

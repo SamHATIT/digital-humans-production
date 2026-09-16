@@ -17,6 +17,7 @@ from app.config import settings
 from app.models.project import Project
 from app.models.project_document import ProjectDocument
 from app.models.user import User
+from app.utils.feature_access import ensure_feature
 from app.api.routes.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -102,6 +103,9 @@ def upload_document(
     The file is saved, chunked, and ingested into ChromaDB with
     project_id metadata for isolation.
     """
+    # BILL-05 (vague 1 / file A) : ce chemin secondaire ne portait pas sa
+    # porte Free — la capacite se verifiait ailleurs, pas ici.
+    ensure_feature(current_user, "upload_documents")
     _get_project_or_404(project_id, current_user, db)
 
     # Validate file extension

@@ -196,11 +196,21 @@ app.include_router(subscription.router, prefix=f"{settings.API_V1_PREFIX}/subscr
 app.include_router(billing.router, prefix=settings.API_V1_PREFIX)
 
 # Leads capture
-from app.api.routes import leads, blog
+from app.api.routes import leads
 from app.api.routes import journal_webhook
 app.include_router(leads.router, prefix=settings.API_V1_PREFIX)
-app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
 app.include_router(journal_webhook.router, prefix=settings.API_V1_PREFIX)
+
+# SEC-11 (audit du 06/09, vague 1 / file A) : le routeur blog etait monte
+# ici SANS authentification. /api/blog/generate-batch lancait
+# scripts/blog_generator.py (appels LLM, ecritures Ghost) pour n'importe quel
+# identifiant de sujet, sans verifier son statut « approved ». Aucun appelant
+# dans le depot (frontend, scripts, contrats d'API). Demonte cote serveur ;
+# le module app/api/routes/blog.py reste importable (le bootstrap hermetique
+# de la suite lit son DATABASE_URL). Reouverture eventuelle = outil interne
+# authentifie operateur, sujet approuve selectionne en base, lot borne.
+# from app.api.routes import blog
+# app.include_router(blog.router, prefix=settings.API_V1_PREFIX)
 
 # P3: Document upload routes (RAG project isolation)
 app.include_router(documents.router, prefix=settings.API_V1_PREFIX)
@@ -216,25 +226,41 @@ app.include_router(account.router, prefix=settings.API_V1_PREFIX)
 # Exception handler for validation errors
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    logger.error(f"Validation error: {exc}")
-    # Handle bytes body (e.g., from form data)
-    body = exc.body
-    if isinstance(body, bytes):
-        try:
-            body = body.decode('utf-8')
-        except:
-            body = "<binary data>"
-    
-    # Sanitize errors for JSON serialization
+    """SEC-15 (audit du 06/09, vague 1 / file A).
+
+    Cette reponse renvoyait le **corps complet** de la requete et les erreurs
+    Pydantic brutes, qui portent `input` : un mot de passe mal saisi partait
+    dans la reponse ET dans le journal (`logger.error(f"...{exc}")`, ou `exc`
+    rend les erreurs avec leur entree). On ne garde que `loc`, `type` et
+    `msg` — de quoi corriger le formulaire, rien de plus. Le journal ne
+    porte que le chemin, la methode et les emplacements fautifs, correles
+    par le request_id que pose ExecutionContextMiddleware.
+    """
     try:
-        errors = exc.errors()
-    except:
-        errors = [{"msg": str(exc)}]
-    
-    return JSONResponse(
-        status_code=422,
-        content={"detail": errors, "body": body}
+        erreurs_brutes = exc.errors()
+    except Exception:
+        erreurs_brutes = []
+
+    erreurs = []
+    for erreur in erreurs_brutes:
+        if not isinstance(erreur, dict):
+            continue
+        erreurs.append({
+            "loc": list(erreur.get("loc", ())),
+            "type": erreur.get("type", "value_error"),
+            "msg": erreur.get("msg", "Invalid value"),
+        })
+    if not erreurs:
+        erreurs = [{"loc": [], "type": "value_error", "msg": "Invalid request"}]
+
+    logger.error(
+        "Validation error: %s %s — champs: %s",
+        request.method,
+        request.url.path,
+        [e["loc"] for e in erreurs],
     )
+
+    return JSONResponse(status_code=422, content={"detail": erreurs})
 
 @app.get("/")
 async def root():
