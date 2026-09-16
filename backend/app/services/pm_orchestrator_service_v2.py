@@ -1024,7 +1024,6 @@ class PMOrchestratorServiceV2:
                     
                         ba_ucs_saved += saved
                         ba_tokens_total += tokens_used
-                        self._accumulate_cost(execution, tokens_used, model_used)
                         logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
                     else:
                         logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get('error')}")
@@ -1165,7 +1164,6 @@ class PMOrchestratorServiceV2:
                     results["agent_outputs"]["research_analyst"] = emma_result["output"]
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
                     results["metrics"]["total_tokens"] += emma_tokens
-                    self._accumulate_cost(execution, emma_tokens, emma_result["output"].get("metadata", {}).get("model", ""))
 
                     logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
                     self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
@@ -1837,7 +1835,6 @@ class PMOrchestratorServiceV2:
             }
             results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
             results["metrics"]["total_tokens"] += architect_tokens
-            self._accumulate_cost(execution, architect_tokens, "")  # BUG-007: model unknown at aggregate, uses default pricing
 
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             self._save_checkpoint(execution, "phase3_wbs")
@@ -2611,40 +2608,37 @@ class PMOrchestratorServiceV2:
         return round(cost, 6)
 
     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
-        """Track tokens per agent and accumulate cost on execution"""
+        """Compteurs de jetons par agent.
+
+        BILL-10 (diff de la file B) : cette methode n'ecrit PLUS
+        `executions.total_cost`. Le cout est ecrit une seule fois, par
+        `BudgetService.record_cost` appele depuis
+        `llm_service.generate_llm_response`, avec le cout MESURE par le
+        routeur. Ecrire ici rajoutait une estimation par-dessus la mesure : le
+        meme appel comptait double (mesure : 0.018 -> 0.036) et le garde-fou de
+        30 USD arretait un SDS a la moitie du budget reellement depense.
+
+        Les compteurs de jetons restent : eux ne sont pas en double.
+        """
         metadata = output.get("metadata", {})
         tokens = metadata.get("tokens_used", 0)
-        model = metadata.get("model", "")
         results["metrics"]["tokens_by_agent"][agent_id] = tokens
         results["metrics"]["total_tokens"] += tokens
-        # COST-001: Use real cost_usd from LLM router if available, else estimate
-        if tokens > 0:
-            real_cost = metadata.get("cost_usd", 0.0)
-            cost = real_cost if real_cost > 0 else self._calculate_cost(tokens, model)
-            if real_cost > 0:
-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (real from router)")
-            else:
-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (estimated 70/30)")
-            execution = self.db.query(Execution).filter(
-                Execution.id == results["execution_id"]
-            ).first()
-            if execution:
-                execution.total_cost = (execution.total_cost or 0.0) + cost
-                try:
-                    self.db.commit()
-                except Exception:
-                    self.db.rollback()
-
     def _accumulate_cost(self, execution: Execution, tokens: int, model: str):
-        """BUG-007: Add cost for tokens to execution.total_cost and commit."""
-        if tokens <= 0:
-            return
-        cost = self._calculate_cost(tokens, model)
-        execution.total_cost = (execution.total_cost or 0.0) + cost
-        try:
-            self.db.commit()
-        except Exception:
-            self.db.rollback()
+        """BILL-10 — conservee sans effet sur le cout, le temps que ses cinq
+        appelants soient retires.
+
+        Elle estimait un cout a partir d'un nombre TOTAL de jetons et d'un
+        ratio 70/30 suppose, parfois avec un modele vide
+        (`_accumulate_cost(execution, architect_tokens, "")`, deux appels
+        commentes BUG-007) : l'estimation tombait alors sur le tarif
+        « default », niveau Sonnet. Ce cout s'ajoutait a celui deja ecrit par
+        le wrapper LLM.
+
+        Ne rien ecrire est correct : `BudgetService.record_cost` a deja compte
+        cet appel, au cout mesure.
+        """
+        return
 
     def _save_deliverable(
         self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict
@@ -4052,7 +4046,6 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             results["artifacts"]["SDS"] = emma_output
             results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
             results["metrics"]["total_tokens"] += emma_write_tokens
-            self._accumulate_cost(execution, emma_write_tokens, emma_output.get("metadata", {}).get("model", ""))
             logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
         else:
             error_msg = emma_write_result.get('error', 'Unknown error')
@@ -4503,7 +4496,6 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
         results["metrics"]["total_tokens"] += architect_tokens
-        self._accumulate_cost(execution, architect_tokens, "")  # BUG-007
 
         self._save_checkpoint(execution, "phase3_wbs")
         self._update_progress(execution, "architect", "completed", 78, "Architecture complete (resume)")
