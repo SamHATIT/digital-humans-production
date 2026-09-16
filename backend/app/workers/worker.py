@@ -8,7 +8,10 @@ from arq.connections import ArqRedis
 from arq.jobs import Job, JobStatus
 from app.workers.arq_config import ARQ_QUEUE_NAME, REDIS_SETTINGS
 from app.workers.job_timeout import job_timeout_seconds
-from app.workers.retention import purge_chat_logs_task
+from app.workers.retention import (
+    purge_chat_logs_task,
+    purge_conversations_projet_task,
+)
 from app.workers.tasks import execute_sds_task, resume_architecture_task, execute_build_task
 
 logger = logging.getLogger("arq.worker")
@@ -197,4 +200,9 @@ class WorkerSettings:
     queue_name = ARQ_QUEUE_NAME  # une seule source : arq_config (vague 0 / AS-02)
     # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,
     # chaque nuit a 03:17 UTC. Voir app/workers/retention.py.
-    cron_jobs = [cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False)]
+    cron_jobs = [
+        cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False),
+        # GL-16 (diff de la file D) : meme heure creuse, quelques minutes plus
+        # tard pour ne pas tenir deux transactions de suppression en parallele.
+        cron(purge_conversations_projet_task, hour=3, minute=23, run_at_startup=False),
+    ]
