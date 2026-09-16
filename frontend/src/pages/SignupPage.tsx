@@ -20,12 +20,24 @@ import LangToggle from '../components/layout/LangToggle';
  */
 // Tier metadata used by the hero left column to show the user what they
 // just chose on /pricing. Only `free` is self-serve for now (ONBOARDING-001).
+// BILL-07 : cette copie annoncait « 1 projet, SDS uniquement » au Free, alors
+// que la matrice serveur (`app/models/subscription.py`) lui donne
+// `max_projects: 0` et `sds_document: False`. Le Free est un palier de
+// dialogue avec Sophie et Olivia — c'est ce qu'il faut annoncer, sinon le
+// premier geste de l'utilisateur se solde par un 403.
 const TIER_META: Record<string, { label: string; tagline: { en: string; fr: string } }> = {
   free: {
     label: 'Free',
     tagline: {
-      en: 'Sophie and Olivia, on the house. Up to 1 project, SDS only.',
-      fr: 'Sophie et Olivia, gracieusement. 1 projet, SDS uniquement.',
+      en: 'Sophie and Olivia, on the house. Talk through your project, free of charge.',
+      fr: 'Sophie et Olivia, gracieusement. Discutez de votre projet, sans frais.',
+    },
+  },
+  pro: {
+    label: 'Pro',
+    tagline: {
+      en: 'The full ensemble, document upload, and the SDS deliverable.',
+      fr: "L'ensemble complet, le téléversement de documents et le livrable SDS.",
     },
   },
 };

@@ -1,77 +1,43 @@
-/**
- * Pricing — A5.4
- * Refonte commerciale + visuelle Studio : Free / Pro / Team / Enterprise.
- * Page publique (pas de ProtectedRoute), accessible avec un AppShell variant="public".
- *
- * Vague B, lot B7 (D9, 03/09) : plus aucun prix ni nombre de crédits en dur
- * ici. La table `tier_config` est la seule source ; cette page appelle
- * `publicTiers.list()` (`GET /api/subscription/tiers`, public, sans jeton)
- * et affiche un état de chargement / d'erreur explicite — jamais un chiffre
- * de repli silencieux si l'appel échoue (règle 6).
- */
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import { useLang } from '../contexts/LangContext';
 import { publicTiers, type PublicTier } from '../services/api';
+import {
+  FEATURE_GROUPS,
+  featureValue,
+  formatCredits,
+  formatLimit,
+  formatPrice,
+} from '../lib/tierFeatures';
 
 type Tier = 'free' | 'pro' | 'team' | 'enterprise';
-
-interface Feature {
-  group: { en: string; fr: string };
-  label: { en: string; fr: string };
-  values: Record<Tier, boolean | string>;
-}
-
-const FEATURES: Feature[] = [
-  // SDS Phase
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'Business Requirements extraction', fr: 'Extraction des Business Requirements' }, values: { free: true, pro: true, team: true, enterprise: true } },
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'Use Cases generation', fr: 'Génération des Use Cases' }, values: { free: true, pro: true, team: true, enterprise: true } },
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'Solution Design', fr: 'Solution Design' }, values: { free: true, pro: true, team: true, enterprise: true } },
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'SDS Document (Word / PDF)', fr: 'Document SDS (Word / PDF)' }, values: { free: true, pro: true, team: true, enterprise: true } },
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'Max BRs per project', fr: 'BRs max par projet' }, values: { free: '30', pro: '100', team: 'Unlimited', enterprise: 'Unlimited' } },
-  { group: { en: 'SDS Phase', fr: 'Phase SDS' }, label: { en: 'Max projects', fr: 'Projets max' }, values: { free: '1', pro: '5', team: 'Unlimited', enterprise: 'Unlimited' } },
-  // BUILD Phase
-  { group: { en: 'BUILD Phase', fr: 'Phase BUILD' }, label: { en: 'BUILD Phase (code generation)', fr: 'Phase BUILD (génération de code)' }, values: { free: false, pro: true, team: true, enterprise: true } },
-  { group: { en: 'BUILD Phase', fr: 'Phase BUILD' }, label: { en: 'SFDX Deployment', fr: 'Déploiement SFDX' }, values: { free: false, pro: true, team: true, enterprise: true } },
-  { group: { en: 'BUILD Phase', fr: 'Phase BUILD' }, label: { en: 'Git integration', fr: 'Intégration Git' }, values: { free: false, pro: true, team: true, enterprise: true } },
-  { group: { en: 'BUILD Phase', fr: 'Phase BUILD' }, label: { en: 'Multi-environments', fr: 'Multi-environnements' }, values: { free: false, pro: false, team: true, enterprise: true } },
-  // Advanced
-  { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'Custom templates', fr: 'Templates personnalisés' }, values: { free: false, pro: false, team: true, enterprise: true } },
-  { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'Priority support', fr: 'Support prioritaire' }, values: { free: false, pro: true, team: true, enterprise: true } },
-  { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'Zero data retention', fr: 'Zero data retention' }, values: { free: true, pro: false, team: false, enterprise: true } },
-  { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'On-premise deployment', fr: 'Déploiement on-premise' }, values: { free: false, pro: false, team: false, enterprise: true } },
-  { group: { en: 'Advanced', fr: 'Avancé' }, label: { en: 'SLA + dedicated support', fr: 'SLA + support dédié', }, values: { free: false, pro: false, team: false, enterprise: true } },
-];
 
 interface TierCopy {
   id: Tier;
   name: string;
   tagline: { en: string; fr: string };
-  projects: { en: string; fr: string };
-  scope: { en: string; fr: string };
   cta: { en: string; fr: string };
   highlight?: boolean;
 }
 
-// Copie marketing statique — aucun prix, aucun nombre de crédits ici (D9).
-// Ces chiffres viennent exclusivement de `publicTiers.list()` (état `apiTiers`
-// dans le composant), lu depuis `tier_config`.
+// BILL-07 — copie marketing : aucun prix, aucun nombre de credits, et
+// desormais aucune promesse de fonctionnalite. Ce que porte chaque palier
+// vient exclusivement de `/api/subscription/tiers` (matrice `TIER_FEATURES`
+// du serveur). La page annoncait le SDS et un projet au Free, BUILD/Git/SFDX
+// au Pro et des projets illimites au Team : trois promesses que le serveur
+// refuse.
 const TIER_COPY: TierCopy[] = [
   {
     id: 'free',
     name: 'Free',
     tagline: { en: 'Try the Studio', fr: 'Découvrir le Studio' },
-    projects: { en: '1 project · SDS only', fr: '1 projet · SDS uniquement' },
-    scope: { en: 'Zero data retention', fr: 'Zero data retention' },
     cta: { en: 'Sign up free', fr: 'Créer un compte' },
   },
   {
     id: 'pro',
     name: 'Pro',
     tagline: { en: 'For consultants & freelance admins', fr: 'Pour consultants & admins freelance' },
-    projects: { en: '5 projects · SDS + BUILD', fr: '5 projets · SDS + BUILD' },
-    scope: { en: 'Git, SFDX, priority support', fr: 'Git, SFDX, support prioritaire' },
     cta: { en: 'Subscribe', fr: "S'abonner" },
     highlight: true,
   },
@@ -79,53 +45,17 @@ const TIER_COPY: TierCopy[] = [
     id: 'team',
     name: 'Team',
     tagline: { en: 'For agencies & in-house teams', fr: 'Pour agences & équipes internes' },
-    projects: { en: 'Unlimited · multi-env', fr: 'Illimités · multi-env' },
-    scope: { en: 'Custom templates, shared workspaces', fr: 'Templates personnalisés, workspaces partagés' },
     cta: { en: 'Talk to us', fr: 'Nous contacter' },
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
     tagline: { en: 'For large organisations', fr: 'Pour grandes organisations' },
-    projects: { en: 'Unlimited · on-premise', fr: 'Illimités · on-premise' },
-    scope: { en: 'SLA, dedicated support, ZDR', fr: 'SLA, support dédié, ZDR' },
     cta: { en: 'Talk to us', fr: 'Nous contacter' },
   },
 ];
 
 const TIER_ORDER: Tier[] = ['free', 'pro', 'team', 'enterprise'];
-
-// Formatage des chiffres reçus de l'API — jamais une valeur de repli, un
-// tier absent de la réponse (Enterprise n'a pas de ligne `tier_config`)
-// rend "Sur devis" / "On request", jamais un nombre inventé.
-function formatPrice(apiTier: PublicTier | undefined, lang: 'en' | 'fr'): string {
-  if (!apiTier || apiTier.price_eur_monthly === null) {
-    return lang === 'fr' ? 'Sur devis' : 'On request';
-  }
-  const grouped = new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-US').format(
-    apiTier.price_eur_monthly,
-  );
-  return `${grouped}€`;
-}
-
-function formatCredits(apiTier: PublicTier | undefined, lang: 'en' | 'fr'): string {
-  if (!apiTier || apiTier.credits === null || apiTier.credits_period === null) {
-    return lang === 'fr' ? 'Illimité' : 'Unlimited';
-  }
-  const grouped = new Intl.NumberFormat(lang === 'fr' ? 'fr-FR' : 'en-US').format(
-    apiTier.credits,
-  );
-  const noun = lang === 'fr' ? 'crédits' : 'credits';
-  const period =
-    apiTier.credits_period === 'day'
-      ? lang === 'fr'
-        ? 'jour'
-        : 'day'
-      : lang === 'fr'
-        ? 'mois'
-        : 'month';
-  return `${grouped} ${noun} / ${period}`;
-}
 
 const FAQ = [
   {
@@ -145,8 +75,8 @@ const FAQ = [
   {
     q: { en: 'Where does my data go?', fr: 'Où vont mes données ?' },
     a: {
-      en: 'Free and Enterprise tiers operate in zero-data-retention mode by default. Pro and Team store your projects and deliverables on EU-hosted infrastructure.',
-      fr: 'Les plans Free et Enterprise opèrent par défaut en zero data retention. Pro et Team stockent vos projets et livrables sur infrastructure UE.',
+      en: 'Your projects, conversations and deliverables are stored on EU-hosted infrastructure and deleted after the retention period set out in our privacy policy. You can request deletion at any time.',
+      fr: 'Vos projets, conversations et livrables sont hébergés sur une infrastructure UE et supprimés au terme de la durée indiquée dans notre politique de confidentialité. Vous pouvez en demander la suppression à tout moment.',
     },
   },
 ];
@@ -167,63 +97,55 @@ function FeatureValue({ value }: { value: boolean | string }) {
 }
 
 /**
- * Mod 24 — Helper pret a brancher pour declencher un checkout Stripe.
+ * Checkout Stripe — BILL-07.
  *
- * Etat actuel : NON BRANCHE. Le bouton Pro ouvre toujours un modal "Bientot",
- * Team / Enterprise ouvrent un mailto. Quand l\'ouverture publique de Pro/Team
- * est decidee, il suffira de remplacer dans handleCta :
- *   - `setShowProModal(true)` par `startStripeCheckout(\'pro\')`
- *   - le mailto Team par `startStripeCheckout(\'team\')`
+ * Etat avant : le bouton Pro ouvrait un modal « le rideau se lève bientôt »
+ * et ce helper s'appelait `_startStripeCheckout`, documente comme « NON
+ * BRANCHE ». L'abonnement Pro etait donc invendable alors que l'ouverture
+ * Free + Pro est decidee pour le 1er octobre.
  *
- * Le backend `POST /api/billing/checkout` :
- *   - exige un Bearer token (utilisateur doit etre logge)
- *   - retourne `{url}` = URL Stripe Checkout hosted
- *   - redirige vers `/billing/success` ou `/billing/cancel` apres paiement
+ * `POST /api/billing/checkout` exige un jeton : un visiteur non connecte est
+ * envoye vers /signup, et l'intention est memorisee pour reprendre le
+ * checkout apres la creation du compte.
  *
- * Si pas de token : redirige vers /signup (l\'utilisateur sera reoriente
- * vers le checkout apres signup, a implementer dans SignupPage si besoin).
+ * Aucun repli silencieux (regle 6) : si le backend repond 503 « Billing is
+ * not configured », l'appelant recoit le motif et l'affiche.
  */
-export async function _startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
+export async function startStripeCheckout(tier: 'pro' | 'team'): Promise<void> {
   const token = localStorage.getItem('token');
   if (!token) {
-    // Pas logge → on envoie vers signup, le checkout reprendra apres login
     sessionStorage.setItem('post_signup_checkout_tier', tier);
-    window.location.href = '/signup';
+    window.location.href = `/signup?tier=${tier}`;
     return;
   }
 
-  try {
-    const res = await fetch('/api/billing/checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ tier }),
-    });
+  const res = await fetch('/api/billing/checkout', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ tier }),
+  });
 
-    if (!res.ok) {
-      const detail = await res.text().catch(() => '');
-      console.error('[Stripe checkout] HTTP', res.status, detail);
-      alert('Le checkout Stripe est indisponible. Reessayez dans un instant ou contactez-nous.');
-      return;
-    }
-
-    const { url } = await res.json();
-    if (!url) {
-      console.error('[Stripe checkout] reponse sans url');
-      return;
-    }
-    window.location.href = url;
-  } catch (err) {
-    console.error('[Stripe checkout] erreur reseau', err);
-    alert('Le checkout Stripe est indisponible. Reessayez dans un instant ou contactez-nous.');
+  if (!res.ok) {
+    const corps = await res.json().catch(() => null);
+    const motif =
+      (corps && typeof corps.detail === 'string' && corps.detail) ||
+      `HTTP ${res.status}`;
+    throw new Error(motif);
   }
+
+  const { url } = await res.json();
+  if (!url) throw new Error('checkout sans url');
+  window.location.href = url;
 }
 
 export default function Pricing() {
   const { t, lang } = useLang();
-  const [showProModal, setShowProModal] = useState(false);
+  // BILL-07 : le refus de checkout est montre, jamais avale (regle 6).
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutPending, setCheckoutPending] = useState<Tier | null>(null);
 
   // Vague B / B7 (D9) : les prix et crédits ne sont plus en dur — ils
   // viennent de `tier_config` via cet appel. Trois états explicites,
@@ -253,33 +175,34 @@ export default function Pricing() {
     return acc;
   }, {});
 
-  const handleCta = (tier: Tier) => {
+  const handleCta = async (tier: Tier) => {
+    setCheckoutError(null);
     if (tier === 'free') {
-      // ONBOARDING-001: Free tier is self-serve — go straight to /signup
-      // and pre-select Free in the SignupPage hero so the user knows what
-      // they're getting (and so /register sets subscription_tier='free').
+      // ONBOARDING-001: Free tier is self-serve — go straight to /signup.
       window.location.href = '/signup?tier=free';
-    } else if (tier === 'pro') {
-      // Mod 24 : pour activer le checkout Stripe, remplacer la ligne suivante par :
-      //   startStripeCheckout('pro');
-      setShowProModal(true);
-    } else {
-      // Mod 24 : pour activer le checkout Stripe sur Team, remplacer ce bloc par :
-      //   if (tier === 'team') { startStripeCheckout('team'); return; }
-      // Pour Enterprise on garde toujours le mailto (on-premise, pas de Stripe).
-      const subject = encodeURIComponent(
-        tier === 'team' ? 'Team plan inquiry' : 'Enterprise plan inquiry',
-      );
-      window.location.href = `mailto:${ENTERPRISE_EMAIL}?subject=${subject}`;
+      return;
     }
+    if (tier === 'pro') {
+      // BILL-07 : ce bouton ouvrait un modal « bientôt ». Il ouvre le
+      // Checkout Stripe.
+      setCheckoutPending('pro');
+      try {
+        await startStripeCheckout('pro');
+      } catch (err) {
+        setCheckoutError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setCheckoutPending(null);
+      }
+      return;
+    }
+    // Team et Enterprise restent sur un contact : Team n'est pas ouvert le
+    // 1er octobre (perimetre Free + Pro decide le 15/09), Enterprise est
+    // on-premise et negocie.
+    const subject = encodeURIComponent(
+      tier === 'team' ? 'Team plan inquiry' : 'Enterprise plan inquiry',
+    );
+    window.location.href = `mailto:${ENTERPRISE_EMAIL}?subject=${subject}`;
   };
-
-  // Group features by group label
-  const groups = FEATURES.reduce<Record<string, Feature[]>>((acc, f) => {
-    const key = lang === 'fr' ? f.group.fr : f.group.en;
-    (acc[key] ||= []).push(f);
-    return acc;
-  }, {});
 
   return (
     <div className="bg-ink text-bone">
@@ -358,18 +281,29 @@ export default function Pricing() {
                   <li className="font-mono text-[11px] text-bone-2">
                     {loading ? t('Loading…', 'Chargement…') : formatCredits(apiTier, lang)}
                   </li>
+                  {/* BILL-07 : ces deux lignes etaient des promesses ecrites a la
+                      main (« 1 projet · SDS uniquement », « Git, SFDX, support
+                      prioritaire ») que la matrice serveur contredit. Elles sont
+                      desormais lues dans la reponse API. */}
                   <li className="font-mono text-[11px] text-bone-3">
-                    {t(copy.projects.en, copy.projects.fr)}
+                    {loading
+                      ? t('Loading…', 'Chargement…')
+                      : `${formatLimit(apiTier, 'max_projects', lang)} ${t('projects', 'projets')}`}
                   </li>
                   <li className="font-mono text-[11px] text-bone-3">
-                    {t(copy.scope.en, copy.scope.fr)}
+                    {loading
+                      ? t('Loading…', 'Chargement…')
+                      : featureValue(apiTier, 'sds_document')
+                        ? t('SDS deliverable included', 'Livrable SDS inclus')
+                        : t('Conversation with Sophie & Olivia', 'Dialogue avec Sophie & Olivia')}
                   </li>
                 </ul>
 
                 <button
                   type="button"
-                  onClick={() => handleCta(copy.id)}
-                  className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 font-mono text-[11px] tracking-cta uppercase transition-colors ${
+                  onClick={() => void handleCta(copy.id)}
+                  disabled={checkoutPending === copy.id}
+                  className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 font-mono text-[11px] tracking-cta uppercase transition-colors disabled:opacity-50 ${
                     highlighted
                       ? 'bg-brass text-ink hover:bg-brass-2'
                       : 'bg-ink-3 text-bone border border-bone/10 hover:border-brass/40'
@@ -393,6 +327,8 @@ export default function Pricing() {
           {t('What each tier carries', 'Ce que porte chaque tier')}
         </h2>
 
+        {/* BILL-07 : chaque cellule est lue dans `/api/subscription/tiers`,
+            donc dans `TIER_FEATURES`. Plus aucune promesse ecrite ici. */}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -411,31 +347,40 @@ export default function Pricing() {
               </tr>
             </thead>
             <tbody>
-              {Object.entries(groups).map(([group, items]) => (
-                <>
-                  <tr key={`group-${group}`} className="border-b border-bone/5">
-                    <td colSpan={5} className="pt-6 pb-2">
+              {FEATURE_GROUPS.map((groupe) => (
+                <Fragment key={groupe.group.en}>
+                  <tr className="border-b border-bone/5">
+                    <td colSpan={TIER_COPY.length + 1} className="pt-6 pb-2">
                       <p className="font-mono text-[10px] tracking-eyebrow uppercase text-brass">
-                        {group}
+                        {t(groupe.group.en, groupe.group.fr)}
                       </p>
                     </td>
                   </tr>
-                  {items.map((feature, i) => (
+                  {groupe.items.map((ligne) => (
                     <tr
-                      key={`${group}-${i}`}
+                      key={ligne.key}
                       className="border-b border-bone/5 hover:bg-ink-2/40 transition-colors"
                     >
                       <td className="py-3 pr-4 font-mono text-[12px] text-bone-2">
-                        {t(feature.label.en, feature.label.fr)}
+                        {t(ligne.label.en, ligne.label.fr)}
                       </td>
-                      {TIER_COPY.map((copy) => (
-                        <td key={copy.id} className="py-3 px-3 text-center">
-                          <FeatureValue value={feature.values[copy.id]} />
-                        </td>
-                      ))}
+                      {TIER_COPY.map((copy) => {
+                        const apiTier = apiTiersById[copy.id];
+                        return (
+                          <td key={copy.id} className="py-3 px-3 text-center">
+                            {!apiTiers && !tiersError ? (
+                              <span className="font-mono text-[11px] text-bone-4">…</span>
+                            ) : ligne.numeric ? (
+                              <FeatureValue value={formatLimit(apiTier, ligne.key, lang)} />
+                            ) : (
+                              <FeatureValue value={featureValue(apiTier, ligne.key)} />
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -479,53 +424,17 @@ export default function Pricing() {
         </p>
       </section>
 
-      {/* Pro tier "Coming soon" modal */}
-      {showProModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm p-4"
-          onClick={() => setShowProModal(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-ink-2 border border-brass/30 max-w-md w-full p-8 relative"
-          >
-            <button
-              type="button"
-              onClick={() => setShowProModal(false)}
-              className="absolute top-4 right-4 text-bone-4 hover:text-bone"
-              aria-label={t('Close', 'Fermer')}
-            >
-              <X className="w-4 h-4" />
-            </button>
-            <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 mb-3">
-              Pro tier
-            </p>
-            <h3 className="font-serif italic text-2xl text-bone mb-4">
-              {t('Curtain rises soon.', 'Le rideau se lève bientôt.')}
-            </h3>
-            <p className="font-mono text-[12px] leading-relaxed text-bone-3 mb-6">
-              {t(
-                'Self-serve subscription is in final preparation. Want to be notified when it opens?',
-                'L\'abonnement en self-service est en préparation. Souhaitez-vous être prévenu de son ouverture ?',
-              )}
-            </p>
-            <div className="flex gap-3">
-              <a
-                href={`mailto:${ENTERPRISE_EMAIL}?subject=${encodeURIComponent('Notify me about Pro tier')}`}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-brass text-ink font-mono text-[11px] tracking-cta uppercase hover:bg-brass-2 transition-colors"
-              >
-                {t('Notify me', 'Me prévenir')}
-                <span aria-hidden="true">→</span>
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowProModal(false)}
-                className="px-4 py-3 font-mono text-[11px] tracking-cta uppercase text-bone-3 hover:text-bone"
-              >
-                {t('Close', 'Fermer')}
-              </button>
-            </div>
-          </div>
+      {/* BILL-07 : le modal « le rideau se lève bientôt » est retire — le
+          bouton Pro ouvre le Checkout Stripe. Ce qui reste a montrer, c'est
+          un refus eventuel du backend. */}
+      {checkoutError && (
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+          <p className="border border-error/40 bg-error/5 px-4 py-3 font-mono text-[12px] text-error">
+            {t(
+              `Checkout is unavailable (${checkoutError}). Please retry, or email us.`,
+              `Le paiement est indisponible (${checkoutError}). Réessayez ou écrivez-nous.`,
+            )}
+          </p>
         </div>
       )}
 
