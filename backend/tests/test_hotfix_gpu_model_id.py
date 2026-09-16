@@ -61,9 +61,17 @@ def test_vllm_recoit_le_model_id_pas_la_cle(monkeypatch):
 def test_sophie_chat_ne_rend_pas_un_200_vide(monkeypatch):
     """Controle : un echec LLM doit sortir en success=False avec le motif, pas en message vide."""
     from app.services import sophie_chat_service as scs
-    monkeypatch.setattr(scs, "generate_llm_response",
-                        lambda **k: {"success": False, "content": "", "error": "HTTP 404 : model absent",
-                                     "model": "nemotron"})
+
+    # VAGUE 1 / FILE C (PROD-01) : `chat()` est une coroutine et appelle
+    # desormais la variante ASYNCHRONE — l'appel synchrone attendait dans la
+    # boucle d'evenements (mesure : zero pas d'avancement pendant 0,4 s). Le
+    # double suit le chemin reel ; le critere de ce test, lui, ne bouge pas :
+    # un echec LLM sort en success=False avec son motif, jamais en 200 vide.
+    async def _echec_llm(*a, **k):
+        return {"success": False, "content": "", "error": "HTTP 404 : model absent",
+                "model": "nemotron"}
+
+    monkeypatch.setattr(scs, "generate_llm_response_async", _echec_llm)
     svc = scs.SophieChatService.__new__(scs.SophieChatService)
     svc.db = None
     monkeypatch.setattr(svc, "get_project_context", lambda *a, **k: {"project": {}}, raising=False)

@@ -50,3 +50,28 @@ async def purge_chat_logs_task(ctx: dict) -> int:
         return -1
     finally:
         db.close()
+
+
+async def purge_conversations_projet_task(ctx: dict) -> int:
+    """GL-16 — purge des conversations Sophie du Studio (`project_conversations`).
+
+    B5 (03/09) n'a purge que `chat_logs`, la table du concierge public. Les
+    conversations tenues dans le Studio vivaient sans aucune purge par age,
+    alors que la politique de confidentialite en promet une.
+
+    La regle de duree vit dans `app/services/retention_service.py` (file D) ;
+    ce module ne fait que la planifier.
+    """
+    from app.database import SessionLocal
+    from app.services.retention_service import purger_conversations_projet
+
+    db = SessionLocal()
+    try:
+        return purger_conversations_projet(db)
+    except Exception as e:  # pragma: no cover — journalise, jamais propage
+        logger.error(
+            "[RETENTION] purge project_conversations en echec : %s", e, exc_info=True
+        )
+        return -1
+    finally:
+        db.close()

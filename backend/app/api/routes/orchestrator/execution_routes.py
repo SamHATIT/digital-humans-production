@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 from typing import List
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 import logging
 
 from app.database import get_db, SessionLocal
@@ -23,7 +24,10 @@ from app.schemas.execution import (
     ExecutionResultResponse,
 )
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
+from arq.jobs import Job
+
 from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
+from app.workers.enqueue import enfiler_execution, file_de_reprise
 from app.services.budget_service import BudgetService, BudgetExceededError
 from app.rate_limiter import limiter, RateLimits
 from app.api.routes.orchestrator._helpers import (
@@ -37,6 +41,18 @@ from app.utils.feature_access import require_feature
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["PM Orchestrator"])
+
+#: VAGUE 1 / FILE C (PROD-12) — type MIME par extension reellement produite.
+#: Le DOCX etait annonce pour tout, y compris pour un Markdown de repli.
+TYPES_MIME_LIVRABLE = {
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ),
+    ".pdf": "application/pdf",
+    ".md": "text/markdown; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+}
 
 
 @router.post("/execute", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -93,15 +109,20 @@ async def start_execution(
     if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
 
+    # VAGUE 1 / FILE C (PROD-04, CAL-07) — l'identifiant du job et la file sont
+    # notes sur l'execution AVANT l'enfilage : c'est ce qui permet au demarrage
+    # d'un worker de distinguer une execution abandonnee d'une execution en
+    # cours ailleurs, et a une reprise de rester sur le meme worker.
     pool = await get_redis_pool()
-    job = await pool.enqueue_job(
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
         execution_id=execution.id,
         project_id=project.id,
         selected_agents=execution_data.selected_agents,
-        _queue_name=ARQ_QUEUE_NAME,
     )
-    logger.info(f"[ARQ] Job {job.job_id} enqueued for execution {execution.id}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -154,14 +175,17 @@ async def resume_execution(
             )
         logger.info(f"[Resume] Architecture validation: action={action}, execution={execution_id}")
         pool = await get_redis_pool()
-        job = await pool.enqueue_job(
+        # CAL-07 — la reprise reste sur la file du lancement.
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "resume_architecture_task",
+            file=file_de_reprise(execution),
             execution_id=execution.id,
             project_id=execution.project_id,
             action=action,
-            _queue_name=ARQ_QUEUE_NAME,
         )
-        logger.info(f"[ARQ] Job {job.job_id} enqueued for architecture resume {execution.id}")
         return ExecutionStartResponse(
             execution_id=execution.id,
             status="resumed",
@@ -170,7 +194,16 @@ async def resume_execution(
 
     # ── BR validation resume (existing logic) ──
     def _determine_resume_point():
+        # VAGUE 1 / FILE C — PROD-05 = CAL-03. Cette fonction ne rendait que
+        # `phase2_ba` (traduit en `phase2`, Olivia rejouee) quel que soit
+        # l'avancement reel. Sur l'execution 172 du 15/09, arretee apres Emma
+        # (`last_completed_phase='phase2_5_emma'`), la reprise juste etait
+        # `phase3` : elle a du etre enfilee a la main. Le checkpoint commande
+        # desormais, via la table partagee avec `execute_workflow`.
         if execution.status == ExecutionStatus.WAITING_BR_VALIDATION:
+            # La validation des BR vient d'avoir lieu : c'est elle qui
+            # commande, meme si un checkpoint plus avance traine d'une
+            # tentative precedente.
             return "phase2_ba", 0
         if execution.status == ExecutionStatus.FAILED:
             from app.models.business_requirement import BusinessRequirement, BRStatus
@@ -178,18 +211,43 @@ async def resume_execution(
                 BusinessRequirement.project_id == execution.project_id,
                 BusinessRequirement.status == BRStatus.VALIDATED,
             ).count()
+            depuis_checkpoint = resume_point_depuis_checkpoint(
+                execution.last_completed_phase
+            )
+            if depuis_checkpoint:
+                logger.info(
+                    f"[Resume] Execution {execution.id} : dernier checkpoint "
+                    f"{execution.last_completed_phase!r} -> reprise en "
+                    f"{depuis_checkpoint!r} (PROD-05)"
+                )
+                return depuis_checkpoint, validated_brs
+            if execution.last_completed_phase:
+                # Checkpoint inconnu : on ne devine pas un point de reprise a
+                # partir d'un nom qu'on ne connait pas, on le dit et on
+                # applique la regle par defaut.
+                logger.warning(
+                    f"[Resume] Checkpoint {execution.last_completed_phase!r} "
+                    f"inconnu de CHECKPOINT_TO_RESUME_POINT : reprise depuis "
+                    f"les BR valides."
+                )
             if validated_brs > 0:
                 return "phase2_ba", validated_brs
         return None, 0
+
+    # Import local, comme le reste du fichier (`pm_orchestrator_service_v2`
+    # tire python-docx et chromadb ; un test verrouille cette propriete).
+    from app.services.pm_orchestrator_service_v2 import (
+        resolve_resume_point,
+        resume_point_depuis_checkpoint,
+    )
 
     resume_point, validated_brs = await asyncio.to_thread(_determine_resume_point)
 
     # VAGUE 3 / §3.2 — `phase2_ba` etait une valeur morte de plus. Son effet
     # reel (rejouer depuis la phase 2) coincidait avec l'intention, mais par
     # accident : elle tombait dans la branche generique, comme les onze autres.
-    # On la traduit pour que la coincidence devienne un contrat.
-    from app.services.pm_orchestrator_service_v2 import resolve_resume_point
-
+    # On la traduit pour que la coincidence devienne un contrat. Idempotente :
+    # un point deja canonique (celui du checkpoint) traverse inchange.
     if resume_point:
         resume_point = resolve_resume_point(resume_point)
 
@@ -218,21 +276,112 @@ async def resume_execution(
     await asyncio.to_thread(_mark_running)
 
     pool = await get_redis_pool()
-    job = await pool.enqueue_job(
+    # CAL-07 — meme file qu'au lancement.
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
+        file=file_de_reprise(execution),
         execution_id=execution.id,
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=resume_point,
-        _queue_name=ARQ_QUEUE_NAME,
     )
-    logger.info(f"[ARQ] Job {job.job_id} enqueued for resume {execution.id} from {resume_point}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
         status="resumed",
         message=f"Execution resumed from {resume_point}. Use the progress endpoint to track status.",
     )
+
+
+@router.post("/execute/{execution_id}/cancel", status_code=status.HTTP_202_ACCEPTED)
+async def cancel_execution(
+    execution_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Demande l'annulation d'une execution en cours (CAL-07).
+
+    VAGUE 1 / FILE C. Avant, aucune route n'existait : « seul un redemarrage du
+    worker interrompt une execution, et il tue toutes les autres » — c'est-a-
+    dire le geste que PROD-04 vient de desarmer.
+
+    Deux mecanismes, complementaires :
+
+    1. **abandon ARQ** (`Job.abort()`, rendu effectif par `allow_abort_jobs`) :
+       coupe le job, sur la file ou l'execution a ete enfilee et non sur celle
+       de ce processus ;
+    2. **annulation cooperative** : `cancel_requested_at` est relue par
+       l'orchestrateur entre deux phases. C'est elle qui ferme proprement
+       l'execution en CANCELLED et conserve le travail deja produit ; l'abandon
+       seul laisserait une execution RUNNING sans job (que le demarrage du
+       worker reconcilierait, mais plus tard).
+
+    La reponse dit lequel des deux a pu etre engage : une annulation qui ne
+    dirait pas ce qu'elle a fait serait indistinguable d'un accuse de reception.
+    """
+    execution = await asyncio.to_thread(
+        verify_execution_access, execution_id, current_user.id, db
+    )
+
+    statuts_terminaux = (
+        ExecutionStatus.COMPLETED,
+        ExecutionStatus.FAILED,
+        ExecutionStatus.CANCELLED,
+    )
+    if execution.status in statuts_terminaux:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Execution deja terminee (statut {execution.status.value}) : "
+                f"il n'y a rien a annuler."
+            ),
+        )
+
+    def _noter_la_demande():
+        try:
+            execution.cancel_requested_at = datetime.now(timezone.utc)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
+    # La demande est notee AVANT l'abandon : si l'abandon echoue, l'annulation
+    # reste lisible par l'orchestrateur au prochain point d'arret.
+    await asyncio.to_thread(_noter_la_demande)
+
+    job_abandonne = False
+    if execution.arq_job_id:
+        file_du_job = execution.arq_queue_name or ARQ_QUEUE_NAME
+        try:
+            pool = await get_redis_pool()
+            job_abandonne = bool(
+                await Job(
+                    execution.arq_job_id, pool, _queue_name=file_du_job
+                ).abort(timeout=0)
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Cancel] Abandon du job {execution.arq_job_id} impossible "
+                f"({e}) — l'annulation cooperative reste active"
+            )
+    else:
+        logger.info(
+            f"[Cancel] Execution {execution_id} sans arq_job_id : seule "
+            f"l'annulation cooperative s'applique"
+        )
+
+    return {
+        "execution_id": execution_id,
+        "status": "cancel_requested",
+        "job_aborted": job_abandonne,
+        "message": (
+            "Annulation demandee. L'execution s'arretera a la fin de la phase "
+            "en cours ; le travail deja produit est conserve."
+        ),
+    }
 
 
 @router.get("/execute/{execution_id}/progress")
@@ -257,6 +406,12 @@ def get_execution_progress(
         # B1-bis : `status: "failed"` seul ne disait pas pourquoi. Ce champ vaut
         # `None` tant que la cause n'est pas reconnue — on ne devine pas.
         "failure_reason": motif_echec_execution(db, execution),
+        # VAGUE 1 / FILE C (PROD-07, GL-10) — champ ADDITIF : ce qui a manque
+        # pendant l'execution sans l'arreter (RAG injoignable, expert en echec,
+        # livrable non persiste). Sans lui, un SDS annonce termine ne disait pas
+        # ce qu'il ne contenait pas. Liste vide = rien a signaler ; l'absence de
+        # degradation se lit, elle ne se devine pas.
+        "degraded": execution.degraded or [],
     }
 
 
@@ -296,6 +451,9 @@ def _load_progress_snapshot(execution_id: int, user_id: int):
             # front suit reellement pendant une execution ; sans lui le motif
             # n'arriverait qu'a un rechargement de page.
             "failure_reason": motif_echec_execution(db, execution),
+            # PROD-07 / GL-10 : idem, les degradations suivent le meme chemin
+            # que le motif d'echec.
+            "degraded": execution.degraded or [],
         }
         return payload, current_status, overall
     finally:
@@ -472,13 +630,33 @@ def download_sds_document(
     if not execution.sds_document_path:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="SDS document not available")
 
+    # VAGUE 1 / FILE C — PROD-12. Deux defauts ici :
+    #
+    # 1. le chemin en base ne prouvait pas un fichier sur le disque : un export
+    #    avorte laissait la route servir un `FileResponse` sur un chemin
+    #    inexistant, soit une erreur serveur au lieu d'un message clair ;
+    # 2. le type et le nom annonçaient TOUJOURS du DOCX, meme pour un `.md` ou
+    #    un `.html` — le client enregistrait un `.docx` que Word refuse
+    #    d'ouvrir. Le format annonce suit desormais le fichier reellement
+    #    presnt. La forme de la reponse (un fichier) est inchangee.
+    chemin = Path(execution.sds_document_path)
+    if not chemin.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Livrable introuvable sur le disque ({chemin.name}) : "
+                f"l'export est a refaire. Aucun agent n'a besoin d'etre relance."
+            ),
+        )
+
     project = db.query(Project).filter(Project.id == execution.project_id).first()
-    filename = f"SDS_{project.name.replace(' ', '_')}_{execution.id}.docx"
+    extension = chemin.suffix.lower()
+    filename = f"SDS_{project.name.replace(' ', '_')}_{execution.id}{extension}"
 
     return FileResponse(
-        path=execution.sds_document_path,
+        path=str(chemin),
         filename=filename,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        media_type=TYPES_MIME_LIVRABLE.get(extension, "application/octet-stream"),
     )
 
 

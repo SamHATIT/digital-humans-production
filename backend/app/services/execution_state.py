@@ -70,6 +70,27 @@ class ExecutionState(str, PyEnum):
     CANCELLED = "cancelled"
 
 
+# VAGUE 1 / FILE C — CAL-04 et PROD-06 : deux familles de transitions
+# manquaient, et leur absence etait rattrapee par des replis qui ecrivaient
+# `status` a la main, sans `execution_state` ni historique.
+#
+# 1. `-> queued` depuis tout etat NON TERMINAL. Reprendre une execution
+#    interrompue est le chemin nominal : `execute_workflow` transitionne vers
+#    `queued` a chaque prise de job. Mesure du 15/09 sur l'execution 172 :
+#    `[StateMachine] transition failed: sds_phase3_running → queued`, suivie du
+#    repli `execution.status = RUNNING` — statut et etat divergeaient ensuite.
+#    `deployed` n'y a pas droit (terminal) ; `failed` et `cancelled` avaient
+#    deja leur porte explicite.
+# 2. `-> failed` / `-> cancelled` depuis les etats `*_complete` et `waiting_*`.
+#    Une execution peut etre annulee ou echouer pendant une attente (timeout du
+#    job, annulation cooperative) ; sans ces cibles, le seul moyen de le noter
+#    etait d'ecrire `status` en contournant la machine.
+# 3. `sds_phase5_running -> waiting_sds_validation` (PROD-06) : la porte
+#    `after_sds_generation` est posee DEPUIS cet etat. La transition etant
+#    refusee, `transition_to` faisait un `rollback()` qui annulait le
+#    `pending_validation` ecrit juste avant — la porte etait posee sans son
+#    contenu.
+
 # Transition table: current_state -> list of valid target states
 TRANSITIONS: Dict[str, List[str]] = {
     "draft":                ["queued"],
@@ -85,38 +106,38 @@ TRANSITIONS: Dict[str, List[str]] = {
                              "build_queued", "build_running",
                              "failed", "cancelled"],
 
-    "sds_phase1_running":   ["sds_phase1_complete", "waiting_br_validation", "failed"],
-    "sds_phase1_complete":  ["sds_phase2_running", "waiting_br_validation"],
-    "waiting_br_validation": ["sds_phase2_running", "cancelled"],
+    "sds_phase1_running":   ["sds_phase1_complete", "waiting_br_validation", "failed", "queued", "cancelled"],
+    "sds_phase1_complete":  ["sds_phase2_running", "waiting_br_validation", "queued", "failed", "cancelled"],
+    "waiting_br_validation": ["sds_phase2_running", "cancelled", "queued", "failed"],
 
-    "sds_phase2_running":   ["sds_phase2_complete", "failed"],
-    "sds_phase2_complete":  ["sds_phase2_5_running"],
+    "sds_phase2_running":   ["sds_phase2_complete", "failed", "queued", "cancelled"],
+    "sds_phase2_complete":  ["sds_phase2_5_running", "queued", "failed", "cancelled"],
 
-    "sds_phase2_5_running": ["sds_phase2_5_complete", "failed"],
-    "sds_phase2_5_complete": ["sds_phase3_running"],
+    "sds_phase2_5_running": ["sds_phase2_5_complete", "failed", "queued", "cancelled"],
+    "sds_phase2_5_complete": ["sds_phase3_running", "queued", "failed", "cancelled"],
 
-    "sds_phase3_running":   ["sds_phase3_complete", "waiting_architecture_validation", "failed"],
-    "sds_phase3_complete":  ["sds_phase4_running"],
-    "waiting_architecture_validation": ["sds_phase3_running", "sds_phase4_running", "cancelled"],
+    "sds_phase3_running":   ["sds_phase3_complete", "waiting_architecture_validation", "failed", "queued", "cancelled"],
+    "sds_phase3_complete":  ["sds_phase4_running", "queued", "failed", "cancelled"],
+    "waiting_architecture_validation": ["sds_phase3_running", "sds_phase4_running", "cancelled", "queued", "failed"],
 
-    "sds_phase4_running":   ["sds_phase4_complete", "failed"],
-    "sds_phase4_complete":  ["sds_phase5_running", "waiting_expert_validation"],
+    "sds_phase4_running":   ["sds_phase4_complete", "failed", "queued", "cancelled"],
+    "sds_phase4_complete":  ["sds_phase5_running", "waiting_expert_validation", "queued", "failed", "cancelled"],
     # P2-Full: After expert validation, proceed to Phase 5
-    "waiting_expert_validation": ["sds_phase5_running", "sds_phase4_running", "cancelled"],
+    "waiting_expert_validation": ["sds_phase5_running", "sds_phase4_running", "cancelled", "queued", "failed"],
 
-    "sds_phase5_running":   ["sds_complete", "failed"],
-    "sds_complete":         ["build_queued", "waiting_sds_validation"],
+    "sds_phase5_running":   ["sds_complete", "waiting_sds_validation", "failed", "queued", "cancelled"],
+    "sds_complete":         ["build_queued", "waiting_sds_validation", "queued"],
     # P2-Full: After SDS validation, proceed to BUILD
-    "waiting_sds_validation": ["build_queued", "sds_phase5_running", "cancelled"],
+    "waiting_sds_validation": ["build_queued", "sds_phase5_running", "cancelled", "queued", "failed"],
 
     "build_queued":         ["build_running", "failed", "cancelled"],
-    "build_running":        ["build_validating", "build_complete", "failed"],
-    "build_validating":     ["build_complete", "build_running", "failed"],
-    "build_complete":       ["deploying", "waiting_build_validation"],
+    "build_running":        ["build_validating", "build_complete", "failed", "queued", "cancelled"],
+    "build_validating":     ["build_complete", "build_running", "failed", "queued", "cancelled"],
+    "build_complete":       ["deploying", "waiting_build_validation", "queued"],
     # P2-Full: After build validation, proceed to deploy
-    "waiting_build_validation": ["deploying", "build_running", "cancelled"],
+    "waiting_build_validation": ["deploying", "build_running", "cancelled", "queued", "failed"],
 
-    "deploying":            ["deployed", "failed"],
+    "deploying":            ["deployed", "failed", "cancelled"],
     "deployed":             [],
     # BUG-011: Allow resume from failed to any running phase (enables resume after crash)
     "failed":               ["queued", "sds_phase1_running", "sds_phase2_running", "sds_phase2_5_running",

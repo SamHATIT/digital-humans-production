@@ -13,7 +13,8 @@ from app.models.user import User
 from app.models.execution import Execution, ExecutionStatus
 from app.schemas.execution import ExecutionStartResponse
 from app.utils.dependencies import get_current_user
-from app.workers.arq_config import ARQ_QUEUE_NAME, get_redis_pool
+from app.workers.arq_config import get_redis_pool
+from app.workers.enqueue import enfiler_execution, file_de_reprise
 from app.api.routes.orchestrator._helpers import verify_execution_access
 from app.utils.feature_access import ensure_feature, require_feature
 
@@ -52,7 +53,11 @@ async def retry_failed_execution(
     # priver un compte Pro du retry SDS, qui lui est du (cas d'une retrogradation
     # Team -> Pro laissant des taches BUILD derriere elle).
     if failed_tasks:
-        ensure_feature(current_user, "build_phase")
+        # BILL-05 : meme regle, exprimee par la garde commune — une seule
+        # definition du droit d'ecrire en BUILD pour tous les chemins.
+        from app.utils.build_guard import ensure_build_write_allowed
+
+        ensure_build_write_allowed(current_user)
 
     agent_status = execution.agent_execution_status or {}
     resume_from = "phase1"
@@ -113,14 +118,18 @@ async def retry_failed_execution(
     pool = await get_redis_pool()
 
     if is_build_retry:
-        job = await pool.enqueue_job(
+        # VAGUE 1 / FILE C (PROD-04, CAL-07) — job identifie, file du lancement.
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_build_task",
+            file=file_de_reprise(execution),
             project_id=execution.project_id,
             execution_id=execution.id,
-            _queue_name=ARQ_QUEUE_NAME,
         )
         logger.info(
-            f"[ARQ] Job {job.job_id} enqueued for BUILD retry {execution.id} — "
+            f"[ARQ] BUILD retry {execution.id} — "
             f"{len(failed_tasks)} failed tasks reset to PENDING"
         )
         return ExecutionStartResponse(
@@ -131,15 +140,17 @@ async def retry_failed_execution(
             ),
         )
 
-    job = await pool.enqueue_job(
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
+        file=file_de_reprise(execution),
         execution_id=execution.id,
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=resume_from,
-        _queue_name=ARQ_QUEUE_NAME,
     )
-    logger.info(f"[ARQ] Job {job.job_id} enqueued for retry {execution.id} from {resume_from}")
 
     return ExecutionStartResponse(
         execution_id=execution.id,
@@ -261,13 +272,15 @@ async def resume_build(
     execution = db.query(Execution).filter(Execution.id == execution_id).first()
     if execution:
         pool = await get_redis_pool()
-        job = await pool.enqueue_job(
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_build_task",
+            file=file_de_reprise(execution),
             project_id=execution.project_id,
             execution_id=execution_id,
-            _queue_name=ARQ_QUEUE_NAME,
         )
-        logger.info(f"[ARQ] Job {job.job_id} enqueued for build resume {execution_id}")
 
     return {
         "status": result["status"],

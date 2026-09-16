@@ -25,6 +25,7 @@ from app.services.validation_gate_service import (
 )
 from app.api.routes.orchestrator._helpers import verify_execution_access
 from app.workers.arq_config import get_redis_pool
+from app.workers.enqueue import enfiler_execution, file_de_reprise
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,21 @@ async def submit_validation_decision(
     If rejected, stores annotations and resumes the previous phase
     so the agent can retry with feedback.
     """
+    from app.services.pm_orchestrator_service_v2 import (
+        EXPORT_RESUME_POINTS,
+        resolve_export_action,
+    )
+
     execution = verify_execution_access(execution_id, current_user.id, db)
+
+    # BILL-05 : approuver une porte BUILD enfile `execute_build_task` sans
+    # qu'aucune capacite ne soit verifiee. Un ancien Team retrograde Pro
+    # relancait ainsi un BUILD en attente. La porte se pose AVANT toute
+    # mutation d'etat (les TaskExecution sont remises a PENDING plus bas).
+    if execution.status == ExecutionStatus.WAITING_BUILD_VALIDATION:
+        from app.utils.build_guard import ensure_build_write_allowed
+
+        ensure_build_write_allowed(current_user)
 
     # Ensure execution is in a waiting state
     waiting_statuses = [
@@ -146,13 +161,17 @@ async def submit_validation_decision(
         )
 
     service = ValidationGateService(db)
-    result = service.submit_validation(
-        execution_id=execution_id,
-        approved=submission.approved,
-        annotations=submission.annotations,
-    )
 
-    gate_name = result.get("gate", "")
+    # VAGUE 1 / FILE C — PROD-06, deuxieme point : la porte n'est consommee
+    # qu'une fois la reprise jugee possible.
+    #
+    # Avant, `submit_validation` etait appele ici : il commitait la decision et
+    # effacait `pending_validation`, et la faisabilite n'etait examinee
+    # qu'ensuite. Une reprise impossible rendait alors un 409 sur une porte
+    # deja consommee : la decision du client etait perdue et la porte ne
+    # pouvait plus etre soumise. On lit donc le nom de la porte sur
+    # `pending_validation`, on verifie, puis on enregistre.
+    gate_name = (service.get_pending_validation(execution_id) or {}).get("gate", "")
 
     # VAGUE 3 / §3.3 et §3.4 — les six valeurs emises par ces deux tables
     # etaient toutes mortes. Elles tombaient dans la branche generique
@@ -189,6 +208,32 @@ async def submit_validation_decision(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unknown validation gate: {gate_name!r}",
         )
+
+    # PROD-06 — refus AVANT consommation : `resolve_export_action` est la seule
+    # decision de reprise qui peut conclure « impossible ». On la joue a blanc
+    # ici, sur l'etat courant ; l'aiguillage la rejouera pour agir.
+    if resume_point in EXPORT_RESUME_POINTS:
+        decision = resolve_export_action(
+            state=execution.execution_state,
+            sds_document_path=execution.sds_document_path,
+        )
+        if decision["action"] == "resume_upstream":
+            logger.warning(
+                f"[ValidationGate] Porte {gate_name!r} non consommee pour "
+                f"l'execution {execution_id} : {decision['reason']}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=decision["reason"],
+            )
+
+    # La reprise est possible : la decision peut etre enregistree.
+    result = service.submit_validation(
+        execution_id=execution_id,
+        approved=submission.approved,
+        annotations=submission.annotations,
+    )
+    assert result.get("gate", gate_name) == gate_name
 
     return await _relancer_apres_porte(
         db=db,
@@ -286,14 +331,22 @@ async def _relancer_apres_porte(
 
         _tracer_annotations_non_relues(gate_name, annotations)
 
-        job = await pool.enqueue_job(
+        # VAGUE 1 / FILE C — la file etait ecrite en dur ici, alors que la
+        # vague 0 (AS-02) avait ramene les sept autres sites d'enfilage a
+        # `arq_config.ARQ_QUEUE_NAME` : une porte validee pendant un test
+        # enfilait sur la file de production. Job identifie (PROD-04) et file
+        # du lancement (CAL-07).
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_build_task",
+            file=file_de_reprise(execution),
             project_id=execution.project_id,
             execution_id=execution.id,
-            _queue_name="digital-humans",
         )
         logger.info(
-            f"[ValidationGate] Job {job.job_id} enqueued for BUILD after gate "
+            f"[ValidationGate] BUILD relance apres la porte "
             f"{gate_name} — {len(taches)} tasks reset to PENDING"
         )
         return {
@@ -340,17 +393,20 @@ async def _relancer_apres_porte(
         # regeneration de l'export en dependant.
         execution.status = ExecutionStatus.RUNNING
         db.commit()
-        job = await pool.enqueue_job(
+        await enfiler_execution(
+            pool,
+            db,
+            execution,
             "execute_sds_task",
+            file=file_de_reprise(execution),
             execution_id=execution.id,
             project_id=execution.project_id,
             selected_agents=execution.selected_agents,
             resume_from="phase5",
-            _queue_name="digital-humans",
         )
         logger.info(
-            f"[ValidationGate] Job {job.job_id} enqueued for export "
-            f"regeneration of execution {execution_id}"
+            f"[ValidationGate] Regeneration de l'export enfilee pour "
+            f"l'execution {execution_id}"
         )
         return {
             "execution_id": execution_id,
@@ -383,17 +439,20 @@ async def _relancer_apres_porte(
     # correctif — voir le rapport de vague 3.
     _tracer_annotations_non_relues(gate_name, annotations)
 
-    job = await pool.enqueue_job(
+    await enfiler_execution(
+        pool,
+        db,
+        execution,
         "execute_sds_task",
+        file=file_de_reprise(execution),
         execution_id=execution.id,
         project_id=execution.project_id,
         selected_agents=execution.selected_agents,
         resume_from=point_canonique,
-        _queue_name="digital-humans",
     )
     logger.info(
-        f"[ValidationGate] Job {job.job_id} enqueued for execution "
-        f"{execution_id} from {point_canonique} (gate {gate_name})"
+        f"[ValidationGate] Execution {execution_id} relancee depuis "
+        f"{point_canonique} (porte {gate_name})"
     )
     return {
         "execution_id": execution_id,

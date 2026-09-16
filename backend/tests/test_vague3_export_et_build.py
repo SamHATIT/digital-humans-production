@@ -38,8 +38,16 @@ from app.services.pm_orchestrator_service_v2 import resolve_export_action
     ],
 )
 def test_sds_complete_avec_un_livrable_se_met_a_disposition(chemin):
-    """Ne rien relancer : le document existe, il suffit de le rendre."""
-    action = resolve_export_action(state="sds_complete", sds_document_path=chemin)
+    """Ne rien relancer : le document existe, il suffit de le rendre.
+
+    VAGUE 1 / FILE C (PROD-12) : `fichier_present=True` est explicite depuis
+    que la decision regarde aussi le disque. Ces chemins sont fictifs et ce
+    test porte sur l'EXTENSION ; l'existence du fichier a ses propres tests
+    (`test_vague1_c_prod12_contrat_livrable.py`), avec de vrais fichiers.
+    """
+    action = resolve_export_action(
+        state="sds_complete", sds_document_path=chemin, fichier_present=True
+    )
     assert action["action"] == "serve"
     assert action["path"] == chemin
     assert action["resume_from"] is None
@@ -54,7 +62,9 @@ def test_sds_complete_avec_du_markdown_seul_regenere(chemin):
     Le servir rendrait un fichier que le client ne peut pas ouvrir dans Word,
     en pretendant que tout va bien.
     """
-    action = resolve_export_action(state="sds_complete", sds_document_path=chemin)
+    action = resolve_export_action(
+        state="sds_complete", sds_document_path=chemin, fichier_present=True
+    )
     assert action["action"] == "regenerate_export"
     assert action["resume_from"] is None, (
         "regenerer l'export ne relance aucun agent : les donnees sont la"
@@ -100,15 +110,15 @@ def test_avant_phase4_complete_ce_n_est_pas_un_cas_d_export(etat):
 
 def test_l_extension_prime_sur_la_presence_du_chemin():
     """« Verifier l'extension, pas seulement la presence du chemin. »"""
-    servi = resolve_export_action("sds_complete", "/x/sds.docx")["action"]
-    regenere = resolve_export_action("sds_complete", "/x/sds.md")["action"]
+    servi = resolve_export_action("sds_complete", "/x/sds.docx", fichier_present=True)["action"]
+    regenere = resolve_export_action("sds_complete", "/x/sds.md", fichier_present=True)["action"]
     assert servi != regenere
 
 
 def test_une_extension_inconnue_ne_se_sert_pas():
     """Un `.txt` ou un `.json` n'est pas davantage un livrable qu'un `.md`."""
     for chemin in ("/x/sds.txt", "/x/sds.json", "/x/sds"):
-        action = resolve_export_action("sds_complete", chemin)
+        action = resolve_export_action("sds_complete", chemin, fichier_present=True)
         assert action["action"] == "regenerate_export", chemin
 
 
@@ -121,7 +131,7 @@ def test_chaque_decision_porte_sa_raison():
         ("sds_phase4_complete", None),
         ("sds_phase2_complete", None),
     ):
-        action = resolve_export_action(etat, chemin)
+        action = resolve_export_action(etat, chemin, fichier_present=True)
         assert action.get("reason"), f"decision non motivee : {etat} / {chemin}"
 
 
@@ -209,9 +219,16 @@ def porte_after_build_code(monkeypatch):
     def _submit(self, execution_id, approved, annotations=None):
         return {"success": True, "gate": "after_build_code"}
 
+    # VAGUE 1 / FILE C (PROD-06) : la route lit la porte en cours AVANT de
+    # consommer la decision, donc avant `submit_validation`.
+    def _pending(self, execution_id):
+        return {"gate": "after_build_code", "gate_label": "Build Code Review",
+                "deliverables": {}}
+
     from app.services.validation_gate_service import ValidationGateService
 
     monkeypatch.setattr(ValidationGateService, "submit_validation", _submit)
+    monkeypatch.setattr(ValidationGateService, "get_pending_validation", _pending)
 
 
 def test_approuver_after_build_code_ne_rejoue_pas_le_sds(
@@ -250,9 +267,17 @@ def porte(monkeypatch):
         def _submit(self, execution_id, approved, annotations=None):
             return {"success": True, "gate": nom}
 
+        # VAGUE 1 / FILE C (PROD-06) : la route lit desormais la porte en cours
+        # sur l'execution, AVANT de consommer la decision — elle ne peut plus
+        # apprendre son nom par le retour de `submit_validation`, qui arrive
+        # trop tard. La porte simulee se nomme donc la ou la route regarde.
+        def _pending(self, execution_id):
+            return {"gate": nom, "gate_label": nom, "deliverables": {}}
+
         from app.services.validation_gate_service import ValidationGateService
 
         monkeypatch.setattr(ValidationGateService, "submit_validation", _submit)
+        monkeypatch.setattr(ValidationGateService, "get_pending_validation", _pending)
 
     return _fabrique
 
@@ -313,17 +338,25 @@ def test_rejeter_after_expert_specs_rejoue_les_experts(
 
 
 def test_approuver_after_sds_generation_sert_le_livrable_sans_rien_relancer(
-    client, db_session, enfiles, porte
+    client, db_session, enfiles, porte, tmp_path
 ):
     """§3.3, premiere ligne du tableau : le DOCX existe, aucun agent ne repart.
-    C'etait `phase6_export`, morte, donc un rejeu complet du SDS."""
+    C'etait `phase6_export`, morte, donc un rejeu complet du SDS.
+
+    VAGUE 1 / FILE C (PROD-12) : le livrable est desormais un VRAI fichier. Le
+    chemin fictif d'avant passait parce que la decision se prenait sur la seule
+    extension — c'est le defaut que PROD-12 corrige, et ce test le franchissait
+    sans le voir.
+    """
     porte("after_sds_generation")
     user = _make_user(db_session)
     execution = _make_execution(
         db_session, user, ExecutionStatus.WAITING_SDS_VALIDATION
     )
+    livrable = tmp_path / "sds_42.docx"
+    livrable.write_bytes(b"un vrai livrable")
     execution.execution_state = "sds_complete"
-    execution.sds_document_path = "/deliverables/sds_42.docx"
+    execution.sds_document_path = str(livrable)
     db_session.commit()
     _authenticate_as(user)
 
@@ -331,7 +364,7 @@ def test_approuver_after_sds_generation_sert_le_livrable_sans_rien_relancer(
     assert r.status_code == 200, r.text
 
     assert enfiles == [], f"aucun job ne devait etre enfile : {enfiles}"
-    assert r.json()["document_path"] == "/deliverables/sds_42.docx"
+    assert r.json()["document_path"] == str(livrable)
 
 
 def test_approuver_after_sds_generation_regenere_si_markdown_seul(

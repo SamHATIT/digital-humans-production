@@ -64,6 +64,13 @@ from app.services.document_generator import generate_professional_sds
 from app.services.sds_section_writer import DIGITAL_HUMANS_AGENTS, UC_BATCH_SIZE, generate_uc_section_batched
 # VAGUE B / LOT B1 — proprietaire des credits propage depuis executions.user_id.
 from app.services.llm_service import credit_owner, reset_credit_owner, set_credit_owner
+# VAGUE 1 / FILE C (GL-10) — l'execution courante suit le fil d'execution, pour
+# que les services appeles en aval (RAG) sachent quelle execution marquer
+# `degraded` et nommer dans l'alerte admin, sans traverser onze signatures.
+from app.services.execution_context import (
+    poser_execution_courante,
+    reprendre_execution_courante,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +142,83 @@ EMITTED_TO_RESUME_POINT = {
 }
 
 
+# VAGUE 1 / FILE C — PROD-05 = CAL-03 : le dernier checkpoint atteint donne le
+# point de reprise. Une seule table, publique, lue par les DEUX reprises :
+# la reprise automatique (`execute_workflow`, BUG-010) et la reprise demandee
+# (`/resume`, `execution_routes`). Elle vivait en variable locale dans
+# `execute_workflow` : la route n'y avait pas acces et rendait `phase2` pour
+# tout — l'execution 172 du 15/09, arretee apres Emma, a du etre reprise a la
+# main en `phase3`.
+#
+# Regle (Sam) : on repart **a la suite** du dernier qui a reussi, jamais au
+# dernier qui a reussi.
+CHECKPOINT_TO_RESUME_POINT = {
+    "phase1_pm": "phase2",              # Sophie a fini -> Olivia
+    "phase2_ba": "phase2_5",            # Olivia a fini -> Emma
+    "phase2_5_emma": "phase3",          # Emma a fini -> Marcus
+    # La porte de couverture n'est pas un point de reprise SDS : l'architecture
+    # est produite mais non validee. `resume_from_architecture_validation` la
+    # traite quand l'execution attend la decision ; pour une execution FAILED a
+    # cet endroit, le moins couteux qui reste juste est de laisser Marcus
+    # reprendre ses appels — UC et digest sont conserves.
+    "phase3_3_coverage_gate": "phase3",
+    "phase3_3_coverage_gate_low": "phase3",
+    "phase3_wbs": "phase4",             # Marcus a fini -> les experts
+    "phase4_experts": "phase5",         # les experts ont fini -> ecriture du SDS
+    "phase5_write_sds": "phase5",       # SDS a reecrire
+    "phase6_export": "phase5",          # l'export seul reste a refaire (voir §3.3)
+}
+
+
+#: Ordre d'avancement des checkpoints. Sert a une seule chose : empecher un
+#: checkpoint de RECULER (PROD-05, dernier point : « ne jamais faire reculer le
+#: dernier checkpoint valide »).
+#:
+#: La reprise repasse par la branche « Phase 1 SKIPPED », qui reposait
+#: `phase1_pm` : une execution arretee apres Emma retombait a `phase1_pm` des
+#: la premiere seconde de sa reprise. Si cette reprise echouait avant le
+#: checkpoint suivant, la reprise d'apres rejouait Olivia ET Emma — le travail
+#: conserve par la vague 3 etait reperdu au deuxieme essai.
+ORDRE_CHECKPOINTS = (
+    "phase1_pm",
+    "phase2_ba",
+    "phase2_5_emma",
+    "phase3_3_coverage_gate",
+    "phase3_3_coverage_gate_low",
+    "phase3_wbs",
+    "phase4_experts",
+    "phase5_write_sds",
+    "phase6_export",
+)
+
+
+def checkpoint_recule(precedent: Optional[str], nouveau: str) -> bool:
+    """Le nouveau checkpoint est-il en arriere du precedent ?
+
+    Rend False des qu'un des deux noms est inconnu : on ne compare pas ce que
+    l'on ne sait pas ordonner, et on n'empeche pas une ecriture sur une
+    supposition.
+    """
+    if not precedent or precedent == nouveau:
+        return False
+    if precedent not in ORDRE_CHECKPOINTS or nouveau not in ORDRE_CHECKPOINTS:
+        return False
+    return ORDRE_CHECKPOINTS.index(nouveau) < ORDRE_CHECKPOINTS.index(precedent)
+
+
+def resume_point_depuis_checkpoint(last_completed_phase: Optional[str]) -> Optional[str]:
+    """Point de reprise correspondant au dernier checkpoint atteint.
+
+    Rend None si le checkpoint est absent ou inconnu : l'appelant decide alors
+    de sa regle par defaut. On ne devine pas un point de reprise a partir d'un
+    nom qu'on ne connait pas — une valeur fausse ici rejouerait des phases
+    deja payees (regle 6).
+    """
+    if not last_completed_phase:
+        return None
+    return CHECKPOINT_TO_RESUME_POINT.get(last_completed_phase)
+
+
 #: Extensions qui constituent un livrable remettable au client.
 #:
 #: VAGUE 3 / §3.3 — arbitrage Sam : **le Markdown n'est pas un livrable**. La
@@ -150,9 +234,41 @@ DELIVERABLE_EXTENSIONS = (".docx", ".pdf")
 STATE_CONTENT_READY = "sds_phase4_complete"
 STATE_SDS_COMPLETE = "sds_complete"
 
+#: VAGUE 1 / FILE C — PROD-06, deuxieme point. Les etats d'ATTENTE DE PORTE
+#: comptent aussi comme « contenu pret » : ce sont les etats reels au moment ou
+#: le client decide.
+#:
+#: `waiting_sds_validation` en particulier etait absent, alors que c'est l'etat
+#: de toute execution qui attend la validation de la porte
+#: `after_sds_generation` — laquelle emet `phase6_export` a l'approbation.
+#: `resolve_export_action` rendait donc `resume_upstream` pour la totalite des
+#: approbations de cette porte, soit un 409 systematique, apres consommation.
+#:
+#: `waiting_expert_validation` y figure pour la meme raison : la porte
+#: `after_expert_specs` est posee depuis `sds_phase4_complete`, et l'etat
+#: devient l'attente. Le contenu, lui, n'a pas bouge.
+STATES_CONTENT_READY = frozenset({
+    STATE_CONTENT_READY,
+    "waiting_expert_validation",
+    "sds_phase5_running",
+    "waiting_sds_validation",
+})
+
+
+class ExecutionAnnulee(Exception):
+    """Une annulation a ete demandee : on s'arrete proprement.
+
+    VAGUE 1 / FILE C — CAL-07. Levee par le point d'arret cooperatif, entre
+    deux phases. Elle n'est pas un echec : le travail deja produit est
+    conserve, l'execution se ferme en CANCELLED, et aucun agent de plus n'est
+    appele.
+    """
+
 
 def resolve_export_action(
-    state: Optional[str], sds_document_path: Optional[str]
+    state: Optional[str],
+    sds_document_path: Optional[str],
+    fichier_present: Optional[bool] = None,
 ) -> Dict[str, Any]:
     """Que faire d'une demande de reprise d'export (`phase6_export`) ?
 
@@ -176,7 +292,24 @@ def resolve_export_action(
     """
     chemin = (sds_document_path or "").strip()
     extension = ("." + chemin.rsplit(".", 1)[1].lower()) if "." in chemin else ""
-    est_livrable = bool(chemin) and extension in DELIVERABLE_EXTENSIONS
+
+    # VAGUE 1 / FILE C — PROD-12 : « la decision "livrable present" verifie
+    # l'extension, pas l'existence du fichier ». Un chemin en base ne prouve
+    # pas un fichier sur le disque : l'export avorte de la phase 6 laissait un
+    # `.docx` enregistre que personne n'avait ecrit, et il etait servi.
+    #
+    # `fichier_present` permet a un appelant de trancher lui-meme (decision
+    # jouee a blanc, test de la logique d'extension seule) ; a defaut, on
+    # regarde le disque.
+    if fichier_present is None:
+        try:
+            fichier_present = bool(chemin) and Path(chemin).is_file()
+        except OSError:
+            fichier_present = False
+
+    est_livrable = (
+        bool(chemin) and extension in DELIVERABLE_EXTENSIONS and fichier_present
+    )
 
     if state == STATE_SDS_COMPLETE:
         if est_livrable:
@@ -191,10 +324,14 @@ def resolve_export_action(
             }
         if not chemin:
             constat = "chemin absent"
-        elif extension:
-            constat = f"extension {extension} non remettable"
+        elif extension not in DELIVERABLE_EXTENSIONS:
+            constat = (
+                f"extension {extension} non remettable"
+                if extension
+                else "fichier sans extension"
+            )
         else:
-            constat = "fichier sans extension"
+            constat = f"fichier {chemin} absent du disque"
         return {
             "action": "regenerate_export",
             "path": None,
@@ -206,14 +343,15 @@ def resolve_export_action(
             ),
         }
 
-    if state == STATE_CONTENT_READY:
+    if state in STATES_CONTENT_READY:
         return {
             "action": "resume_workflow",
             "path": None,
             "resume_from": "phase5",
             "reason": (
-                "Contenu complet mais SDS non ecrit : Emma reprend la redaction "
-                "(phase5), puis l'export suit."
+                f"Etat {state!r} : le contenu est complet mais le livrable n'est "
+                f"pas exporte. Emma reprend la redaction (phase5), puis l'export "
+                f"suit. Aucun agent d'amont n'est relance."
             ),
         }
 
@@ -554,6 +692,9 @@ class PMOrchestratorServiceV2:
         # B1 : pose avant le `try:` pour que le `finally:` puisse toujours le
         # reinitialiser, meme si l'execution est introuvable.
         jeton_credits = None
+        # GL-10 : pose des l'entree, pour couvrir aussi les appels qui ne
+        # passent pas par `_run_agent` (sds_section_writer en phase 4).
+        jeton_execution = poser_execution_courante(execution_id)
 
         try:
             # Get project and execution
@@ -564,6 +705,10 @@ class PMOrchestratorServiceV2:
             execution = self.db.query(Execution).filter(Execution.id == execution_id).first()
             if not execution:
                 raise ValueError(f"Execution {execution_id} not found")
+
+            # CAL-07 — premier point d'arret : une annulation demandee pendant
+            # que le job attendait en file ne doit pas se payer une phase 1.
+            self._point_d_arret(execution, "le demarrage du workflow")
 
             # B1 : tous les appels LLM de ce run sont factures au proprietaire
             # de l'execution. Couvre aussi les appels qui ne portent pas
@@ -614,7 +759,9 @@ class PMOrchestratorServiceV2:
             # BUG-010: Auto-resume from last checkpoint if execution was previously running
             if not resume_from and execution.last_completed_phase:
                 last_phase = execution.last_completed_phase
-                # Map checkpoints to resume points
+                # VAGUE 1 / FILE C — table publique `CHECKPOINT_TO_RESUME_POINT`,
+                # partagee avec `/resume` (PROD-05). Elle vivait ici en local :
+                # la route n'y avait pas acces et rendait `phase2` pour tout.
                 # VAGUE 3 / §3.1 — la reprise automatique applique la meme regle
                 # que la reprise demandee : on repart **a la suite** du dernier
                 # qui a reussi, pas au dernier qui a reussi.
@@ -628,17 +775,7 @@ class PMOrchestratorServiceV2:
                 # Les valeurs doivent toutes appartenir a SDS_RESUME_POINTS :
                 # depuis §3.5 une valeur inconnue leve, donc une entree fausse
                 # ici casserait toute reprise automatique. Un test le verifie.
-                checkpoint_map = {
-                    "phase1_pm": "phase2",        # Sophie a fini -> Olivia
-                    "phase2_ba": "phase2_5",      # Olivia a fini -> Emma
-                    "phase2_5_emma": "phase3",    # Emma a fini -> Marcus
-                    "phase3_3_coverage_gate": None,  # Handled by resume_from_architecture_validation
-                    "phase3_wbs": "phase4",       # Marcus a fini -> les experts
-                    "phase4_experts": "phase5",   # les experts ont fini -> ecriture du SDS
-                    "phase5_write_sds": "phase5", # SDS a reecrire
-                    "phase6_export": "phase5",    # l'export seul reste a refaire (voir §3.3)
-                }
-                auto_resume = checkpoint_map.get(last_phase)
+                auto_resume = resume_point_depuis_checkpoint(last_phase)
                 if auto_resume:
                     logger.info(f"[BUG-010] Auto-resuming from checkpoint '{last_phase}' → resume_from='{auto_resume}'")
                     resume_from = auto_resume
@@ -887,7 +1024,6 @@ class PMOrchestratorServiceV2:
                     
                         ba_ucs_saved += saved
                         ba_tokens_total += tokens_used
-                        self._accumulate_cost(execution, tokens_used, model_used)
                         logger.info(f"[Phase 2] {br_id}: {saved} UCs saved to DB")
                     else:
                         logger.warning(f"[Phase 2] {br_id}: Failed - {uc_result.get('error')}")
@@ -1028,7 +1164,6 @@ class PMOrchestratorServiceV2:
                     results["agent_outputs"]["research_analyst"] = emma_result["output"]
                     results["metrics"]["tokens_by_agent"]["research_analyst"] = emma_tokens
                     results["metrics"]["total_tokens"] += emma_tokens
-                    self._accumulate_cost(execution, emma_tokens, emma_result["output"].get("metadata", {}).get("model", ""))
 
                     logger.info(f"[Phase 2.5] ✅ UC Digest generated ({len(all_use_cases)} UCs analyzed, {emma_tokens} tokens)")
                     self._update_progress(execution, "research_analyst", "completed", 45, f"Analyzed {len(all_use_cases)} UCs")
@@ -1700,7 +1835,6 @@ class PMOrchestratorServiceV2:
             }
             results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
             results["metrics"]["total_tokens"] += architect_tokens
-            self._accumulate_cost(execution, architect_tokens, "")  # BUG-007: model unknown at aggregate, uses default pricing
 
             self._update_progress(execution, "architect", "completed", 75, "Architecture complete")
             self._save_checkpoint(execution, "phase3_wbs")
@@ -1714,6 +1848,34 @@ class PMOrchestratorServiceV2:
                 project, execution, execution_id, project_id, results, selected_agents
             )
             
+        except ExecutionAnnulee as annulation:
+            # CAL-07 — ce n'est pas un echec : l'execution s'arrete ou on le lui
+            # a demande, au bord d'une phase, et ce qui est produit reste en
+            # base. Le dire comme un echec ferait croire a une panne.
+            logger.info(f"[Annulation] Execution {execution_id} : {annulation}")
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution_id
+            ).first()
+            if execution is not None:
+                self._clore_annulee(execution, str(annulation))
+            audit_service.log(
+                actor_type=ActorType.SYSTEM,
+                actor_id="orchestrator",
+                action=ActionCategory.EXECUTION_FAIL,
+                entity_type="execution",
+                entity_id=str(execution_id),
+                project_id=project_id,
+                execution_id=execution_id,
+                success="false",
+                error_message=f"annulation demandee : {annulation}",
+            )
+            return {
+                "success": False,
+                "cancelled": True,
+                "status": "cancelled",
+                "execution_id": execution_id,
+                "message": str(annulation),
+            }
         except Exception as e:
             logger.error(f"Execution {execution_id} failed: {str(e)}")
             import traceback
@@ -1765,6 +1927,7 @@ class PMOrchestratorServiceV2:
             # B1 : le proprietaire des credits ne survit pas au run.
             if jeton_credits is not None:
                 reset_credit_owner(jeton_credits)
+            reprendre_execution_courante(jeton_execution)
 
             # Cleanup temp files
             import shutil
@@ -1880,7 +2043,17 @@ class PMOrchestratorServiceV2:
             org_result = await self._run_sfdx_async(org_cmd, timeout=30)
             if org_result.returncode == 0:
                 org_data = json.loads(org_result.stdout)
-                metadata["org_info"] = org_data.get("result", {})
+                # SEC-15 (diff de la file A) : liste blanche. `sf org display
+                # --json` rend `accessToken` — et selon les versions
+                # `refreshToken`, `clientId`, `sfdxAuthUrl`. Ce dictionnaire
+                # etait copie integralement dans un livrable, donc dans un
+                # prompt, donc dans tout ce qui conserve ce prompt. Aucun de ces
+                # champs n'est utile a une analyse d'architecture.
+                from app.utils.redaction import filtrer_resultat_org_salesforce
+
+                metadata["org_info"] = filtrer_resultat_org_salesforce(
+                    org_data.get("result", {})
+                )
                 logger.info(f"[Metadata] ✅ Org info retrieved: {metadata['org_info'].get('edition', 'Unknown')} edition")
             
             # 2. List available metadata types
@@ -2051,11 +2224,16 @@ class PMOrchestratorServiceV2:
         # resout deja `executions.user_id` ; cette variable de contexte couvre
         # en plus les appels du meme run qui ne portent pas d'execution_id.
         jeton_credits = set_credit_owner(self._proprietaire_credits(execution_id))
+        # GL-10 : meme portee que le proprietaire des credits — tout ce que cet
+        # agent declenche appartient a cette execution, y compris ses requetes
+        # RAG.
+        jeton_execution = poser_execution_courante(execution_id)
         try:
             return await self._run_agent_interne(
                 agent_id, input_data, execution_id, project_id, mode
             )
         finally:
+            reprendre_execution_courante(jeton_execution)
             reset_credit_owner(jeton_credits)
 
     def _proprietaire_credits(self, execution_id: int) -> Optional[int]:
@@ -2183,8 +2361,158 @@ class PMOrchestratorServiceV2:
     # CHECKPOINT/RESUME METHODS
     # ============================================================================
     
+    # ========================================================================
+    # DEGRADATIONS ET FINALISATION (VAGUE 1 / FILE C — PROD-07, GL-10)
+    # ========================================================================
+
+    #: Degradations qui interdisent de declarer un SDS termine. Astra : « une
+    #: etape obligatoire ou une persistance echouee interdit la finalisation ».
+    #: Les autres (RAG tombe, expert en echec) sont tolerees — mais visibles.
+    DEGRADATIONS_BLOQUANTES = ("deliverable_not_persisted",)
+
+    def _tracer_degradation(self, execution_id: int, motif: str, detail: str) -> None:
+        """Note sur l'execution ce qui s'est mal passe sans l'arreter.
+
+        PROD-07 : « pas de succes partiel cache ». Un lot BA perdu, un expert
+        en echec, un livrable non persiste etaient journalises puis oublies :
+        l'API annoncait un SDS termine, et rien ne disait ce qui manquait.
+
+        Meme colonne que GL-10 (`executions.degraded`) : c'est la meme
+        question — qu'est-ce qui n'a pas ete fait, et faut-il rejouer ?
+        """
+        from sqlalchemy.orm.attributes import flag_modified
+
+        try:
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution_id
+            ).first()
+            if execution is None:
+                return
+            degradations = list(execution.degraded or [])
+            if any(
+                d.get("motif") == motif and d.get("detail") == detail
+                for d in degradations
+            ):
+                return
+            degradations.append({
+                "motif": motif,
+                "detail": detail,
+                "at": datetime.now(timezone.utc).isoformat(),
+            })
+            execution.degraded = degradations
+            flag_modified(execution, "degraded")
+            self.db.commit()
+            logger.warning(
+                f"[Degradation] Execution {execution_id} : {motif} — {detail}"
+            )
+        except Exception as e:
+            logger.error(
+                f"[Degradation] Trace impossible sur l'execution {execution_id} : {e}"
+            )
+            try:
+                self.db.rollback()
+            except Exception:
+                pass
+
+    def _verifier_finalisation_possible(self, execution_id: int) -> None:
+        """Interdit de finaliser sur une degradation bloquante (PROD-07).
+
+        Raises:
+            Exception: si un livrable obligatoire n'a pas ete persiste. Le
+                message nomme ce qui manque : un echec qui ne dit pas quoi
+                refaire est aussi couteux qu'un succes menteur.
+        """
+        execution = self.db.query(Execution).filter(
+            Execution.id == execution_id
+        ).first()
+        if execution is None:
+            return
+        bloquantes = [
+            d for d in (execution.degraded or [])
+            if d.get("motif") in self.DEGRADATIONS_BLOQUANTES
+        ]
+        if not bloquantes:
+            return
+        details = " ; ".join(str(d.get("detail", d.get("motif"))) for d in bloquantes)
+        raise Exception(
+            f"Finalisation refusee : un livrable obligatoire n'a pas ete "
+            f"persiste ({details}). Un SDS annonce termine dont le livrable "
+            f"n'est pas en base n'est pas un SDS termine (PROD-07)."
+        )
+
+    # ========================================================================
+    # ANNULATION COOPERATIVE (VAGUE 1 / FILE C — CAL-07)
+    # ========================================================================
+
+    def _point_d_arret(self, execution: Execution, etape: str) -> None:
+        """Releve l'annulation demandee, entre deux phases.
+
+        CAL-07 : « aucun point d'arret cooperatif dans `execute_workflow` :
+        seul un redemarrage du worker interrompt une execution, et il tue
+        toutes les autres ». L'abandon ARQ (`allow_abort_jobs`) coupe le job ;
+        ce point d'arret-ci ferme l'execution proprement, au bord d'une phase,
+        sans perdre ce qui est deja en base.
+
+        Lit l'etat **en base** et non l'objet en memoire : la demande arrive par
+        une autre session (la route `/cancel`), pendant que ce workflow tourne.
+
+        Raises:
+            ExecutionAnnulee: si une annulation a ete demandee.
+        """
+        try:
+            self.db.refresh(execution, ["cancel_requested_at"])
+        except Exception:  # objet detache, session recyclee : on relit a plat
+            execution = self.db.query(Execution).filter(
+                Execution.id == execution.id
+            ).first()
+            if execution is None:
+                return
+        if execution.cancel_requested_at:
+            raise ExecutionAnnulee(
+                f"Annulation demandee le "
+                f"{execution.cancel_requested_at.isoformat()} — arret avant "
+                f"{etape}. Le travail deja produit est conserve."
+            )
+
+    def _clore_annulee(self, execution: Execution, message: str) -> None:
+        """Ferme une execution annulee : statut, etat, journal."""
+        try:
+            ExecutionStateMachine(self.db, execution.id).transition_to(
+                "cancelled", metadata={"raison": "annulation_demandee"}
+            )
+        except Exception as e:
+            logger.warning(
+                f"[Annulation] Transition vers 'cancelled' refusee pour "
+                f"l'execution {execution.id} ({e}) — statut et etat poses "
+                f"directement"
+            )
+            execution.status = ExecutionStatus.CANCELLED
+            execution.execution_state = "cancelled"
+        execution.logs = (execution.logs or "") + "\n[Annulation] " + message
+        execution.completed_at = datetime.now(timezone.utc)
+        self.db.commit()
+        logger.info(f"[Annulation] Execution {execution.id} close : {message}")
+
     def _save_checkpoint(self, execution: Execution, phase: str):
-        """Save checkpoint after successful phase completion for resume capability"""
+        """Save checkpoint after successful phase completion for resume capability
+
+        CAL-07 : c'est aussi le point d'arret cooperatif. Un checkpoint marque
+        la fin d'une phase reussie — l'endroit exact ou s'arreter sans rien
+        perdre ni rien repayer. La verification suit l'ecriture : le travail de
+        la phase qui vient de finir est acquis avant qu'on decide d'arreter.
+        """
+        if checkpoint_recule(execution.last_completed_phase, phase):
+            # PROD-05 — la reprise repasse par des etapes deja franchies (la
+            # branche « Phase 1 SKIPPED » repose `phase1_pm`). Les reecrire
+            # ferait perdre, au prochain echec, le travail que la reprise
+            # venait justement de conserver.
+            logger.info(
+                f"Checkpoint '{phase}' ignore : l'execution {execution.id} est "
+                f"deja a '{execution.last_completed_phase}' (un checkpoint ne "
+                f"recule pas)"
+            )
+            self._point_d_arret(execution, f"la phase suivant {phase}")
+            return
         try:
             execution.last_completed_phase = phase
             self.db.commit()
@@ -2192,6 +2520,7 @@ class PMOrchestratorServiceV2:
         except Exception as e:
             logger.warning(f"Failed to save checkpoint: {e}")
             self.db.rollback()
+        self._point_d_arret(execution, f"la phase suivant {phase}")
     
     def _update_progress(self, execution: Execution, agent_id: str, state: str, progress: int, message: str):
         """Update execution progress for SSE and send real-time notification"""
@@ -2279,43 +2608,46 @@ class PMOrchestratorServiceV2:
         return round(cost, 6)
 
     def _track_tokens(self, agent_id: str, output: Dict, results: Dict):
-        """Track tokens per agent and accumulate cost on execution"""
+        """Compteurs de jetons par agent.
+
+        BILL-10 (diff de la file B) : cette methode n'ecrit PLUS
+        `executions.total_cost`. Le cout est ecrit une seule fois, par
+        `BudgetService.record_cost` appele depuis
+        `llm_service.generate_llm_response`, avec le cout MESURE par le
+        routeur. Ecrire ici rajoutait une estimation par-dessus la mesure : le
+        meme appel comptait double (mesure : 0.018 -> 0.036) et le garde-fou de
+        30 USD arretait un SDS a la moitie du budget reellement depense.
+
+        Les compteurs de jetons restent : eux ne sont pas en double.
+        """
         metadata = output.get("metadata", {})
         tokens = metadata.get("tokens_used", 0)
-        model = metadata.get("model", "")
         results["metrics"]["tokens_by_agent"][agent_id] = tokens
         results["metrics"]["total_tokens"] += tokens
-        # COST-001: Use real cost_usd from LLM router if available, else estimate
-        if tokens > 0:
-            real_cost = metadata.get("cost_usd", 0.0)
-            cost = real_cost if real_cost > 0 else self._calculate_cost(tokens, model)
-            if real_cost > 0:
-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (real from router)")
-            else:
-                logger.debug(f"[Cost] {agent_id}: ${cost:.4f} (estimated 70/30)")
-            execution = self.db.query(Execution).filter(
-                Execution.id == results["execution_id"]
-            ).first()
-            if execution:
-                execution.total_cost = (execution.total_cost or 0.0) + cost
-                try:
-                    self.db.commit()
-                except Exception:
-                    self.db.rollback()
-
     def _accumulate_cost(self, execution: Execution, tokens: int, model: str):
-        """BUG-007: Add cost for tokens to execution.total_cost and commit."""
-        if tokens <= 0:
-            return
-        cost = self._calculate_cost(tokens, model)
-        execution.total_cost = (execution.total_cost or 0.0) + cost
-        try:
-            self.db.commit()
-        except Exception:
-            self.db.rollback()
+        """BILL-10 — conservee sans effet sur le cout, le temps que ses cinq
+        appelants soient retires.
 
-    def _save_deliverable(self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict):
-        """Save agent deliverable to database"""
+        Elle estimait un cout a partir d'un nombre TOTAL de jetons et d'un
+        ratio 70/30 suppose, parfois avec un modele vide
+        (`_accumulate_cost(execution, architect_tokens, "")`, deux appels
+        commentes BUG-007) : l'estimation tombait alors sur le tarif
+        « default », niveau Sonnet. Ce cout s'ajoutait a celui deja ecrit par
+        le wrapper LLM.
+
+        Ne rien ecrire est correct : `BudgetService.record_cost` a deja compte
+        cet appel, au cout mesure.
+        """
+        return
+
+    def _save_deliverable(
+        self, execution_id: int, agent_id: str, deliverable_type: str, content: Dict
+    ) -> bool:
+        """Save agent deliverable to database. Rend True si le livrable est en base.
+
+        VAGUE 1 / FILE C (PROD-07) : rendait None dans tous les cas, succes
+        comme echec. Un appelant ne pouvait pas distinguer les deux.
+        """
         try:
             # Convert dict to JSON string for PostgreSQL
             content_json = json.dumps(content, ensure_ascii=False) if isinstance(content, dict) else content
@@ -2341,11 +2673,22 @@ class PMOrchestratorServiceV2:
             self.db.add(deliverable)
             self.db.commit()  # BUG-006: was flush(), needs commit for frontend visibility
             logger.info(f"✅ Saved deliverable: {agent_id}_{deliverable_type} (execution {execution_id})")
+            return True
         except Exception as e:
             logger.error(f"❌ Failed to save deliverable {agent_id}_{deliverable_type}: {e}")
             import traceback
             traceback.print_exc()
             self.db.rollback()
+            # VAGUE 1 / FILE C — PROD-07 : l'echec etait journalise puis avale,
+            # et la methode ne rendait rien. Le workflow continuait jusqu'a
+            # COMPLETED sur un livrable qui n'existe pas. Il rend desormais
+            # False et laisse une trace lisible sur l'execution.
+            self._tracer_degradation(
+                execution_id,
+                "deliverable_not_persisted",
+                f"{agent_id}_{deliverable_type} : {type(e).__name__}: {e}",
+            )
+            return False
 
 
     # ============================================================================
@@ -2645,9 +2988,24 @@ class PMOrchestratorServiceV2:
             try:
                 from app.services.markdown_to_docx import convert_markdown_to_docx
                 output_path = f"{output_dir}/SDS_Exec{execution_id}.docx"
-                convert_markdown_to_docx(sds_markdown, output_path, project.name)
-                logger.info(f"✅ SDS DOCX generated from Emma markdown: {output_path}")
-                return output_path
+                # VAGUE 1 / FILE C — PROD-12 : le chemin rendu par le
+                # convertisseur etait **jete** au profit du `.docx` compose
+                # ci-dessus. Or `convert_markdown_to_docx` ecrit un `.md` et
+                # rend son propre chemin quand python-docx manque : la base
+                # enregistrait alors un fichier qui n'existait pas, et la route
+                # de telechargement pointait dans le vide.
+                chemin_produit = convert_markdown_to_docx(
+                    sds_markdown, output_path, project.name
+                ) or output_path
+                if not Path(chemin_produit).is_file():
+                    # Regle 6 : un export qui n'a rien ecrit ne rend pas un
+                    # chemin comme si de rien n'etait. Le repli Markdown reste
+                    # possible — mais il ecrit vraiment un fichier.
+                    raise RuntimeError(
+                        f"l'export n'a produit aucun fichier a {chemin_produit!r}"
+                    )
+                logger.info(f"✅ SDS genere depuis le markdown d'Emma : {chemin_produit}")
+                return chemin_produit
             except ImportError:
                 logger.warning("markdown_to_docx not available, saving as markdown")
                 output_path = f"{output_dir}/SDS_Exec{execution_id}.md"
@@ -3238,7 +3596,21 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
     ) -> int:
         """Create a new SDS version for a Change Request."""
         import os
-        
+
+        # SEC-06 (diff de la file A) : serialiser l'allocation du numero de
+        # version comme le fait la route de snapshot (`api/routes/sds_versions.py`,
+        # verrou consultatif 6006). Sans lui, deux creations concurrentes lisent
+        # le meme `current_sds_version` et allouent le meme numero ; avec la
+        # contrainte unique posee par la file A, la course se solde par une
+        # IntegrityError — le job echoue au lieu de produire un doublon, mais il
+        # echoue. Le verrou evite les deux.
+        from sqlalchemy import text as sa_text
+
+        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+            self.db.execute(
+                sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
+                {"espace": 6006, "projet": project.id},
+            )
         current_version = project.current_sds_version or 0
         new_version = current_version + 1
         
@@ -3279,6 +3651,20 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         
         try:
             # Determine version number
+            # SEC-06 (diff de la file A) : serialiser l'allocation du numero de
+            # version comme le fait la route de snapshot (`api/routes/sds_versions.py`,
+            # verrou consultatif 6006). Sans lui, deux creations concurrentes lisent
+            # le meme `current_sds_version` et allouent le meme numero ; avec la
+            # contrainte unique posee par la file A, la course se solde par une
+            # IntegrityError — le job echoue au lieu de produire un doublon, mais il
+            # echoue. Le verrou evite les deux.
+            from sqlalchemy import text as sa_text
+
+            if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+                self.db.execute(
+                    sa_text("SELECT pg_advisory_xact_lock(:espace, :projet)"),
+                    {"espace": 6006, "projet": project.id},
+                )
             current_version = project.current_sds_version or 0
             new_version = current_version + 1
             
@@ -3464,6 +3850,15 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
                     logger.info(f"[Phase 4] ✅ {agent_name} completed")
                     self._update_progress(execution, agent_id, "completed", 88, f"{agent_name} done")
                 else:
+                    # PROD-07 : l'echec reste non fatal (choix produit), mais il
+                    # cesse d'etre invisible — il est trace sur l'execution et
+                    # expose par l'API.
+                    self._tracer_degradation(
+                        execution_id,
+                        "expert_failed",
+                        f"{agent_id} ({agent_name}) : "
+                        f"{expert_result.get('error', 'echec sans message')}",
+                    )
                     # H21: Expert failures are non-fatal — warn and skip
                     logger.warning(f"[Phase 4] ⚠️ {agent_name} failed (non-fatal): {expert_result.get('error')}")
                     self._update_progress(execution, agent_id, "failed", 88, f"Skipped: {str(expert_result.get('error', 'Unknown'))[:50]}")
@@ -3481,18 +3876,20 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         from app.services.validation_gate_service import ValidationGateService
         gate_service = ValidationGateService(self.db)
-        if gate_service.should_pause(execution_id, "after_expert_specs"):
-            expert_summary = {
-                "completed_experts": [
-                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
-                    if item.get("result", {}).get("success")
-                ],
-                "failed_experts": [
-                    item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
-                    if not item.get("result", {}).get("success")
-                ],
-                "phase": "Phase 4 — Expert Specifications",
-            }
+        expert_summary = {
+            "completed_experts": [
+                item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                if item.get("result", {}).get("success")
+            ],
+            "failed_experts": [
+                item["agent_id"] for item in (expert_results if SDS_EXPERTS else [])
+                if not item.get("result", {}).get("success")
+            ],
+            "phase": "Phase 4 — Expert Specifications",
+        }
+        # PROD-06 : le livrable est passe a `should_pause`, qui refuse de
+        # reposer une porte deja approuvee pour ce meme contenu.
+        if gate_service.should_pause(execution_id, "after_expert_specs", expert_summary):
             gate_service.pause_for_validation(
                 execution_id=execution_id,
                 gate_name="after_expert_specs",
@@ -3649,7 +4046,6 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
             results["artifacts"]["SDS"] = emma_output
             results["metrics"]["tokens_by_agent"]["research_analyst"] = results["metrics"]["tokens_by_agent"].get("research_analyst", 0) + emma_write_tokens
             results["metrics"]["total_tokens"] += emma_write_tokens
-            self._accumulate_cost(execution, emma_write_tokens, emma_output.get("metadata", {}).get("model", ""))
             logger.info(f"[Phase 5] ✅ Emma SDS Document generated ({len(sds_markdown)} chars)")
         else:
             error_msg = emma_write_result.get('error', 'Unknown error')
@@ -3663,12 +4059,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # P2-Full: Configurable gate — after SDS generation
         # ========================================
-        if gate_service.should_pause(execution_id, "after_sds_generation"):
-            sds_summary = {
-                "sds_length": len(sds_markdown),
-                "has_annexe": bool(uc_section_3_content),
-                "phase": "Phase 5 — SDS Document Generation",
-            }
+        sds_summary = {
+            "sds_length": len(sds_markdown),
+            "has_annexe": bool(uc_section_3_content),
+            "phase": "Phase 5 — SDS Document Generation",
+        }
+        if gate_service.should_pause(execution_id, "after_sds_generation", sds_summary):
             gate_service.pause_for_validation(
                 execution_id=execution_id,
                 gate_name="after_sds_generation",
@@ -3715,6 +4111,12 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
         # ========================================
         # FINALIZE
         # ========================================
+        # PROD-07 — une persistance obligatoire ratee interdit la finalisation.
+        # Leve avant toute ecriture d'etat terminal : l'exception remonte au
+        # `except` d'`execute_workflow`, qui ferme l'execution en FAILED avec
+        # le motif, au lieu d'annoncer COMPLETED sur un livrable absent.
+        self._verifier_finalisation_possible(execution_id)
+
         try:
             sm.transition_to("sds_complete")
         except Exception as e:
@@ -4094,7 +4496,6 @@ IMPORTANT: Prends en compte cette modification dans ta génération.
 
         results["metrics"]["tokens_by_agent"]["architect"] = architect_tokens
         results["metrics"]["total_tokens"] += architect_tokens
-        self._accumulate_cost(execution, architect_tokens, "")  # BUG-007
 
         self._save_checkpoint(execution, "phase3_wbs")
         self._update_progress(execution, "architect", "completed", 78, "Architecture complete (resume)")

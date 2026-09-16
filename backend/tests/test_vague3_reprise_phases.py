@@ -438,28 +438,20 @@ async def test_auto_reprise_apres_sophie_repart_d_olivia(
 
 def test_tous_les_points_de_la_carte_de_reprise_sont_valides(db_session):
     """Garde-fou : depuis §3.5 une valeur inconnue leve. Une entree fausse dans
-    `checkpoint_map` ferait donc echouer toute reprise automatique, au lieu de
-    degrader en silence. Le contrat doit etre verifie, pas suppose."""
-    import inspect
+    la carte des checkpoints ferait donc echouer toute reprise automatique, au
+    lieu de degrader en silence. Le contrat doit etre verifie, pas suppose.
 
-    from app.services import pm_orchestrator_service_v2 as module
+    VAGUE 1 / FILE C : la carte etait une variable locale d'`execute_workflow`,
+    que ce test lisait en analysant le texte de la source. Elle est devenue
+    `CHECKPOINT_TO_RESUME_POINT`, publique et partagee avec `/resume`
+    (PROD-05) — le test porte maintenant sur l'objet, pas sur sa mise en page.
+    """
+    from app.services.pm_orchestrator_service_v2 import CHECKPOINT_TO_RESUME_POINT
 
-    source = inspect.getsource(module.PMOrchestratorServiceV2.execute_workflow)
-    debut = source.index("checkpoint_map = {")
-    fin = source.index("}", debut)
-    bloc = source[debut:fin]
-
-    valeurs = set()
-    for ligne in bloc.splitlines()[1:]:
-        if ":" not in ligne:
-            continue
-        valeur = ligne.split(":", 1)[1].split("#")[0].strip().rstrip(",").strip()
-        if valeur and valeur != "None":
-            valeurs.add(valeur.strip('"').strip("'"))
-
+    valeurs = {v for v in CHECKPOINT_TO_RESUME_POINT.values() if v is not None}
     assert valeurs, "carte de reprise introuvable"
     inconnues = valeurs - SDS_RESUME_POINTS
     assert not inconnues, (
-        f"checkpoint_map pointe des valeurs que execute_workflow refuse : "
-        f"{sorted(inconnues)}"
+        f"la carte des checkpoints pointe des valeurs que execute_workflow "
+        f"refuse : {sorted(inconnues)}"
     )

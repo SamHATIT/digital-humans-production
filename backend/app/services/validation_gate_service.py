@@ -4,9 +4,11 @@ P2-Full: Configurable HITL validation gates between pipeline phases.
 Manages pause/resume logic at configurable checkpoints. Works alongside
 the existing BR validation (Phase 1) and architecture coverage gate (H12).
 """
+import hashlib
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -52,6 +54,27 @@ GATE_LABELS = {
 }
 
 
+def empreinte_livrable(deliverables_summary: Optional[dict]) -> Optional[str]:
+    """Empreinte stable du livrable soumis a une porte.
+
+    VAGUE 1 / FILE C — PROD-06, troisieme point : « approbation rattachee a une
+    version de sortie ; ne pas reposer une porte deja franchie sans nouveau
+    contenu ». L'empreinte EST cette version : deux resumes identiques
+    designent le meme livrable, un resume different un livrable regenere.
+
+    Rend None pour un resume absent ou vide : sans contenu a comparer, il n'y a
+    pas de version a rattacher, et la porte se repose (on ne ferme pas une
+    porte par defaut).
+    """
+    if not deliverables_summary:
+        return None
+    try:
+        forme = json.dumps(deliverables_summary, sort_keys=True, default=str)
+    except Exception:  # un resume non serialisable ne fait pas foi
+        return None
+    return hashlib.sha256(forme.encode("utf-8")).hexdigest()[:32]
+
+
 class ValidationGateService:
     """Manages HITL validation gates between pipeline phases."""
 
@@ -94,12 +117,27 @@ class ValidationGateService:
         self.db.commit()
         return sanitized
 
-    def should_pause(self, execution_id: int, gate_name: str) -> bool:
+    def should_pause(
+        self,
+        execution_id: int,
+        gate_name: str,
+        deliverables_summary: Optional[dict] = None,
+    ) -> bool:
         """Check if execution should pause at this gate.
 
         Note: after_br_extraction and after_architecture are handled by
         existing code in pm_orchestrator_service_v2.py. This method is
         for the NEW configurable gates only.
+
+        VAGUE 1 / FILE C — PROD-06 : une porte deja APPROUVEE pour ce meme
+        livrable ne se repose pas. Sans ce point, la reprise qui suit une
+        approbation repasse ici, repose la porte sur le contenu qu'elle vient
+        de valider, et la boucle est fermee.
+
+        `deliverables_summary` est le livrable que l'appelant s'apprete a
+        soumettre. Il est facultatif : sans lui, il n'y a rien a comparer et la
+        porte se pose, comme avant. Un rejet ne ferme pas la porte — seul un
+        accord le fait.
         """
         execution = self.db.query(Execution).get(execution_id)
         if not execution:
@@ -113,7 +151,29 @@ class ValidationGateService:
         # Merge with defaults - if not configured, use default
         effective = dict(DEFAULT_VALIDATION_GATES)
         effective.update(gates)
-        return effective.get(gate_name, False)
+        if not effective.get(gate_name, False):
+            return False
+
+        empreinte = empreinte_livrable(deliverables_summary)
+        if empreinte and self._deja_approuvee(execution, gate_name, empreinte):
+            logger.info(
+                f"[ValidationGate] Porte {gate_name!r} deja approuvee pour ce "
+                f"livrable (execution {execution_id}) : pas de nouvelle pause."
+            )
+            return False
+        return True
+
+    @staticmethod
+    def _deja_approuvee(execution: Execution, gate_name: str, empreinte: str) -> bool:
+        """Cette porte a-t-elle ete approuvee pour ce livrable exact ?"""
+        for decision in execution.validation_history or []:
+            if (
+                decision.get("gate") == gate_name
+                and decision.get("approved") is True
+                and decision.get("empreinte") == empreinte
+            ):
+                return True
+        return False
 
     def pause_for_validation(
         self,
@@ -134,19 +194,17 @@ class ValidationGateService:
         if not gate_status or not gate_state:
             raise ValueError(f"Unknown gate: {gate_name}")
 
-        # Store pending validation info
-        execution.pending_validation = {
-            "gate": gate_name,
-            "gate_label": GATE_LABELS.get(gate_name, gate_name),
-            "deliverables": deliverables_summary,
-            "paused_at": datetime.now(timezone.utc).isoformat(),
-        }
-        flag_modified(execution, "pending_validation")
-
-        # Update status
-        execution.status = gate_status
-
-        # Try state machine transition (may fail if state doesn't match exactly)
+        # VAGUE 1 / FILE C — PROD-06, premier point : l'ORDRE compte.
+        #
+        # Avant, `pending_validation` et le statut etaient ecrits ici, puis la
+        # transition etait demandee. Une transition refusee fait un
+        # `rollback()` (pour liberer le verrou FOR UPDATE) — qui annulait les
+        # deux ecritures precedentes. Le service forcait ensuite
+        # `execution_state` seul : la porte etait posee sans son contenu, et
+        # l'ecran de validation n'avait rien a afficher.
+        #
+        # La transition passe donc d'abord, et rien de ce qui suit ne peut etre
+        # annule par elle.
         try:
             sm = ExecutionStateMachine(self.db, execution_id)
             sm.transition_to(gate_state)
@@ -155,7 +213,21 @@ class ValidationGateService:
                 f"[ValidationGate] State machine transition to {gate_state} failed: {e}. "
                 f"Setting execution_state directly."
             )
+            execution = self.db.query(Execution).get(execution_id)
             execution.execution_state = gate_state
+
+        # L'objet peut avoir ete expire par le commit/rollback de la machine a
+        # etats : on le relit avant d'ecrire.
+        execution = self.db.query(Execution).get(execution_id)
+        execution.pending_validation = {
+            "gate": gate_name,
+            "gate_label": GATE_LABELS.get(gate_name, gate_name),
+            "deliverables": deliverables_summary,
+            "empreinte": empreinte_livrable(deliverables_summary),
+            "paused_at": datetime.now(timezone.utc).isoformat(),
+        }
+        flag_modified(execution, "pending_validation")
+        execution.status = gate_status
 
         self.db.commit()
         logger.info(
@@ -186,6 +258,10 @@ class ValidationGateService:
             "annotations": annotations,
             "decided_at": datetime.now(timezone.utc).isoformat(),
             "deliverables": gate_info.get("deliverables", {}),
+            # PROD-06 : la decision porte sur UNE version du livrable. C'est
+            # elle que `should_pause` compare pour ne pas reposer une porte
+            # deja franchie sur le meme contenu.
+            "empreinte": gate_info.get("empreinte"),
         }
 
         # Append to validation history

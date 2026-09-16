@@ -11,9 +11,11 @@ import os
 import chromadb
 import threading
 import time
+from datetime import datetime, timezone
 from typing import List, Dict, Optional
 import logging
 from app.config import settings
+from app.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +196,84 @@ def rerank_results(query: str, documents: List[str], top_k: int = 10) -> List[tu
     scored_docs = sorted(zip(documents, scores), key=lambda x: x[1], reverse=True)
     return scored_docs[:top_k]
 
+
+def _marquer_execution_degradee(execution_id: int, motif: str, detail: str) -> None:
+    """Note la degradation sur l'execution concernee (GL-10).
+
+    Session courte et dediee : cette fonction est appelee depuis la pile d'un
+    agent, dont la session est occupee par son propre travail.
+    """
+    db = SessionLocal()
+    try:
+        from sqlalchemy.orm.attributes import flag_modified
+
+        from app.models.execution import Execution
+
+        execution = db.query(Execution).filter(Execution.id == execution_id).first()
+        if execution is None:
+            return
+        degradations = list(execution.degraded or [])
+        if any(d.get("motif") == motif and d.get("detail") == detail for d in degradations):
+            return
+        degradations.append({
+            "motif": motif,
+            "detail": detail,
+            "at": datetime.now(timezone.utc).isoformat(),
+        })
+        execution.degraded = degradations
+        flag_modified(execution, "degraded")
+        db.commit()
+    except Exception as e:
+        logger.warning(f"[RAG] Marque 'degraded' impossible sur {execution_id} : {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
+
+
+def signaler_rag_indisponible(coll_key: str, erreur: Exception) -> None:
+    """Une collection RAG est injoignable : alerte admin + trace d'execution.
+
+    VAGUE 1 / FILE C — GL-10. Regle de Sam (15/09) : l'exploitant doit le
+    savoir dans la minute, avec l'execution concernee et la cause ; le client
+    ne voit rien ; l'execution est marquee `degraded: rag_unavailable` pour
+    pouvoir etre rejouee.
+
+    Ne leve jamais : signaler une panne ne doit pas en provoquer une seconde.
+    La poursuite sans corpus reste toleree — mais elle n'est plus silencieuse.
+    """
+    try:
+        from app.services.admin_alert_service import alerter_admin
+        from app.services.execution_context import execution_courante
+
+        execution_id = execution_courante()
+        detail = f"collection {coll_key} : {type(erreur).__name__}: {erreur}"
+
+        if execution_id is not None:
+            _marquer_execution_degradee(execution_id, "rag_unavailable", detail)
+            ou = f"execution {execution_id}"
+        else:
+            ou = "hors execution (indexation, concierge ou script)"
+
+        alerter_admin(
+            "RAG indisponible",
+            (
+                f"La collection RAG {coll_key!r} est injoignable — {ou}.\n"
+                f"Cause : {type(erreur).__name__}: {erreur}\n"
+                f"Les agents poursuivent SANS corpus documentaire ; "
+                f"l'execution est marquee degraded=rag_unavailable et peut "
+                f"etre rejouee une fois le service retabli."
+            ),
+            cle_deduplication=f"rag_unavailable:{coll_key}:{execution_id}",
+            execution_id=execution_id,
+            categorie="rag",
+        )
+    except Exception as e:
+        logger.warning(f"[RAG] Signalement de l'indisponibilite impossible : {e}")
+
+
 def query_collection(coll_key: str, query: str, n_results: int = 15, project_id: int = None) -> tuple:
     """Interroger une collection avec le bon embedding.
 
@@ -228,6 +308,10 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         # so that operational monitoring surfaces RAG degradation instead of
         # agents silently operating without context.
         logger.error(f"[RAG] Query failed on collection {coll_key!r}: {e}", exc_info=True)
+        # VAGUE 1 / FILE C (GL-10) — le journal ERROR ne suffisait pas : le
+        # 15/09, 146 requetes ont echoue sans que personne ne le voie avant le
+        # soir. L'exploitant est alerte, et l'execution porte la trace.
+        signaler_rag_indisponible(coll_key, e)
         return [], []
 
 def query_rag(
