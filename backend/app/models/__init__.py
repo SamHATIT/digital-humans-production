@@ -208,3 +208,7 @@ __all__.extend([
     "SYSTEM_TEMPLATES",
 ])
 from app.models.chat_log import ChatLog  # noqa: F401
+
+# BILL-04 (vague 1 / file B) : etat Stripe persiste — deduplication des
+# evenements et abonnement canonique.
+from app.models.stripe_state import StripeEvent, StripeSubscription  # noqa: F401
