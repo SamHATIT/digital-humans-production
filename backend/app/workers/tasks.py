@@ -1,9 +1,57 @@
 """ARQ task definitions for long-running executions."""
+import asyncio
 import logging
+from datetime import datetime, timezone
 from app.database import SessionLocal
 from app.services.pm_orchestrator_service_v2 import PMOrchestratorServiceV2
 
 logger = logging.getLogger("arq.worker")
+
+def _clore_en_echec(db, execution_id: int, motif: str) -> None:
+    """Marque une execution FAILED avec un motif lisible, statut ET etat.
+
+    VAGUE 1 / FILE C — CAL-02. Sert les deux sorties anormales d'un job : une
+    exception metier, et une **annulation** (`job_timeout` d'ARQ, arret du
+    worker). L'ancien code n'ecrivait que `status` et ne voyait pas
+    l'annulation ; l'execution restait RUNNING jusqu'au redemarrage suivant.
+
+    Une execution deja terminee n'est pas reecrite : un job annule apres coup
+    ne doit pas transformer un succes en echec.
+    """
+    from app.models.execution import Execution, ExecutionStatus
+    from app.services.execution_state import ExecutionStateMachine
+
+    try:
+        execution = db.query(Execution).get(execution_id)
+        if execution is None:
+            return
+        if execution.status in (
+            ExecutionStatus.COMPLETED,
+            ExecutionStatus.FAILED,
+            ExecutionStatus.CANCELLED,
+        ):
+            return
+        try:
+            ExecutionStateMachine(db, execution_id).transition_to(
+                "failed", metadata={"raison": motif[:200]}
+            )
+        except Exception as e:
+            logger.warning(
+                f"[ARQ] Transition vers 'failed' refusee pour l'execution "
+                f"{execution_id} ({e}) — statut et etat poses directement"
+            )
+            execution.status = ExecutionStatus.FAILED
+            execution.execution_state = "failed"
+        execution.logs = (execution.logs or "") + "\n" + motif
+        execution.completed_at = datetime.now(timezone.utc)
+        db.commit()
+    except Exception as e:
+        logger.error(f"[ARQ] Impossible de clore l'execution {execution_id} : {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
 
 #: Statuts qui font d'un job un fantome : l'execution est deja close, le job
 #: qui arrive est un reliquat (worker redemarre, double enfilage).
@@ -67,22 +115,34 @@ async def execute_sds_task(ctx, execution_id: int, project_id: int,
             sfdx_metadata=sfdx_metadata,
             resume_from=resume_from,
         )
-        logger.info(f"[ARQ] Execution {execution_id} completed successfully")
+        # PROD-04 : `execute_workflow` rend `{"success": False, "error": ...}`
+        # sur un echec metier. L'ancien message « completed successfully » etait
+        # ecrit dans les deux cas — un echec journalise comme un succes.
+        if isinstance(result, dict) and result.get("success") is False:
+            logger.error(
+                f"[ARQ] Execution {execution_id} terminee en echec : "
+                f"{result.get('error')}"
+            )
+        else:
+            logger.info(f"[ARQ] Execution {execution_id} completed successfully")
         return result
+    except asyncio.CancelledError:
+        # CAL-02 : `job_timeout` d'ARQ et l'arret d'un worker annulent la tache.
+        # `CancelledError` n'herite pas d'`Exception` depuis Python 3.8 : le
+        # `except Exception` ci-dessous ne la voyait pas, et l'execution restait
+        # RUNNING sans erreur visible jusqu'au redemarrage suivant.
+        logger.error(f"[ARQ] Execution {execution_id} annulee (timeout ou arret du worker)")
+        _clore_en_echec(
+            db,
+            execution_id,
+            "[Job annule] Le job a ete interrompu (delai d'execution depasse ou "
+            "arret du worker). L'execution est close en echec ; reprenez-la avec "
+            "/resume, le travail deja valide est conserve.",
+        )
+        raise
     except Exception as e:
         logger.error(f"[ARQ] Execution {execution_id} failed: {e}")
-        # Ensure execution is marked FAILED in DB
-        try:
-            from app.models.execution import Execution, ExecutionStatus
-            execution = db.query(Execution).get(execution_id)
-            if execution and execution.status not in (
-                ExecutionStatus.COMPLETED, ExecutionStatus.FAILED
-            ):
-                execution.status = ExecutionStatus.FAILED
-                execution.logs = str(e)
-                db.commit()
-        except Exception:
-            pass
+        _clore_en_echec(db, execution_id, str(e))
         raise
     finally:
         db.close()
@@ -107,19 +167,18 @@ async def resume_architecture_task(ctx, execution_id: int, project_id: int, acti
         )
         logger.info(f"[ARQ] Architecture resume {execution_id} completed: action={action}")
         return result
+    except asyncio.CancelledError:
+        logger.error(f"[ARQ] Architecture resume {execution_id} annule (timeout ou arret du worker)")
+        _clore_en_echec(
+            db,
+            execution_id,
+            "[Job annule] La reprise apres validation d'architecture a ete "
+            "interrompue (delai depasse ou arret du worker).",
+        )
+        raise
     except Exception as e:
         logger.error(f"[ARQ] Architecture resume {execution_id} failed: {e}")
-        try:
-            from app.models.execution import Execution, ExecutionStatus
-            execution = db.query(Execution).get(execution_id)
-            if execution and execution.status not in (
-                ExecutionStatus.COMPLETED, ExecutionStatus.FAILED
-            ):
-                execution.status = ExecutionStatus.FAILED
-                execution.logs = str(e)
-                db.commit()
-        except Exception:
-            pass
+        _clore_en_echec(db, execution_id, str(e))
         raise
     finally:
         db.close()
@@ -184,15 +243,18 @@ async def execute_build_task(ctx, project_id: int, execution_id: int):
 
         logger.info(f"[ARQ] BUILD v2 completed: {result}")
         return result
+    except asyncio.CancelledError:
+        logger.error(f"[ARQ] BUILD v2 {execution_id} annule (timeout ou arret du worker)")
+        _clore_en_echec(
+            db,
+            execution_id,
+            "[Job annule] Le BUILD a ete interrompu (delai depasse ou arret du "
+            "worker). Les taches deja terminees sont conservees.",
+        )
+        raise
     except Exception as e:
         logger.error(f"[ARQ] BUILD v2 error: {e}")
-        # Mark as failed in state machine
-        try:
-            sm = ExecutionStateMachine(db, execution_id)
-            sm.transition_to("failed")
-            db.commit()
-        except Exception:
-            pass
+        _clore_en_echec(db, execution_id, str(e))
         raise
     finally:
         db.close()
