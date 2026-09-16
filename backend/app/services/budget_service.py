@@ -11,7 +11,7 @@ resolved model_id (e.g. "claude-opus-4-6") so callers can pass either form.
 """
 import logging
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 
 import yaml
 from sqlalchemy.orm import Session
@@ -110,6 +110,25 @@ DEFAULT_PROJECT_LIMIT_USD = 200.0
 DEFAULT_MONTHLY_LIMIT_USD = 500.0
 
 
+class UnknownPricingError(Exception):
+    """BILL-10 — aucun tarif connu pour ce modèle, et aucun coût mesuré.
+
+    On ne devine pas un montant : une valeur inconnue est refusée, pas
+    remplacée par le tarif du modèle au nom voisin (règle 6). L'appelant
+    fournit le coût mesuré (``cost_usd=``) ou ajoute le modèle au bloc
+    ``pricing`` de config/llm_routing.yaml.
+    """
+
+    def __init__(self, model: str):
+        self.model = model
+        super().__init__(
+            f"Aucun tarif connu pour '{model}' et aucun coût mesuré fourni : "
+            "le coût n'est pas devinable. Passez cost_usd= (coût mesuré par le "
+            "routeur, 0.0 est une valeur valide pour un modèle local) ou "
+            "ajoutez le modèle au bloc `pricing` de config/llm_routing.yaml."
+        )
+
+
 class BudgetExceededError(Exception):
     """Raised when a budget limit is reached."""
     def __init__(self, limit_type: str, current: float, limit: float):
@@ -123,29 +142,34 @@ class BudgetExceededError(Exception):
 
 def _resolve_pricing(model_or_provider: str) -> Dict[str, float]:
     """
-    Resolve pricing for a given key. Accepts either:
-      - provider/alias form : "anthropic/claude-opus"
-      - raw model_id        : "claude-opus-4-6"
-      - Ollama model name   : "mistral:7b-instruct"
-    Falls back to substring match on "opus"/"haiku"/"sonnet" then "default".
+    Tarif d'une clé, sous l'une des formes :
+      - fournisseur/alias : "anthropic/claude-opus"
+      - model_id brut     : "claude-opus-4-6"
+      - modèle Ollama     : "mistral:7b-instruct"
+
+    BILL-10 : plus de repli sur "default" (niveau Sonnet). Il donnait un coût
+    FICTIF à tout ce qu'il ne connaissait pas — mesuré le 16/09 :
+    ``estimate_cost("muse-glimmer", 1M, 0)`` rendait 3,00 USD pour un modèle
+    servi gratuitement sur le GPU local.
+
+    Un modèle local reconnu comme tel garde un coût CONNU et nul : zéro et
+    inconnu sont deux choses différentes. Tout le reste lève
+    :class:`UnknownPricingError`.
     """
     if not model_or_provider:
-        return MODEL_PRICING["default"]
+        raise UnknownPricingError("(modèle non renseigné)")
 
     pricing = MODEL_PRICING.get(model_or_provider)
     if pricing is not None:
         return pricing
 
     lowered = model_or_provider.lower()
-    if "opus" in lowered:
-        return MODEL_PRICING.get("anthropic/claude-opus", MODEL_PRICING["default"])
-    if "haiku" in lowered:
-        return MODEL_PRICING.get("anthropic/claude-haiku", MODEL_PRICING["default"])
-    if "sonnet" in lowered:
-        return MODEL_PRICING.get("anthropic/claude-sonnet", MODEL_PRICING["default"])
-    if lowered.startswith("local/") or lowered.startswith("mistral") or lowered.startswith("mixtral"):
+    # Modèles servis en local : gratuits, et c'est un zéro connu.
+    if (lowered.startswith("local/") or lowered.startswith("gpu_")
+            or lowered.startswith("mistral") or lowered.startswith("mixtral")):
         return {"input": 0.0, "output": 0.0}
-    return MODEL_PRICING["default"]
+
+    raise UnknownPricingError(model_or_provider)
 
 
 class BudgetService:
@@ -163,7 +187,11 @@ class BudgetService:
         self.db = db
 
     def estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate cost of an LLM call in USD."""
+        """Estime le coût d'un appel LLM en USD.
+
+        Lève :class:`UnknownPricingError` si le modèle n'a pas de tarif : une
+        estimation inventée est pire qu'une absence d'estimation (BILL-10).
+        """
         pricing = _resolve_pricing(model)
         cost = (input_tokens * pricing["input"] + output_tokens * pricing["output"]) / 1_000_000
         return round(cost, 6)
@@ -207,18 +235,33 @@ class BudgetService:
 
     def record_cost(self, execution_id: int, model: str,
                     input_tokens: int, output_tokens: int,
-                    commit: bool = True) -> float:
+                    commit: bool = True,
+                    cost_usd: Optional[float] = None) -> float:
         """
-        Record cost after an LLM call. Returns the cost in USD.
+        Enregistre le coût d'un appel LLM. Rend le coût en USD.
 
-        `model` accepts either provider/alias ("anthropic/claude-opus") or
-        raw model_id ("claude-opus-4-6") — both resolve to the same pricing.
+        ``model`` accepte la forme fournisseur/alias ("anthropic/claude-opus")
+        ou le model_id brut ("claude-opus-4-6").
 
-        P7: commits by default so the cost is persisted even when the caller
-        auto-created a short-lived DB session (as generate_llm_response does).
-        Pass commit=False when the caller owns the transaction lifecycle.
+        BILL-10 — ``cost_usd`` est le coût **mesuré** par le routeur. Quand il
+        est fourni, c'est lui qui est écrit : on n'estime pas ce qui a été
+        mesuré. ``0.0`` est une valeur mesurée valide (modèle local) et n'est
+        PAS traitée comme « coût absent » — c'est ``None`` qui veut dire
+        inconnu. Sans mesure et sans tarif connu, l'appel lève plutôt que
+        d'inventer un montant.
+
+        Cette méthode est l'écrivain unique de ``executions.total_cost`` :
+        aucun autre appelant ne doit y ajouter le coût du même appel.
+
+        P7 : commit par défaut, pour que le coût survive à une session
+        courte créée par l'appelant. ``commit=False`` si l'appelant tient la
+        transaction.
         """
-        cost = self.estimate_cost(model, input_tokens, output_tokens)
+        if cost_usd is not None:
+            cost = round(float(cost_usd), 6)
+        else:
+            cost = self.estimate_cost(model, input_tokens, output_tokens)
+
         execution = self.db.query(Execution).get(execution_id)
         if execution:
             execution.total_cost = (execution.total_cost or 0.0) + cost
