@@ -189,9 +189,22 @@ async def execute_build_task(ctx, project_id: int, execution_id: int):
     from app.services.phased_build_executor import PhasedBuildExecutor
     from app.services.execution_state import ExecutionStateMachine, InvalidTransitionError
     from app.models.task_execution import TaskExecution
+    from app.utils.build_guard import ensure_build_write_allowed_for_execution
 
     db = SessionLocal()
     try:
+        # BILL-05 / AS-05 : le worker ne revalidait aucun droit. Le palier a pu
+        # changer entre l'enfilage et l'execution, et un job peut etre enfile
+        # par un chemin qui aurait oublie sa porte. On relit le proprietaire en
+        # base ; une execution ou un proprietaire introuvable est un refus.
+        try:
+            ensure_build_write_allowed_for_execution(execution_id, db)
+        except Exception as refus:
+            logger.error(
+                f"[ARQ] BUILD v2 refuse pour l'execution {execution_id} : {refus}"
+            )
+            return {"success": False, "error": "build_not_allowed", "detail": str(refus)}
+
         logger.info(f"[ARQ] BUILD v2 starting for project {project_id}, execution {execution_id}")
 
         # Transition to build_running

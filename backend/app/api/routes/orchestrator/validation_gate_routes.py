@@ -139,6 +139,15 @@ async def submit_validation_decision(
 
     execution = verify_execution_access(execution_id, current_user.id, db)
 
+    # BILL-05 : approuver une porte BUILD enfile `execute_build_task` sans
+    # qu'aucune capacite ne soit verifiee. Un ancien Team retrograde Pro
+    # relancait ainsi un BUILD en attente. La porte se pose AVANT toute
+    # mutation d'etat (les TaskExecution sont remises a PENDING plus bas).
+    if execution.status == ExecutionStatus.WAITING_BUILD_VALIDATION:
+        from app.utils.build_guard import ensure_build_write_allowed
+
+        ensure_build_write_allowed(current_user)
+
     # Ensure execution is in a waiting state
     waiting_statuses = [
         ExecutionStatus.WAITING_EXPERT_VALIDATION,

@@ -53,7 +53,11 @@ async def retry_failed_execution(
     # priver un compte Pro du retry SDS, qui lui est du (cas d'une retrogradation
     # Team -> Pro laissant des taches BUILD derriere elle).
     if failed_tasks:
-        ensure_feature(current_user, "build_phase")
+        # BILL-05 : meme regle, exprimee par la garde commune — une seule
+        # definition du droit d'ecrire en BUILD pour tous les chemins.
+        from app.utils.build_guard import ensure_build_write_allowed
+
+        ensure_build_write_allowed(current_user)
 
     agent_status = execution.agent_execution_status or {}
     resume_from = "phase1"
