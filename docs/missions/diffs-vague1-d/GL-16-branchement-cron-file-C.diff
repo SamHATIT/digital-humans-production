@@ -1,0 +1,67 @@
+# GL-16 — branchement du cron de purge des conversations de projet.
+#
+# `backend/app/workers/*` est attribue a la file C de la vague 1 (pipeline et
+# reprise). Ce diff n'est PAS applique par la file D : il est livre ici pour
+# que la file C (ou l'integrateur) l'applique.
+#
+# Sans lui, `retention_service.purger_conversations_projet` existe, est testee
+# (8 tests verts, `tests/test_vague1_d_gl16_retention_conversations.py`) mais
+# n'est appelee par aucun planificateur — exactement le defaut que DEC-0817-04
+# avait dej a produit pour `chat_logs` (« le cron n'a jamais existe »).
+#
+# Verification apres application :
+#   cd backend && export $(cat /root/.dh_test_db.env)
+#   env -u GITHUB_TOKEN ./venv/bin/python -m pytest \
+#     tests/test_vague1_d_gl16_retention_conversations.py \
+#     tests/test_b5_retention_chat_logs.py -q
+
+--- a/backend/app/workers/retention.py
++++ b/backend/app/workers/retention.py
+@@
+ async def purge_chat_logs_task(ctx: dict) -> int:
+     """Point d entrée arq (cron). Ouvre sa propre session."""
+     from app.database import SessionLocal
+     db = SessionLocal()
+     try:
+         return purger_chat_logs(db)
+     except Exception as e:  # pragma: no cover — journalisé, jamais propagé
+         logger.error("[RETENTION] purge chat_logs en echec : %s", e, exc_info=True)
+         return -1
+     finally:
+         db.close()
++
++
++async def purge_conversations_projet_task(ctx: dict) -> int:
++    """GL-16 — purge des conversations Sophie du Studio (`project_conversations`).
++
++    B5 (03/09) n'a purge que `chat_logs`, la table du concierge public. Les
++    conversations tenues dans le Studio vivaient sans aucune purge par age.
++    La regle de duree vit dans `app/services/retention_service.py` (file D).
++    """
++    from app.database import SessionLocal
++    from app.services.retention_service import purger_conversations_projet
++
++    db = SessionLocal()
++    try:
++        return purger_conversations_projet(db)
++    except Exception as e:  # pragma: no cover — journalisé, jamais propagé
++        logger.error(
++            "[RETENTION] purge project_conversations en echec : %s", e, exc_info=True
++        )
++        return -1
++    finally:
++        db.close()
+
+--- a/backend/app/workers/worker.py
++++ b/backend/app/workers/worker.py
+@@
+-from app.workers.retention import purge_chat_logs_task
++from app.workers.retention import purge_chat_logs_task, purge_conversations_projet_task
+@@
+-    cron_jobs = [cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False)]
++    cron_jobs = [
++        cron(purge_chat_logs_task, hour=3, minute=17, run_at_startup=False),
++        # GL-16 : meme heure creuse, quelques minutes plus tard pour ne pas
++        # tenir deux transactions de suppression en parallele.
++        cron(purge_conversations_projet_task, hour=3, minute=23, run_at_startup=False),
++    ]
