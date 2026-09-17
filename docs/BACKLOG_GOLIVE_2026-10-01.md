@@ -35,7 +35,7 @@
 | GL-22 | Haute | Consentement Opus au palier Pro : le site promet « Opus on opt-in, cost shown before each call » ; ouvrir Opus à Marcus sans écran de recueil ferait mentir la page de prix. **Décision Sam 16/09 : on ajoute le recueil.** | Écran de consentement avec coût estimé avant appel Opus, trace du consentement, refus = repli Sonnet annoncé. À caler en vague 2 (file D). | ❌ |
 | GL-23 | **Bloquant** | Écart de prix Pro : Stripe facture **49 €/mois** (`price_1TRW5X2U0jLqzz5TWvNKYxow`, sandbox) alors que le site annonce **79 € HT/mois**. Mesuré le 17/09 pendant la souscription de bout en bout — la page de paiement affiche « Subscribe to Pro €49.00 per month ». **Décision Sam 17/09 : on reste à 79 €.** Fait en sandbox le 17/09 : prix `price_1UGhEN2U0jLqzz5TGaGQ7m58` créé à 79 €/mois, posé en prix par défaut du produit Pro, ancien prix 49 € désactivé, `STRIPE_PRICE_ID_PRO` mis à jour (sauvegarde `env.pre-prix-pro-79-20260917`), backend redémarré ; page de paiement vérifiée : « Subscribe to Pro €79.00 per month ». Team déjà à 1 490 €, correct. **Reste : refaire exactement la même opération sur le compte Stripe de production** avant l'ouverture. | 🟡 |
 | GL-24 | Basse | `robots.txt` n'existait pas : la requête retombait sur la SPA (page Entracte, puis le site entier). Créé le 17/09 (`/var/www/dh-preview/robots.txt`) : tout autorisé sauf `/apercu-recent/`, `/holding-preview/`, `/sds-preview/`, avec le sitemap. | Vérifier que les SDS du portfolio doivent bien rester hors index (liens partagés, pas de référencement). | 🟡 |
-| GL-25 | **Bloquant** | Le compte **Anthropic** n'a plus de crédits : un échange Pro renvoie `400 — Your credit balance is too low to access the Anthropic API` (mesuré 17/09, compte smoke en palier `pro`, HTTP 502 côté API). Le palier Pro — Sonnet + Marcus en Opus — ne peut pas fonctionner. Même classe que GL-10 (OpenAI épuisé le 15/09) : **deux paliers payants dépendent de soldes que personne ne surveille**. | Sam recharge le compte Anthropic ; puis supervision du solde (alerte admin sous seuil, comme GL-10) et refus explicite plutôt que 502 opaque côté client. Rejouer ensuite le smoke Pro. | 👤 puis ❌ |
+| GL-25 | **Bloquant** | Le compte **Anthropic** n'a plus de crédits : un échange Pro renvoie `400 — Your credit balance is too low to access the Anthropic API` (mesuré 17/09, compte smoke en palier `pro`, HTTP 502 côté API). Le palier Pro — Sonnet + Marcus en Opus — ne peut pas fonctionner. Même classe que GL-10 (OpenAI épuisé le 15/09) : **deux paliers payants dépendent de soldes que personne ne surveille**. **Contrainte de trésorerie (Sam, 17/09) : recharge impossible avant la fin du mois ; smoke Pro reporté à fin septembre.** Conséquence à arbitrer : le palier Pro ne peut pas être vendu tant que le solde Anthropic est vide — voir la décision de périmètre ci-dessous. À faire quand le solde est rechargé : rejouer le smoke Pro, puis poser une alerte admin sous seuil (même mécanique que GL-10) et un refus explicite côté client plutôt qu'un 502. | 👤 fin sept. |
 | GL-26 | Basse | Persona : interrogée sur son rôle, **Olivia répond « En tant que Project Manager senior »** — c'est le rôle de Sophie ; Olivia est architecte de solution. Mesuré 17/09 sur le parcours Free. | Vérifier le prompt système par agent dans le chat Studio (l'agent demandé et le profil chargé ne correspondent peut-être pas). | ❌ |
 
 ## 2. Constats du 15/09 hors calibration (bloquants ou à traiter avant l'ouverture)
@@ -141,6 +141,18 @@ Bilan : 6 faites · 9 périmées · 9 fusionnées · 7 à Sam · 7 plus tard · 
 1. Périmètre exact ouvert et fonctions explicitement fermées → **Free + Pro, BUILD fermé** (Sam, 15/09) ✅
 2. Modèle Pro et promesse correspondante → Sonnet + Marcus Opus (site) ; la calibration ouvre la voie DeepSeek V4 Flash pour les workers — **à arrêter avant la recette finale** 👤
 3. Politique de conservation des données personnelles → 90 jours tranchés (DEC-0813-02) ; **code à aligner** (GL-16) 👤 pour les pièces
+
+## 3.5 — Décision de périmètre à prendre avant le 30/09 (ajoutée le 17/09)
+
+Le palier Pro suppose un solde Anthropic disponible **le jour de l'ouverture** : un client qui paie 79 € et reçoit un 502 est pire que pas de client. Le Free, lui, tourne sur le Spark et ne coûte rien à l'appel. Trois voies, à trancher par Sam :
+
+| Voie | Ce qu'on ouvre le 1er | Ce que ça suppose | Risque |
+|---|---|---|---|
+| **A — Free seul le 1er, Pro quand le solde le permet** | Free (Nemotron, coût marginal nul) + liste d'attente Pro | Rien de plus ; le site annonce Pro « bientôt » comme aujourd'hui pour Team | Aucun risque client ; retarde le premier euro |
+| **B — Pro ouvert, solde rechargé avant le 1er** | Free + Pro | Une recharge Anthropic suffisante pour absorber les premiers clients (2 SDS/mois inclus par client) | Si le solde tombe pendant le mois, panne visible chez un client payant |
+| **C — Pro ouvert sur modèles à bas coût** | Free + Pro, workers sur DeepSeek V4 Flash (ModelArk), Marcus seul sur Opus | Décision D2 anticipée ; calibration du 15/09 : SDS complet à ~1,50 $ contre ~9,75 $ voie Anthropic | Qualité mesurée 85 % de couverture, acceptable ; dépendance à un fournisseur hors UE à assumer contractuellement |
+
+Rappel des mesures du 15/09 (coût d'un SDS complet) : Muse Glimmer local ≈ 0 $ · DeepSeek V4 Flash ≈ 1,50 $ · DeepSeek V4 Pro ≈ 2,40 $ · GLM 5.3 ≈ 0,55 $ · voie Anthropic (Sonnet + Marcus Opus) ≈ 9,75 $.
 
 ## 4. Plan d'action à quinze jours (16 → 30 septembre) — validé sur le tri du 16/09
 
