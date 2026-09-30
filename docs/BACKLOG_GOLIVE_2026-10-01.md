@@ -1,4 +1,4 @@
-# Backlog go-live 1er octobre 2026 — source unique (ouvert le 15/09/2026)
+# [OUVERTURE REPORTÉE AU JEUDI 15/10/2026 — décision Sam 30/09] Backlog go-live 1er octobre 2026 — source unique (ouvert le 15/09/2026)
 
 > Ce fichier devient le backlog unique du go-live. Il absorbera, à la revue du 15/09 après-midi,
 > les 41 décisions accordées du comité, les 49 tâches `a_faire` et les 58 constats de l'audit Astra
@@ -173,3 +173,24 @@ Principe : quatre files parallèles (Astra) — **sécurité**, **crédits/Strip
 **Décisions de Sam avec date :** TVA (GL-02) — en cours, « en cours » affiché en attendant · relecture juridique (GL-03) — 16/09 soir · canal support (GL-13) — avant le 20/09 · carte bancaire sur le Free (DEC-0809-10) — avant le 22/09, conditionne AS-07 · 3 contenus (GL-17) — avant le 23/09 · modèle Pro (D2) — avant le 26/09.
 
 **Non retenu avant le 1er, dit explicitement :** CAL-10 (durée), GL-12 (gabarit FR) si la vague 2 déborde, Lot 2 et 3 d'Astra, offre intégrateur, compte d'organisation, démo Agentforce.
+
+
+## 5. Plan révisé — ouverture le jeudi 15 octobre 2026 (décision Sam, 30/09)
+
+**Périmètre** : Free **et** Pro, refonte du site, campagne. Hors périmètre : hébergement du Free hors du domicile (risque accepté par Sam : tunnels à reconnexion automatique, coupure de quelques minutes mesurée le 30/09).
+
+**Chemin critique hors de notre main** — à lancer cette semaine :
+- 👤 **Activation du compte Stripe de production** (compte bancaire pro, identité, vérification Stripe : délai non maîtrisé). Si elle n'est pas faite le 9/10, c'est elle qui décide de la date.
+- 👤 **Crédit Anthropic** (« dans les jours qui viennent ») — conditionne le smoke Pro.
+- 👤 Numéro de TVA (affiché « en cours d'attribution » en attendant).
+
+| Période | Contenu | Qui |
+|---|---|---|
+| **1er → 6/10** | **Vague 2** en trois files parallèles : A RAG et données (SEC-04, PROD-09, RGPD-03) · B exploitation (SEC-17/18, OPS-01/02/08, GL-25 alertes de solde, alerte fournisseur local, démarrage backend 2 min) · C produit Pro (GL-22 consentement Opus, langue et persona des agents, GL-12 gabarit FR, CAL-08). Missions : `docs/missions/VAGUE2_*.md` | Claude Code ×3 |
+| **1er → 8/10** | **Refonte du site** : composants vitrines d'après la référence validée le 18/09. Mission : `Digital-Humans-Web-site/docs/MISSION_VITRINES_2026.md` (branche `refonte-2026`) | Claude Code ×1 |
+| **1er → 9/10** | **Campagne** : recaler générique et final ; corriger le chaînage des segments (erreur 400 sur `ref_motion`, identifiée le 18/09) ; mettre la nouvelle date sur les cartons ; recaler les sous-titres EN. Une session GPU (~2 h, < 2 $) | Claude + Sam |
+| **7 → 8/10** | Relecture et fusion de la vague 2 ; **Stripe live** (produits 79 € / 1 490 €, clés, webhook, souscription réelle remboursée) dès activation ; smoke Pro quand le crédit Anthropic est là | Claude |
+| **9 → 12/10** | **Recette indépendante AS-11** (OPS-06 : tests verts sans assertion métier) ; revue du site refait par Sam sur `/refonte/` | Claude Code + Sam |
+| **13/10** | **Go/no-go sur preuves** | Sam |
+| **14/10** | Gel ; bascule du site (lien symbolique) ; campagne programmée | Claude |
+| **15/10** | **Ouverture Free + Pro** — ne pas redémarrer le backend autour de l'heure d'ouverture (≈ 2 min de démarrage) | — |
