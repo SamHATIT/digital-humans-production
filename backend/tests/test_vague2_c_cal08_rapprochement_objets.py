@@ -51,11 +51,25 @@ VARIANTES = [
     # (référence dans les UC, objet de la conception (api, libellé))
     ("credit_note__c", ("Avoir__c", "Avoir")),
     ("Avoir__c", ("Credit_Note__c", "Credit Note")),
-    ("mouvement_points__c", ("Loyalty_Point_Transaction__c", "Loyalty Point Transaction")),
+    # Reprise R1 : « Loyalty_Point_Transaction__c » (un mot de plus, « loyalty »)
+    # et « Maintenance_Activity__c » ne sont plus des renommages ; ils passent
+    # dans RENOMMAGES_REFUSES ci-dessous.
+    ("mouvement_points__c", ("Point_Transaction__c", "Point Transaction")),
     ("ligne_retour_ecommerce__c", ("Return_Line__c", "Return Line")),
     ("actif__c", ("Asset", "Asset")),
+    ("Maintenance__c", ("Maintenance_Record__c", "Maintenance")),
+]
+
+#: Un mot de plus qui n'est pas un qualifiant : manque à relire, pas renommage.
+RENOMMAGES_REFUSES = [
+    ("mouvement_points__c", ("Loyalty_Point_Transaction__c", "Loyalty Point Transaction")),
     ("Maintenance__c", ("Maintenance_Activity__c", "Maintenance Activity")),
 ]
+
+
+@pytest.mark.parametrize("reference,objet", RENOMMAGES_REFUSES, ids=[v[0] for v in RENOMMAGES_REFUSES])
+def test_un_mot_de_plus_non_qualifiant_n_est_pas_un_renommage(reference, objet):
+    assert _manques(_conception(custom=[objet]), [reference]) == [reference.lower()]
 
 
 @pytest.mark.parametrize("reference,objet", VARIANTES, ids=[v[0] for v in VARIANTES])
@@ -119,3 +133,50 @@ def test_jeu_construit_compte_avant_apres():
     manques = _manques(conception, references)
     assert manques == sorted(["order", "facture__c", "contrat__c", "reservation__c",
                               "workflow_step__c"])
+
+
+# ── Reprise R1 (revue 1) : un objet voisin ou enfant ne couvre pas l'objet demandé ──
+# Cas construits par le testeur indépendant : au commit a4d43f0, les six vrais
+# manques ci-dessous étaient classés « renommés » (0/6 retenus, score 100).
+
+VOISINS = [
+    # (référence absente de la conception, objet voisin ou enfant présent)
+    ("Loyalty_Program__c", ("Loyalty_Program_Member__c", "Loyalty Program Member")),
+    ("Credit_Note_Line__c", ("Avoir__c", "Avoir")),
+    ("ServiceContract", ("Contract", "Contract")),
+    ("Opportunity", ("Opportunity_Product__c", "Opportunity Product")),
+    ("Invoice__c", ("Invoice_Line_Item__c", "Invoice Line Item")),
+    ("Return_Order__c", ("Return_Line__c", "Return Line")),
+    ("Contact", ("Emergency_Contact__c", "Emergency Contact")),
+]
+
+
+@pytest.mark.parametrize("reference,objet", VOISINS, ids=[v[0] for v in VOISINS])
+def test_controle_negatif_un_objet_voisin_ou_enfant_ne_couvre_pas(reference, objet):
+    standard = [objet] if not objet[0].endswith("__c") else []
+    custom = [objet] if objet[0].endswith("__c") else []
+    assert _manques(_conception(standard, custom), [reference]) == [reference.lower()]
+
+
+@pytest.mark.parametrize("nom", ["Price Rule", "Quote Template"])
+def test_controle_negatif_un_objet_cpq_n_est_pas_une_metadonnee(nom):
+    """« Rule » et « Template » en fin de nom ne font pas une métadonnée :
+    Price Rule et Quote Template sont des objets (CPQ)."""
+    dm = calculate_coverage_score(_conception(standard=[("Account", "Account")]),
+                                  _uc(nom))["by_category"]["data_model"]
+    assert dm["missing"] == [nom.lower()]
+    assert dm["non_objects"] == []
+
+
+def test_jeu_du_testeur_six_vrais_manques_restent_six():
+    conception = _conception(
+        standard=[("Contract", "Contract")],
+        custom=[("Loyalty_Program_Member__c", "Loyalty Program Member"), ("Avoir__c", "Avoir"),
+                ("Opportunity_Product__c", "Opportunity Product")],
+    )
+    refs = ["Loyalty_Program__c", "Credit_Note_Line__c", "ServiceContract", "Opportunity",
+            "Price Rule", "Quote Template"]
+    dm = calculate_coverage_score(conception, _uc(*refs))["by_category"]["data_model"]
+    assert sorted(dm["missing"]) == sorted(r.lower() for r in refs)
+    assert dm["renamed"] == []
+    assert dm["score"] == pytest.approx(0.0)

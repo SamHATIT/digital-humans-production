@@ -17,11 +17,12 @@ la conception, avant de déclarer un manque :
    accents, séparateurs et casse ignorés, pluriel simple ;
 4. **sens** : mots traduits vers un vocabulaire commun (lexique FR → EN ci-
    dessous, ``avoir`` → ``credit note``), comparés au nom d'API ET au libellé
-   de l'objet. Égalité des ensembles de mots, ou inclusion quand l'ensemble le
-   plus petit a au moins deux mots (``ligne retour ecommerce`` ⊇ ``return
-   line``). Un seul mot ne s'inclut que d'un mot qui ne désigne pas un objet
-   enfant : ``Maintenance`` ⊂ ``Maintenance_Activity__c``, mais ``Order``
-   n'est pas ``Order_Line__c``.
+   de l'objet. Égalité des ensembles de mots ; inclusion seulement si les mots
+   en plus sont des qualifiants (canal, marque : ``ligne retour ecommerce`` ⊇
+   ``return line``). Tout autre mot en plus change l'objet (reprise R1) :
+   ``Order`` n'est pas ``Order_Line__c``, ``ServiceContract`` n'est pas
+   ``Contract``, ``Maintenance`` n'est pas ``Maintenance_Activity__c`` — un
+   manque à relire vaut mieux qu'un vrai manque masqué.
 
 Ce n'est pas une ressemblance d'orthographe : ``Contrat__c`` n'est pas
 ``Contact``. Un rapprochement est restitué comme **renommage**, distinct d'un
@@ -48,8 +49,10 @@ _METADONNEES = (
     "routing configuration", "service channel", "presence status",
     "named credential", "custom metadata type", "custom setting", "platform event",
 )
-_SUFFIXES_METADONNEE = ("flow", "report", "dashboard", "queue", "trigger",
-                        "template", "process", "rule", "layout", "view")
+#: Reprise R1 : seul le suffixe « flow » classe un nom inconnu en métadonnée
+#: (``Case_Escalation_Flow``). « rule », « template », « report »… en fin de
+#: nom désignaient aussi des objets (Price Rule, Quote Template en CPQ).
+_SUFFIXES_METADONNEE = ("flow",)
 
 #: Lexique de rapprochement : mot (sans accent, minuscule) → mots communs.
 _LEXIQUE: Dict[str, Tuple[str, ...]] = {
@@ -132,31 +135,33 @@ def est_metadonnee(nom: str) -> bool:
     return bool(mots) and mots[-1] in _SUFFIXES_METADONNEE and len(mots) > 1
 
 
-#: Mots qui désignent un objet ENFANT ou un journal de l'objet nommé :
-#: ``Order`` n'est pas ``Order Line``, ``Account`` n'est pas ``Account History``.
-_MARQUEURS_ENFANT = frozenset({
-    "line", "detail", "entry", "member", "step", "history", "log", "assignment",
-    "share", "feed", "team", "relation", "relationship", "junction", "link",
-    "schedule", "version", "attachment", "comment", "transaction", "event",
-    "status", "type", "template", "setting", "config", "configuration",
+#: Mots qui ne désignent pas un autre objet : un canal, une marque, un
+#: préfixe technique. Seuls mots tolérés en plus d'un côté (reprise R1).
+_QUALIFIANTS = frozenset({
+    "ecommerce", "online", "web", "digital", "sf", "salesforce", "dh", "data", "info",
+    "information",
 })
 
 
 def _concepts_compatibles(a: frozenset, b: frozenset) -> bool:
-    """Égalité ; ou inclusion quand le plus petit ensemble a deux mots ou
-    plus ; ou, pour un seul mot, un seul mot en plus qui ne désigne pas un
-    objet enfant (``Maintenance`` ⊂ ``Maintenance Activity``)."""
+    """Égalité des concepts ; ou inclusion dont les mots en plus sont tous des
+    qualifiants (``ligne retour ecommerce`` ⊇ ``return line``).
+
+    Reprise R1 (revue 1) : l'inclusion était acceptée dès que le plus petit
+    ensemble avait deux mots, ou pour un mot si le mot en plus ne désignait pas
+    un « objet enfant ». Un objet voisin ou enfant présent faisait alors passer
+    l'objet demandé pour renommé : ``Credit_Note_Line__c`` ↔ ``Avoir__c``,
+    ``Loyalty_Program__c`` ↔ ``Loyalty_Program_Member__c``, ``ServiceContract``
+    ↔ ``Contract``, ``Opportunity`` ↔ ``Opportunity_Product__c``. Un mot de
+    plus change l'objet ; on préfère montrer un manque à relire que masquer un
+    vrai manque.
+    """
     if not a or not b:
         return False
     if a == b:
         return True
     petit, grand = (a, b) if len(a) <= len(b) else (b, a)
-    if not petit <= grand:
-        return False
-    if len(petit) >= 2:
-        return True
-    en_plus = grand - petit
-    return len(en_plus) == 1 and not (en_plus & _MARQUEURS_ENFANT)
+    return petit <= grand and (grand - petit) <= _QUALIFIANTS
 
 
 def rapprocher(reference: str, objets: Sequence[Tuple[str, Optional[str]]]) -> Optional[Tuple[str, str]]:
