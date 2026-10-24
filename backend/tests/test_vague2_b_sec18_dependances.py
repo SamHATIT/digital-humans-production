@@ -137,3 +137,26 @@ def test_chemins_montes_voit_un_routeur_inclus():
     app = FastAPI()
     app.include_router(routeur, prefix="/api")
     assert "/api/blog/generate-batch" in chemins_montes(app)
+
+
+def test_chemins_montes_voit_les_websockets():
+    """Reprise 5 (revue 1) : la premiere version ne depliait que les routes
+    HTTP ; la route websocket du suivi d'execution manquait."""
+    from fastapi import APIRouter, FastAPI, WebSocket
+
+    from app.main import app as application
+    from tests.routes_montees import chemins_montes
+
+    assert "/api/pm-orchestrator/ws/{execution_id}" in chemins_montes(application)
+
+    interne = APIRouter(prefix="/flux")
+
+    @interne.websocket("/ws/{ident}")
+    async def _w(websocket: WebSocket, ident: str):  # pragma: no cover
+        await websocket.close()
+
+    externe = APIRouter()
+    externe.include_router(interne, prefix="/v2")
+    app = FastAPI()
+    app.include_router(externe, prefix="/api")
+    assert "/api/v2/flux/ws/{ident}" in chemins_montes(app)

@@ -13,13 +13,25 @@ from __future__ import annotations
 from typing import Set
 
 
+def _deplier(routes, prefixe: str, chemins: Set[str]) -> None:
+    """Parcours recursif des routeurs inclus : `include_context.prefix` de
+    chaque inclusion, puis les routes du routeur inclus (HTTP ET websocket :
+    reprise 5 de la revue 1, la route /api/pm-orchestrator/ws/{execution_id}
+    manquait quand seul `effective_route_contexts()` etait lu)."""
+    for route in routes:
+        contexte = getattr(route, "include_context", None)
+        if contexte is not None:  # fastapi >= 0.16x : _IncludedRouter
+            _deplier(contexte.included_router.routes, prefixe + (contexte.prefix or ""), chemins)
+        else:
+            chemins.add(prefixe + getattr(route, "path", ""))
+
+
 def chemins_montes(app) -> Set[str]:
     chemins: Set[str] = set()
+    _deplier(app.routes, "", chemins)
+    # Garde : les routes HTTP vues par FastAPI lui-meme doivent toutes y etre.
     for route in app.routes:
         contextes = getattr(route, "effective_route_contexts", None)
-        if callable(contextes):  # fastapi >= 0.16x : routeur inclus paresseusement
-            for ctx in contextes():
-                chemins.add(getattr(ctx, "path", ""))
-        else:
-            chemins.add(getattr(route, "path", ""))
+        if callable(contextes):
+            chemins.update(getattr(ctx, "path", "") for ctx in contextes())
     return chemins
