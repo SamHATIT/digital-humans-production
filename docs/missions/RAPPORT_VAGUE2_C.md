@@ -206,6 +206,12 @@ normalisation ; sens (lexique FR→EN, nom d'API et libellé, inclusion
 contrôlée : `Order` ≠ `Order_Line__c`) ; renommages restitués
 (`data_model.renamed`), distincts des manques.
 
+> **Corrigé après revue 1 (R1, R2).** La règle d'inclusion ci-dessus était
+> trop large : des objets absents passaient pour renommés (6 vrais manques du
+> testeur : 0/6 retenus, score 100). Elle est restreinte (`1ec18a0`) ; et
+> « restitués » n'était vrai qu'à l'écriture : aucun lecteur avant `e820382`.
+> Chiffres à jour : §7.
+
 Preuves : `tests/test_vague2_c_cal08_rapprochement_objets.py` au parent
 `a8d06ff` : `18 failed, 5 passed` (les 5 verts = contrôles négatifs « un vrai
 manque reste un manque ») ; après : `23 passed` ; CAL-09 inchangé (4 passés).
@@ -215,6 +221,10 @@ Comptage sur le jeu construit (6 variantes dont `credit_note__c` ↔ `Avoir__c`,
 
     avant (388299a): manques=19 dont faux positifs=14 vrais manques retenus=5/5 score_objets=11.8
     apres: manques=5 dont faux positifs=0 vrais manques retenus=5/5 score_objets=60.0
+
+**Ces chiffres « après » valaient pour `a4d43f0` et ne tiennent plus** : voir
+§7 R1 (après reprise, sur ce même jeu : 7 manques, dont 2 renommages
+désormais refusés volontairement).
 
 (script `/root/.dh_orch_vague2/implc/compte_cal08.py` ; dans ce jeu combiné,
 `credit_note__c` et `Avoir__c` sont tous deux présents dans la conception,
@@ -260,14 +270,31 @@ le constate toujours.
    Marcus y passe sur Sonnet, annoncé sur l'exécution (lu dans le code, testé
    par `test_sans_consentement_marcus_passe_sur_sonnet_et_le_repli_est_annonce`).
 
+6. Remarques de la revue 1, non codées, à arbitrer :
+   - `opus_consents` est en `ON DELETE CASCADE` sur l'utilisateur **et** sur
+     l'exécution : supprimer une exécution efface la preuve du consentement,
+     alors que les transactions de crédits restent ;
+   - le contrôle du plafond (`verifier_pour_appel`) et la réservation ne sont
+     pas atomiques : deux appels Opus parallèles d'une même exécution peuvent
+     dépasser le montant accepté d'un appel (lu, non exécuté ; Marcus est
+     séquentiel aujourd'hui) ;
+   - le consentement porte sur (exécution, modèle), pas sur l'agent : si la
+     résolution du palier échoue (`_resolve_tier_for_execution` rend `None`),
+     Sophie, Olivia et Emma seraient routées sur Opus et consommeraient le
+     plafond accepté pour Marcus ;
+   - `sans_compte=True` court-circuite le contrôle (concierge forcé sur Sonnet
+     aujourd'hui ; aucune garde si un futur appelant sans compte route sur Opus).
+
 ## 4. Reste ouvert / pas fait
 
 - Chat d'exécution (`hitl_routes.chat_with_sophie_contextual`) : il ne passe ni
   `execution_id` ni `subscription_tier` au LLM (lu). Conséquence lue : sous le
   profil `cloud`, un Pro qui parle à Sophie y était servi par **Opus** (pas de
-  surcharge de palier) ; depuis ce lot, le repli Sonnet s'applique mais
-  `avis_repli` n'est pas rendu par cette route. Non corrigé (file B touche la
-  gestion d'erreur de ces routes ; à arbitrer).
+  surcharge de palier) ; depuis ce lot, le repli Sonnet s'applique. **Après
+  revue 1 (R4, `439a66a`)** : `avis_repli` est rendu par cette route et par le
+  chat projet, et affiché. Reste : pas de marque `degraded` (la route ne passe
+  pas l'exécution), et `sds_section_writer` (sans `execution_id`) ne marque
+  pas le repli d'un compte Team sur l'exécution (lu, revue §3.2).
 - Rendu de l'écran de consentement en navigateur : non vérifié.
 - CAL-08 automatisations, règle de nommage des prompts : voir §2.
 
@@ -294,6 +321,14 @@ Autres fichiers touchés, hors liste de recouvrement : `backend/app/schemas/exec
 `backend/agents/roles/salesforce_research_analyst.py`,
 `tools/build_sds.py`, `tools/lib/sds_i18n.py`, `docs/sds/templates/**`,
 `backend/tests/test_vague1_d_gl19_mentions_ia.py` (test existant, voir GL-12).
+Après revue 1 : `backend/app/api/routes/project_chat.py` et
+`backend/app/schemas/project_conversation.py` (`avis_repli`, R4),
+`backend/app/services/rapprochement_objets.py` (R1),
+`docs/sds/templates/partials/coverage_report.html.j2` (R2) ; en recouvrement :
+`llm_router_service.py` (message de journal du repli, R4),
+`sophie_chat_service.py` (`avis_repli`, R4), `execution_routes.py` (409
+`consentement_opus_texte_perime`, R3), `alembic/versions/023c_…` (colonne
+`credits_presentes`, R5).
 
 Diff proposé hors de ma file : aucun.
 
@@ -324,3 +359,93 @@ Diff proposé hors de ma file : aucun.
    (attendu) ; un `python -c` d'essai a importé `app.services` hors
    environnement de test (message `SECRET_KEY not set`), sans connexion ni
    écriture.
+
+
+## 7. Reprises après revue 1 (`docs/missions/REVUE_VAGUE2_C.md`, commit `efb48e4`)
+
+Chaque reprise : test rouge au commit précédent (journal gardé), correctif,
+vert. Commits faits avec `git -c core.hooksPath=/dev/null commit`.
+
+| Reprise | Commit | Rouge (commit précédent) | Vert |
+|---|---|---|---|
+| **R1** CAL-08 : un objet voisin ou enfant présent faisait passer l'objet demandé pour renommé ; Price Rule / Quote Template classés métadonnées | `1ec18a0` | au `efb48e4` : `8 failed, 25 passed` — 5 voisins/enfants (`Loyalty_Program__c`, `Credit_Note_Line__c`, `ServiceContract`, `Opportunity`, `Contact`↔`Emergency_Contact__c`), `Price Rule`, `Quote Template`, jeu des six (`implc/r1-rouge-efb48e4.log`) | `39 passed` (CAL-08 + CAL-09) |
+| **R2** `renamed` / `non_objects` écrits sans lecteur | `e820382` | au `1ec18a0` : `2 failed, 22 passed` (rendu FR et EN du rapport de couverture) (`implc/r2-rouge-1ec18a0.log`) | `34 passed` (GL-12 + GL-19) |
+| **R3** version du texte : test contre un littéral, non envoyée, non vérifiée | `88e0249` | au `e820382` : frontend `not ok 4` (# fail 1) ; backend `test_une_decision_sans_la_version_du_texte_affiche_est_refusee[absente/autre]` : `2 failed, 18 passed` (`implc/r3-rouge-e820382.log`, `implc/r3-front-rouge-e820382.log`) | backend `20 passed` ; frontend 67/67 |
+| **R5** montant refusé non tracé | `6927eb0` | au `88e0249` : `AttributeError: 'ConsentementOpus' object has no attribute 'credits_presentes'` — `2 failed, 18 passed` (`implc/r5-rouge-88e0249.log`) | `20 passed` ; migration 023c rejouée par Alembic sur base jetable : colonne `credits_presentes` présente, downgrade/re-upgrade OK, `EXIT=0` (`impl-c-migration.log`) |
+| **R4** chat projet (Team) et chat d'exécution : repli non dit au client ; journal « repli annonce » mensonger | `439a66a` | au `6927eb0` : chat projet Team `{'context_used': ['project'], 'message': 'ok', 'tokens_used': 2000}` → `assert (None)` ; chat d'exécution idem — `2 failed, 1 passed` (contrôle négatif Pro vert) ; frontend `not ok 7` (`implc/r4-rouge-6927eb0.log`, `implc/r4-front-rouge-6927eb0.log`) | `60 passed` (GL-22, langue, HITL SEC-05, PROD-01, PROD-06) ; frontend 68/68 |
+
+### R1 — règle retenue et recomptes
+
+Égalité des concepts, ou inclusion seulement si **tous** les mots en plus
+sont des qualifiants (`ecommerce`, `online`, `web`, `digital`, `sf`,
+`salesforce`, `dh`, `data`, `info`, `information`) ; métadonnée par suffixe :
+`flow` seulement, le reste sur liste exacte. Choix assumé : un manque à relire
+vaut mieux qu'un vrai manque masqué. Conséquence sur mes propres cas initiaux,
+dite platement : `mouvement_points__c` ↔ `Loyalty_Point_Transaction__c` et
+`Maintenance__c` ↔ `Maintenance_Activity__c` ne sont **plus** rapprochés (un
+mot de plus, non qualifiant) — ils restent des manques, désormais testés comme
+tels ; les variantes positives du test sont remplacées par
+`Point_Transaction__c` et `Maintenance_Record__c` (libellé « Maintenance »).
+
+Recompte avec le script du testeur (`/root/.dh_orch_vague2/testeur-C/compte_cal08_testeur.py`,
+sortie `/root/.dh_orch_vague2/implc/r1-comptes.log`) :
+
+    [implementeur] avant: manques=19 faux_positifs=14 vrais_retenus=5/5 score=11.8
+    [implementeur] apres: manques=7 faux_positifs=2 vrais_retenus=5/5 score=40.0 renommes=['actif__c->asset', 'ligne_retour_ecommerce__c->return_line__c']
+    [testeur-negatifs] avant: manques=6 faux_positifs=0 vrais_retenus=6/6 score=0.0
+    [testeur-negatifs] apres: manques=6 faux_positifs=0 vrais_retenus=6/6 score=0.0
+
+Les 2 « faux positifs » restants du jeu initial sont les deux renommages
+refusés ci-dessus. Sonde du testeur (`sonde_cal08.py`) : les 12 cas → `MANQUANT`.
+
+### R2
+
+`partials/coverage_report.html.j2` lit `coverage.by_category.data_model.renamed`
+et `.non_objects` (transmis par `collect_sds.collect_coverage`) et rend un
+tableau « Objets rapprochés sous un autre nom / Objects matched under another
+name » et la liste des non-objets écartés. `grep` montre désormais le lecteur.
+
+### R3
+
+`buildStartBody` envoie `texte_version_opus` avec la décision ; le serveur
+refuse (409 `consentement_opus_texte_perime`, rien créé) une version absente
+ou différente et trace celle reçue. Un test backend lit la constante du
+fichier frontend et la compare à celle du serveur ; l'assertion trompeuse du
+test frontend est retirée.
+
+### R4
+
+`avis_repli` rendu par `SophieChatService.chat` / `SophieResponse` et par
+`ChatResponse` (HITL), ajouté à la réponse affichée (`withFallbackNotice` :
+ProjectDetailPage, ChatSidebarStudio, ChatSidebar). Le journal dit
+« avis_repli rendu à l'appelant » (et « marque degraded posée » seulement avec
+une exécution).
+
+### R5
+
+Colonne `opus_consents.credits_presentes` (montant affiché, acceptation comme
+refus) ; `credits_estimes` reste le plafond accepté (0 sur un refus). Ajoutée
+au modèle et à la migration 023c (non déployée, modifiée sur place).
+
+### Suites après reprises
+
+Backend (`DH_TEST_RUN_ID=implc_apres2`, au commit `439a66a`, journal
+`/root/.dh_orch_vague2/impl-c-apres2.log`) :
+
+    31 failed, 1153 passed, 2 skipped, 7 xfailed, 1495 warnings in 662.11s (0:11:02)
+
+Mêmes 31 échecs que la référence, nom par nom (`diff echecs-avant.txt
+echecs-apres2.txt` → identiques). +21 passés par rapport à `c37e6aa` = tests
+ajoutés par les reprises (R1 12, R2 3, R3 3, R4 3). Aucun `skip`/`xfail` ajouté
+(`git diff efb48e4 -- backend/tests | grep -cE "^\+.*(pytest\.mark\.(skip|xfail)|pytest\.skip)"` → 0).
+
+Frontend (journal `/root/.dh_orch_vague2/impl-c-front2.log`) :
+`# tests 68 / # pass 68 / # fail 0`, `tsc -b` → `TSC_B_EXIT=0`.
+
+Tests existants de la branche modifiés par les reprises (les miens, dits ici) :
+`test_vague2_c_cal08_rapprochement_objets.py` (deux variantes positives
+remplacées, R1), `test_vague2_c_gl22_consentement_opus.py` (les lancements avec
+décision envoient `texte_version_opus`, R3 ; `credits_presentes` vérifié, R5 ;
+le helper `_consentir` renseigne `credits_presentes`),
+`frontend/tests/opusConsent.test.ts` (corps attendu avec la version ; assertion
+contre un littéral retirée, R3).
