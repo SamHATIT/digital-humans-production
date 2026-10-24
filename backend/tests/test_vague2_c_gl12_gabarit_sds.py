@@ -134,7 +134,7 @@ SECTIONS = ("initial_needs", "br_data", "uc_data", "uc_digest", "as_is", "data_m
             "data_mig", "training", "qa", "devops")
 
 
-def _rendre(langue):
+def _rendre(langue, data_model_couverture=None):
     from jinja2 import ChainableUndefined, Environment, FileSystemLoader
     i18n = _i18n()
     env = Environment(loader=FileSystemLoader(str(GABARITS)), undefined=ChainableUndefined,
@@ -158,6 +158,8 @@ def _rendre(langue):
         "build": {"timestamp_human": "2026-10-24 · 12:00 UTC"},
     }
     contexte.update({section: _Vide() for section in SECTIONS})
+    if data_model_couverture is not None:
+        contexte["coverage"]["by_category"]["data_model"] = data_model_couverture
     i18n.localiser_contexte(contexte, code)
     return env.get_template("sds_shell.html.j2").render(**contexte)
 
@@ -211,3 +213,35 @@ def test_une_langue_sans_catalogue_est_rendue_en_anglais_et_le_dit(caplog):
     with caplog.at_level("WARNING"):
         assert i18n.langue_du_projet("de") == "en"
     assert "sans catalogue" in caplog.text
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Reprise R2 (revue 1) : les rapprochements de CAL-08 sont montrés au lecteur
+# ─────────────────────────────────────────────────────────────────────
+
+COUVERTURE_AVEC_RAPPROCHEMENTS = {
+    "score": 100, "missing": [],
+    "renamed": [{"reference": "credit_note__c", "objet": "avoir__c", "methode": "sens"},
+                {"reference": "client_account", "objet": "clientaccount", "methode": "normalisation"}],
+    "non_objects": ["case_escalation_flow", "report"],
+}
+
+
+@pytest.mark.parametrize("langue,titre,methode", [
+    ("fr", "Objets rapprochés sous un autre nom", "même sens"),
+    ("en", "Objects matched under another name", "same meaning"),
+])
+def test_les_renommages_et_non_objets_sont_rendus_dans_le_rapport_de_couverture(langue, titre, methode):
+    """CAL-08 écrit `data_model.renamed` et `non_objects` : un rapprochement
+    compté couvert doit être visible du lecteur du SDS pour être vérifié."""
+    visible = _visible(_rendre(langue, COUVERTURE_AVEC_RAPPROCHEMENTS))
+    assert titre in visible
+    assert "credit_note__c" in visible and "avoir__c" in visible
+    assert "client_account" in visible and methode in visible
+    assert "case_escalation_flow" in visible
+
+
+def test_controle_negatif_sans_rapprochement_aucune_section():
+    visible = _visible(_rendre("fr", {"score": 100, "missing": [], "renamed": [], "non_objects": []}))
+    assert "Objets rapprochés sous un autre nom" not in visible
+    assert "Non comptés comme objets" not in visible

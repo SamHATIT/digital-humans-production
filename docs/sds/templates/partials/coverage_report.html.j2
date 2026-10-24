@@ -19,6 +19,23 @@
 <td>{% if missing | length == 0 %}{{ _("(none)") }}{% elif missing | length <= 8 %}{{ missing | join(', ') }}{% else %}{{ missing[:8] | join(', ') }}… (+{{ missing | length - 8 }}){% endif %}</td>
 </tr>
 {% endfor %}</tbody></table>
+{# Reprise R2 (revue 1) : CAL-08 compte comme couverts les objets rapprochés sous un autre nom ; ils sont montrés ici pour être vérifiés. #}{% set dm_cov = (coverage.by_category.get('data_model', {}) if 'by_category' in coverage else {}) or {} %}{% set renommes = dm_cov.get('renamed', []) or [] %}{% set non_objets = dm_cov.get('non_objects', []) or [] %}{% if renommes %}<h3 class='sec-h3'>{{ _("Objects matched under another name") }}</h3>
+<p class='note'>{{ _("Counted as covered: each name cited by the use cases below was matched to an object of the design that bears another name. To be checked.") }}</p>
+<table class='tbl'>
+<thead><tr>
+<th><strong>{{ _("Name cited by the use cases") }}</strong></th>
+<th><strong>{{ _("Object in the design") }}</strong></th>
+<th><strong>{{ _("Match") }}</strong></th>
+</tr></thead>
+<tbody>
+{% for r in renommes %}<tr>
+<td>{{ r.reference }}</td>
+<td>{{ r.objet }}</td>
+<td>{% if r.methode == 'sens' %}{{ _("same meaning") }}{% else %}{{ _("same name, other spelling") }}{% endif %}</td>
+</tr>
+{% endfor %}</tbody></table>
+{% endif %}{% if non_objets %}<p class='note'>{{ _("Not counted as objects (Salesforce metadata cited by the use cases):") }} {{ non_objets | join(', ') }}</p>
+{% endif %}
 <h2 id='sub-8-2' class='sec-h2'><span>{{ _("8.2 Critical Gaps") }}</span> <em class='brass'>({{ crit_count }})</em></h2>
 <p class='note'>{{ _("These") }} {{ crit_count }} {{ _("gaps account for the missing") }} {{ missing_pct }}%.</p>
 <table class='tbl'>

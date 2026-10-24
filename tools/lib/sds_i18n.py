@@ -392,6 +392,17 @@ CATALOGUE_FR: Dict[str, str] = {
     "8.2 Critical Gaps": "8.2 Manques critiques",
     "gaps account for the missing": "manques représentent la part non couverte de",
     "Missing element": "Élément manquant",
+    # Reprise R2 : rapprochements de CAL-08
+    "Objects matched under another name": "Objets rapprochés sous un autre nom",
+    "Counted as covered: each name cited by the use cases below was matched to an object of the design that bears another name. To be checked.":
+        "Comptés comme couverts : chaque nom cité par les cas d'usage ci-dessous a été rapproché d'un objet de la conception qui porte un autre nom. À vérifier.",
+    "Name cited by the use cases": "Nom cité par les cas d'usage",
+    "Object in the design": "Objet de la conception",
+    "Match": "Rapprochement",
+    "same meaning": "même sens",
+    "same name, other spelling": "même nom, autre graphie",
+    "Not counted as objects (Salesforce metadata cited by the use cases):":
+        "Non comptés comme objets (métadonnées Salesforce citées par les cas d'usage) :",
 
     # ── 9. Migration des données ───────────────────────────────────────────
     "Data Migration Strategy": "Stratégie de migration des données",
