@@ -449,3 +449,16 @@ décision envoient `texte_version_opus`, R3 ; `credits_presentes` vérifié, R5 
 le helper `_consentir` renseigne `credits_presentes`),
 `frontend/tests/opusConsent.test.ts` (corps attendu avec la version ; assertion
 contre un littéral retirée, R3).
+
+## Reprises après revue passe 2 — faites par Claude le 24/10, hors orchestration (`1616080`)
+
+| Défaut | Rouge prouvé (tests ajoutés avant correctif) | Vert |
+|---|---|---|
+| D1. Report/Queue/Dashboard/Email Template/Assignment Rule **nommés** classés objets manquants | 9 tests D1 → 9 failed | 52 passed (fichier CAL-08) |
+| D2. Objets de plateforme exclus du score mais restés dans `missing` | 2 tests D2 → 2 failed | idem |
+
+Correctif D1 : suffixes de métadonnée par expressions de type connu (report, queue, dashboard, email template, assignment/escalation rule, list view…), « rule »/« template » seuls hors liste (CPQ), `__c` toujours objet. Correctif D2 : `missing` suit le filtre du score ; **Order, Contract, Campaign, CampaignMember retirés de `SF_INFRA_OBJECTS`** — objets métier ; le contrôle négatif existant « Order vs Order_Line__c » a échoué au premier essai du correctif, qui les masquait (décision à confirmer par Sam : ils comptent désormais aussi dans le score).
+
+Jeux du testeur rejoués (`/root/.dh_orch_vague2/claude-c-jeux.py`) : vrais manques 16/16, vrais renommages 13/13, objets CPQ 5/5, **métadonnées 22/22** (13/22 avant). Suite complète : **1 170 passés** (+17), mêmes 31 échecs que la référence, comparés nom par nom.
+
+Restent ouverts : D3 (avis de repli en français seulement, identifiants internes), D4 (montant d'un refus = estimation serveur) — décisions de Sam.
