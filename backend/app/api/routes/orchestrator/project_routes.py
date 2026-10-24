@@ -3,6 +3,8 @@ Project management routes for PM Orchestrator.
 
 P4: Extracted from pm_orchestrator.py — Project CRUD operations.
 """
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -16,6 +18,7 @@ from app.schemas.project import Project as ProjectSchema, ProjectCreate, Project
 from app.utils.dependencies import get_current_user
 
 router = APIRouter(tags=["PM Orchestrator"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/projects", response_model=ProjectSchema, status_code=status.HTTP_201_CREATED)
@@ -190,6 +193,19 @@ def delete_project(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
+        )
+    # RGPD-03 (vague 2 / file A) : la suppression ne nettoyait ni Chroma ni
+    # les fichiers, et un effacement de compte ulterieur ne les retrouvait
+    # plus. Purge hors base d'abord ; en cas d'echec, le projet est conserve
+    # et la suppression reste rejouable.
+    from app.services.account_service import AccountService, EchecPurgeHorsBase
+    try:
+        AccountService(db).purger_hors_base_projet(project)
+    except EchecPurgeHorsBase as exc:
+        logger.error(f"Project {project_id}: out-of-database purge failed: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Suppression des donnees du projet (RAG, fichiers) impossible : projet conserve, reessayez.",
         )
     try:
         db.delete(project)

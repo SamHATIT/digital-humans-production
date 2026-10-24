@@ -468,21 +468,34 @@ def delete_document(
         raise HTTPException(status_code=404, detail="Document not found")
 
     # Remove chunks from ChromaDB
-    deleted_chunks = 0
-    if doc.status == "ready" and doc.chunk_count and doc.chunk_count > 0:
-        try:
-            from app.services.rag_service import delete_project_document_chunks
-            deleted_chunks = delete_project_document_chunks(doc.collection_name, document_id)
-        except Exception as e:
-            logger.error(f"Error deleting chunks for document {document_id}: {e}")
+    #
+    # RGPD-03 (vague 2 / file A) : (1) la purge n'etait tentee que pour un
+    # document `ready` — un document en erreur apres une ingestion partielle
+    # gardait ses chunks, orphelins une fois la ligne supprimee ; (2) une
+    # erreur Chroma etait journalisee puis la ligne supprimee quand meme. La
+    # purge est desormais toujours tentee, et un echec conserve le document :
+    # la suppression reste rejouable.
+    from app.services.rag_service import delete_project_document_chunks
+    try:
+        deleted_chunks = delete_project_document_chunks(doc.collection_name or "technical", document_id)
+    except Exception as e:
+        logger.error(f"Error deleting chunks for document {document_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Suppression des fragments RAG impossible : document conserve, reessayez.",
+        )
 
     # Remove file from disk
     try:
         file_path = Path(doc.file_path)
-        if file_path.exists():
+        if file_path.is_file():
             file_path.unlink()
-    except Exception as e:
-        logger.warning(f"Could not delete file {doc.file_path}: {e}")
+    except OSError as e:
+        logger.error(f"Could not delete file {doc.file_path}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Suppression du fichier impossible : document conserve, reessayez.",
+        )
 
     # Remove DB record
     db.delete(doc)

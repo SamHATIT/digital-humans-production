@@ -648,22 +648,64 @@ def delete_project_document_chunks(collection_name: str, document_id: int) -> in
 
     Returns:
         Number of chunks deleted
+
+    RGPD-03 (vague 2 / file A) : une erreur Chroma etait journalisee puis
+    rendue comme « 0 chunk supprime » ; les appelants detruisaient ensuite la
+    ligne SQL qui designait les chunks restants. Toute erreur est desormais
+    propagee. Seule une collection INEXISTANTE rend 0 : aucun chunk ne peut
+    s'y trouver (journalise en WARNING).
     """
-    collection = get_collection(collection_name)
-
-    try:
-        # Get matching chunk IDs
-        results = collection.get(where={"document_id": str(document_id)})
-        chunk_ids = results["ids"] if results["ids"] else []
-
-        if chunk_ids:
-            collection.delete(ids=chunk_ids)
-            logger.info(f"Deleted {len(chunk_ids)} chunks from {collection_name} (document_id={document_id})")
-
-        return len(chunk_ids)
-    except Exception as e:
-        logger.error(f"Error deleting chunks for document_id={document_id} from {collection_name}: {e}")
+    collection = _collection_si_existe(collection_name)
+    if collection is None:
         return 0
+
+    # Get matching chunk IDs
+    results = collection.get(where={"document_id": str(document_id)}, include=[])
+    chunk_ids = results["ids"] if results["ids"] else []
+
+    if chunk_ids:
+        collection.delete(ids=chunk_ids)
+        logger.info(f"Deleted {len(chunk_ids)} chunks from {collection_name} (document_id={document_id})")
+
+    return len(chunk_ids)
+
+
+def _collection_si_existe(collection_name: str):
+    """La collection, ou None si elle n'existe pas dans ce Chroma."""
+    try:
+        return get_collection(collection_name)
+    except Exception as exc:
+        from chromadb.errors import NotFoundError
+
+        if isinstance(exc, NotFoundError):
+            logger.warning(
+                f"[RAG] Collection {collection_name!r} absente de {CHROMA_PATH} : "
+                f"aucun chunk a supprimer"
+            )
+            return None
+        raise
+
+
+def delete_project_chunks(project_id: int) -> int:
+    """Supprime TOUS les chunks prives d'un projet, dans les cinq collections.
+
+    RGPD-03 : complete la suppression par document — rattrape un chunk dont la
+    ligne `project_documents` aurait disparu sans lui. Toute erreur est
+    propagee ; une collection inexistante compte zero.
+    """
+    if not project_id:
+        raise ValueError(f"project_id invalide : {project_id!r}")
+    total = 0
+    for cle in COLLECTIONS:
+        collection = _collection_si_existe(cle)
+        if collection is None:
+            continue
+        ids = collection.get(where={"project_id": str(project_id)}, include=[])["ids"] or []
+        if ids:
+            collection.delete(ids=ids)
+            logger.info(f"Deleted {len(ids)} chunks from {cle} (project_id={project_id})")
+        total += len(ids)
+    return total
 
 
 # ============================================================================
