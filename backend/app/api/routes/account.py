@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.services.account_service import AccountService, est_anonymise
+from app.services.account_service import AccountService, EffacementIncomplet, est_anonymise
 from app.utils.auth import decode_access_token
 from app.utils.dependencies import get_current_user, security
 
@@ -89,18 +89,54 @@ async def exporter_mon_compte(
     return AccountService(db).exporter(utilisateur)
 
 
+async def titulaire_pour_effacement(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """`proprietaire_du_compte`, plus la reprise d'un effacement interrompu.
+
+    RGPD-03 (vague 2 / file A) : l'effacement désactive le compte AVANT de
+    purger. S'il échoue en route, `get_current_user` refuserait ensuite ce
+    compte inactif (403) et son titulaire ne pourrait plus relancer sa
+    demande. Seul ce cas est admis : jeton valide, compte inactif, NON
+    anonymisé, avec un effacement en attente à son nom.
+    """
+    utilisateur = _utilisateur_du_jeton(credentials, db)
+    if (
+        utilisateur is not None
+        and not utilisateur.is_active
+        and not est_anonymise(utilisateur)
+        and AccountService(db)._effacement_ouvert(utilisateur.id) is not None
+    ):
+        return utilisateur
+    return await proprietaire_du_compte(credentials, db)
+
+
 @router.delete("")
 async def supprimer_mon_compte(
-    utilisateur: User = Depends(proprietaire_du_compte),
+    utilisateur: User = Depends(titulaire_pour_effacement),
     db: Session = Depends(get_db),
 ):
     """RGPD art. 17 — efface le compte et ce qui en dépend.
 
     Ce qui doit être conservé pour la comptabilité est anonymisé, pas gardé
     en clair : voir `docs/vague-b/INVENTAIRE_DONNEES_PERSONNELLES.md`.
+
+    RGPD-03 : si une purge échoue, 503 — le compte reste bloqué, rien n'est
+    détruit en base, l'effacement est repris (nouvel appel ou exploitant).
     """
     logger.info("RGPD art.17 : effacement demandé par le compte %s", utilisateur.id)
-    return AccountService(db).supprimer(utilisateur)
+    try:
+        return AccountService(db).supprimer(utilisateur)
+    except EffacementIncomplet as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                f"Effacement du compte incomplet (référence {exc.effacement_id}) : "
+                f"le compte est désactivé et l'effacement sera repris. Vous "
+                f"pouvez relancer cette demande."
+            ),
+        )
 
 
 class RevendicationSession(BaseModel):

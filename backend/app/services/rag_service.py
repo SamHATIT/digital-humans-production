@@ -84,12 +84,73 @@ def _build_legacy_agent_collections() -> Dict[str, List[str]]:
 
 AGENT_COLLECTIONS = _build_legacy_agent_collections()
 
+# ============================================================================
+# VAGUE 2 / FILE A — SEC-04 : visibilite explicite de chaque chunk
+# ============================================================================
+#
+# Defaut (audit Astra du 06/09, L86) : `project_id=None` ne voulait pas dire
+# « documentation publique » mais « aucun filtre » — tous les chunks, prives
+# compris. Avec un projet, la requete ne rendait que ses documents et excluait
+# le corpus public.
+#
+# Desormais chaque chunk porte `visibility` : `public` (corpus documentaire
+# Salesforce) ou `private` (document d'un client, avec `project_id` et
+# `document_id`). Sans projet : publics seulement. Avec projet : publics OU
+# prives de CE projet. Un chunk sans `visibility` n'est jamais devine public :
+# il n'est rendu a personne, et la collection qui en contient est signalee en
+# panne (GL-10) tant que `python -m app.services.rag_visibilite` ne l'a pas
+# classee.
+CLE_VISIBILITE = "visibility"
+VISIBILITE_PUBLIQUE = "public"
+VISIBILITE_PRIVEE = "private"
+VISIBILITES = (VISIBILITE_PUBLIQUE, VISIBILITE_PRIVEE)
+
+# Re-verification du classement (reprise 1 apres revue, testeur-A sonde E) :
+# un verdict, positif OU negatif, n'est garde que tant que le nombre de chunks
+# de la collection ne change pas (un ajout qui change le compte declenche une
+# re-verification a la requete suivante) et au plus
+# DELAI_REVERIFICATION_CLASSEMENT_S secondes pour TOUT changement a compte
+# constant : metadonnee modifiee en place, mais aussi suppression suivie d'un
+# ajout (reingestion d'un document au meme nombre de chunks) — revue A passe 2,
+# D2, sonde 3a : exclusion silencieuse jusqu'a 300 s dans ce cas. Le verdict
+# positif etait garde pour toute la vie du processus : un chunk non classe
+# ajoute ensuite etait exclu sans signalement.
+DELAI_REVERIFICATION_CLASSEMENT_S = 300
+
+
+class CollectionNonClassee(RuntimeError):
+    """Des chunks de la collection n'ont pas de metadonnee `visibility`."""
+
+
+def filtre_visibilite(project_id: Optional[int]) -> Dict:
+    """Filtre `where` Chroma : ce qu'un appelant a le droit de voir.
+
+    `project_id` absent (None, 0) : corpus public seulement. Sinon : public, ou
+    prive ET rattache a ce projet.
+    """
+    if not project_id:
+        return {CLE_VISIBILITE: VISIBILITE_PUBLIQUE}
+    return {
+        "$or": [
+            {CLE_VISIBILITE: VISIBILITE_PUBLIQUE},
+            {"$and": [
+                {CLE_VISIBILITE: VISIBILITE_PRIVEE},
+                {"project_id": str(project_id)},
+            ]},
+        ]
+    }
+
 # Caches globaux
 _client = None
 _collections = {}
 _reranker = None
 _openai_client = None
 _nomic_model = None
+# SEC-04 : verdicts de classement, cle (nom, id Chroma) ->
+#   classees     : (instant, nombre de chunks verifies)
+#   non classees : (instant, motif, nombre de chunks verifies)
+_collections_classees = {}
+_collections_non_classees = {}
 
 def get_client():
     global _client
@@ -274,6 +335,46 @@ def signaler_rag_indisponible(coll_key: str, erreur: Exception) -> None:
         logger.warning(f"[RAG] Signalement de l'indisponibilite impossible : {e}")
 
 
+def _verifier_classement(coll_key: str, collection) -> None:
+    """Leve `CollectionNonClassee` si un chunk de la collection n'a pas de
+    `visibility` (SEC-04). Le filtre l'exclurait de toute facon ; la levee
+    sert a ce que l'exclusion ne soit pas silencieuse : `query_collection`
+    la traite comme une panne RAG (alerte admin + execution degradee)."""
+    # Cle = nom + identifiant Chroma de la collection : une collection recreee
+    # (reindexation) porte un nouvel identifiant et se re-verifie.
+    cle = (coll_key, str(getattr(collection, "id", "")))
+    total = collection.count()
+    maintenant = time.monotonic()
+
+    def _encore_valable(instant, compte):
+        return compte == total and maintenant - instant < DELAI_REVERIFICATION_CLASSEMENT_S
+
+    ok = _collections_classees.get(cle)
+    if ok is not None and _encore_valable(ok[0], ok[1]):
+        return
+    ko = _collections_non_classees.get(cle)
+    if ko is not None and _encore_valable(ko[0], ko[2]):
+        raise CollectionNonClassee(ko[1])
+
+    if total:
+        classes = collection.get(
+            where={CLE_VISIBILITE: {"$in": list(VISIBILITES)}}, include=[]
+        )
+        non_classes = total - len(classes["ids"])
+        if non_classes:
+            motif = (
+                f"collection {coll_key} : {non_classes}/{total} chunk(s) sans "
+                f"metadonnee '{CLE_VISIBILITE}' — ni publics ni prives, ils ne "
+                f"sont servis a personne. Classer avec "
+                f"`python -m app.services.rag_visibilite` (SEC-04)."
+            )
+            _collections_classees.pop(cle, None)
+            _collections_non_classees[cle] = (maintenant, motif, total)
+            raise CollectionNonClassee(motif)
+    _collections_non_classees.pop(cle, None)
+    _collections_classees[cle] = (maintenant, total)
+
+
 def query_collection(coll_key: str, query: str, n_results: int = 15, project_id: int = None) -> tuple:
     """Interroger une collection avec le bon embedding.
 
@@ -281,7 +382,8 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         coll_key: Collection key (technical, operations, business, apex, lwc)
         query: Search query text
         n_results: Number of results to return
-        project_id: If set, filter results to this project only
+        project_id: projet de l'appelant. Absent : corpus public seulement ;
+            present : corpus public + documents prives de ce projet (SEC-04).
     """
     try:
         collection = get_collection(coll_key)
@@ -292,7 +394,10 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         else:
             query_embedding = get_nomic_embedding(query)
 
-        where_filter = {"project_id": str(project_id)} if project_id else None
+        _verifier_classement(coll_key, collection)
+
+        # SEC-04 : jamais `None` (aucun filtre = tous les projets).
+        where_filter = filtre_visibilite(project_id)
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
@@ -325,8 +430,8 @@ def query_rag(
     """Recherche multi-collection avec reranking.
 
     Args:
-        project_id: If set, filter results to this project's documents only.
-                     None returns global (untagged) documents for backward compat.
+        project_id: projet de l'appelant. None : corpus public seulement ;
+            sinon corpus public + documents prives de ce projet (SEC-04).
     """
     _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking, "project_id": project_id})
     # Alias resolution + per-agent RAG collections now live in agents_registry.
@@ -470,6 +575,13 @@ def get_stats() -> Dict:
 # P3: Document ingestion & deletion with project isolation
 # ============================================================================
 
+# PROD-09 (vague 2 / file A) : l'ingestion calculait tous les embeddings puis
+# faisait UN `upsert` de tout le document. Elle procede desormais par lots
+# bornes : memoire et taille d'ecriture Chroma ne croissent plus avec le
+# document. En cas d'echec au milieu, des lots ont pu etre ecrits : l'appelant
+# les retire (documents.py, `delete_project_document_chunks`).
+TAILLE_LOT_INGESTION = 100
+
 def ingest_document(
     collection_name: str,
     chunks: List[str],
@@ -483,13 +595,22 @@ def ingest_document(
         collection_name: Collection key (e.g. "technical", "business")
         chunks: List of text chunks to ingest
         metadata: Base metadata to attach to each chunk
-        project_id: Project ID for isolation tagging
-        document_id: ProjectDocument ID for deletion tracking
+        project_id: Project ID for isolation tagging (obligatoire, SEC-04)
+        document_id: ProjectDocument ID for deletion tracking (obligatoire)
 
     Returns:
         Number of chunks ingested
+
+    SEC-04 : cette fonction n'ingere que des documents PRIVES. Sans projet ni
+    document, un chunk n'etait rattache a rien (identifiant uuid) et sortait
+    dans toute recherche « globale ». C'est desormais un refus explicite. Le
+    corpus public s'ingere hors de l'application et se marque `public`.
     """
-    import uuid
+    if not project_id or not document_id:
+        raise ValueError(
+            "SEC-04 : ingestion privee refusee sans project_id et document_id "
+            f"(project_id={project_id!r}, document_id={document_id!r})"
+        )
 
     if not chunks:
         return 0
@@ -497,18 +618,29 @@ def ingest_document(
     collection = get_collection(collection_name)
     embedding_type = COLLECTIONS[collection_name]["embedding"]
 
+    for debut in range(0, len(chunks), TAILLE_LOT_INGESTION):
+        _ingerer_lot(
+            collection, embedding_type, chunks[debut:debut + TAILLE_LOT_INGESTION],
+            debut, metadata, project_id, document_id,
+        )
+    logger.info(f"Ingested {len(chunks)} chunks into {collection_name} (project_id={project_id}, document_id={document_id})")
+    return len(chunks)
+
+
+def _ingerer_lot(collection, embedding_type, lot, debut, metadata, project_id, document_id) -> None:
+    """Embeddings puis `upsert` d'un lot ; `debut` = rang du premier chunk."""
     ids = []
     embeddings = []
     metadatas = []
 
-    for i, chunk in enumerate(chunks):
+    for i, chunk in enumerate(lot, start=debut):
         chunk_meta = dict(metadata) if metadata else {}
-        if project_id:
-            chunk_meta["project_id"] = str(project_id)
-        if document_id:
-            chunk_meta["document_id"] = str(document_id)
+        chunk_meta["project_id"] = str(project_id)
+        chunk_meta["document_id"] = str(document_id)
+        # Pose apres la metadonnee de l'appelant : elle ne peut pas l'ecraser.
+        chunk_meta[CLE_VISIBILITE] = VISIBILITE_PRIVEE
 
-        chunk_id = f"proj{project_id}_doc{document_id}_{i}" if project_id else str(uuid.uuid4())
+        chunk_id = f"proj{project_id}_doc{document_id}_{i}"
 
         if embedding_type == "openai":
             emb = get_openai_embedding(chunk)
@@ -520,9 +652,7 @@ def ingest_document(
         metadatas.append(chunk_meta)
 
     # ChromaDB batch upsert (handles duplicates by ID)
-    collection.upsert(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
-    logger.info(f"Ingested {len(chunks)} chunks into {collection_name} (project_id={project_id}, document_id={document_id})")
-    return len(chunks)
+    collection.upsert(ids=ids, embeddings=embeddings, documents=lot, metadatas=metadatas)
 
 
 def delete_project_document_chunks(collection_name: str, document_id: int) -> int:
@@ -534,22 +664,80 @@ def delete_project_document_chunks(collection_name: str, document_id: int) -> in
 
     Returns:
         Number of chunks deleted
+
+    RGPD-03 (vague 2 / file A) : une erreur Chroma etait journalisee puis
+    rendue comme « 0 chunk supprime » ; les appelants detruisaient ensuite la
+    ligne SQL qui designait les chunks restants. Toute erreur est desormais
+    propagee. Seule une collection INEXISTANTE rend 0 : aucun chunk ne peut
+    s'y trouver (journalise en WARNING).
     """
-    collection = get_collection(collection_name)
-
-    try:
-        # Get matching chunk IDs
-        results = collection.get(where={"document_id": str(document_id)})
-        chunk_ids = results["ids"] if results["ids"] else []
-
-        if chunk_ids:
-            collection.delete(ids=chunk_ids)
-            logger.info(f"Deleted {len(chunk_ids)} chunks from {collection_name} (document_id={document_id})")
-
-        return len(chunk_ids)
-    except Exception as e:
-        logger.error(f"Error deleting chunks for document_id={document_id} from {collection_name}: {e}")
+    collection = _collection_si_existe(collection_name)
+    if collection is None:
         return 0
+
+    # Get matching chunk IDs
+    results = collection.get(where={"document_id": str(document_id)}, include=[])
+    chunk_ids = results["ids"] if results["ids"] else []
+
+    if chunk_ids:
+        collection.delete(ids=chunk_ids)
+        logger.info(f"Deleted {len(chunk_ids)} chunks from {collection_name} (document_id={document_id})")
+
+    return len(chunk_ids)
+
+
+def _collection_si_existe(collection_name: str):
+    """La collection, ou None si elle n'existe pas dans ce Chroma."""
+    try:
+        return get_collection(collection_name)
+    except Exception as exc:
+        from chromadb.errors import NotFoundError
+
+        if isinstance(exc, NotFoundError):
+            logger.warning(
+                f"[RAG] Collection {collection_name!r} absente de {CHROMA_PATH} : "
+                f"aucun chunk a supprimer"
+            )
+            return None
+        raise
+
+
+def delete_document_chunks_partout(document_id: int) -> int:
+    """Supprime les chunks d'un document dans les cinq collections.
+
+    Reprise 3 apres revue : les appelants devinaient la collection
+    (`collection_name or "technical"`) ; des chunks ranges ailleurs restaient
+    orphelins sans bruit. Ici, aucune collection n'est devinee. Toute erreur
+    est propagee ; une collection inexistante compte zero.
+    """
+    if not document_id:
+        raise ValueError(f"document_id invalide : {document_id!r}")
+    total = 0
+    for cle in COLLECTIONS:
+        total += delete_project_document_chunks(cle, document_id)
+    return total
+
+
+def delete_project_chunks(project_id: int) -> int:
+    """Supprime TOUS les chunks prives d'un projet, dans les cinq collections.
+
+    RGPD-03 : complete la suppression par document — rattrape un chunk dont la
+    ligne `project_documents` aurait disparu sans lui. Toute erreur est
+    propagee ; une collection inexistante compte zero.
+    """
+    if not project_id:
+        raise ValueError(f"project_id invalide : {project_id!r}")
+    total = 0
+    for cle in COLLECTIONS:
+        collection = _collection_si_existe(cle)
+        if collection is None:
+            continue
+        ids = collection.get(where={"project_id": str(project_id)}, include=[])["ids"] or []
+        if ids:
+            collection.delete(ids=ids)
+            logger.info(f"Deleted {len(ids)} chunks from {cle} (project_id={project_id})")
+        total += len(ids)
+    return total
 
 
 # ============================================================================

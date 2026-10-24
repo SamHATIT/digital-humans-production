@@ -53,8 +53,36 @@ from app.models.sds_template import SDSTemplate
 from app.models.sds_version import SDSVersion
 from app.models.task_execution import TaskExecution
 from app.models.user import User
+from app.models.effacement_compte import (
+    STATUT_BLOQUE,
+    STATUT_EN_COURS,
+    STATUT_PARTIEL,
+    STATUT_TERMINE,
+    STATUTS_OUVERTS,
+    EffacementCompte,
+)
 
 logger = logging.getLogger(__name__)
+
+
+class EffacementIncomplet(RuntimeError):
+    """RGPD-03 : l'effacement n'a pas abouti. Le compte reste bloqué, la
+    tâche `effacements_comptes` est `partiel` et se reprend."""
+
+    def __init__(self, effacement_id: int, cause: str):
+        super().__init__(f"Effacement RGPD {effacement_id} incomplet : {cause}")
+        self.effacement_id = effacement_id
+        self.cause = cause
+
+
+class EchecPurgeHorsBase(RuntimeError):
+    """Une purge hors base (Chroma, fichiers) a échoué pour au moins un
+    élément ; tous les éléments ont été tentés."""
+
+    def __init__(self, etape: str, echecs: List[str]):
+        super().__init__(f"purge {etape} : {len(echecs)} échec(s) — " + " ; ".join(echecs[:5]))
+        self.etape = etape
+        self.echecs = echecs
 
 # Marqueur d'anonymisation. `.invalid` est réservé par la RFC 6761.
 DOMAINE_ANONYME = "anonymised.invalid"
@@ -217,17 +245,129 @@ class AccountService:
         """Efface le compte : suppression de ce qui peut l'être, anonymisation
         de ce qui doit être conservé.
 
-        L'ordre compte :
-          1. purge Chroma et fichiers — ils ne sont plus atteignables une fois
-             les lignes parties ;
-          2. `task_executions` d'abord : sa clé étrangère vers `executions`
-             n'a **pas** d'`ondelete` (app/models/task_execution.py:34), elle
-             bloquerait la suppression en cascade des exécutions ;
-          3. projets — la cascade emporte exécutions, livrables, exigences,
-             conversations, identifiants chiffrés et environnements ;
-          4. anonymisation de `users`, du journal d'audit et détachement des
-             gabarits de SDS.
+        RGPD-03 (vague 2 / file A) — complet ou rejouable, jamais partiel et
+        définitif :
+          0. le compte est désactivé et le PÉRIMÈTRE de l'effacement
+             (projets, exécutions, documents et collections, fichiers) est
+             enregistré dans `effacements_comptes`, dans la même transaction ;
+          1. purge Chroma puis fichiers — un échec reste un échec : la tâche
+             passe `partiel`, l'exploitant est alerté, `EffacementIncomplet`
+             est levée, et AUCUNE ligne SQL n'est détruite ;
+          2. effacement/anonymisation en base et passage à `termine` dans une
+             seule transaction (voir `_effacer_en_base` pour l'ordre).
+        Rappeler `supprimer` (ou `reprendre`) rejoue toutes les étapes ; chacune
+        est idempotente.
         """
+        effacement = self._effacement_ouvert(utilisateur.id)
+        if effacement is None:
+            termine = (
+                self.db.query(EffacementCompte)
+                .filter(
+                    EffacementCompte.user_id == utilisateur.id,
+                    EffacementCompte.statut == STATUT_TERMINE,
+                )
+                .order_by(EffacementCompte.id.desc())
+                .first()
+            )
+            if termine is not None and est_anonymise(utilisateur):
+                return self._rapport_deja_termine(termine, utilisateur)
+            effacement = self._ouvrir_effacement(utilisateur)
+        return self._executer(effacement, utilisateur)
+
+    def reprendre(self, effacement_id: int) -> Dict[str, Any]:
+        """Rejoue un effacement `en_cours` ou `partiel` ; sans effet s'il est
+        déjà terminé."""
+        effacement = self.db.query(EffacementCompte).get(effacement_id)
+        if effacement is None:
+            raise LookupError(f"Effacement {effacement_id} inconnu")
+        utilisateur = (
+            self.db.query(User).get(effacement.user_id) if effacement.user_id else None
+        )
+        if effacement.statut == STATUT_TERMINE:
+            return self._rapport_deja_termine(effacement, utilisateur)
+        if utilisateur is None:
+            # Reprise 2 apres revue : levait `LookupError` brut, ce qui
+            # arretait `reprendre_effacements_en_attente`. Echec explicite,
+            # note, alerte ; statut `bloque` (intervention humaine).
+            cause = f"compte {effacement.user_id} introuvable"
+            self._noter_echec(effacement_id, cause, STATUT_BLOQUE)
+            raise EffacementIncomplet(effacement_id, cause)
+        return self._executer(effacement, utilisateur)
+
+    def _noter_echec(self, effacement_id: int, cause: str, statut: str) -> None:
+        """Note un echec sur la tache (statut, erreur datee) et alerte."""
+        try:
+            self.db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        effacement = self.db.query(EffacementCompte).get(effacement_id)
+        effacement.statut = statut
+        effacement.erreurs = list(effacement.erreurs or []) + [
+            {
+                "tentative": effacement.tentatives,
+                "a": datetime.utcnow().isoformat(),
+                "cause": cause[:2000],
+            }
+        ]
+        self.db.commit()
+        logger.error(
+            "RGPD art.17 : effacement %s en echec (%s) : %s", effacement_id, statut, cause
+        )
+        try:
+            from app.services import admin_alert_service
+
+            admin_alert_service.alerter_admin(
+                "Effacement RGPD en echec",
+                (
+                    f"Effacement {effacement_id} (compte {effacement.user_id}) : "
+                    f"statut {statut}.\nCause : {cause}"
+                ),
+                cle_deduplication=f"rgpd_effacement:{effacement_id}:{statut}",
+                categorie="rgpd",
+            )
+        except Exception as e:  # noqa: BLE001 — l'alerte ne masque pas l'echec
+            logger.error("RGPD art.17 : alerte d'echec d'effacement impossible : %s", e)
+
+    def purger_hors_base_projet(self, projet: Project) -> Dict[str, Any]:
+        """Chroma et fichiers d'UN projet, avant sa suppression par le CRUD.
+
+        RGPD-03 : `DELETE /projects/{id}` supprimait les lignes sans nettoyer
+        Chroma ni les fichiers ; un effacement de compte ultérieur ne les
+        retrouvait plus. Lève `EchecPurgeHorsBase` : l'appelant ne supprime
+        alors pas le projet, la suppression reste rejouable.
+        """
+        documents = self._par_projet(ProjectDocument, [projet.id])
+        ids_executions = [
+            ligne[0]
+            for ligne in self.db.query(Execution.id)
+            .filter(Execution.project_id == projet.id)
+            .all()
+        ]
+        perimetre = self._perimetre([projet.id], ids_executions, documents)
+        chunks = self._purger_chroma(perimetre)
+        supprimes, ignores = self._purger_fichiers(perimetre["fichiers"])
+        return {
+            "chunks_chroma_supprimes": chunks,
+            "fichiers_supprimes": supprimes,
+            "fichiers_ignores": ignores,
+        }
+
+    # ------------------------------------------------------------------
+    # Effacement durable (RGPD-03)
+    # ------------------------------------------------------------------
+
+    def _effacement_ouvert(self, user_id: int) -> Optional[EffacementCompte]:
+        return (
+            self.db.query(EffacementCompte)
+            .filter(
+                EffacementCompte.user_id == user_id,
+                EffacementCompte.statut.in_(STATUTS_OUVERTS),
+            )
+            .order_by(EffacementCompte.id.desc())
+            .first()
+        )
+
+    def _ids_projets_et_executions(self, utilisateur: User):
         projets = (
             self.db.query(Project).filter(Project.user_id == utilisateur.id).all()
         )
@@ -248,15 +388,173 @@ class AccountService:
                 .filter(Execution.project_id.in_(ids_projets))
                 .all()
             }
-        ids_executions = sorted(ids_executions)
+        return ids_projets, sorted(ids_executions)
 
+    def _perimetre(self, ids_projets, ids_executions, documents) -> Dict[str, Any]:
+        return {
+            "projets": list(ids_projets),
+            "executions": list(ids_executions),
+            "documents": [
+                {
+                    "id": d.id,
+                    "projet": d.project_id,
+                    # Information seulement : la purge ne s'y fie pas
+                    # (reprise 3 apres revue, aucune collection devinee).
+                    "collection": d.collection_name,
+                }
+                for d in documents
+            ],
+            "fichiers": self._chemins_de_fichiers(ids_projets, ids_executions, documents),
+        }
+
+    def _ouvrir_effacement(self, utilisateur: User) -> EffacementCompte:
+        """Étape 0 : bloquer le compte et rendre le périmètre durable."""
+        ids_projets, ids_executions = self._ids_projets_et_executions(utilisateur)
         documents = self._par_projet(ProjectDocument, ids_projets)
-
-        # 1. Hors base, avant que les lignes qui les désignent ne disparaissent.
-        chunks_supprimes = self._purger_chroma(documents)
-        fichiers_supprimes, fichiers_ignores = self._purger_fichiers(
-            ids_projets, ids_executions, documents
+        effacement = EffacementCompte(
+            user_id=utilisateur.id,
+            statut=STATUT_EN_COURS,
+            perimetre=self._perimetre(ids_projets, ids_executions, documents),
+            etapes={},
+            erreurs=[],
+            tentatives=0,
         )
+        # Plus aucune requête authentifiée ne passe (`get_current_user` refuse
+        # un compte inactif) : aucun nouveau travail ne démarre pendant
+        # l'effacement.
+        utilisateur.is_active = False
+        self.db.add(effacement)
+        self.db.commit()
+        self.db.refresh(effacement)
+        logger.info(
+            "RGPD art.17 : effacement %s ouvert pour le compte %s (compte bloqué)",
+            effacement.id,
+            utilisateur.id,
+        )
+        return effacement
+
+    def _noter_etape(self, effacement: EffacementCompte, nom: str, detail: Any) -> None:
+        etapes = dict(effacement.etapes or {})
+        etapes[nom] = {"fait": True, "detail": detail, "a": datetime.utcnow().isoformat()}
+        effacement.etapes = etapes
+        self.db.commit()
+
+    def _executer(self, effacement: EffacementCompte, utilisateur: User) -> Dict[str, Any]:
+        effacement_id = effacement.id
+        effacement.tentatives = (effacement.tentatives or 0) + 1
+        effacement.statut = STATUT_EN_COURS
+        self.db.commit()
+        perimetre = dict(effacement.perimetre or {})
+
+        try:
+            # 1. Hors base, tant que les lignes qui les désignent existent.
+            chunks_supprimes = self._purger_chroma(perimetre)
+            self._noter_etape(effacement, "chroma", chunks_supprimes)
+            fichiers_supprimes, fichiers_ignores = self._purger_fichiers(
+                perimetre.get("fichiers") or []
+            )
+            self._noter_etape(
+                effacement,
+                "fichiers",
+                {"supprimes": len(fichiers_supprimes), "ignores": fichiers_ignores},
+            )
+
+            # 2. Base : une seule transaction, avec le passage à `termine`.
+            rapport = self._effacer_en_base(utilisateur)
+            etapes = dict(effacement.etapes or {})
+            etapes["base"] = {"fait": True, "a": datetime.utcnow().isoformat()}
+            effacement.etapes = etapes
+            effacement.statut = STATUT_TERMINE
+            effacement.termine_le = datetime.utcnow()
+            # Minimisation : une fois terminé, plus de chemins ni d'identifiants.
+            effacement.perimetre = {
+                "resume": {
+                    "projets": len(perimetre.get("projets") or []),
+                    "executions": len(perimetre.get("executions") or []),
+                    "documents": len(perimetre.get("documents") or []),
+                    "fichiers": len(perimetre.get("fichiers") or []),
+                }
+            }
+            self.db.commit()
+        except Exception as exc:  # noqa: BLE001 — noté, alerté, relevé
+            self.db.rollback()
+            cause = f"{type(exc).__name__}: {exc}"
+            effacement = self.db.query(EffacementCompte).get(effacement_id)
+            effacement.statut = STATUT_PARTIEL
+            effacement.erreurs = list(effacement.erreurs or []) + [
+                {
+                    "tentative": effacement.tentatives,
+                    "a": datetime.utcnow().isoformat(),
+                    "cause": cause[:2000],
+                }
+            ]
+            self.db.commit()
+            logger.error(
+                "RGPD art.17 : effacement %s du compte %s INCOMPLET (tentative %s) : %s",
+                effacement_id,
+                utilisateur.id,
+                effacement.tentatives,
+                cause,
+            )
+            self._alerter_effacement_partiel(effacement, utilisateur, cause)
+            raise EffacementIncomplet(effacement_id, cause) from exc
+
+        rapport.update(
+            {
+                "effacement_id": effacement_id,
+                "tentatives": effacement.tentatives,
+                "chunks_chroma_supprimes": chunks_supprimes,
+                "fichiers_supprimes": fichiers_supprimes,
+                "fichiers_ignores": fichiers_ignores,
+            }
+        )
+        return rapport
+
+    @staticmethod
+    def _alerter_effacement_partiel(effacement, utilisateur, cause: str) -> None:
+        try:
+            from app.services import admin_alert_service
+
+            admin_alert_service.alerter_admin(
+                "Effacement RGPD incomplet",
+                (
+                    f"Effacement {effacement.id} du compte {utilisateur.id} : "
+                    f"tentative {effacement.tentatives} en échec.\n"
+                    f"Cause : {cause}\n"
+                    f"Le compte est bloqué ; aucune ligne SQL n'a été détruite. "
+                    f"Reprendre : python -m app.services.account_service --reprendre"
+                ),
+                cle_deduplication=f"rgpd_effacement:{effacement.id}:{effacement.tentatives}",
+                categorie="rgpd",
+            )
+        except Exception as e:  # noqa: BLE001 — l'alerte ne masque pas l'échec
+            logger.error("RGPD art.17 : alerte d'effacement partiel impossible : %s", e)
+
+    @staticmethod
+    def _rapport_deja_termine(effacement, utilisateur) -> Dict[str, Any]:
+        return {
+            "statut": "compte supprimé",
+            "base_legale": "RGPD art. 17 (droit à l'effacement)",
+            "user_id": utilisateur.id if utilisateur is not None else effacement.user_id,
+            "effacement_id": effacement.id,
+            "deja_termine": True,
+            "termine_le": _valeur_exportable(effacement.termine_le),
+        }
+
+    def _effacer_en_base(self, utilisateur: User) -> Dict[str, Any]:
+        """Effacement/anonymisation en base, SANS commit (l'appelant le fait
+        avec le passage de la tâche à `termine`).
+
+        L'ordre compte :
+          1. `task_executions` d'abord : sa clé étrangère vers `executions`
+             n'a **pas** d'`ondelete` (app/models/task_execution.py:34), elle
+             bloquerait la suppression en cascade des exécutions ;
+          2. projets — la cascade emporte exécutions, livrables, exigences,
+             conversations, identifiants chiffrés et environnements ;
+          3. anonymisation de `users`, du journal d'audit et détachement des
+             gabarits de SDS.
+        """
+        ids_projets, ids_executions = self._ids_projets_et_executions(utilisateur)
 
         # 2. task_executions : pas d'ondelete, à supprimer explicitement.
         supprimes_taches = 0
@@ -329,8 +627,6 @@ class AccountService:
         utilisateur.hashed_password = f"!compte-supprime!{secrets.token_hex(16)}"
         utilisateur.is_active = False
 
-        self.db.commit()
-
         logger.info(
             "RGPD art.17 : compte %s effacé — %s projets, %s exécutions, "
             "%s conversations vitrine supprimées ; %s transactions conservées",
@@ -364,9 +660,6 @@ class AccountService:
                     "donnée identifiante une fois le compte anonymisé."
                 ),
             },
-            "chunks_chroma_supprimes": chunks_supprimes,
-            "fichiers_supprimes": fichiers_supprimes,
-            "fichiers_ignores": fichiers_ignores,
         }
 
     # ------------------------------------------------------------------
@@ -449,46 +742,50 @@ class AccountService:
         self.db.commit()
         return len(lignes)
 
-    def _purger_chroma(self, documents: List[ProjectDocument]) -> int:
-        """Supprime les chunks des documents du compte.
+    def _purger_chroma(self, perimetre: Dict[str, Any]) -> int:
+        """Supprime les chunks du périmètre ; lève `EchecPurgeHorsBase`.
 
         Les collections ChromaDB ne sont **pas** nommées par projet : elles
-        sont cinq, globales, et l'isolation se fait par la métadonnée
-        `document_id` du chunk (rag_service.py:47-53 et 418-425). La seule
-        fonction de suppression disponible est
-        `delete_project_document_chunks(collection, document_id)` ;
-        `rag_service` est en lecture seule pour ce lot.
+        sont cinq, globales, et l'isolation se fait par les métadonnées
+        `document_id` / `project_id` du chunk. Deux passes : par document
+        (collection connue), puis par projet dans les cinq collections (un
+        chunk dont la ligne `project_documents` aurait disparu).
+
+        RGPD-03 : une erreur était journalisée puis l'effacement continuait,
+        lignes SQL comprises ; les chunks restants devenaient introuvables.
+        Toutes les suppressions sont tentées, puis les échecs sont levés.
         """
-        if not documents:
+        documents = perimetre.get("documents") or []
+        projets = perimetre.get("projets") or []
+        if not documents and not projets:
             return 0
         from app.services import rag_service
 
         total = 0
+        echecs: List[str] = []
         for document in documents:
-            collection = document.collection_name or "technical"
             try:
-                total += rag_service.delete_project_document_chunks(
-                    collection, document.id
+                total += rag_service.delete_document_chunks_partout(document["id"])
+            except Exception as exc:  # noqa: BLE001 — collecté puis levé
+                echecs.append(
+                    f"document {document['id']} : {type(exc).__name__}: {exc}"
                 )
+        for projet_id in projets:
+            try:
+                total += rag_service.delete_project_chunks(projet_id)
             except Exception as exc:  # noqa: BLE001
-                # Pas de repli silencieux (règle 6) : on trace et on continue,
-                # la suppression en base ne doit pas être bloquée par le RAG.
-                logger.error(
-                    "RGPD art.17 : purge Chroma impossible pour le document %s "
-                    "dans la collection %s : %s",
-                    document.id,
-                    collection,
-                    exc,
-                )
+                echecs.append(f"projet {projet_id} : {type(exc).__name__}: {exc}")
+        if echecs:
+            raise EchecPurgeHorsBase("Chroma", echecs)
         return total
 
-    def _purger_fichiers(
+    def _chemins_de_fichiers(
         self,
         ids_projets: List[int],
         ids_executions: List[int],
         documents: List[ProjectDocument],
-    ):
-        """Efface les fichiers du compte situés sous une racine configurée."""
+    ) -> List[str]:
+        """Fichiers désignés par le compte (ou le projet), dédoublonnés."""
         chemins: List[str] = [d.file_path for d in documents if d.file_path]
 
         if ids_projets:
@@ -517,10 +814,20 @@ class AccountService:
             ):
                 if execution.sds_document_path:
                     chemins.append(execution.sds_document_path)
+        return list(dict.fromkeys(chemins))  # dédoublonne en gardant l'ordre
 
+    def _purger_fichiers(self, chemins: List[str]):
+        """Efface les fichiers situés sous une racine configurée.
+
+        Rend (supprimés, ignorés). Un chemin hors racines est ignoré (règle
+        10), un fichier déjà absent n'est pas une erreur (reprise). Un échec
+        d'effacement (OSError) n'est plus rangé parmi les « ignorés » : il fait
+        lever `EchecPurgeHorsBase` après avoir tenté tous les fichiers.
+        """
         racines = _racines_de_fichiers()
         supprimes: List[str] = []
         ignores: List[str] = []
+        echecs: List[str] = []
 
         for brut in dict.fromkeys(chemins):  # dédoublonne en gardant l'ordre
             try:
@@ -548,8 +855,10 @@ class AccountService:
                     chemin,
                     exc,
                 )
-                ignores.append(brut)
+                echecs.append(f"{chemin} : {exc}")
 
+        if echecs:
+            raise EchecPurgeHorsBase("fichiers", echecs)
         return supprimes, ignores
 
     @staticmethod
@@ -559,3 +868,79 @@ class AccountService:
             return True
         except ValueError:
             return False
+
+
+def reprendre_effacements_en_attente(db: Session) -> List[int]:
+    """Rejoue chaque effacement `en_cours` ou `partiel`. Rend les identifiants
+    terminés ; un nouvel échec est noté, alerté, et n'arrête pas les autres.
+
+    Reprise 2 après revue : seul `EffacementIncomplet` était capté ; toute
+    autre exception (compte introuvable : `LookupError`) arrêtait la boucle
+    et la commande `--reprendre`. Toute exception est désormais notée sur la
+    tâche concernée, alertée, et la boucle continue."""
+    termines: List[int] = []
+    ids = [
+        ligne[0]
+        for ligne in db.query(EffacementCompte.id)
+        .filter(EffacementCompte.statut.in_(STATUTS_OUVERTS))
+        .order_by(EffacementCompte.id)
+        .all()
+    ]
+    for effacement_id in ids:
+        service = AccountService(db)
+        try:
+            service.reprendre(effacement_id)
+            termines.append(effacement_id)
+        except EffacementIncomplet:
+            continue  # déjà noté et alerté par le service
+        except Exception as exc:  # noqa: BLE001 — noté, alerté, on continue
+            service._noter_echec(
+                effacement_id, f"{type(exc).__name__}: {exc}", STATUT_PARTIEL
+            )
+    return termines
+
+
+def main(argv=None) -> int:
+    """`python -m app.services.account_service --reprendre` : rejoue les
+    effacements en attente sur la base de `settings.DATABASE_URL`."""
+    import argparse
+
+    from app.database import SessionLocal
+
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("--reprendre", action="store_true", help="rejouer les effacements en attente")
+    args = parser.parse_args(argv)
+    if not args.reprendre:
+        parser.print_help()
+        return 2
+    db = SessionLocal()
+    try:
+        termines = reprendre_effacements_en_attente(db)
+        restants = (
+            db.query(EffacementCompte)
+            .filter(EffacementCompte.statut.in_(STATUTS_OUVERTS))
+            .count()
+        )
+        # Reprise D1 (revue passe 2) : un effacement `bloque` n'est pas
+        # « en attente », mais il n'est pas fait non plus. Le taire rendait
+        # le code 0 et « 0 en attente » au passage meme qui le bloquait.
+        bloques = [
+            ligne[0]
+            for ligne in db.query(EffacementCompte.id)
+            .filter(EffacementCompte.statut == STATUT_BLOQUE)
+            .order_by(EffacementCompte.id)
+            .all()
+        ]
+    finally:
+        db.close()
+    print(
+        f"effacements terminés : {termines} ; encore en attente : {restants} ; "
+        f"bloqués (intervention humaine) : {len(bloques)} {bloques if bloques else ''}".rstrip()
+    )
+    return 1 if (restants or bloques) else 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())

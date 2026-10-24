@@ -178,8 +178,19 @@ def test_sans_panne_rien_n_est_signale(db_session, execution, alertes, monkeypat
     )
 
     class _Collection:
+        # Vague 2 / file A (SEC-04) : `query_collection` verifie desormais que
+        # tous les chunks portent `visibility` (count + get) ; la fausse
+        # collection expose donc une collection entierement classee.
+        id = "fausse-collection-gl10"
+
+        def count(self):
+            return 1
+
+        def get(self, **kw):
+            return {"ids": ["x"]}
+
         def query(self, **kw):
-            return {"documents": [["un document"]], "metadatas": [[{"source": "x"}]]}
+            return {"documents": [["un document"]], "metadatas": [[{"source": "x", "visibility": "public"}]]}
 
     monkeypatch.setattr(rag_service, "get_collection", lambda k: _Collection())
     monkeypatch.setattr(rag_service, "get_openai_embedding", lambda t: [0.0])

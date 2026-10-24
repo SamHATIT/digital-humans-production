@@ -17,10 +17,10 @@ Ce que ce fichier etablit reellement (voir le rapport du lot A5) :
      dans le prompt envoye au routeur : le test devient rouge.
 
   2. Le controle negatif prouve que ce dispositif detecterait bien une fuite :
-     appele directement avec `project_id=None`, `query_collection` SORT la
-     sentinelle du projet 999. Le RAG global n'est donc pas cloisonne par
-     defaut ; seul le fait que le concierge ne l'appelle pas le protege
-     aujourd'hui.
+     appele directement avec `project_id=999`, `query_collection` SORT la
+     sentinelle du projet 999. (Jusqu'a la vague 2 / file A, il la sortait
+     aussi avec `project_id=None` : le RAG global n'etait pas cloisonne, c'est
+     SEC-04, ferme depuis — voir test_vague2_a_sec04_rag_cloisonnement.py.)
 
 Aucun appel reseau : les embeddings OpenAI/nomic sont monkeypatches par un
 vecteur fixe, la collection Chroma est un `PersistentClient` sur un
@@ -71,7 +71,10 @@ def collection_chroma_999(tmp_path, monkeypatch):
             ids=[f"a5-{cle}-999"],
             documents=[f"{SENTINELLE} — note interne du projet 999 ({cle})."],
             embeddings=[VECTEUR_FIXE],
-            metadatas=[{"project_id": "999", "source": "lot_a5.txt"}],
+            # Vague 2 / file A (SEC-04) : marque comme `ingest_document` le pose
+            # desormais. Sans `visibility`, la collection serait signalee non
+            # classee et ne servirait rien, controle negatif compris.
+            metadatas=[{"project_id": "999", "source": "lot_a5.txt", "visibility": "private"}],
         )
 
     monkeypatch.setattr(rag_service, "CHROMA_PATH", chemin, raising=True)
@@ -227,26 +230,36 @@ def test_le_tour_concierge_persiste_les_deux_tours_sans_contexte_rag(
 # Controle negatif — le dispositif ci-dessus detecterait bien une fuite
 # ─────────────────────────────────────────────────────────────────────
 
-def test_controle_negatif_le_rag_global_sort_bien_le_chunk_du_projet_999(
+def test_controle_negatif_le_rag_du_projet_999_sort_bien_son_chunk(
     collection_chroma_999,
 ):
-    """Sans project_id, `query_collection` SORT la sentinelle du projet 999.
+    """Avec project_id=999, `query_collection` SORT la sentinelle du projet 999.
 
-    Deux consequences, et c'est la raison d'etre de ce controle :
-      - il prouve que la collection temporaire est bien peuplee et
-        interrogeable, donc que le test principal ne passe pas « a vide » ;
-      - il documente le risque : `query_collection(project_id=None)` ne pose
-        aucun filtre `where`, tout projet confondu. Le concierge public n'est
-        protege que parce qu'il n'appelle pas cette fonction.
+    Raison d'etre de ce controle : prouver que la collection temporaire est
+    bien peuplee et interrogeable, donc que le test principal ne passe pas
+    « a vide ».
+
+    Vague 2 / file A (SEC-04) : ce controle affirmait jusqu'ici que la
+    recherche SANS projet sortait la sentinelle — c'etait la primitive de fuite
+    relevee par Astra (L86), documentee ici comme risque. Elle est fermee : la
+    recherche globale ne rend plus que le corpus public, et l'assertion est
+    inversee en consequence.
     """
-    docs_sans_filtre, metas_sans_filtre = rag_service.query_collection(
-        "technical", "notes internes", n_results=5, project_id=None
+    docs_projet, metas_projet = rag_service.query_collection(
+        "technical", "notes internes", n_results=5, project_id=999
     )
-    assert any(SENTINELLE in d for d in docs_sans_filtre), (
+    assert any(SENTINELLE in d for d in docs_projet), (
         "le controle negatif ne detecte rien : la collection temporaire est vide "
         "ou inaccessible, le test principal ne prouverait donc rien"
     )
-    assert any(m.get("project_id") == "999" for m in metas_sans_filtre)
+    assert any(m.get("project_id") == "999" for m in metas_projet)
+
+    docs_global, _ = rag_service.query_collection(
+        "technical", "notes internes", n_results=5, project_id=None
+    )
+    assert not any(SENTINELLE in d for d in docs_global), (
+        "SEC-04 : la recherche globale sort le chunk prive du projet 999"
+    )
 
     docs_autre_projet, _ = rag_service.query_collection(
         "technical", "notes internes", n_results=5, project_id=7
@@ -257,21 +270,25 @@ def test_controle_negatif_le_rag_global_sort_bien_le_chunk_du_projet_999(
     )
 
 
-def test_controle_negatif_get_salesforce_context_sans_projet_sort_la_sentinelle(
+def test_controle_negatif_get_salesforce_context_du_projet_999_sort_la_sentinelle(
     collection_chroma_999,
 ):
     """Meme demonstration au niveau au-dessus, celui qu'un agent appelle.
 
-    `get_salesforce_context(query, agent_type="pm")` sans `project_id` renvoie
-    un contexte contenant la sentinelle du projet 999. C'est exactement la
-    chaine qui remonterait dans le prompt si le concierge y etait branche.
+    `get_salesforce_context(query, agent_type="pm", project_id=999)` renvoie un
+    contexte contenant la sentinelle. Sans projet, il ne la renvoie plus depuis
+    SEC-04 (vague 2 / file A) : c'etait jusque-la l'assertion de ce test.
     """
     contexte = rag_service.get_salesforce_context(
-        "notes internes", n_results=5, agent_type="pm", project_id=None
+        "notes internes", n_results=5, agent_type="pm", project_id=999
     )
     assert SENTINELLE in contexte, (
         "le controle negatif ne detecte rien au niveau get_salesforce_context"
     )
+    contexte_global = rag_service.get_salesforce_context(
+        "notes internes", n_results=5, agent_type="pm", project_id=None
+    )
+    assert SENTINELLE not in contexte_global
 
     contexte_projet_7 = rag_service.get_salesforce_context(
         "notes internes", n_results=5, agent_type="pm", project_id=7

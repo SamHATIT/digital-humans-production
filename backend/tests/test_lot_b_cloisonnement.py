@@ -554,7 +554,13 @@ def test_documents_nom_de_fichier_traversant(client, tenants, tmp_path, monkeypa
     assert not (tmp_path / "evasion.txt").exists()
     assert not (tmp_path / "docs" / "evasion.txt").exists()
     ecrits = list((tmp_path / "docs" / str(a["project"].id)).iterdir())
-    assert [f.name for f in ecrits] == ["evasion.txt"]
+    # Vague 2 / file A (PROD-09) : le nom DISQUE est desormais genere (deux
+    # uploads homonymes partageaient le meme fichier) ; le nom client, reduit
+    # a son dernier segment, reste le nom affiche. Cette assertion attendait
+    # `evasion.txt` sur disque ; elle verifie maintenant les deux separement.
+    assert len(ecrits) == 1 and ecrits[0].suffix == ".txt"
+    assert ".." not in ecrits[0].name and ecrits[0].name != "evasion.txt"
+    assert reponse.json()["filename"] == "evasion.txt"
 
 
 # ----------------------------------------------------------- 8. analytics.py

@@ -391,9 +391,19 @@ def test_documents_upload_assaini_par_lot_b():
     src = (BACKEND_APP / "api" / "routes" / "documents.py").read_text(encoding="utf-8")
     # Le nom brut ne sert plus a construire le chemin d'ecriture (la chaine
     # subsiste dans un commentaire de LOT-B : on teste le code, pas le texte).
-    assert "file_path = project_dir / file.filename" not in src
-    assert "file_path = project_dir / safe_filename" in src
-    assert 'Path(file.filename or "").name' in src
+    # Vague 2 / file A (PROD-09) : le nom disque n'est plus derive du nom
+    # client, meme assaini (deux uploads homonymes partageaient un fichier) ;
+    # il est genere. Le nom client assaini reste le nom affiche. Ce garde
+    # attendait `project_dir / safe_filename` : il exige desormais l'inverse.
+    # Reprise 4 apres revue : l'ancienne assertion visait le texte exact
+    # `project_dir / file.filename`, qui ne pouvait plus apparaitre depuis que
+    # la variable s'appelle `fichier`. Motif independant du nom de variable :
+    # aucun chemin disque construit a partir d'un `<quelque chose>filename`.
+    import re
+    derives = re.findall(r"file_path\s*=\s*project_dir\s*/\s*[\w.]*filename\b", src)
+    assert derives == [], f"nom disque derive du nom client : {derives}"
+    assert 'file_path = project_dir / f"{uuid.uuid4().hex}{ext}"' in src
+    assert 'Path(fichier.filename or "").name' in src
 
 
 # ================================ agent_executor / pm_orchestrator : proprietes
