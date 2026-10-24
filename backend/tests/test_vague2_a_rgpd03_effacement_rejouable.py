@@ -339,3 +339,26 @@ def test_un_effacement_orphelin_n_arrete_pas_la_reprise_des_autres(env):
     # Un orphelin bloqué n'est pas repris en boucle à chaque passage.
     assert module_service.reprendre_effacements_en_attente(db) == []
 
+
+def test_suppression_d_un_document_sans_collection_purge_ses_chunks_ou_qu_ils_soient(env):
+    """Reprise 3 : la route devinait `technical` quand `collection_name` est
+    NULL ; des chunks rangés ailleurs restaient orphelins, sans bruit."""
+    db, chroma, a = env["db"], env["chroma"], env["a"]
+    client = client_sans_lifespan(app, db)
+    pid = a["project"].id
+    chemin = Path(settings.UPLOAD_DIR) / "project_documents" / str(pid) / f"{uuid.uuid4().hex}.txt"
+    chemin.write_text("contenu business")
+    doc = ProjectDocument(project_id=pid, filename="b.txt", file_path=str(chemin), file_size=5,
+                          collection_name="business", status="ready")
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    rag_service.ingest_document("business", ["fragment business"], metadata={"source": "b.txt"},
+                                project_id=pid, document_id=doc.id)
+    doc.collection_name = None
+    db.commit()
+
+    r = client.delete(f"/api/projects/{pid}/documents/{doc.id}", headers=a["headers"])
+    assert r.status_code == 200, r.text
+    restants = [i for i in _chunks_du_projet(chroma, pid) if i.startswith(f"proj{pid}_doc{doc.id}_")]
+    assert restants == [], f"chunks orphelins après suppression d'un document sans collection : {restants}"

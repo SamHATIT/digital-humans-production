@@ -398,7 +398,9 @@ class AccountService:
                 {
                     "id": d.id,
                     "projet": d.project_id,
-                    "collection": d.collection_name or "technical",
+                    # Information seulement : la purge ne s'y fie pas
+                    # (reprise 3 apres revue, aucune collection devinee).
+                    "collection": d.collection_name,
                 }
                 for d in documents
             ],
@@ -763,13 +765,10 @@ class AccountService:
         echecs: List[str] = []
         for document in documents:
             try:
-                total += rag_service.delete_project_document_chunks(
-                    document["collection"], document["id"]
-                )
+                total += rag_service.delete_document_chunks_partout(document["id"])
             except Exception as exc:  # noqa: BLE001 — collecté puis levé
                 echecs.append(
-                    f"document {document['id']} ({document['collection']}) : "
-                    f"{type(exc).__name__}: {exc}"
+                    f"document {document['id']} : {type(exc).__name__}: {exc}"
                 )
         for projet_id in projets:
             try:

@@ -699,6 +699,22 @@ def _collection_si_existe(collection_name: str):
         raise
 
 
+def delete_document_chunks_partout(document_id: int) -> int:
+    """Supprime les chunks d'un document dans les cinq collections.
+
+    Reprise 3 apres revue : les appelants devinaient la collection
+    (`collection_name or "technical"`) ; des chunks ranges ailleurs restaient
+    orphelins sans bruit. Ici, aucune collection n'est devinee. Toute erreur
+    est propagee ; une collection inexistante compte zero.
+    """
+    if not document_id:
+        raise ValueError(f"document_id invalide : {document_id!r}")
+    total = 0
+    for cle in COLLECTIONS:
+        total += delete_project_document_chunks(cle, document_id)
+    return total
+
+
 def delete_project_chunks(project_id: int) -> int:
     """Supprime TOUS les chunks prives d'un projet, dans les cinq collections.
 

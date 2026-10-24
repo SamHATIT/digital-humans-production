@@ -475,9 +475,11 @@ def delete_document(
     # erreur Chroma etait journalisee puis la ligne supprimee quand meme. La
     # purge est desormais toujours tentee, et un echec conserve le document :
     # la suppression reste rejouable.
-    from app.services.rag_service import delete_project_document_chunks
+    # Reprise 3 apres revue : la collection n'est plus devinee
+    # (`collection_name or "technical"`) : purge par document_id dans les cinq.
+    from app.services.rag_service import delete_document_chunks_partout
     try:
-        deleted_chunks = delete_project_document_chunks(doc.collection_name or "technical", document_id)
+        deleted_chunks = delete_document_chunks_partout(document_id)
     except Exception as e:
         logger.error(f"Error deleting chunks for document {document_id}: {e}")
         raise HTTPException(
