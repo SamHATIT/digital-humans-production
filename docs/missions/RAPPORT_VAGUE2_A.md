@@ -292,3 +292,14 @@ MEMES 31 ECHECS QU'AVANT
 
 Hook `post-commit` (`core.hooksPath=tools/git-hooks`) : mes cinq commits de la remise initiale ont été faits **sans** `-c core.hooksPath=/dev/null` — je ne connaissais pas ce hook. Il s'est donc exécuté, mais il ne déploie que si le commit touche `docs/refonte/{sections,templates,sources}/`, `backend/config/{llm_routing,agents_registry}.yaml`, `tools/lib/collect.py` ou `tools/build_docs.py`. Vérifié : `git diff-tree --no-commit-id --name-only -r <commit>` filtré sur ces motifs ne rend aucune ligne pour `7375a2d 8511943 98598b1 63f4715 d5a7567`, et `/tmp/dh_post_commit_build.log` ne contient aucune de ces empreintes. Aucun déploiement n'a donc eu lieu (lu dans le hook + `grep`, pas de contrôle de `/var/www`). Les commits de reprise et celui-ci sont faits avec `-c core.hooksPath=/dev/null`.
 
+
+## Reprises après revue passe 2 — faites par Claude le 24/10, hors orchestration
+
+| Défaut | Commit | Rouge prouvé | Vert |
+|---|---|---|---|
+| D1. `--reprendre` : code 0 et « encore en attente : 0 » avec un effacement `bloque` | `a07aa9b` | 2 tests ajoutés avant → 2 failed, sortie identique à la sonde 1 | fichier RGPD-03 : 12 passed ; la commande liste les bloqués et sort en 1 tant qu'il en reste |
+| D2. Portée de la re-vérification surestimée | `97730d4` | — (documentation) | commentaire et § 3 / reprise 1 corrigés : « tout changement à compte constant, au plus 300 s » |
+
+Suite complète après reprises : **1 087 passés** (+2), mêmes 31 échecs que la référence, comparés nom par nom.
+
+Restent ouverts pour Sam : un critère plus fin que `count()` pour fermer la fenêtre de 300 s ; la remarque de la revue (`delete_project_document_chunks` sans filtre `visibility = private`), aujourd'hui sans effet (aucun chunk de production ne porte `document_id`).
