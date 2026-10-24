@@ -10,7 +10,7 @@
 #   3. Write the new key into .env.
 #   4. Smoke-test a minimal /v1/messages completion to prove the key works.
 #   5. Restart digital-humans-backend via systemd.
-#   6. Verify /api/health and one /api/pm-orchestrator call.
+#   6. Verify /health (deep probe) and the root endpoint.
 #   7. On any failure, restore the .env backup and exit non-zero.
 #
 # Usage:
@@ -21,8 +21,17 @@ set -euo pipefail
 
 ENV_FILE="${DH_ENV_FILE:-/opt/digital-humans/backend/.env}"
 SERVICE_NAME="${DH_SERVICE_NAME:-digital-humans-backend}"
-HEALTH_URL="${DH_HEALTH_URL:-http://localhost:8002/api/health}"
+# Vague 2 / file B — OPS-08 (Astra L1020). `/api/health` n'existe pas dans le
+# backend (404) : la verification echouait toujours et le script RESTAURAIT
+# l'ancienne cle apres une rotation reussie. La sonde profonde est `/health`.
+HEALTH_URL="${DH_HEALTH_URL:-http://localhost:8002/health}"
 ROOT_URL="${DH_ROOT_URL:-http://localhost:8002/}"
+# Le backend met ~1 min 30 a 2 min a repondre apres un redemarrage (journal du
+# 21/10 et du 23/10 : sonde RAG de demarrage). L'attente etait de 30 s.
+HEALTH_WAIT_S="${DH_HEALTH_WAIT_S:-180}"
+# Chaque curl a un delai borne : un backend qui accepte la connexion sans
+# repondre ne doit pas suspendre la rotation indefiniment.
+CURL_TIMEOUT_S="${DH_CURL_TIMEOUT_S:-10}"
 
 log()  { echo "[$(date -u +%FT%TZ)] [SECRETS] $*"; }
 fail() { echo "[$(date -u +%FT%TZ)] [SECRETS] ERROR: $*" >&2; exit 1; }
@@ -55,7 +64,7 @@ OLD_KEY_PREFIX="$(grep -E '^ANTHROPIC_API_KEY=' "${ENV_FILE}" | head -1 | cut -d
 
 # 4. Smoke-test the new key BEFORE touching .env -----------------------------
 log "smoke-testing new key against Anthropic API..."
-HTTP=$(curl -sS -o /tmp/anthropic_smoke.$$ -w "%{http_code}" \
+HTTP=$(curl -sS --max-time 30 -o /tmp/anthropic_smoke.$$ -w "%{http_code}" \
     https://api.anthropic.com/v1/messages \
     -H "x-api-key: ${NEW_KEY}" \
     -H "anthropic-version: 2023-06-01" \
@@ -92,17 +101,17 @@ log "restarting ${SERVICE_NAME}..."
 systemctl restart "${SERVICE_NAME}" || rollback "systemctl restart failed"
 
 # Wait for the service to come up.
-for i in $(seq 1 30); do
-    if curl -sf "${HEALTH_URL}" >/dev/null 2>&1; then
+for i in $(seq 1 "${HEALTH_WAIT_S}"); do
+    if curl -sf --max-time "${CURL_TIMEOUT_S}" "${HEALTH_URL}" >/dev/null 2>&1; then
         break
     fi
     sleep 1
 done
 
-curl -sf "${HEALTH_URL}" >/dev/null 2>&1 \
-    || rollback "backend did not become healthy after restart"
+curl -sf --max-time "${CURL_TIMEOUT_S}" "${HEALTH_URL}" >/dev/null 2>&1 \
+    || rollback "backend did not become healthy after restart (${HEALTH_URL}, ${HEALTH_WAIT_S} s)"
 
-curl -sf "${ROOT_URL}" >/dev/null 2>&1 \
+curl -sf --max-time "${CURL_TIMEOUT_S}" "${ROOT_URL}" >/dev/null 2>&1 \
     || rollback "root endpoint unreachable"
 
 log "backend healthy. Old key prefix was: ${OLD_KEY_PREFIX}..."

@@ -11,6 +11,14 @@ from pydantic import Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
+#: Vague 2 / file B — SEC-17. Fragments qui signalent une valeur de gabarit
+#: (backend/.env.example porte « your-secret-key-must-be-at-least-32-... »).
+_MARQUEURS_GABARIT = (
+    "your-secret", "your_secret", "secret-key-here", "changeme", "change-me",
+    "change_me", "placeholder", "must-be-at-least", "replace-me", "example-key",
+)
+LONGUEUR_MIN_SECRET_KEY = 32
+
 
 class Settings(BaseSettings):
     """Application settings."""
@@ -28,7 +36,10 @@ class Settings(BaseSettings):
     # API
     API_V1_PREFIX: str = "/api"
     PROJECT_NAME: str = "Digital Humans API"
-    DEBUG: bool = True
+    # Vague 2 / file B — SEC-17 (Astra L305) : le defaut etait True (traces
+    # SQL, pages de debug, /docs ouvertes, cle JWT auto-generee). Un oubli de
+    # configuration doit tomber du cote sur : DEBUG se demande.
+    DEBUG: bool = False
 
     # VAGUE 2 / LOT 4 — creation du schema au demarrage, decorrelee de DEBUG.
     #
@@ -41,8 +52,25 @@ class Settings(BaseSettings):
     # None = non pose (comportement par defaut : pas de create_all).
     AUTO_CREATE_SCHEMA: Optional[bool] = None
 
-    # CORS - Autoriser toutes les origines pour débogage
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    # CORS — Vague 2 / file B (SEC-17) : ce reglage valait ["*"] et n'etait
+    # lu par personne (main.py tenait une liste HTTP en dur, sans les domaines
+    # HTTPS). main.py le lit desormais. Defaut = l'ancienne liste en dur, plus
+    # les domaines HTTPS servis par nginx. "*" est refuse hors DEBUG.
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "https://app.digital-humans.fr",
+        "https://console.digital-humans.fr",
+        "https://digital-humans.fr",
+        "https://www.digital-humans.fr",
+        "http://72.61.161.222",
+        "http://srv1064321.hstgr.cloud",
+        "http://72.61.161.222:3002",
+        "http://72.61.161.222:8080",
+        "http://72.61.161.222:3001",
+        "http://72.61.161.222:3000",
+        "http://srv1064321.hstgr.cloud:3000",
+        "http://localhost:3000",
+        "http://localhost:3002",
+    ]
 
     # File Upload
     MAX_FILE_SIZE: int = 10485760  # 10MB
@@ -159,6 +187,23 @@ class Settings(BaseSettings):
         - Development (DEBUG=True): Auto-generate if not set, with warning
         """
         if self.SECRET_KEY:
+            # Vague 2 / file B — SEC-17 : « toute cle non vide » passait, y
+            # compris le gabarit de .env.example. Un gabarit n'est jamais une
+            # cle, en DEBUG comme en production.
+            bas = self.SECRET_KEY.lower()
+            if any(m in bas for m in _MARQUEURS_GABARIT):
+                # Reprise 4 (revue 1) : la valeur n'est pas recopiee dans le
+                # message (il part au journal systemd).
+                raise ValueError(
+                    "SECRET_KEY ressemble a une valeur de gabarit : refusee. "
+                    "Generer : python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
+            if not self.DEBUG and len(self.SECRET_KEY) < LONGUEUR_MIN_SECRET_KEY:
+                raise ValueError(
+                    f"SECRET_KEY trop courte ({len(self.SECRET_KEY)} caracteres, "
+                    f"{LONGUEUR_MIN_SECRET_KEY} minimum hors DEBUG). "
+                    "Generer : python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
             return self
         
         if not self.DEBUG:
@@ -190,7 +235,26 @@ class Settings(BaseSettings):
         encryption key on every restart, silently turning every stored
         credential into an "Invalid token" error. Fail loudly instead.
         """
-        if self.CREDENTIALS_ENCRYPTION_KEY or self.DEBUG:
+        if self.CREDENTIALS_ENCRYPTION_KEY:
+            # Vague 2 / file B — SEC-17 : une cle mal formee etait etiree par
+            # SHA-256 sans un mot (encryption.build_fernet). Refusee ici.
+            from cryptography.fernet import Fernet
+
+            try:
+                Fernet(self.CREDENTIALS_ENCRYPTION_KEY.encode())
+            except Exception:
+                raise ValueError(
+                    "CREDENTIALS_ENCRYPTION_KEY n'est pas une cle Fernet valide "
+                    "(32 octets en base64 urlsafe, 44 caracteres). Generer : "
+                    "python -c \"from cryptography.fernet import Fernet; "
+                    "print(Fernet.generate_key().decode())\". Si des credentials "
+                    "ont ete chiffres avec la valeur actuelle (etiree par "
+                    "SHA-256), les re-chiffrer d'abord : python "
+                    "scripts/rotate_encryption_key.py --old-key <ancienne> "
+                    "--new-key <nouvelle>"
+                ) from None
+            return self
+        if self.DEBUG:
             return self
 
         raise ValueError(
@@ -204,8 +268,24 @@ class Settings(BaseSettings):
             "--old-secret-key-derived --new-key <new-key>"
         )
 
+    @model_validator(mode="after")
+    def validate_cors_origins(self):
+        """Vague 2 / file B — SEC-17 : "*" avec allow_credentials=True n'a pas
+        sa place hors DEBUG ; refus explicite plutot qu'une ouverture."""
+        if not self.DEBUG and "*" in (self.BACKEND_CORS_ORIGINS or []):
+            raise ValueError(
+                "BACKEND_CORS_ORIGINS contient \"*\" hors DEBUG : refuse. "
+                "Lister les origines exactes (https://app.digital-humans.fr, ...)."
+            )
+        return self
+
     class Config:
         extra = "ignore"
+        # Vague 2 / file B — reprise 4 de la revue : sans ce reglage, pydantic
+        # joint a chaque refus `input_value={'SECRET_KEY': '<9 premiers
+        # caracteres>...', 'DATABASE_URL': ...}` — au journal systemd, au
+        # moment precis d'un deploiement.
+        hide_input_in_errors = True
         env_file = ".env"
         case_sensitive = True
 

@@ -23,7 +23,8 @@
 # =====================================================================
 set -uo pipefail
 
-DEST_DIR="/var/log/digital-humans"
+# DH_LOG_EXPORT_DIR : surcharge (tests) ; defaut inchange.
+DEST_DIR="${DH_LOG_EXPORT_DIR:-/var/log/digital-humans}"
 WINDOW_HOURS=24
 GAP_SECONDS=300   # coupure entre deux rafales d'activite
 
@@ -37,7 +38,18 @@ export_unit() {
     now_iso=$(date -u -d "@${now_epoch}" +%Y-%m-%dT%H:%M:%S+00:00)
     since_iso=$(date -u -d "@${since_epoch}" +%Y-%m-%dT%H:%M:%S+00:00)
 
-    journalctl -u "$unit" --since "@${since_epoch}" -o short-iso --no-pager > "$body" 2>/dev/null
+    # Vague 2 / file B — OPS-08 (Astra L1020) : l'echec de journalctl etait
+    # ignore, et l'export exploitable precedent etait remplace par un fichier
+    # « 0 ligne » indiscernable d'un service muet. En cas d'echec, l'ancien
+    # export reste en place, l'erreur est dite sur stderr, et la fonction rend
+    # un code non nul (repris par le code de sortie du script).
+    local err="${outfile}.err"
+    if ! journalctl -u "$unit" --since "@${since_epoch}" -o short-iso --no-pager > "$body" 2> "$err"; then
+        echo "export_logs_24h: journalctl en echec pour $unit : $(head -c 300 "$err") — export precedent conserve (${outfile})" >&2
+        rm -f "$body" "$err"
+        return 1
+    fi
+    rm -f "$err"
     # journalctl ecrit "-- No entries --" quand il n'a rien : ce n'est pas une
     # ligne de log, elle fausserait le compteur qui sert justement a distinguer
     # un service muet d'un export en echec.
@@ -100,5 +112,7 @@ PYEOF
            "$(basename "$outfile")" "$n_lines" "$span_h" "$span_m" "$pct" "$bursts"
 }
 
-export_unit digital-humans-backend "${DEST_DIR}/backend-24h.log"
-export_unit digital-humans-worker  "${DEST_DIR}/worker-24h.log"
+RC=0
+export_unit digital-humans-backend "${DEST_DIR}/backend-24h.log" || RC=1
+export_unit digital-humans-worker  "${DEST_DIR}/worker-24h.log"  || RC=1
+exit $RC

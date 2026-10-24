@@ -24,7 +24,8 @@ services:
       - /root/.sf:/root/.sf
       - /root/.sfdx:/root/.sfdx
       - /root/workspace/salesforce-workspace:/root/workspace/salesforce-workspace
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8002 --reload
+    # Vague 2 / file B — SEC-17 : pas de --reload en production.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8002
     restart: unless-stopped
 
   frontend:

@@ -29,6 +29,22 @@ Ce que ces tests mesurent
    n'attend pas. Sans lui, les mesures des tests 1 et 2 pourraient etre vertes
    pour une raison qui n'a rien a voir avec la boucle.
 
+VAGUE 2 / FILE B (OPS-01, demarrage en ~2 min) — ce que ce fichier ne
+prouvait pas
+---------------------------------------------------------------------------
+Le faux comptage de ce fichier dort par `time.sleep`, qui RELACHE le GIL.
+`count()` de chromadb 1.3.4, lui, le garde (mesure de la file B, confirmee par
+la revue independante sur un Chroma fabrique) : en `asyncio.to_thread`, la
+boucle restait immobilisee pendant tout le comptage. Le controle 4 reste
+vrai **pour ce faux** et faux pour chromadb ; il est conserve comme
+documentation de cette difference. Le comptage tourne desormais dans un
+processus enfant (`app.services.sonde_rag`) ; les tests 1 a 3 ont ete
+reecrits sur ce mecanisme, et la preuve « la boucle n'est pas tenue » est
+portee par `tests/test_vague2_b_ops01_sonde_rag.py`
+(`test_le_demarrage_ne_compte_pas_chroma_dans_le_processus`, avec un faux qui
+tient le GIL, et son controle de sens
+`test_controle_un_appel_qui_tient_le_gil_bloque_la_boucle_meme_en_to_thread`).
+
 Pourquoi les sondes de `/health` sont remplacees
 ------------------------------------------------
 `/health` sonde trois dependances (`_check_database`, `_check_redis`,
@@ -105,23 +121,6 @@ def _attendre_journal(caplog, fragment, timeout=15.0):
     return []
 
 
-def _attendre_tache_rag(timeout=15.0):
-    """Attend la fin de la tache de fond du comptage, si elle existe.
-
-    Avant correctif l'attribut n'existe pas : la fonction rend simplement False,
-    elle ne doit pas etre ce qui fait echouer un test.
-    """
-    tache = getattr(app.state, "rag_health_task", None)
-    if tache is None:
-        return False
-    fin = time.monotonic() + timeout
-    while time.monotonic() < fin:
-        if tache.done():
-            return True
-        time.sleep(0.05)
-    return False
-
-
 @pytest.fixture
 def sondes_health_rapides(monkeypatch):
     """Remplace les trois sondes de `/health` par des sondes instantanees.
@@ -134,20 +133,24 @@ def sondes_health_rapides(monkeypatch):
     monkeypatch.setattr("app.main._check_chroma", lambda: (True, "ok"))
 
 
-@pytest.fixture
-def chroma_lent(monkeypatch):
-    """Branche un faux client ChromaDB lent sur `rag_service.get_client`."""
-    faux = _ClientChromaLent()
-    monkeypatch.setattr(rag_service, "get_client", lambda: faux)
-    return faux
-
 
 # ---------------------------------------------------------------------------
 # 1. Critere de fin du lot
 # ---------------------------------------------------------------------------
 
-def test_health_repond_pendant_le_comptage_rag(chroma_lent, sondes_health_rapides):
+def test_health_repond_pendant_le_comptage_rag(monkeypatch, sondes_health_rapides):
     """Startup < 1 s et `/health` < 1 s alors que le comptage de 3 s tourne encore."""
+    # VAGUE 2 / FILE B (OPS-01) — reecrit : le comptage de demarrage ne tourne
+    # plus dans le processus de l'API (chromadb 1.3.4 garde le GIL, la boucle
+    # etait immobilisee malgre `asyncio.to_thread` ; le faux `time.sleep` de ce
+    # fichier relachait le GIL et ne pouvait pas le voir). Le meme critere est
+    # mesure sur le mecanisme reel : `sonde_rag`, enfant remplace par un
+    # programme qui dort puis imprime un resultat.
+    from app.services import sonde_rag
+    from tests.test_vague2_b_ops01_sonde_rag import RESULTAT_OK, _enfant
+
+    sonde = sonde_rag.SondeRAG(commande=_enfant(RESULTAT_OK, duree=DUREE_COMPTAGE_LENT))
+    monkeypatch.setattr(sonde_rag, "sonde", sonde)
     debut = time.monotonic()
     with TestClient(app) as http:
         duree_startup = time.monotonic() - debut
@@ -156,14 +159,9 @@ def test_health_repond_pendant_le_comptage_rag(chroma_lent, sondes_health_rapide
         reponse = http.get("/health")
         duree_health = time.monotonic() - t0
 
-        # La mesure ci-dessus ne vaut que si le comptage lent est bien en cours
-        # a cet instant. On le constate, on ne le suppose pas.
-        demarre = chroma_lent.comptage_demarre.wait(timeout=SEUIL_REPONSE)
-        encore_en_cours = demarre and not chroma_lent.comptage_termine.is_set()
-
-        # Laisse la tache de fond aboutir avant de fermer la boucle.
-        chroma_lent.comptage_termine.wait(timeout=15.0)
-        _attendre_tache_rag()
+        # La mesure ne vaut que si le comptage lent est encore en cours.
+        encore_en_cours = sonde.instantane()["en_cours"]
+        sonde.attendre(15.0)
 
     assert reponse.status_code == 200, reponse.text
     assert duree_startup < SEUIL_REPONSE, (
@@ -174,11 +172,7 @@ def test_health_repond_pendant_le_comptage_rag(chroma_lent, sondes_health_rapide
         f"/health a repondu en {duree_health:.2f} s : la boucle etait occupee "
         f"par le comptage RAG"
     )
-    assert encore_en_cours, (
-        "le comptage lent n'etait plus en cours au moment de la mesure : "
-        "le test ne prouve rien (demarre=%s, termine=%s)"
-        % (chroma_lent.comptage_demarre.is_set(), chroma_lent.comptage_termine.is_set())
-    )
+    assert encore_en_cours, "le comptage lent n'etait plus en cours : le test ne prouve rien"
 
 
 # ---------------------------------------------------------------------------
@@ -186,25 +180,29 @@ def test_health_repond_pendant_le_comptage_rag(chroma_lent, sondes_health_rapide
 # ---------------------------------------------------------------------------
 
 def test_journal_rag_health_emis_a_la_fin_du_comptage_de_fond(
-    chroma_lent, sondes_health_rapides, caplog
+    monkeypatch, sondes_health_rapides, caplog
 ):
     """La ligne `[RAG HEALTH]` est emise apres coup, quand le comptage se termine."""
+    # VAGUE 2 / FILE B (OPS-01) — reecrit : le comptage de demarrage ne tourne
+    # plus dans le processus de l'API (chromadb 1.3.4 garde le GIL, la boucle
+    # etait immobilisee malgre `asyncio.to_thread` ; le faux `time.sleep` de ce
+    # fichier relachait le GIL et ne pouvait pas le voir). Le meme critere est
+    # mesure sur le mecanisme reel : `sonde_rag`, enfant remplace par un
+    # programme qui dort puis imprime un resultat.
+    from app.services import sonde_rag
+    from tests.test_vague2_b_ops01_sonde_rag import RESULTAT_OK, _enfant
+
     caplog.set_level(logging.INFO)
+    sonde = sonde_rag.SondeRAG(commande=_enfant(RESULTAT_OK, duree=1.5))
+    monkeypatch.setattr(sonde_rag, "sonde", sonde)
 
     with TestClient(app) as http:  # noqa: F841 — le contexte declenche le startup
-        assert chroma_lent.comptage_demarre.wait(timeout=15.0), (
-            "le comptage n'a jamais demarre"
-        )
-        # Pendant le comptage, rien n'est encore journalise : la preuve que la
-        # ligne qui suivra vient bien du comptage de fond et non du startup.
+        assert sonde.instantane()["en_cours"], "le comptage n'a jamais demarre"
         assert not _messages(caplog, "[RAG HEALTH]"), (
-            "le journal [RAG HEALTH] a ete emis avant la fin du comptage : "
-            "le comptage a donc tourne sur la boucle pendant le startup"
+            "le journal [RAG HEALTH] a ete emis avant la fin du comptage"
         )
-
-        assert chroma_lent.comptage_termine.wait(timeout=15.0)
+        assert sonde.attendre(15.0)
         lignes = _attendre_journal(caplog, "[RAG HEALTH]")
-        _attendre_tache_rag()
 
     assert lignes, "aucune ligne [RAG HEALTH] apres la fin du comptage de fond"
     assert any("[RAG HEALTH] OK" in ligne for ligne in lignes), lignes
@@ -218,19 +216,26 @@ def test_journal_rag_health_emis_a_la_fin_du_comptage_de_fond(
 def test_exception_dans_le_comptage_journalisee_probe_crashed(
     monkeypatch, sondes_health_rapides, caplog
 ):
-    """Une exception du comptage produit `probe crashed`, pas un silence."""
+    """Une exception du comptage produit une ligne d'erreur, pas un silence.
+
+    VAGUE 2 / FILE B — le comptage tourne dans un enfant : une exception y
+    termine le processus sans resultat. La ligne attendue devient
+    `[RAG HEALTH] FAILED` portant la fin de la sortie d'erreur de l'enfant.
+    """
+    import sys
+
+    from app.services import sonde_rag
+
     caplog.set_level(logging.INFO)
-
-    def explose():
-        raise RuntimeError("chroma injoignable (faux)")
-
-    monkeypatch.setattr(rag_service, "rag_health_check", explose)
+    explose = [sys.executable, "-c", "raise RuntimeError('chroma injoignable (faux)')"]
+    sonde = sonde_rag.SondeRAG(commande=explose)
+    monkeypatch.setattr(sonde_rag, "sonde", sonde)
 
     with TestClient(app) as http:  # noqa: F841 — le contexte declenche le startup
-        lignes = _attendre_journal(caplog, "probe crashed")
-        _attendre_tache_rag()
+        assert sonde.attendre(15.0)
+        lignes = _attendre_journal(caplog, "[RAG HEALTH] FAILED")
 
-    assert lignes, "l'exception du comptage n'a produit aucune ligne 'probe crashed'"
+    assert lignes, "l'exception du comptage n'a produit aucune ligne [RAG HEALTH] FAILED"
     assert any("chroma injoignable (faux)" in ligne for ligne in lignes), lignes
 
 
@@ -271,6 +276,12 @@ def _latence_temoin(monkeypatch, en_fil: bool) -> float:
 def test_controle_negatif_le_comptage_synchrone_bloque_bien_la_boucle(monkeypatch):
     """Le faux comptage lent bloque la boucle en synchrone, pas via to_thread.
 
+    VAGUE 2 / FILE B : vrai pour CE faux (`time.sleep` relache le GIL), FAUX
+    pour chromadb 1.3.4, dont `count()` garde le GIL — `to_thread` ne protege
+    alors pas la boucle. Voir la docstring du module et
+    `test_vague2_b_ops01_sonde_rag.py`. Ne pas lire ce controle comme une
+    garantie sur le vrai Chroma.
+
     Sans ce controle, un `/health` rapide au test 1 pourrait s'expliquer par un
     faux comptage qui ne bloque en realite rien du tout. Ici on mesure les deux
     branches avec le meme faux : l'ecart (>= 3 s contre < 1 s) montre que la
@@ -285,6 +296,6 @@ def test_controle_negatif_le_comptage_synchrone_bloque_bien_la_boucle(monkeypatc
         f"test 1 ne discriminerait rien"
     )
     assert latence_en_fil < SEUIL_REPONSE, (
-        f"le meme comptage en asyncio.to_thread a fait attendre le temoin "
-        f"{latence_en_fil:.2f} s"
+        f"le meme faux (qui relache le GIL) en asyncio.to_thread a fait "
+        f"attendre le temoin {latence_en_fil:.2f} s"
     )

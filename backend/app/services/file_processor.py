@@ -5,7 +5,9 @@ Supports: PDF, DOCX, DOC, TXT
 import io
 import logging
 from typing import Optional
-from PyPDF2 import PdfReader
+# Vague 2 / file B — SEC-18 : PyPDF2 (abandonne, CVE-2023-36464 sans
+# correctif) remplace par pypdf, meme API PdfReader.
+from pypdf import PdfReader
 from docx import Document
 from fastapi import UploadFile
 
