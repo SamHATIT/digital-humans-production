@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import AiDisclosureBanner from './AiDisclosureBanner';
 import DiffViewer from './DiffViewer';
 import { renderInlineMarkdown } from '../lib/safeMarkdown';
+import { withFallbackNotice } from '../lib/opusConsent.ts';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -142,7 +143,11 @@ export default function ChatSidebar({
 
       const agentMessage: ChatMessage = {
         role: 'assistant',
-        content: response.response || response.content || JSON.stringify(response),
+        // GL-22 / reprise R4 : un repli Opus -> Sonnet est dit, pas tu.
+        content: withFallbackNotice(
+          response.response || response.content || JSON.stringify(response),
+          response,
+        ),
         timestamp: new Date().toISOString(),
         diff: response.diff || null,
       };

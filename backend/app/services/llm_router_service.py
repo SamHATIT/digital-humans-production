@@ -1210,8 +1210,16 @@ class LLMRouterService:
             modele_repli = self._get_model_id(repli)
             avis = (f"{tarif.model_name} non servi ({motif}) : "
                     f"{request.agent_type or 'agent'} est servi par {modele_repli}.")
-            logger.warning("[CONSENTEMENT-OPUS] repli annonce — execution=%s user=%s : %s",
-                           request.execution_id, request.user_id, avis)
+            # Reprise R4 : le journal dit ce qui est fait, pas plus. L'avis
+            # est rendu a l'appelant (avis_repli) ; il n'atteint le client
+            # que si la route le transmet (Studio, chat projet, chat
+            # d'execution le font) ; la marque `degraded` n'existe qu'avec
+            # une execution.
+            logger.warning(
+                "[CONSENTEMENT-OPUS] repli — execution=%s user=%s : %s "
+                "(avis_repli rendu a l'appelant%s)",
+                request.execution_id, request.user_id, avis,
+                ", marque degraded posee" if request.execution_id else "")
             if request.execution_id:
                 consentement.annoncer_repli(db, request.execution_id, (
                     f"{tarif.model_name} non servi ({code}) : Marcus et les agents "

@@ -249,7 +249,9 @@ class SophieChatService:
                 "message": assistant_message,
                 "tokens_used": tokens_used,
                 "model_used": model_used,
-                "context_used": list(context.keys())
+                "context_used": list(context.keys()),
+                # GL-22 / reprise R4 : repli Opus -> Sonnet annonce au client.
+                "avis_repli": response.get("avis_repli"),
             }
             
         except Exception as e:

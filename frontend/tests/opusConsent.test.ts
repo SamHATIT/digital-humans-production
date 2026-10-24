@@ -98,3 +98,11 @@ test('le repli annoncé sur l’exécution est lu depuis `degraded`, et seulemen
   assert.deepEqual(readOpusFallbackNotices({ degraded: [] }), []);
   assert.deepEqual(readOpusFallbackNotices(null), []);
 });
+
+test('reprise R4 : l’avis de repli renvoyé par un chat est ajouté à la réponse affichée', async () => {
+  const { withFallbackNotice } = await import('../src/lib/opusConsent.ts');
+  const avis = 'claude-opus-5 non servi (aucune exécution) : pm est servi par claude-sonnet-5.';
+  assert.equal(withFallbackNotice('Bonjour.', { avis_repli: avis }), `Bonjour.\n\n— ${avis}`);
+  assert.equal(withFallbackNotice('Bonjour.', { avis_repli: null }), 'Bonjour.');
+  assert.equal(withFallbackNotice('Bonjour.', null), 'Bonjour.');
+});

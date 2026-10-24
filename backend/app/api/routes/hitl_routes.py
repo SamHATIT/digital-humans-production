@@ -54,6 +54,8 @@ class ChatResponse(BaseModel):
     agent_id: str = "sophie"
     agent_name: str = "Sophie"
     change_request: Optional[ChangeRequestResponse] = None
+    # GL-22 / reprise R4 : repli Opus -> Sonnet dit au client, pas tu.
+    avis_repli: Optional[str] = None
 
 
 class AgentMetrics(BaseModel):
@@ -272,6 +274,7 @@ def chat_with_sophie_contextual(
         agent_id=canonical_agent_id,
         agent_name=profile["name"],
         change_request=cr_response,
+        avis_repli=response.get("avis_repli"),
     )
 
 

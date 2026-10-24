@@ -527,3 +527,52 @@ def test_une_decision_sans_la_version_du_texte_affiche_est_refusee(
     assert r.status_code == 409, r.text
     assert r.json()["detail"]["code"] == "consentement_opus_texte_perime"
     assert db_session.query(Execution).filter_by(project_id=p.id).count() == 0
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 6. Reprise R4 (revue 1) : chat projet et chat d'exécution disent le repli
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_chat_projet_team_sophie_repli_sonnet_dit_au_client(
+        client, db_session, socle, transport):
+    """Team : Sophie est routée sur Opus (pas de surcharge de palier) ; hors
+    consentement, Sonnet — et la réponse de /api/projects/{id}/chat le dit."""
+    u = _compte(db_session, palier="team")
+    p = _projet(db_session, u)
+    _authentifier(u)
+
+    r = client.post(f"/api/projects/{p.id}/chat", json={"message": "Bonjour Sophie"})
+
+    assert r.status_code == 200, r.text
+    assert transport == ["anthropic/claude-sonnet"]
+    avis = r.json().get("avis_repli")
+    assert avis and OPUS in avis and SONNET in avis, r.json()
+
+
+def test_chat_execution_marcus_pro_repli_sonnet_dit_au_client(
+        client, db_session, socle, transport):
+    u = _compte(db_session)
+    e = _execution(db_session, u)
+    _authentifier(u)
+
+    r = client.post(f"/api/pm-orchestrator/executions/{e.id}/chat",
+                    json={"message": "Bonjour Marcus, ton rôle ?", "agent_id": "marcus"})
+
+    assert r.status_code == 200, r.text
+    assert transport[0] == "anthropic/claude-sonnet"
+    avis = r.json().get("avis_repli")
+    assert avis and OPUS in avis and SONNET in avis, r.json()
+
+
+def test_controle_negatif_chat_projet_pro_sans_opt_in_aucun_avis(
+        client, db_session, socle, transport):
+    """Pro : Sophie est sur Sonnet par palier, aucun repli, aucun avis."""
+    u = _compte(db_session)
+    p = _projet(db_session, u)
+    _authentifier(u)
+
+    r = client.post(f"/api/projects/{p.id}/chat", json={"message": "Bonjour Sophie"})
+
+    assert r.status_code == 200, r.text
+    assert r.json().get("avis_repli") is None

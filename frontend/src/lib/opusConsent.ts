@@ -128,3 +128,14 @@ export function readOpusFallbackNotices(progress: unknown): string[] {
     .map((m) => String((m as Record<string, unknown>).detail ?? ''))
     .filter(Boolean);
 }
+
+/**
+ * Reprise R4 (revue 1) : les chats projet et d'exécution rendent
+ * `avis_repli` quand un modèle à opt-in (Opus) n'a pas été servi. L'avis est
+ * ajouté à la réponse affichée — un repli ne se tait pas.
+ */
+export function withFallbackNotice(text: string, body: unknown): string {
+  const avis =
+    body && typeof body === 'object' ? (body as Record<string, unknown>).avis_repli : undefined;
+  return typeof avis === 'string' && avis.trim() ? `${text}\n\n— ${avis.trim()}` : text;
+}
