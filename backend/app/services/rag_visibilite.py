@@ -96,7 +96,7 @@ def classer_collection(cle: str, appliquer: bool, public_sans_projet: bool) -> D
             rapport["modifies"] += len(lot)
         # Le verdict de classement mis en cache par query_collection est perime.
         cle_cache = (cle, str(getattr(collection, "id", "")))
-        rag_service._collections_classees.discard(cle_cache)
+        rag_service._collections_classees.pop(cle_cache, None)
         rag_service._collections_non_classees.pop(cle_cache, None)
     return rapport
 

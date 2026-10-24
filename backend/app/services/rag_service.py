@@ -105,8 +105,13 @@ VISIBILITE_PUBLIQUE = "public"
 VISIBILITE_PRIVEE = "private"
 VISIBILITES = (VISIBILITE_PUBLIQUE, VISIBILITE_PRIVEE)
 
-# Une collection non classee est re-verifiee au plus toutes les 5 minutes :
-# le comptage parcourt toute la collection, on ne le paie pas a chaque requete.
+# Re-verification du classement (reprise 1 apres revue, testeur-A sonde E) :
+# un verdict, positif OU negatif, n'est garde que tant que le nombre de chunks
+# de la collection ne change pas (tout ajout, p. ex. par un script d'ingestion
+# externe, declenche une re-verification a la requete suivante) et au plus
+# DELAI_REVERIFICATION_CLASSEMENT_S secondes (metadonnee modifiee en place, a
+# compte constant). Le verdict positif etait garde pour toute la vie du
+# processus : un chunk non classe ajoute ensuite etait exclu sans signalement.
 DELAI_REVERIFICATION_CLASSEMENT_S = 300
 
 
@@ -138,9 +143,10 @@ _collections = {}
 _reranker = None
 _openai_client = None
 _nomic_model = None
-# SEC-04 : collections dont tous les chunks portent `visibility` (verifie une
-# fois par processus), et collections trouvees non classees -> (instant, motif).
-_collections_classees = set()
+# SEC-04 : verdicts de classement, cle (nom, id Chroma) ->
+#   classees     : (instant, nombre de chunks verifies)
+#   non classees : (instant, motif, nombre de chunks verifies)
+_collections_classees = {}
 _collections_non_classees = {}
 
 def get_client():
@@ -334,13 +340,19 @@ def _verifier_classement(coll_key: str, collection) -> None:
     # Cle = nom + identifiant Chroma de la collection : une collection recreee
     # (reindexation) porte un nouvel identifiant et se re-verifie.
     cle = (coll_key, str(getattr(collection, "id", "")))
-    if cle in _collections_classees:
-        return
-    deja = _collections_non_classees.get(cle)
-    if deja is not None and time.monotonic() - deja[0] < DELAI_REVERIFICATION_CLASSEMENT_S:
-        raise CollectionNonClassee(deja[1])
-
     total = collection.count()
+    maintenant = time.monotonic()
+
+    def _encore_valable(instant, compte):
+        return compte == total and maintenant - instant < DELAI_REVERIFICATION_CLASSEMENT_S
+
+    ok = _collections_classees.get(cle)
+    if ok is not None and _encore_valable(ok[0], ok[1]):
+        return
+    ko = _collections_non_classees.get(cle)
+    if ko is not None and _encore_valable(ko[0], ko[2]):
+        raise CollectionNonClassee(ko[1])
+
     if total:
         classes = collection.get(
             where={CLE_VISIBILITE: {"$in": list(VISIBILITES)}}, include=[]
@@ -353,10 +365,11 @@ def _verifier_classement(coll_key: str, collection) -> None:
                 f"sont servis a personne. Classer avec "
                 f"`python -m app.services.rag_visibilite` (SEC-04)."
             )
-            _collections_non_classees[cle] = (time.monotonic(), motif)
+            _collections_classees.pop(cle, None)
+            _collections_non_classees[cle] = (maintenant, motif, total)
             raise CollectionNonClassee(motif)
     _collections_non_classees.pop(cle, None)
-    _collections_classees.add(cle)
+    _collections_classees[cle] = (maintenant, total)
 
 
 def query_collection(coll_key: str, query: str, n_results: int = 15, project_id: int = None) -> tuple:

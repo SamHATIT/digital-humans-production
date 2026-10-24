@@ -50,7 +50,7 @@ def installer_chroma_temporaire(chemin, monkeypatch):
     monkeypatch.setattr(rag_service, "_client", client, raising=False)
     monkeypatch.setattr(rag_service, "_collections", {}, raising=False)
     # Cache de vérification du classement (SEC-04) : absent avant le correctif.
-    monkeypatch.setattr(rag_service, "_collections_classees", set(), raising=False)
+    monkeypatch.setattr(rag_service, "_collections_classees", {}, raising=False)
     monkeypatch.setattr(rag_service, "_collections_non_classees", {}, raising=False)
     monkeypatch.setattr(
         rag_service, "get_openai_embedding", lambda text: embedding_bouchon(text)

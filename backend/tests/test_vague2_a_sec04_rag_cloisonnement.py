@@ -236,3 +236,49 @@ def test_classement_public_explicite_puis_idempotent(chroma):
     second = rag_visibilite.classer_collections(appliquer=True, public_sans_projet=True)
     assert all(r["modifies"] == 0 for r in second.values()), second
     assert coll.count() == 4
+
+
+# ---------------------------------------------------------------------------
+# Reprise 1 après revue (testeur-A, sonde E) : un chunk non classé ajouté
+# APRÈS une vérification réussie était exclu sans aucun signalement, la
+# collection restant « classée » pour toute la vie du processus.
+# ---------------------------------------------------------------------------
+
+def test_un_chunk_non_classe_ajoute_apres_verification_est_signale(chroma, monkeypatch):
+    signalements = []
+    monkeypatch.setattr(rag_service, "signaler_rag_indisponible", lambda cle, err: signalements.append((cle, err)))
+
+    docs1, _ = rag_service.query_collection("technical", QUESTION, N, project_id=None)
+    assert TEXTE_PUBLIC in _textes(docs1)
+    assert signalements == []
+
+    # Ce que ferait un script d'ingestion externe qui ne pose pas `visibility`.
+    chroma.get_collection(rag_service.COLLECTIONS["technical"]["name"]).add(
+        ids=["externe-0"],
+        documents=["CHUNK-EXTERNE-SANS-VISIBILITE"],
+        embeddings=[embedding_bouchon("externe")],
+        metadatas=[{"source": "ingest_all_docs"}],
+    )
+    docs2, _ = rag_service.query_collection("technical", QUESTION, N, project_id=None)
+
+    assert [cle for cle, _ in signalements] == ["technical"], (
+        f"chunk non classé ajouté après vérification exclu en silence : docs2={docs2}"
+    )
+    assert docs2 == []
+
+
+def test_une_visibilite_modifiee_sans_changer_le_compte_est_revue_apres_le_delai(chroma, monkeypatch):
+    """Le compte de chunks ne bouge pas (métadonnée modifiée en place) : la
+    ré-vérification périodique la rattrape. Délai ramené à 0 pour le test."""
+    monkeypatch.setattr(rag_service, "DELAI_REVERIFICATION_CLASSEMENT_S", 0)
+    signalements = []
+    monkeypatch.setattr(rag_service, "signaler_rag_indisponible", lambda cle, err: signalements.append(cle))
+
+    rag_service.query_collection("technical", QUESTION, N, project_id=None)
+    assert signalements == []
+    chroma.get_collection(rag_service.COLLECTIONS["technical"]["name"]).update(
+        ids=["public-technical"], metadatas=[{"source": "doc_publique.txt", "visibility": "Public"}]
+    )
+    docs, _ = rag_service.query_collection("technical", QUESTION, N, project_id=None)
+    assert signalements == ["technical"], "valeur de visibilité inconnue non signalée"
+    assert docs == []
