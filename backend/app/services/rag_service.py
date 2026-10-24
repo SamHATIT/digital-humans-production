@@ -84,12 +84,64 @@ def _build_legacy_agent_collections() -> Dict[str, List[str]]:
 
 AGENT_COLLECTIONS = _build_legacy_agent_collections()
 
+# ============================================================================
+# VAGUE 2 / FILE A — SEC-04 : visibilite explicite de chaque chunk
+# ============================================================================
+#
+# Defaut (audit Astra du 06/09, L86) : `project_id=None` ne voulait pas dire
+# « documentation publique » mais « aucun filtre » — tous les chunks, prives
+# compris. Avec un projet, la requete ne rendait que ses documents et excluait
+# le corpus public.
+#
+# Desormais chaque chunk porte `visibility` : `public` (corpus documentaire
+# Salesforce) ou `private` (document d'un client, avec `project_id` et
+# `document_id`). Sans projet : publics seulement. Avec projet : publics OU
+# prives de CE projet. Un chunk sans `visibility` n'est jamais devine public :
+# il n'est rendu a personne, et la collection qui en contient est signalee en
+# panne (GL-10) tant que `python -m app.services.rag_visibilite` ne l'a pas
+# classee.
+CLE_VISIBILITE = "visibility"
+VISIBILITE_PUBLIQUE = "public"
+VISIBILITE_PRIVEE = "private"
+VISIBILITES = (VISIBILITE_PUBLIQUE, VISIBILITE_PRIVEE)
+
+# Une collection non classee est re-verifiee au plus toutes les 5 minutes :
+# le comptage parcourt toute la collection, on ne le paie pas a chaque requete.
+DELAI_REVERIFICATION_CLASSEMENT_S = 300
+
+
+class CollectionNonClassee(RuntimeError):
+    """Des chunks de la collection n'ont pas de metadonnee `visibility`."""
+
+
+def filtre_visibilite(project_id: Optional[int]) -> Dict:
+    """Filtre `where` Chroma : ce qu'un appelant a le droit de voir.
+
+    `project_id` absent (None, 0) : corpus public seulement. Sinon : public, ou
+    prive ET rattache a ce projet.
+    """
+    if not project_id:
+        return {CLE_VISIBILITE: VISIBILITE_PUBLIQUE}
+    return {
+        "$or": [
+            {CLE_VISIBILITE: VISIBILITE_PUBLIQUE},
+            {"$and": [
+                {CLE_VISIBILITE: VISIBILITE_PRIVEE},
+                {"project_id": str(project_id)},
+            ]},
+        ]
+    }
+
 # Caches globaux
 _client = None
 _collections = {}
 _reranker = None
 _openai_client = None
 _nomic_model = None
+# SEC-04 : collections dont tous les chunks portent `visibility` (verifie une
+# fois par processus), et collections trouvees non classees -> (instant, motif).
+_collections_classees = set()
+_collections_non_classees = {}
 
 def get_client():
     global _client
@@ -274,6 +326,39 @@ def signaler_rag_indisponible(coll_key: str, erreur: Exception) -> None:
         logger.warning(f"[RAG] Signalement de l'indisponibilite impossible : {e}")
 
 
+def _verifier_classement(coll_key: str, collection) -> None:
+    """Leve `CollectionNonClassee` si un chunk de la collection n'a pas de
+    `visibility` (SEC-04). Le filtre l'exclurait de toute facon ; la levee
+    sert a ce que l'exclusion ne soit pas silencieuse : `query_collection`
+    la traite comme une panne RAG (alerte admin + execution degradee)."""
+    # Cle = nom + identifiant Chroma de la collection : une collection recreee
+    # (reindexation) porte un nouvel identifiant et se re-verifie.
+    cle = (coll_key, str(getattr(collection, "id", "")))
+    if cle in _collections_classees:
+        return
+    deja = _collections_non_classees.get(cle)
+    if deja is not None and time.monotonic() - deja[0] < DELAI_REVERIFICATION_CLASSEMENT_S:
+        raise CollectionNonClassee(deja[1])
+
+    total = collection.count()
+    if total:
+        classes = collection.get(
+            where={CLE_VISIBILITE: {"$in": list(VISIBILITES)}}, include=[]
+        )
+        non_classes = total - len(classes["ids"])
+        if non_classes:
+            motif = (
+                f"collection {coll_key} : {non_classes}/{total} chunk(s) sans "
+                f"metadonnee '{CLE_VISIBILITE}' — ni publics ni prives, ils ne "
+                f"sont servis a personne. Classer avec "
+                f"`python -m app.services.rag_visibilite` (SEC-04)."
+            )
+            _collections_non_classees[cle] = (time.monotonic(), motif)
+            raise CollectionNonClassee(motif)
+    _collections_non_classees.pop(cle, None)
+    _collections_classees.add(cle)
+
+
 def query_collection(coll_key: str, query: str, n_results: int = 15, project_id: int = None) -> tuple:
     """Interroger une collection avec le bon embedding.
 
@@ -281,7 +366,8 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         coll_key: Collection key (technical, operations, business, apex, lwc)
         query: Search query text
         n_results: Number of results to return
-        project_id: If set, filter results to this project only
+        project_id: projet de l'appelant. Absent : corpus public seulement ;
+            present : corpus public + documents prives de ce projet (SEC-04).
     """
     try:
         collection = get_collection(coll_key)
@@ -292,7 +378,10 @@ def query_collection(coll_key: str, query: str, n_results: int = 15, project_id:
         else:
             query_embedding = get_nomic_embedding(query)
 
-        where_filter = {"project_id": str(project_id)} if project_id else None
+        _verifier_classement(coll_key, collection)
+
+        # SEC-04 : jamais `None` (aucun filtre = tous les projets).
+        where_filter = filtre_visibilite(project_id)
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
@@ -325,8 +414,8 @@ def query_rag(
     """Recherche multi-collection avec reranking.
 
     Args:
-        project_id: If set, filter results to this project's documents only.
-                     None returns global (untagged) documents for backward compat.
+        project_id: projet de l'appelant. None : corpus public seulement ;
+            sinon corpus public + documents prives de ce projet (SEC-04).
     """
     _log_rag_debug("rag_query_start", {"query": query, "n_results": n_results, "agent_type": agent_type, "use_reranking": use_reranking, "project_id": project_id})
     # Alias resolution + per-agent RAG collections now live in agents_registry.
@@ -483,13 +572,22 @@ def ingest_document(
         collection_name: Collection key (e.g. "technical", "business")
         chunks: List of text chunks to ingest
         metadata: Base metadata to attach to each chunk
-        project_id: Project ID for isolation tagging
-        document_id: ProjectDocument ID for deletion tracking
+        project_id: Project ID for isolation tagging (obligatoire, SEC-04)
+        document_id: ProjectDocument ID for deletion tracking (obligatoire)
 
     Returns:
         Number of chunks ingested
+
+    SEC-04 : cette fonction n'ingere que des documents PRIVES. Sans projet ni
+    document, un chunk n'etait rattache a rien (identifiant uuid) et sortait
+    dans toute recherche « globale ». C'est desormais un refus explicite. Le
+    corpus public s'ingere hors de l'application et se marque `public`.
     """
-    import uuid
+    if not project_id or not document_id:
+        raise ValueError(
+            "SEC-04 : ingestion privee refusee sans project_id et document_id "
+            f"(project_id={project_id!r}, document_id={document_id!r})"
+        )
 
     if not chunks:
         return 0
@@ -503,12 +601,12 @@ def ingest_document(
 
     for i, chunk in enumerate(chunks):
         chunk_meta = dict(metadata) if metadata else {}
-        if project_id:
-            chunk_meta["project_id"] = str(project_id)
-        if document_id:
-            chunk_meta["document_id"] = str(document_id)
+        chunk_meta["project_id"] = str(project_id)
+        chunk_meta["document_id"] = str(document_id)
+        # Pose apres la metadonnee de l'appelant : elle ne peut pas l'ecraser.
+        chunk_meta[CLE_VISIBILITE] = VISIBILITE_PRIVEE
 
-        chunk_id = f"proj{project_id}_doc{document_id}_{i}" if project_id else str(uuid.uuid4())
+        chunk_id = f"proj{project_id}_doc{document_id}_{i}"
 
         if embedding_type == "openai":
             emb = get_openai_embedding(chunk)
