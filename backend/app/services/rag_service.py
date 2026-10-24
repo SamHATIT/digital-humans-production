@@ -559,6 +559,13 @@ def get_stats() -> Dict:
 # P3: Document ingestion & deletion with project isolation
 # ============================================================================
 
+# PROD-09 (vague 2 / file A) : l'ingestion calculait tous les embeddings puis
+# faisait UN `upsert` de tout le document. Elle procede desormais par lots
+# bornes : memoire et taille d'ecriture Chroma ne croissent plus avec le
+# document. En cas d'echec au milieu, des lots ont pu etre ecrits : l'appelant
+# les retire (documents.py, `delete_project_document_chunks`).
+TAILLE_LOT_INGESTION = 100
+
 def ingest_document(
     collection_name: str,
     chunks: List[str],
@@ -595,11 +602,22 @@ def ingest_document(
     collection = get_collection(collection_name)
     embedding_type = COLLECTIONS[collection_name]["embedding"]
 
+    for debut in range(0, len(chunks), TAILLE_LOT_INGESTION):
+        _ingerer_lot(
+            collection, embedding_type, chunks[debut:debut + TAILLE_LOT_INGESTION],
+            debut, metadata, project_id, document_id,
+        )
+    logger.info(f"Ingested {len(chunks)} chunks into {collection_name} (project_id={project_id}, document_id={document_id})")
+    return len(chunks)
+
+
+def _ingerer_lot(collection, embedding_type, lot, debut, metadata, project_id, document_id) -> None:
+    """Embeddings puis `upsert` d'un lot ; `debut` = rang du premier chunk."""
     ids = []
     embeddings = []
     metadatas = []
 
-    for i, chunk in enumerate(chunks):
+    for i, chunk in enumerate(lot, start=debut):
         chunk_meta = dict(metadata) if metadata else {}
         chunk_meta["project_id"] = str(project_id)
         chunk_meta["document_id"] = str(document_id)
@@ -618,9 +636,7 @@ def ingest_document(
         metadatas.append(chunk_meta)
 
     # ChromaDB batch upsert (handles duplicates by ID)
-    collection.upsert(ids=ids, embeddings=embeddings, documents=chunks, metadatas=metadatas)
-    logger.info(f"Ingested {len(chunks)} chunks into {collection_name} (project_id={project_id}, document_id={document_id})")
-    return len(chunks)
+    collection.upsert(ids=ids, embeddings=embeddings, documents=lot, metadatas=metadatas)
 
 
 def delete_project_document_chunks(collection_name: str, document_id: int) -> int:
