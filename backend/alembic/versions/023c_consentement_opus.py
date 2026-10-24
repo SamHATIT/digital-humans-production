@@ -9,7 +9,8 @@ du 17/09 : « on ajoute le recueil ».
 
 1. Table ``opus_consents`` : une ligne par (exécution, modèle) — utilisateur,
    exécution, date, décision (``accepte`` / ``refuse``), montant affiché en
-   crédits, version du texte de l'écran.
+   crédits (``credits_presentes``, reprise R5 de la revue 1), plafond accepté
+   (``credits_estimes``, 0 sur un refus), version du texte de l'écran.
 
 2. ``model_pricing.requires_opt_in`` repasse à **true** pour
    ``claude-opus-5``. La migration 016 l'avait posé à false faute de
@@ -52,6 +53,7 @@ def upgrade() -> None:
             sa.Column("model_name", sa.String(50), nullable=False),
             sa.Column("decision", sa.String(16), nullable=False),
             sa.Column("credits_estimes", sa.Integer(), nullable=False),
+            sa.Column("credits_presentes", sa.Integer(), nullable=False),
             sa.Column("texte_version", sa.String(32), nullable=False),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
                       server_default=sa.func.now()),
@@ -60,6 +62,7 @@ def upgrade() -> None:
             sa.CheckConstraint("decision IN ('accepte', 'refuse')",
                                name="ck_opus_consents_decision"),
             sa.CheckConstraint("credits_estimes >= 0", name="ck_opus_consents_credits"),
+            sa.CheckConstraint("credits_presentes >= 0", name="ck_opus_consents_presentes"),
         )
         op.create_index("ix_opus_consents_user_id", TABLE, ["user_id"])
         op.create_index("ix_opus_consents_execution_id", TABLE, ["execution_id"])

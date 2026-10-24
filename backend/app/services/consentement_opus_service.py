@@ -192,6 +192,8 @@ def enregistrer_decision(db: Session, user_id: int, execution_id: int,
         model_name=estimation.modele,
         decision=decision,
         credits_estimes=estimation.credits_estimes if decision == DECISION_ACCEPTE else 0,
+        # Reprise R5 : le montant présenté est tracé aussi pour un refus.
+        credits_presentes=estimation.credits_estimes,
         texte_version=estimation.texte_version,
     )
     db.add(ligne)

@@ -142,7 +142,8 @@ def _consentir(db_session, user, execution, decision, credits):
     from app.models.consentement_opus import ConsentementOpus
     db_session.add(ConsentementOpus(user_id=user.id, execution_id=execution.id,
                                     model_name=OPUS, decision=decision,
-                                    credits_estimes=credits, texte_version="test"))
+                                    credits_estimes=credits, credits_presentes=credits,
+                                    texte_version="test"))
     db_session.commit()
 
 
@@ -364,6 +365,7 @@ def test_lancement_accepte_au_bon_montant_trace_le_consentement(
         u.id, "accepte", montant, OPUS)
     assert trace.created_at is not None
     assert trace.texte_version == VERSION_TEXTE
+    assert trace.credits_presentes == montant      # reprise R5
 
 
 def test_lancement_accepte_a_un_montant_perime_est_refuse(client, db_session, socle, pool):
@@ -396,6 +398,11 @@ def test_lancement_refuse_trace_et_annonce_le_repli(client, db_session, socle, p
     db_session.expire_all()
     trace = db_session.query(ConsentementOpus).filter_by(execution_id=eid).one()
     assert trace.decision == "refuse" and trace.user_id == u.id
+    # Reprise R5 : le montant présenté et refusé est tracé ; le plafond, lui,
+    # est nul (rien n'est accepté).
+    estimation = client.get(ESTIMATE_URL).json()["credits_estimes"]
+    assert trace.credits_presentes == estimation > 0
+    assert trace.credits_estimes == 0
     e = db_session.get(Execution, eid)
     assert "opus_repli_sonnet" in [d.get("motif") for d in (e.degraded or [])]
 
