@@ -28,6 +28,10 @@ from app.database import Base
 STATUT_EN_COURS = "en_cours"
 STATUT_PARTIEL = "partiel"
 STATUT_TERMINE = "termine"
+# Reprise 2 apres revue : effacement non rejouable sans intervention humaine
+# (compte introuvable, p. ex. `user_id` mis a NULL). Hors des statuts ouverts :
+# il n'est pas repris en boucle, il est signale.
+STATUT_BLOQUE = "bloque"
 STATUTS_OUVERTS = (STATUT_EN_COURS, STATUT_PARTIEL)
 
 

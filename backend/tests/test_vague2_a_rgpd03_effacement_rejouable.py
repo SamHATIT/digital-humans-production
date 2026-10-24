@@ -301,3 +301,41 @@ def test_suppression_d_un_projet_en_echec_chroma_conserve_le_projet(env):
     db.expire_all()
     assert db.query(Project).filter_by(id=pid).count() == 1
     assert db.query(ProjectDocument).filter_by(project_id=pid).count() == 2
+
+
+# ---------------------------------------------------------------------------
+# Reprises après revue 1 (testeur-A)
+# ---------------------------------------------------------------------------
+
+def test_un_effacement_orphelin_n_arrete_pas_la_reprise_des_autres(env):
+    """Reprise 2 : `reprendre_effacements_en_attente` ne captait que
+    `EffacementIncomplet` ; un effacement dont le compte a disparu
+    (`user_id` NULL par `ondelete=SET NULL`) levait `LookupError` et arrêtait
+    la boucle (sonde C : « statut du second : en_cours »)."""
+    from app.models.effacement_compte import EffacementCompte
+    from app.services import account_service as module_service
+
+    db, a = env["db"], env["a"]
+    orphelin = EffacementCompte(user_id=None, statut="partiel", perimetre={}, etapes={}, erreurs=[], tentatives=1)
+    db.add(orphelin)
+    db.commit()
+    valide = AccountService(db)._ouvrir_effacement(a["user"])
+    assert orphelin.id < valide.id  # l'orphelin passe en premier dans la boucle
+
+    leve, termines = None, None
+    try:
+        termines = module_service.reprendre_effacements_en_attente(db)
+    except Exception as exc:  # noqa: BLE001
+        leve = exc
+    assert leve is None, f"la boucle de reprise s'arrête sur l'orphelin : {leve!r}"
+    assert termines == [valide.id]
+
+    db.expire_all()
+    relu = db.query(EffacementCompte).get(orphelin.id)
+    assert relu.statut == "bloque", relu.statut
+    assert "introuvable" in str(relu.erreurs)
+    assert any(str(orphelin.id) in corps for _, corps, _ in env["alertes"]), env["alertes"]
+    assert db.query(EffacementCompte).get(valide.id).statut == "termine"
+    # Un orphelin bloqué n'est pas repris en boucle à chaque passage.
+    assert module_service.reprendre_effacements_en_attente(db) == []
+

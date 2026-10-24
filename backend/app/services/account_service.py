@@ -54,6 +54,7 @@ from app.models.sds_version import SDSVersion
 from app.models.task_execution import TaskExecution
 from app.models.user import User
 from app.models.effacement_compte import (
+    STATUT_BLOQUE,
     STATUT_EN_COURS,
     STATUT_PARTIEL,
     STATUT_TERMINE,
@@ -285,10 +286,47 @@ class AccountService:
         if effacement.statut == STATUT_TERMINE:
             return self._rapport_deja_termine(effacement, utilisateur)
         if utilisateur is None:
-            raise LookupError(
-                f"Effacement {effacement_id} : compte {effacement.user_id} introuvable"
-            )
+            # Reprise 2 apres revue : levait `LookupError` brut, ce qui
+            # arretait `reprendre_effacements_en_attente`. Echec explicite,
+            # note, alerte ; statut `bloque` (intervention humaine).
+            cause = f"compte {effacement.user_id} introuvable"
+            self._noter_echec(effacement_id, cause, STATUT_BLOQUE)
+            raise EffacementIncomplet(effacement_id, cause)
         return self._executer(effacement, utilisateur)
+
+    def _noter_echec(self, effacement_id: int, cause: str, statut: str) -> None:
+        """Note un echec sur la tache (statut, erreur datee) et alerte."""
+        try:
+            self.db.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        effacement = self.db.query(EffacementCompte).get(effacement_id)
+        effacement.statut = statut
+        effacement.erreurs = list(effacement.erreurs or []) + [
+            {
+                "tentative": effacement.tentatives,
+                "a": datetime.utcnow().isoformat(),
+                "cause": cause[:2000],
+            }
+        ]
+        self.db.commit()
+        logger.error(
+            "RGPD art.17 : effacement %s en echec (%s) : %s", effacement_id, statut, cause
+        )
+        try:
+            from app.services import admin_alert_service
+
+            admin_alert_service.alerter_admin(
+                "Effacement RGPD en echec",
+                (
+                    f"Effacement {effacement_id} (compte {effacement.user_id}) : "
+                    f"statut {statut}.\nCause : {cause}"
+                ),
+                cle_deduplication=f"rgpd_effacement:{effacement_id}:{statut}",
+                categorie="rgpd",
+            )
+        except Exception as e:  # noqa: BLE001 — l'alerte ne masque pas l'echec
+            logger.error("RGPD art.17 : alerte d'echec d'effacement impossible : %s", e)
 
     def purger_hors_base_projet(self, projet: Project) -> Dict[str, Any]:
         """Chroma et fichiers d'UN projet, avant sa suppression par le CRUD.
@@ -835,7 +873,12 @@ class AccountService:
 
 def reprendre_effacements_en_attente(db: Session) -> List[int]:
     """Rejoue chaque effacement `en_cours` ou `partiel`. Rend les identifiants
-    terminés ; un nouvel échec est noté, alerté, et n'arrête pas les autres."""
+    terminés ; un nouvel échec est noté, alerté, et n'arrête pas les autres.
+
+    Reprise 2 après revue : seul `EffacementIncomplet` était capté ; toute
+    autre exception (compte introuvable : `LookupError`) arrêtait la boucle
+    et la commande `--reprendre`. Toute exception est désormais notée sur la
+    tâche concernée, alertée, et la boucle continue."""
     termines: List[int] = []
     ids = [
         ligne[0]
@@ -845,11 +888,16 @@ def reprendre_effacements_en_attente(db: Session) -> List[int]:
         .all()
     ]
     for effacement_id in ids:
+        service = AccountService(db)
         try:
-            AccountService(db).reprendre(effacement_id)
+            service.reprendre(effacement_id)
             termines.append(effacement_id)
         except EffacementIncomplet:
-            continue
+            continue  # déjà noté et alerté par le service
+        except Exception as exc:  # noqa: BLE001 — noté, alerté, on continue
+            service._noter_echec(
+                effacement_id, f"{type(exc).__name__}: {exc}", STATUT_PARTIEL
+            )
     return termines
 
 
