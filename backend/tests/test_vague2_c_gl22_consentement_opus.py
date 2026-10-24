@@ -305,6 +305,12 @@ def _projet(db_session, user):
 
 AGENTS = ["pm", "ba", "architect"]
 
+#: Version du texte de l'écran, lue dans le frontend (reprise R3) : le client
+#: envoie la version qu'il a affichée, le serveur la vérifie et la trace.
+VERSION_TEXTE = __import__("re").search(
+    r"OPUS_CONSENT_TEXT_VERSION = '([^']+)'",
+    (BACKEND.parent / "frontend" / "src" / "lib" / "opusConsent.ts").read_text()).group(1)
+
 
 def test_estimation_annonce_le_cout_en_credits(client, db_session, socle, pool):
     u = _compte(db_session)
@@ -347,7 +353,8 @@ def test_lancement_accepte_au_bon_montant_trace_le_consentement(
 
     r = client.post(EXECUTE_URL, json={
         "project_id": p.id, "selected_agents": AGENTS,
-        "consentement_opus": "accepte", "credits_opus_acceptes": montant})
+        "consentement_opus": "accepte", "credits_opus_acceptes": montant,
+        "texte_version_opus": VERSION_TEXTE})
 
     assert r.status_code == 202, r.text
     eid = r.json()["execution_id"]
@@ -356,7 +363,7 @@ def test_lancement_accepte_au_bon_montant_trace_le_consentement(
     assert (trace.user_id, trace.decision, trace.credits_estimes, trace.model_name) == (
         u.id, "accepte", montant, OPUS)
     assert trace.created_at is not None
-    assert trace.texte_version
+    assert trace.texte_version == VERSION_TEXTE
 
 
 def test_lancement_accepte_a_un_montant_perime_est_refuse(client, db_session, socle, pool):
@@ -366,7 +373,8 @@ def test_lancement_accepte_a_un_montant_perime_est_refuse(client, db_session, so
 
     r = client.post(EXECUTE_URL, json={
         "project_id": p.id, "selected_agents": AGENTS,
-        "consentement_opus": "accepte", "credits_opus_acceptes": 1})
+        "consentement_opus": "accepte", "credits_opus_acceptes": 1,
+        "texte_version_opus": VERSION_TEXTE})
 
     assert r.status_code == 409, r.text
     assert r.json()["detail"]["code"] == "consentement_opus_montant_perime"
@@ -380,7 +388,8 @@ def test_lancement_refuse_trace_et_annonce_le_repli(client, db_session, socle, p
     _authentifier(u)
 
     r = client.post(EXECUTE_URL, json={
-        "project_id": p.id, "selected_agents": AGENTS, "consentement_opus": "refuse"})
+        "project_id": p.id, "selected_agents": AGENTS, "consentement_opus": "refuse",
+        "texte_version_opus": VERSION_TEXTE})
 
     assert r.status_code == 202, r.text
     eid = r.json()["execution_id"]
@@ -480,3 +489,34 @@ def test_controle_negatif_dialogue_sans_opt_in_aucun_avis(
     assert r.status_code == 200, r.text
     assert transport == ["anthropic/claude-sonnet"]
     assert r.json().get("avis_repli") is None
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 5. Reprise R3 (revue 1) : la version du texte lu est envoyée, vérifiée, tracée
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_la_version_du_texte_du_frontend_est_celle_du_serveur():
+    """Le texte de l'écran vit dans le frontend ; sa version doit être celle
+    que le serveur exige. Changer l'un sans l'autre fait échouer ce test."""
+    from app.services.consentement_opus_service import TEXTE_VERSION
+    assert VERSION_TEXTE == TEXTE_VERSION
+
+
+@pytest.mark.parametrize("version", [None, "gl22-v0-ancien"], ids=["absente", "autre"])
+def test_une_decision_sans_la_version_du_texte_affiche_est_refusee(
+        client, db_session, socle, pool, version):
+    u = _compte(db_session)
+    p = _projet(db_session, u)
+    _authentifier(u)
+    montant = client.get(ESTIMATE_URL).json()["credits_estimes"]
+    corps = {"project_id": p.id, "selected_agents": AGENTS,
+             "consentement_opus": "accepte", "credits_opus_acceptes": montant}
+    if version is not None:
+        corps["texte_version_opus"] = version
+
+    r = client.post(EXECUTE_URL, json=corps)
+
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "consentement_opus_texte_perime"
+    assert db_session.query(Execution).filter_by(project_id=p.id).count() == 0

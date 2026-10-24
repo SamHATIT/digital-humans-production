@@ -69,6 +69,9 @@ export function buildStartBody(
   const body: Record<string, unknown> = { project_id: projectId, selected_agents: selectedAgents };
   if (!choice) return body;
   body.consentement_opus = choice.decision;
+  // Reprise R3 : la version du texte affiché part avec la décision ; le
+  // serveur la vérifie (409 consentement_opus_texte_perime) et la trace.
+  body.texte_version_opus = OPUS_CONSENT_TEXT_VERSION;
   if (choice.decision === 'accepte') body.credits_opus_acceptes = choice.estimation.credits_estimes;
   return body;
 }

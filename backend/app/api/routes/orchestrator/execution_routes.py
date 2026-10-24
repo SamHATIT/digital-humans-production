@@ -115,6 +115,21 @@ async def start_execution(
                     "estimation": estimation_opus.as_dict(),
                 },
             )
+        if execution_data.texte_version_opus != estimation_opus.texte_version:
+            # Reprise R3 : la trace dit ce que l'utilisateur a lu. Une version
+            # absente ou differente de celle du serveur n'est pas tracable.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "consentement_opus_texte_perime",
+                    "error": "consentement_opus_texte_perime",
+                    "message": (
+                        "Le texte de l'écran de consentement affiché n'est pas "
+                        "la version en vigueur : rechargez la page."
+                    ),
+                    "estimation": estimation_opus.as_dict(),
+                },
+            )
         if (decision_opus == "accepte"
                 and execution_data.credits_opus_acceptes != estimation_opus.credits_estimes):
             raise HTTPException(

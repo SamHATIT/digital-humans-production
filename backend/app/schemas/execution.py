@@ -17,6 +17,9 @@ class ExecutionCreate(BaseModel):
     # le montant affiche (sinon 409 : l'estimation a change).
     consentement_opus: Optional[Literal["accepte", "refuse"]] = None
     credits_opus_acceptes: Optional[int] = Field(None, ge=0)
+    # Reprise R3 : version du texte de l'ecran que le client a affiche ; le
+    # serveur refuse (409) une autre version que la sienne, et la trace.
+    texte_version_opus: Optional[str] = Field(None, max_length=32)
 
 
 class ExecutionUpdate(BaseModel):

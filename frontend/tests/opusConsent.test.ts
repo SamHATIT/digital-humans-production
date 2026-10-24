@@ -51,17 +51,19 @@ test('contrôle négatif : un autre refus n’est pas un consentement à demande
   assert.equal(readOpusConsentRequest(new Error('x')), null);
 });
 
-test('accepter envoie le montant affiché, refuser n’en envoie aucun', () => {
+test('accepter envoie le montant affiché, refuser n’en envoie aucun ; les deux envoient la version du texte', () => {
   assert.deepEqual(buildStartBody(4, ['pm', 'architect'], { decision: 'accepte', estimation }), {
     project_id: 4,
     selected_agents: ['pm', 'architect'],
     consentement_opus: 'accepte',
     credits_opus_acceptes: 6720,
+    texte_version_opus: OPUS_CONSENT_TEXT_VERSION,
   });
   assert.deepEqual(buildStartBody(4, ['pm'], { decision: 'refuse', estimation }), {
     project_id: 4,
     selected_agents: ['pm'],
     consentement_opus: 'refuse',
+    texte_version_opus: OPUS_CONSENT_TEXT_VERSION,
   });
   assert.deepEqual(buildStartBody(4, ['pm']), { project_id: 4, selected_agents: ['pm'] });
 });
@@ -76,8 +78,10 @@ test('le texte de l’écran dit le coût, le modèle de repli et la portée, en
   assert.match(en.body, /6,720 credits/);
   assert.match(en.body, /this run/);
   assert.match(en.refuse, /Sonnet/);
-  // La version affichée est celle que le backend trace.
-  assert.equal(OPUS_CONSENT_TEXT_VERSION, estimation.texte_version);
+  // Reprise R3 : la version envoyée avec la décision (test précédent) est
+  // vérifiée et tracée par le serveur ; l'égalité avec la constante du
+  // serveur est testée côté backend (test_la_version_du_texte_du_frontend_
+  // est_celle_du_serveur), pas ici contre un littéral.
 });
 
 test('le repli annoncé sur l’exécution est lu depuis `degraded`, et seulement lui', async () => {
