@@ -21,7 +21,8 @@ nohup bash -c 'set -a; . /root/.dh_test_db.env; set +a; export DH_ENV_FILE=$PWD/
 |---|---|---|---|
 | Avant | `388299a` | `impl-A-avant.log` (`DH_TEST_RUN_ID=impla_avant`) | `31 failed, 1052 passed, 2 skipped, 7 xfailed, 1462 warnings in 727.72s (0:12:07)` |
 | Après 1 | `98598b1` | `impl-A-apres.log` (`DH_TEST_RUN_ID=impla_apres`) | `32 failed, 1080 passed, 2 skipped, 7 xfailed, 1617 warnings in 686.89s (0:11:26)` |
-| Après 2 (final) | `63f4715` | `impl-A-apres2.log` (`DH_TEST_RUN_ID=impla_apres2`) | `31 failed, 1081 passed, 2 skipped, 7 xfailed, 1619 warnings in 735.14s (0:12:15)` |
+| Après 2 (remise initiale) | `63f4715` | `impl-A-apres2.log` (`DH_TEST_RUN_ID=impla_apres2`) | `31 failed, 1081 passed, 2 skipped, 7 xfailed, 1619 warnings in 735.14s (0:12:15)` |
+| Après reprises (final) | `426b2fe` | `impl-A-apres3.log` (`DH_TEST_RUN_ID=impla_apres3`) | `31 failed, 1085 passed, 2 skipped, 7 xfailed, 1635 warnings in 686.04s (0:11:26)` — voir §8 |
 
 Avant : identique à la référence de l'orchestrateur (31 / 1052 / 2 / 7). Répartition des 31 échecs, mesurée (`grep "^FAILED" | sed 's/::.*//' | sort | uniq -c`) : 27 `test_lot_c_injection_commandes.py`, 3 `test_auth.py`, 1 `test_emma_phase3.py`.
 
@@ -53,7 +54,7 @@ Précision mesurée : la recherche **du projet de B** ne sortait pas le fragment
 **Correctif** (`7375a2d`, `app/services/rag_service.py`, `app/services/rag_visibilite.py`) :
 - métadonnée `visibility` = `public` | `private` sur chaque chunk ; `filtre_visibilite(project_id)` : sans projet → `{"visibility": "public"}` ; avec projet → `public` OU (`private` ET ce `project_id`). Le filtre n'est plus jamais `None` ;
 - `ingest_document` refuse (`ValueError`) toute ingestion sans `project_id` **et** `document_id` et marque ses chunks `private` (la métadonnée de l'appelant ne peut pas l'écraser) ;
-- un chunk sans `visibility` n'est servi à personne ; une collection qui en contient lève `CollectionNonClassee`, traitée par le chemin GL-10 existant (`signaler_rag_indisponible` : alerte admin + exécution `degraded`). Vérification par collection une fois par processus (cache clé = nom + id Chroma), re-vérification au plus toutes les 5 min si non classée ;
+- un chunk sans `visibility` n'est servi à personne ; une collection qui en contient lève `CollectionNonClassee`, traitée par le chemin GL-10 existant (`signaler_rag_indisponible` : alerte admin + exécution `degraded`). ~~Vérification par collection une fois par processus~~ — **corrigé après revue (reprise 1, `8ce1fdd`)** : le verdict « classée » était gardé pour toute la vie du processus, et un chunk non classé ajouté ensuite était exclu **sans signalement**. Le verdict (positif ou négatif) n'est désormais gardé que tant que `count()` est inchangé et au plus 5 min (cache clé = nom + id Chroma) ;
 - `python -m app.services.rag_visibilite` : classement des chunks existants, **à blanc par défaut** ; privé si `project_id`/`document_id` ou id `proj<P>_doc<D>_<i>` ; **public seulement avec `--public-sans-projet`** (Astra : « backfill prudent »).
 
 **Preuve après correctif :** `impl-A-sec04-vert.log` → `8 passed` ; voisins (a5, gl10, b4, lot_b, b6, a6, lot_e) → `78 passed, 1 xfailed` (`impl-A-sec04-voisins2.log`). Contrôle négatif dans le test principal : la recherche du projet de A rend bien son fragment.
@@ -96,7 +97,7 @@ AssertionError: upsert de 638 chunks d'un coup
 
 Parseur PDF, vérifié par exécution : `fitz` (PyMuPDF), seul parseur essayé, est absent **du venv de production** (`/root/workspace/digital-humans-production/backend/venv/bin/python -c "import fitz"` → `ModuleNotFoundError: No module named 'fitz'` ; ce venv est celui de `ExecStart` dans `systemctl cat digital-humans-backend`) et du venv de test. En production, tout PDF téléversé est donc lu comme texte brut et ingéré. `PyPDF2 3.0.1` est présent dans les deux (`prod PyPDF2 3.0.1`) et déclaré dans `requirements.txt`.
 
-**Instrument de mesure** (dans `tests/test_vague2_a_prod09_upload_borne.py`) : appel ASGI direct ; `octets_lus_par_l_application` compte les octets rendus par `Request.stream()`, seule voie par laquelle FastAPI ou la route lisent le corps ; pic de `tracemalloc` pendant la requête. Écart d'instrument constaté et corrigé en cours de route : un premier compteur au niveau du `receive` brut donnait le corps entier même après correctif — `BaseHTTPMiddleware` (Starlette 0.27, trois middlewares dans `app.main`) appelle `receive` pour écouter la déconnexion pendant qu'il transmet la réponse et vide le reste du corps sans le conserver. Ce compteur est conservé en information (`octets_recus_avant_reponse`) et n'est pas asserté.
+**Instrument de mesure** (dans `tests/test_vague2_a_prod09_upload_borne.py`) : appel ASGI direct ; `octets_lus_par_l_application` compte les octets rendus par `Request.stream()`, seule voie par laquelle FastAPI ou la route lisent le corps ; pic de `tracemalloc` pendant la requête. Écart d'instrument constaté et corrigé en cours de route : un premier compteur au niveau du `receive` brut donnait le corps entier même après correctif — `BaseHTTPMiddleware` (Starlette 0.27, trois middlewares dans `app.main`) appelle `receive` pour écouter la déconnexion et vide le reste du corps sans le conserver. (Affirmation initiale « pendant qu'il transmet la réponse » : non prouvée par la sonde ASGI, dont le `receive` ne bloque jamais. Mesurée ensuite sous un vrai uvicorn, voir « Reprises après revue 1 » : la réponse 413 arrive **avant** tout octet de corps, puis le serveur lit et jette le corps entier ; mémoire plate.) Ce compteur est conservé en information (`octets_recus_avant_reponse`) et n'est pas asserté.
 
 **Correctif** (`8511943`, `app/api/routes/documents.py`, `app/services/rag_service.py`) :
 - la route ne déclare plus `UploadFile = File(...)` (qui faisait analyser tout le corps avant l'appel) ; elle lit le corps elle-même, après authentification, porte `upload_documents`, propriété du projet, collection et quota : `Content-Length` > 20 Mio + 64 Kio → **413 sans lire un octet** ; sans `Content-Length`, la lecture s'arrête au plafond ; la taille exacte du fichier est revérifiée ; le fichier est copié sur disque par morceaux (jamais chargé entier) ;
@@ -155,9 +156,9 @@ Appelants (lu, non exécuté) : aucun appel à `DELETE /api/account` trouvé dan
 ## 3. Reste ouvert / pas fait
 
 ### Reste ouvert (reliquat, non traité faute de temps ou hors périmètre mesurable ici)
-- **Coût de la vérification de classement à l'échelle de la production** (`_verifier_classement`) : un `count()` + un `get(where=visibility ∈ {public, private}, include=[])` par collection, une fois par processus. Mesuré seulement sur des collections de test ; sur `technical_collection` (39 895 chunks) le coût n'est **pas mesuré** (je suppose de l'ordre de la seconde, sans preuve).
+- **Coût de la vérification de classement à l'échelle de la production** (`_verifier_classement`) : un `count()` + un `get(where=visibility ∈ {public, private}, include=[])` par collection, puis un `count()` par requête depuis la reprise 1, et une re-vérification complète à chaque changement du nombre de chunks ou toutes les 5 min. Mesuré seulement sur des collections de test ; sur `technical_collection` (39 895 chunks) le coût n'est **pas mesuré** (je suppose de l'ordre de la seconde, sans preuve).
 - Ordre dans `query_collection` : la vérification de classement est faite **après** le calcul de l'embedding de la requête (pour que la cause d'une panne d'embedding — 429 — reste celle rapportée, test GL-10 existant). Conséquence : tant que le corpus n'est pas classé, chaque requête paie encore un embedding OpenAI avant d'être refusée.
-- **Ingestions externes au dépôt** : le corpus public est ingéré par des scripts de `/opt/digital-humans/rag/` (`ingest_all_docs.py`, `complete_ingestion.py`, … — listés, non lus). Ils ne posent pas `visibility`. Toute ingestion future par ces scripts créerait des chunks non classés → collection signalée en panne (bruyant, pas silencieux). À adapter (`visibility: "public"`) hors de ce dépôt.
+- **Ingestions externes au dépôt** : le corpus public est ingéré par des scripts de `/opt/digital-humans/rag/` (`ingest_all_docs.py`, `complete_ingestion.py`, … — listés, non lus). Ils ne posent pas `visibility`. Toute ingestion future par ces scripts créerait des chunks non classés. ~~« collection signalée en panne (bruyant, pas silencieux) »~~ : **c'était faux** à la remise initiale (revue 1, sonde E : exclusion silencieuse tant que le processus vivait). Depuis `8ce1fdd`, l'ajout est détecté à la requête suivante (changement de `count()`) et la collection est signalée en panne ; une métadonnée modifiée en place, à compte constant, l'est au plus tard 5 min après. À adapter (`visibility: "public"`) hors de ce dépôt.
 - `china_collection` (25 chunks) existe dans le Chroma de production mais pas dans `rag_service.COLLECTIONS` : jamais interrogée, non classée par l'outil.
 - **Limite de temps** d'extraction/ingestion (Astra PROD-09) : non faite. L'ingestion reste synchrone dans la requête, un appel d'embedding par chunk (jusqu'à ~2 500 pour un texte à la borne). L'API OpenAI accepte des lots d'entrées ; ne pas l'avoir branché est un choix de périmètre (toucher `get_openai_embedding`, fonction aussi utilisée par les requêtes).
 - Un PDF à flux compressés peut produire beaucoup de texte sur une page avant que la borne de caractères ne coupe (`extract_text` page par page) ; borné par 500 pages et 2 M caractères cumulés, pas par page.
@@ -185,7 +186,7 @@ Appelants (lu, non exécuté) : aucun appel à `DELETE /api/account` trouvé dan
 8511943 fix(PROD-09) : upload borne avant lecture du corps, nom disque genere, parseur absent refuse, ingestion bornee par lots
 7375a2d fix(SEC-04) : le RAG global ne rend plus les documents prives, visibilite explicite par chunk
 ```
-(+ le commit de ce rapport, `git log --oneline origin/claude/vague-c-20260906..HEAD` le montre en tête.)
+(+ le commit du rapport `d5a7567`, la revue `d28b8d1` du testeur, puis les commits de reprise listés en §8.)
 
 ## 6. Fichiers touchés hors des zones propres, et fichiers en recouvrement
 
@@ -228,3 +229,66 @@ et, côté A, `MAX_FILE_SIZE = settings.MAX_FILE_SIZE` dans `documents.py` (je n
 - Scripts d'édition et copies de sauvegarde écrits sous `/root/.dh_orch_vague2/impl-A-patches/` (au-delà des seuls journaux).
 - `documents.py` et `account_service.py` : blocs entiers réécrits (fonctions extraites). Inévitable pour ces correctifs, mais ce sont de futurs conflits si une autre file y touche.
 - Messages de commit sans accents (ASCII), en français.
+
+---
+
+## 8. Reprises après revue 1
+
+Revue : `docs/missions/REVUE_VAGUE2_A.md` (`d28b8d1`, verdict « À REPRENDRE »). Commits de reprise, tous faits avec `git -c core.hooksPath=/dev/null commit` :
+
+```
+426b2fe test(PROD-09, reprise 4) : le garde lot_c detecte un nom disque derive du nom client, quel que soit le nom de variable
+f933d01 fix(RGPD-03, reprise 3) : suppression d'un document sans collection devinee
+63d2b03 fix(RGPD-03, reprise 2) : un effacement orphelin n'arrete plus la reprise des autres
+8ce1fdd fix(SEC-04, reprise 1) : le verdict de classement d'une collection est re-verifie, plus garde a vie
+```
+
+| Reprise | Commit | Rouge (avant) | Vert (après) |
+|---|---|---|---|
+| 1 (bloquante) — verdict « classée » gardé à vie, exclusion silencieuse d'un chunk ajouté ensuite | `8ce1fdd` | `impl-A-r1-rouge.log` : `2 failed` — `chunk non classé ajouté après vérification exclu en silence : docs2=['DOC-PUBLIQUE-SEC04-ed21f0 — documentation Salesforce (technical)']` (reproduit la sonde E) ; `valeur de visibilité inconnue non signalée` | `impl-A-r1-vert.log` : sec04 + gl10 + a5 → `24 passed` |
+| 2 — `LookupError` d'un effacement orphelin arrêtait la boucle de reprise | `63d2b03` | `impl-A-r23-rouge.log` : `la boucle de reprise s'arrête sur l'orphelin : LookupError('Effacement 1 : compte None introuvable')` | `impl-A-r23-vert.log` : rgpd03 + b4 + prod09 + lot_b → `43 passed, 1 xfailed` (mesuré avec la reprise 3 dans l'arbre ; la version commitée de 63d2b03 seule n'a pas été rejouée isolément) |
+| 3 — collection devinée `technical` à la suppression d'un document | `f933d01` | `impl-A-r23-rouge.log` : `chunks orphelins après suppression d'un document sans collection : ['proj1_doc4_0']` | `impl-A-r23-vert.log` (même mesure) |
+| 4 — assertion lot_c devenue vide | `426b2fe` | `impl-A-r4.log` : défaut réintroduit (`file_path = project_dir / fichier.filename`) → ancienne assertion `True` (ne détecte rien), nouveau garde `1 failed` ; idem avec `safe_filename` | même journal : code actuel `1 passed` ; `documents.py` restauré à l'identique (`cmp`) |
+
+Détail des correctifs :
+1. `_verifier_classement` : un verdict n'est valable que si `collection.count()` n'a pas changé **et** depuis moins de `DELAI_REVERIFICATION_CLASSEMENT_S` (300 s). Coût ajouté : un `count()` par requête RAG. Limite restante, dite : une métadonnée modifiée en place sans changer le compte n'est vue qu'au plus 300 s plus tard (le test la couvre avec un délai ramené à 0).
+2. Statut `bloque` (hors statuts ouverts) : compte introuvable → erreur datée, alerte, `EffacementIncomplet` ; la boucle note et alerte **toute** autre exception (statut `partiel`) et continue. Le second passage ne reprend pas l'orphelin. Pas de migration : `statut` est un `String(20)`.
+3. `rag_service.delete_document_chunks_partout(document_id)` : purge dans les cinq collections, utilisé par `DELETE /projects/{p}/documents/{d}` et par `AccountService._purger_chroma`. La collection du périmètre d'effacement n'est plus qu'une information (plus de `or "technical"`).
+4. Motif `file_path\s*=\s*project_dir\s*/\s*[\w.]*filename\b` doit être absent, quel que soit le nom de variable.
+
+### Point non vérifié par la revue : vidage du corps sous un vrai uvicorn — **mesuré**
+
+Script `impl-A-patches/mesure_uvicorn.py`, journal `impl-A-uvicorn2.log` (premier passage sans mesure mémoire : `impl-A-uvicorn.log`). Base jetable `digital_humans_test_impla_uvicorn` dérivée du gabarit de test, détruite à la fin ; `uvicorn app.main:app --host 127.0.0.1 --port <port libre> --lifespan off` lancé sous `env -i` (aucune variable héritée hors du gabarit de test et de `.env.test`), répertoires sous `/tmp/impla-uvicorn-*`. Le client envoie les en-têtes avec `Content-Length`, **aucun octet de corps**, attend la réponse, puis tente d'envoyer tout le corps.
+
+```
+uvicorn pret sur 127.0.0.1:43437 (--lifespan off)
+memoire uvicorn avant : {'VmHWM': '188584 kB', 'VmRSS': '188584 kB'}
+[25 Mio] corps annonce=26214400 octets_de_corps_envoyes_avant_reponse=0 reponse='HTTP/1.1 413 Request Entity Too Large' delai=0.38s
+[25 Mio] apres reponse : 26214400 octets acceptes sur 26214400 -> complet
+memoire uvicorn apres 25 Mio : {'VmHWM': '200320 kB', 'VmRSS': '200320 kB'}
+[200 Mio] corps annonce=209715200 octets_de_corps_envoyes_avant_reponse=0 reponse='HTTP/1.1 413 Request Entity Too Large' delai=0.02s
+[200 Mio] apres reponse : 209715200 octets acceptes sur 209715200 -> complet
+memoire uvicorn apres 200 Mio : {'VmHWM': '201656 kB', 'VmRSS': '201656 kB'}
+base jetable detruite : digital_humans_test_impla_uvicorn
+EXIT=0
+```
+
+Lecture : sous uvicorn, le 413 part **avant tout octet de corps** ; **ensuite**, le serveur lit et jette le corps entier (25 Mio et 200 Mio acceptés). Mémoire du processus : +11,7 Mo à la première requête (je suppose des imports et connexions paresseux, non isolés), +1,3 Mo pour 200 Mio. Je n'ai pas isolé qui vide le corps (uvicorn ou `BaseHTTPMiddleware`). **Reste ouvert** : la bande passante d'un corps refusé est consommée après la réponse ; répondre avec `Connection: close` couperait ce vidage (non fait, non mesuré). Par le domaine public, nginx (`client_max_body_size 10M`, lu) refuse avant.
+
+Remarque de la revue sur le pic mémoire : « 0,7 Mo » est une valeur parmi d'autres ; le testeur a mesuré 126 408 octets pour le même test. La borne assertée (< 2 Mio) et le compteur `Request.stream()` = 0 portent la preuve, pas la valeur du pic.
+
+### Suite complète après reprises
+
+Commit `426b2fe`, journal `impl-A-apres3.log` (`DH_TEST_RUN_ID=impla_apres3`) :
+
+```
+31 failed, 1085 passed, 2 skipped, 7 xfailed, 1635 warnings in 686.04s (0:11:26)
+PYTEST_EXIT=1
+$ diff impl-A-avant-failed.txt impl-A-apres3-failed.txt && echo "MEMES 31 ECHECS QU'AVANT"
+MEMES 31 ECHECS QU'AVANT
+```
+
++4 passés par rapport à « Après 2 » (1081 → 1085) : les 4 tests ajoutés par les reprises 1 à 3 (2 SEC-04, 2 RGPD-03) ; la reprise 4 modifie un test existant. Mêmes 31 échecs que la référence.
+
+Hook `post-commit` (`core.hooksPath=tools/git-hooks`) : mes cinq commits de la remise initiale ont été faits **sans** `-c core.hooksPath=/dev/null` — je ne connaissais pas ce hook. Il s'est donc exécuté, mais il ne déploie que si le commit touche `docs/refonte/{sections,templates,sources}/`, `backend/config/{llm_routing,agents_registry}.yaml`, `tools/lib/collect.py` ou `tools/build_docs.py`. Vérifié : `git diff-tree --no-commit-id --name-only -r <commit>` filtré sur ces motifs ne rend aucune ligne pour `7375a2d 8511943 98598b1 63f4715 d5a7567`, et `/tmp/dh_post_commit_build.log` ne contient aucune de ces empreintes. Aucun déploiement n'a donc eu lieu (lu dans le hook + `grep`, pas de contrôle de `/var/www`). Les commits de reprise et celui-ci sont faits avec `-c core.hooksPath=/dev/null`.
+
