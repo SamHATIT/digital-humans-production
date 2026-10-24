@@ -216,3 +216,6 @@ from app.models.stripe_state import StripeEvent, StripeSubscription  # noqa: F40
 # BILL-09 (vague 1 / file B) : budget operationnel du concierge public,
 # sans donnee personnelle, hors de portee de l effacement RGPD.
 from app.models.concierge_budget import ConciergeBudgetJour  # noqa: F401
+
+# GL-22 (vague 2 / file C) : trace du consentement Opus par exécution.
+from app.models.consentement_opus import ConsentementOpus  # noqa: F401

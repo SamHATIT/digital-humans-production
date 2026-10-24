@@ -154,6 +154,7 @@ class LLMResponse:
     cache_read_input_tokens: int = 0                # Phase 3.5 : tokens cache HIT (90% off)
     cache_creation_input_tokens: int = 0           # Phase 3.5 : tokens cache WRITE (+25%, first call)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    avis_repli: Optional[str] = None                # GL-22 : repli annonce (modele a opt-in non consenti)
 
 
 _CACHE_ELIGIBLE_AGENTS = frozenset({"marcus", "architect", "solution_architect"})
@@ -1105,6 +1106,11 @@ class LLMRouterService:
         self._verifier_proprietaire_credits(request)
 
         provider_str = self._select_provider(request)
+        # GL-22 : un modele a opt-in (Opus) ne part que sur consentement
+        # accepte pour CETTE execution et dans le montant accepte ; sinon
+        # repli annonce sur le modele declare par le profil.
+        provider_str, opt_in, avis_repli = self._appliquer_consentement_opus(
+            request, provider_str)
         logger.info(
             "LLM Request: agent=%s, profile=%s, provider=%s",
             request.agent_type, self.profile, provider_str,
@@ -1113,7 +1119,7 @@ class LLMRouterService:
         # BILL-01 : RESERVATION avant reseau. Les credits estimes sont retenus
         # sous verrou de la ligne de solde ; deux appels concurrents ne peuvent
         # plus passer sur le meme disponible. Leve si le quota est atteint.
-        reservation = self._credit_reserve(request, provider_str)
+        reservation = self._credit_reserve(request, provider_str, opt_in=opt_in)
 
         response = await self._call_provider(request, provider_str)
 
@@ -1149,8 +1155,71 @@ class LLMRouterService:
         else:
             self._credit_release(reservation, response.error or "appel en echec")
 
+        response.avis_repli = avis_repli
         self._track_usage(request, response)
         return response
+
+    # ------------------------------------------------------------------
+    # GL-22 — consentement Opus
+    # ------------------------------------------------------------------
+
+    def _appliquer_consentement_opus(self, request: LLMRequest, provider_str: str):
+        """Rend (fournisseur, opt_in, avis_repli).
+
+        - modele sans opt-in, ou sans tarif (la reservation le refusera,
+          explicitement) : inchange ;
+        - opt-in ET consentement accepte pour cette execution, dans le montant
+          accepte : inchange, ``opt_in=True`` transmis a la reservation ;
+        - sinon : fournisseur ``repli_sans_consentement`` du profil, et le
+          repli est ANNONCE (marque ``degraded`` sur l'execution, journal,
+          ``avis_repli`` sur la reponse). Sans repli declare : refus.
+        """
+        if request.sans_compte:
+            return provider_str, False, None
+        from app.database import SessionLocal
+        from app.services.credit_service import CreditService, UnknownModelError
+        from app.services import consentement_opus_service as consentement
+
+        model_id = self._get_model_id(provider_str)
+        db = SessionLocal()
+        try:
+            try:
+                tarif = CreditService(db)._resolve_pricing(model_id)
+            except UnknownModelError:
+                return provider_str, False, None
+            if not tarif.requires_opt_in:
+                return provider_str, False, None
+
+            estimation = consentement.credits_estimes_appel(
+                tarif, request.max_tokens,
+                len(request.prompt or "") + len(request.system_prompt or ""))
+            autorise, code, motif = consentement.verifier_pour_appel(
+                db, request.user_id, request.execution_id, tarif.model_name, estimation)
+            if autorise:
+                logger.info(
+                    "[CONSENTEMENT-OPUS] %s servi pour execution=%s (estimation %s credits)",
+                    tarif.model_name, request.execution_id, estimation)
+                return provider_str, True, None
+
+            repli = consentement.fournisseur_repli(self, provider_str)
+            if not repli:
+                raise consentement.ConsentementOpusConfigError(
+                    f"{tarif.model_name} exige un opt-in, non donne ({motif}), et le "
+                    f"profil '{self.profile}' ne declare aucun repli_sans_consentement "
+                    f"pour '{provider_str}' : appel refuse plutot que servi sans accord.")
+            modele_repli = self._get_model_id(repli)
+            avis = (f"{tarif.model_name} non servi ({motif}) : "
+                    f"{request.agent_type or 'agent'} est servi par {modele_repli}.")
+            logger.warning("[CONSENTEMENT-OPUS] repli annonce — execution=%s user=%s : %s",
+                           request.execution_id, request.user_id, avis)
+            if request.execution_id:
+                consentement.annoncer_repli(db, request.execution_id, (
+                    f"{tarif.model_name} non servi ({code}) : Marcus et les agents "
+                    f"concernes sont servis par {modele_repli}."))
+                db.commit()
+            return repli, False, avis
+        finally:
+            db.close()
 
     # ------------------------------------------------------------------
     # Phase 3.1 — Credit hooks
@@ -1186,7 +1255,7 @@ class LLMRouterService:
                 "passer sans_compte=True pour le chemin public sans compte."
             )
 
-    def _credit_reserve(self, request: LLMRequest, provider_str: str):
+    def _credit_reserve(self, request: LLMRequest, provider_str: str, opt_in: bool = False):
         """
         BILL-01 — retient les credits AVANT l'appel reseau et rend la ligne de
         reservation (ou None pour le chemin public sans compte).
@@ -1219,6 +1288,7 @@ class LLMRouterService:
                 max_tokens=request.max_tokens,
                 execution_id=request.execution_id,
                 project_id=request.project_id,
+                opt_in=opt_in,
             )
         finally:
             db.close()
@@ -1429,6 +1499,7 @@ def _response_to_dict(response: LLMResponse) -> Dict[str, Any]:
         "error": response.error,
         "stop_reason": response.stop_reason,
         "continuations": response.continuations,
+        "avis_repli": getattr(response, "avis_repli", None),
     }
 
 
