@@ -33,6 +33,8 @@ interface Turn {
   // l'historique : sans lui, la réponse de Sophie était attribuée à Olivia.
   agent_id?: string;
   agent_name?: string;
+  // GL-22 : repli annoncé par le serveur (Opus non servi hors exécution).
+  notice?: string;
 }
 
 const MD_CLASSES = {
@@ -94,6 +96,7 @@ export default function StudioChatPage() {
           content: data.response,
           agent_id: data.agent_id ?? agentId,
           agent_name: data.agent_name,
+          notice: data.avis_repli ?? undefined,
         },
       ]);
     } catch (err) {
@@ -185,6 +188,14 @@ export default function StudioChatPage() {
                   <p className="font-serif text-[14px] leading-relaxed whitespace-pre-wrap break-words">
                     {renderInlineMarkdown(turn.content, MD_CLASSES)}
                   </p>
+                  {turn.notice && (
+                    <p
+                      data-testid="opus-fallback-notice"
+                      className="mt-2 font-mono text-[10px] text-warning"
+                    >
+                      {turn.notice}
+                    </p>
+                  )}
                 </div>
               </div>
             ))

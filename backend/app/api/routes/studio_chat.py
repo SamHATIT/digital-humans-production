@@ -93,6 +93,9 @@ class StudioChatResponse(BaseModel):
     # « session » : rien n'est conserve au-dela de cet echange. Dit
     # explicitement pour que l'interface n'ait pas a le deviner.
     memory: Literal["session"] = "session"
+    # GL-22 : un modele a opt-in (Opus) n'est jamais servi hors execution ;
+    # le repli est dit au client, pas tu.
+    avis_repli: Optional[str] = None
 
 
 #: Etiquette d'un tour « assistant » dont l'auteur n'est pas connu (ancien
@@ -207,6 +210,7 @@ def chat_sans_projet(
         response=contenu,
         tokens_used=reponse.get("tokens_used", 0) or 0,
         tier=tier.value,
+        avis_repli=reponse.get("avis_repli"),
     )
 
 

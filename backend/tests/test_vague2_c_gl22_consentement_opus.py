@@ -445,3 +445,38 @@ def test_migration_023c_pose_l_opt_in_sur_opus_et_se_defait(db_session):
             m.downgrade()
     db_session.expire_all()
     assert db_session.get(ModelPricing, OPUS).requires_opt_in is False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# 4. Hors exécution (dialogue Studio) : le repli est dit au client
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_dialogue_studio_avec_marcus_pro_repli_sonnet_dit_au_client(
+        client, db_session, socle, transport):
+    """Marcus Pro est routé sur Opus (agents_keep_orchestrator) ; hors
+    exécution, aucun consentement n'est possible : Sonnet, et la réponse le
+    dit (`avis_repli`) au lieu de le taire."""
+    u = _compte(db_session)
+    _authentifier(u)
+
+    r = client.post("/api/studio/chat", json={"message": "Bonjour Marcus, ton rôle ?",
+                                               "agent_id": "marcus"})
+
+    assert r.status_code == 200, r.text
+    assert transport == ["anthropic/claude-sonnet"]
+    avis = r.json().get("avis_repli")
+    assert avis and SONNET in avis and OPUS in avis, r.json()
+
+
+def test_controle_negatif_dialogue_sans_opt_in_aucun_avis(
+        client, db_session, socle, transport):
+    u = _compte(db_session)
+    _authentifier(u)
+
+    r = client.post("/api/studio/chat", json={"message": "Bonjour Sophie, ton rôle ?",
+                                               "agent_id": "sophie"})
+
+    assert r.status_code == 200, r.text
+    assert transport == ["anthropic/claude-sonnet"]
+    assert r.json().get("avis_repli") is None
