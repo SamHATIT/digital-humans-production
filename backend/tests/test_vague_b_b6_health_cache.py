@@ -176,33 +176,41 @@ def test_get_cached_rag_health_ne_recompte_pas_au_second_appel(monkeypatch):
 def test_deux_appels_http_health_consecutifs_ne_declenchent_pas_de_second_comptage(
     monkeypatch, sondes_db_redis_rapides
 ):
-    """Le demarrage compte une fois (A6, reutilisee comme cache) ; deux `/health` n'ajoutent rien."""
-    appels = _espionner_rag_health_check(monkeypatch, chunks=5)
+    """Le demarrage compte une fois ; deux `/health` n'ajoutent rien."""
+    # VAGUE 2 / FILE B (OPS-01) — reecrit : le comptage de demarrage ne tourne
+    # plus dans le processus de l'API (chromadb 1.3.4 garde le GIL, la boucle
+    # etait immobilisee malgre `asyncio.to_thread` ; le faux `time.sleep` de ce
+    # fichier relachait le GIL et ne pouvait pas le voir). Le meme critere est
+    # mesure sur le mecanisme reel : `sonde_rag`, enfant remplace par un
+    # programme qui dort puis imprime un resultat.
+    from app.services import sonde_rag
+    from tests.test_vague2_b_ops01_sonde_rag import RESULTAT_OK, _enfant
+
+    sonde = sonde_rag.SondeRAG(commande=_enfant(RESULTAT_OK))
+    lancements = {"n": 0}
+    lancer_reel = sonde.lancer
+
+    def lancer_compte():
+        lance = lancer_reel()
+        lancements["n"] += int(lance)
+        return lance
+
+    monkeypatch.setattr(sonde, "lancer", lancer_compte)
+    monkeypatch.setattr(sonde_rag, "sonde", sonde)
 
     with TestClient(app) as http:
-        assert _attendre_tache_rag(), "la sonde de demarrage ne s'est jamais terminee"
-        apres_demarrage = appels["n"]
-
+        assert sonde.attendre(15.0), "la sonde de demarrage ne s'est jamais terminee"
+        apres_demarrage = lancements["n"]
         r1 = http.get("/health")
-        apres_premier_appel = appels["n"]
-
+        apres_premier_appel = lancements["n"]
         r2 = http.get("/health")
-        apres_second_appel = appels["n"]
+        apres_second_appel = lancements["n"]
 
     assert r1.status_code == 200, r1.text
     assert r2.status_code == 200, r2.text
-    assert apres_demarrage == 1, (
-        f"le demarrage a compte {apres_demarrage} fois : la sonde de "
-        f"demarrage (A6) devrait rester un comptage unique"
-    )
-    assert apres_premier_appel == apres_demarrage, (
-        "le premier GET /health a declenche un comptage alors que le cache "
-        "venait d'etre peuple par le demarrage"
-    )
-    assert apres_second_appel == apres_premier_appel, (
-        "le second GET /health a declenche un comptage : le cache n'est pas "
-        "reutilise entre deux appels consecutifs"
-    )
+    assert apres_demarrage == 1, f"le demarrage a lance {apres_demarrage} comptage(s)"
+    assert apres_premier_appel == apres_demarrage, "le premier GET /health a relance un comptage"
+    assert apres_second_appel == apres_premier_appel, "le second GET /health a relance un comptage"
 
 
 # ---------------------------------------------------------------------------
@@ -287,57 +295,37 @@ def test_cache_perime_declenche_un_recomptage_en_tache_de_fond(monkeypatch):
 def test_health_ne_bloque_pas_sur_le_rafraichissement_de_fond(
     monkeypatch, sondes_db_redis_rapides
 ):
-    """Cache perime + comptage lent : /health repond vite, le rafraichissement continue seul.
+    """Mesure perimee + comptage lent : /health repond vite, le rafraichissement continue seul."""
+    # VAGUE 2 / FILE B (OPS-01) — reecrit : le comptage de demarrage ne tourne
+    # plus dans le processus de l'API (chromadb 1.3.4 garde le GIL, la boucle
+    # etait immobilisee malgre `asyncio.to_thread` ; le faux `time.sleep` de ce
+    # fichier relachait le GIL et ne pouvait pas le voir). Le meme critere est
+    # mesure sur le mecanisme reel : `sonde_rag`, enfant remplace par un
+    # programme qui dort puis imprime un resultat.
+    from app.services import sonde_rag
+    from tests.test_vague2_b_ops01_sonde_rag import RESULTAT_OK, _enfant, _Horloge
 
-    Le Chroma du bac a sable est vide ou absent (regle 10) : `rag_health_check()`
-    y trouverait 0 chunk et `_check_chroma` rendrait `down`, ce qui casserait la
-    lecture de `/health` (503) independamment du sujet teste ici. Le demarrage
-    est donc lui-meme branche sur un faux client rapide et non vide, pour que le
-    seul parametre qui varie dans ce test soit la lenteur du rafraichissement.
-    """
-    rapide = _ClientChromaLent(duree=0.0, chunks=10)
-    monkeypatch.setattr(rag_service, "get_client", lambda: rapide)
+    horloge = _Horloge()
+    sonde = sonde_rag.SondeRAG(commande=_enfant(RESULTAT_OK), horloge=horloge)
+    monkeypatch.setattr(sonde_rag, "sonde", sonde)
 
     with TestClient(app) as http:
-        assert _attendre_tache_rag(), "la sonde de demarrage ne s'est jamais terminee"
-        cache_demarrage = rag_service._rag_health_cache
-        assert cache_demarrage is not None and cache_demarrage["ok"], (
-            f"le demarrage n'a pas peuple un cache sain : precondition du test "
-            f"absente (cache={cache_demarrage})"
-        )
+        assert sonde.attendre(15.0), "la sonde de demarrage ne s'est jamais terminee"
+        assert sonde.etat_pour_health()[0], "precondition : premiere sonde saine"
 
-        # Rend le cache perime (horloge simulee) et branche un comptage lent
-        # pour le prochain rafraichissement.
-        monkeypatch.setattr(rag_service, "RAG_HEALTH_CACHE_TTL_SECONDS", 0)
-        lent = _ClientChromaLent(duree=DUREE_COMPTAGE_LENT, chunks=99)
-        monkeypatch.setattr(rag_service, "get_client", lambda: lent)
+        # Mesure perimee (au-dela de l'intervalle, en deca de la vetuste max)
+        # et prochain comptage lent.
+        horloge.t += sonde.intervalle_s + 1
+        sonde.commande = _enfant(RESULTAT_OK, duree=DUREE_COMPTAGE_LENT)
 
         t0 = time.monotonic()
         reponse = http.get("/health")
         duree_health = time.monotonic() - t0
-
-        # La mesure ci-dessus ne vaut que si le rafraichissement lent est bien
-        # en cours a cet instant : on le constate, on ne le suppose pas.
-        demarre = lent.comptage_demarre.wait(timeout=SEUIL_REPONSE)
-        encore_en_cours = demarre and not lent.comptage_termine.is_set()
-
-        # Laisse le rafraichissement de fond aboutir avant de fermer la boucle.
-        lent.comptage_termine.wait(timeout=15.0)
-        # 5 collections comptees a 99 chacune (voir _ClientChromaLent.get_collection) : 495 au total.
-        _attendre(lambda: rag_service._rag_health_cache is not None
-                  and rag_service._rag_health_cache.get("total_chunks") == 99 * 5,
-                  timeout=15.0)
+        encore_en_cours = sonde.instantane()["en_cours"]
+        assert sonde.attendre(15.0)
 
     assert reponse.status_code == 200, reponse.text
     assert duree_health < SEUIL_REPONSE, (
-        f"/health a repondu en {duree_health:.2f} s : il a attendu le "
-        f"rafraichissement de fond au lieu de servir le cache perime"
+        f"/health a repondu en {duree_health:.2f} s : il a attendu le rafraichissement"
     )
-    assert encore_en_cours, (
-        "le comptage lent n'etait plus en cours au moment de la mesure : le "
-        "test ne prouve rien (demarre=%s, termine=%s)"
-        % (lent.comptage_demarre.is_set(), lent.comptage_termine.is_set())
-    )
-    assert rag_service._rag_health_cache["total_chunks"] == 99 * 5, (
-        "le rafraichissement de fond ne s'est jamais reflete dans le cache"
-    )
+    assert encore_en_cours, "le rafraichissement lent n'etait pas en cours : le test ne prouve rien"

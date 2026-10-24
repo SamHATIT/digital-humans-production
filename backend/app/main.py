@@ -316,16 +316,17 @@ async def startup_event():
     # premiere valeur du cache (D8, TTL 30 min) au lieu d'etre journalise
     # puis jete : voir `rag_service.set_rag_health_cache` /
     # `rag_service.get_cached_rag_health`, lue par `_check_chroma`.
-    async def _rag_health_probe() -> None:
-        try:
-            from app.services import rag_service
-            resultat = await asyncio.to_thread(rag_service.rag_health_check)
-            rag_service.set_rag_health_cache(resultat)
-        except Exception as e:
-            logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
-
+    #
+    # VAGUE 2 / FILE B (OPS-01, demarrage en ~2 min) — `asyncio.to_thread` ne
+    # suffisait pas : `count()` de chromadb 1.3.4 garde le GIL, la boucle
+    # restait immobilisee pendant tout le comptage (89 s et 119 s aux
+    # demarrages de production des 23/10 et 21/10 ; reproduit dans le
+    # worktree). Le comptage part dans un processus enfant
+    # (`app.services.sonde_rag`) ; `/health` lit son etat (warming / ok /
+    # echec / stale) et ne compte jamais lui-meme.
     try:
-        app.state.rag_health_task = asyncio.create_task(_rag_health_probe())
+        from app.services import sonde_rag
+        sonde_rag.sonde.lancer()
     except Exception as e:
         logger.error(f"[RAG HEALTH] probe crashed: {e}", exc_info=True)
 
@@ -355,6 +356,12 @@ async def shutdown_event():
     tache_rag = getattr(app.state, "rag_health_task", None)
     if tache_rag is not None and not tache_rag.done():
         tache_rag.cancel()
+    # Vague 2 / file B : la sonde RAG est un processus enfant ; on le tue.
+    try:
+        from app.services import sonde_rag
+        sonde_rag.sonde.arreter()
+    except Exception as e:
+        logger.error("Arret de la sonde RAG en echec : %s", e)
 
     try:
         await shutdown_notification_service()
@@ -440,17 +447,18 @@ def _check_chroma() -> tuple[bool, str]:
     `get_cached_rag_health` (D8) sert le dernier comptage, TTL 30 min,
     rafraichi en tache de fond — jamais de recomptage synchrone dans le
     chemin normal de `/health`.
+
+    VAGUE 2 / FILE B — OPS-01 (Astra L906) : le cache vide declenchait un
+    comptage synchrone par appel, une seule collection non vide rendait vert,
+    et un rafraichissement bloque servait le dernier vert sans limite. L'etat
+    vient desormais de `sonde_rag.sonde` (comptage hors processus, chaque
+    collection requise verifiee, vetuste bornee, `warming` tant qu'aucune
+    sonde n'a abouti).
     """
     try:
-        from app.services.rag_service import get_cached_rag_health
+        from app.services import sonde_rag
 
-        result = get_cached_rag_health()
-        if result.get("error"):
-            return False, str(result["error"])
-        total = result.get("total_chunks", 0)
-        if not total:
-            return False, f"0 chunks at {result.get('chroma_path')}"
-        return True, f"{total} chunks"
+        return sonde_rag.sonde.etat_pour_health()
     except Exception as e:
         return False, f"{type(e).__name__}: {e}"
 
