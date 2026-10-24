@@ -192,9 +192,10 @@ class Settings(BaseSettings):
             # cle, en DEBUG comme en production.
             bas = self.SECRET_KEY.lower()
             if any(m in bas for m in _MARQUEURS_GABARIT):
+                # Reprise 4 (revue 1) : la valeur n'est pas recopiee dans le
+                # message (il part au journal systemd).
                 raise ValueError(
-                    "SECRET_KEY ressemble a une valeur de gabarit (« "
-                    f"{self.SECRET_KEY[:12]}… ») : refusee. "
+                    "SECRET_KEY ressemble a une valeur de gabarit : refusee. "
                     "Generer : python -c \"import secrets; print(secrets.token_urlsafe(48))\""
                 )
             if not self.DEBUG and len(self.SECRET_KEY) < LONGUEUR_MIN_SECRET_KEY:
@@ -280,6 +281,11 @@ class Settings(BaseSettings):
 
     class Config:
         extra = "ignore"
+        # Vague 2 / file B — reprise 4 de la revue : sans ce reglage, pydantic
+        # joint a chaque refus `input_value={'SECRET_KEY': '<9 premiers
+        # caracteres>...', 'DATABASE_URL': ...}` — au journal systemd, au
+        # moment precis d'un deploiement.
+        hide_input_in_errors = True
         env_file = ".env"
         case_sensitive = True
 

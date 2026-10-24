@@ -48,13 +48,52 @@ def _prod(**kw):
 def test_debug_est_faux_par_defaut():
     cfg = Settings(SECRET_KEY=CLE_JWT_VALIDE, CREDENTIALS_ENCRYPTION_KEY=CLE_FERNET_VALIDE,
                    _env_file=None)
-    assert cfg.DEBUG is False
+    # Reprise 7 (revue 1) : la valeur est extraite avant l'assertion, pour que
+    # pytest n'imprime pas le repr de Settings (DATABASE_URL et son mot de
+    # passe) quand le test echoue.
+    debug = cfg.DEBUG
+    assert debug is False, f"DEBUG par defaut = {debug!r}"
 
 
 def test_configuration_de_production_valide_acceptee():
     """Controle positif : une configuration correcte demarre."""
     cfg = _prod()
-    assert cfg.DEBUG is False and cfg.SECRET_KEY == CLE_JWT_VALIDE
+    debug, cle_identique = cfg.DEBUG, cfg.SECRET_KEY == CLE_JWT_VALIDE
+    assert debug is False and cle_identique
+
+
+# Reprise 4 (revue 1) : un refus de demarrage ne doit ecrire au journal aucun
+# fragment d'une valeur de configuration. pydantic ajoutait
+# `input_value={'SECRET_KEY': '<9 premiers caracteres>...', 'DATABASE_URL': ...}`.
+MOT_DE_PASSE_BASE = "MotDePasseBaseFactice-7Hq2"
+CLE_COURTE = "Zq8Xv2Lm9Pw4Rt7K"
+CLE_FERNET_FAUSSE = "QzX9vK2mW7pL4tR8nB5cJ3hF6dG1sA0e-xx"  # 35 caracteres : pas une cle Fernet
+
+
+def _fragments(valeur, n=8):
+    # 8 caracteres : en dessous, des mots communs (« secret », « Fernet »)
+    # coincident avec le texte du message sans rien divulguer.
+    return {valeur[i:i + n] for i in range(len(valeur) - n + 1)}
+
+
+@pytest.mark.parametrize("surcharge,secrets_a_taire", [
+    ({"SECRET_KEY": CLE_COURTE}, [CLE_COURTE]),
+    ({"SECRET_KEY": "your-secret-key-must-be-at-least-32-characters-long-x7Kq9"},
+     ["your-secret-key-must-be-at-least-32-characters-long-x7Kq9"]),
+    ({"CREDENTIALS_ENCRYPTION_KEY": CLE_FERNET_FAUSSE}, [CLE_FERNET_FAUSSE, CLE_JWT_VALIDE]),
+    ({"BACKEND_CORS_ORIGINS": "*"}, [CLE_JWT_VALIDE, CLE_FERNET_VALIDE]),
+])
+def test_refus_de_demarrage_ne_divulgue_aucun_fragment(surcharge, secrets_a_taire):
+    base = f"postgresql://role_factice:{MOT_DE_PASSE_BASE}@127.0.0.1:5432/base_factice"
+    with pytest.raises(ValueError) as exc:
+        _prod(DATABASE_URL=base, **surcharge)
+    message = str(exc.value)
+    nb_fuites = sum(
+        1 for v in secrets_a_taire + [MOT_DE_PASSE_BASE] for f in _fragments(v) if f in message
+    )
+    # Ni le message ni les fragments ne sont imprimes en cas d'echec : ils
+    # contiendraient justement ce que le test cherche. Seul le nombre sort.
+    assert nb_fuites == 0, f"{nb_fuites} fragment(s) de valeur dans le message d'erreur"
 
 
 @pytest.mark.parametrize("gabarit", [
