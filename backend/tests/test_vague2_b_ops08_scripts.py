@@ -388,3 +388,14 @@ def test_export_journalctl_en_echec_conserve_l_export_precedent(bouchons):
     assert (dest / "backend-24h.log").read_text() == avant, "export precedent ecrase"
     assert r.returncode != 0
     assert "journalctl" in r.stderr
+
+
+def test_les_tests_de_rotation_tournent_sur_le_vps():
+    """Reprise 1 (revue 1) : les 4 tests de rotation portent
+    `skipif(os.geteuid() != 0)` — le script verifie lui-meme qu'il tourne en
+    root. Sur le VPS de reference, la suite tourne en root : s'ils y etaient
+    ignores, ce test echouerait au lieu de laisser 4 « skipped » passer
+    inapercus. Hors du VPS (poste de developpement), il est ignore, et le dit."""
+    if not Path("/root/workspace/digital-humans-production").is_dir():
+        pytest.skip("hors du VPS de reference : les tests de rotation y sont ignores (non root)")
+    assert os.geteuid() == 0, "sur le VPS, les tests de rotation seraient ignores"

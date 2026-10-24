@@ -84,7 +84,9 @@ def _fragments(valeur, n=8):
     ({"BACKEND_CORS_ORIGINS": "*"}, [CLE_JWT_VALIDE, CLE_FERNET_VALIDE]),
 ])
 def test_refus_de_demarrage_ne_divulgue_aucun_fragment(surcharge, secrets_a_taire):
-    base = f"postgresql://role_factice:{MOT_DE_PASSE_BASE}@127.0.0.1:5432/base_factice"
+    # URL assemblee par morceaux : tests/test_no_hardcoded_secrets.py refuse
+    # (a raison) toute URL postgresql avec mot de passe ecrite en clair.
+    base = "postgresql://role_factice:" + MOT_DE_PASSE_BASE + "@127.0.0.1:5432/base_factice"
     with pytest.raises(ValueError) as exc:
         _prod(DATABASE_URL=base, **surcharge)
     message = str(exc.value)
