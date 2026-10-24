@@ -6,6 +6,12 @@ import { executions, projects } from '../services/api';
 import { useLang } from '../contexts/LangContext';
 import WizardActHeader from '../components/studio/WizardActHeader';
 import { ACCENT_BORDER, ACCENT_TEXT, type AccentToken } from '../lib/agents';
+import OpusConsentDialog from '../components/OpusConsentDialog';
+import {
+  readOpusConsentRequest,
+  type OpusDecision,
+  type OpusEstimate,
+} from '../lib/opusConsent.ts';
 
 interface Project {
   id: number;
@@ -122,6 +128,8 @@ export default function ExecutionPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState('');
+  // GL-22 : écran de consentement Opus (null = fermé).
+  const [opusConsent, setOpusConsent] = useState<{ estimation: OpusEstimate; stale: boolean } | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -143,39 +151,53 @@ export default function ExecutionPage() {
     };
   }, [projectId]);
 
+  const selectedAgents = (p: Project) =>
+    p.selected_agents && p.selected_agents.length > 0
+      ? p.selected_agents
+      : ['pm', 'ba', 'research_analyst', 'architect', 'apex', 'lwc', 'admin', 'qa', 'devops', 'data', 'trainer'];
+
+  // GL-22 : lancement avec la décision de l'écran. Un 409 (montant périmé)
+  // rouvre l'écran avec la nouvelle estimation au lieu d'afficher une erreur.
+  const startWith = async (decision?: OpusDecision, estimation?: OpusEstimate) => {
+    if (!project) return;
+    setIsStarting(true);
+    setError('');
+    try {
+      const choice = decision && estimation ? { decision, estimation } : undefined;
+      const result = await executions.start(project.id, selectedAgents(project), choice);
+      setOpusConsent(null);
+      navigate(`/execution/${result.execution_id}/monitor`);
+    } catch (err: any) {
+      const demande = readOpusConsentRequest(err);
+      if (demande) {
+        setOpusConsent({ estimation: demande.estimation, stale: demande.motif === 'montant_perime' });
+      } else {
+        setOpusConsent(null);
+        setError(err?.message || 'Failed to start execution');
+      }
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
   const handleBegin = async () => {
     if (!project) return;
     setIsStarting(true);
     setError('');
     try {
-      const agents = project.selected_agents && project.selected_agents.length > 0
-        ? project.selected_agents
-        : [
-            'pm',
-            'ba',
-            'research_analyst',
-            'architect',
-            'apex',
-            'lwc',
-            'admin',
-            'qa',
-            'devops',
-            'data',
-            'trainer',
-          ];
-      const result = await executions.start(project.id, agents);
-      navigate(`/execution/${result.execution_id}/monitor`);
+      const estimation = await executions.opusEstimate();
+      if (estimation?.requis) {
+        setOpusConsent({ estimation, stale: false });
+        setIsStarting(false);
+        return;
+      }
     } catch (err: any) {
-      setError(
-        err?.detail
-          ? typeof err.detail === 'string'
-            ? err.detail
-            : JSON.stringify(err.detail)
-          : err?.message || 'Failed to start execution',
-      );
-    } finally {
+      // Règle 6 : sans estimation, on ne lance pas « au cas où ».
+      setError(err?.message || 'Failed to estimate the Opus cost');
       setIsStarting(false);
+      return;
     }
+    await startWith();
   };
 
   if (isLoading) {
@@ -282,6 +304,15 @@ export default function ExecutionPage() {
           </section>
         )}
       </main>
+      {opusConsent && (
+        <OpusConsentDialog
+          estimation={opusConsent.estimation}
+          stale={opusConsent.stale}
+          busy={isStarting}
+          onDecide={(decision) => startWith(decision, opusConsent.estimation)}
+          onCancel={() => setOpusConsent(null)}
+        />
+      )}
     </div>
   );
 }

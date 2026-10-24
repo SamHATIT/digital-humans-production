@@ -22,6 +22,7 @@ import {
   failureAction,
   readFailureReason,
 } from '../lib/executionFailure';
+import { readOpusFallbackNotices } from '../lib/opusConsent.ts';
 import AgentStage from '../components/studio/AgentStage';
 import StudioTimeline, {
   type StepStatus,
@@ -234,6 +235,8 @@ export default function ExecutionMonitoringPage() {
   const canRetry = canRetryExecution(progress);
   const rescueAction = failureAction(failureReason);
   const canDownload = isCompleted && !!progress?.sds_document_path;
+  // GL-22 : un repli Opus → Sonnet est annoncé, jamais silencieux.
+  const opusFallbacks = readOpusFallbackNotices(progress);
 
   // ─── Track this execution so the header CreditCounter can show elapsed.
   // We don't have a backend-issued started_at on ExecutionProgress yet, so we
@@ -479,6 +482,17 @@ export default function ExecutionMonitoringPage() {
             )}
           </div>
         </header>
+
+        {opusFallbacks.length > 0 && (
+          <div
+            data-testid="opus-fallback-notice"
+            className="mb-8 border border-warning/40 bg-warning/10 px-4 py-3 font-mono text-[12px] text-bone-2"
+          >
+            {opusFallbacks.map((notice) => (
+              <p key={notice}>{notice}</p>
+            ))}
+          </div>
+        )}
 
         {(streamError || actionError) && (
           <div className="mb-8 border border-error/40 bg-error/10 px-4 py-3 font-mono text-[12px] text-error">

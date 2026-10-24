@@ -11,6 +11,12 @@ import StudioRadioGroup from '../components/studio/StudioRadioGroup';
 import StudioStepper from '../components/studio/StudioStepper';
 import WizardActHeader from '../components/studio/WizardActHeader';
 import EnsembleDisplay from '../components/studio/EnsembleDisplay';
+import OpusConsentDialog from '../components/OpusConsentDialog';
+import {
+  readOpusConsentRequest,
+  type OpusDecision,
+  type OpusEstimate,
+} from '../lib/opusConsent.ts';
 import { STUDIO_ENSEMBLE } from '../lib/agents';
 import {
   PRODUITS,
@@ -85,6 +91,11 @@ export default function ProjectWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tier, setTier] = useState<BillingTier | null>(null);
+  // GL-22 : le lancement d'un Pro où Marcus serait servi par Opus demande
+  // une décision ; le projet est déjà créé, l'écran la recueille.
+  const [opusConsent, setOpusConsent] = useState<
+    { projectId: number; estimation: OpusEstimate; stale: boolean } | null
+  >(null);
 
   // ONBOARDING-003 — industry hint coming from the marketing CTA chain.
   // Whitelisted against INDUSTRY_OPTIONS so a malicious value can't slip
@@ -294,6 +305,15 @@ export default function ProjectWizard() {
         const exec = await executions.start(newId, STUDIO_ENSEMBLE.map((a) => a.id));
         execId = exec?.execution_id;
       } catch (e) {
+        const demande = readOpusConsentRequest(e);
+        if (demande) {
+          setOpusConsent({
+            projectId: newId,
+            estimation: demande.estimation,
+            stale: demande.motif === 'montant_perime',
+          });
+          return;
+        }
         setError(
           t(
             `The project was created but the performance could not start: ${
@@ -314,6 +334,32 @@ export default function ProjectWizard() {
       navigate(execId ? `/execution/${execId}/monitor` : `/br-validation/${newId}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('Submission failed.', "Échec de l'envoi."));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // GL-22 : lancement après la décision de l'écran de consentement Opus.
+  const startWithOpusDecision = async (decision: OpusDecision) => {
+    if (!opusConsent) return;
+    const { projectId: pid, estimation } = opusConsent;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const exec = await executions.start(pid, STUDIO_ENSEMBLE.map((a) => a.id), {
+        decision,
+        estimation,
+      });
+      setOpusConsent(null);
+      navigate(exec?.execution_id ? `/execution/${exec.execution_id}/monitor` : `/br-validation/${pid}`);
+    } catch (e) {
+      const demande = readOpusConsentRequest(e);
+      if (demande) {
+        setOpusConsent({ projectId: pid, estimation: demande.estimation, stale: demande.motif === 'montant_perime' });
+      } else {
+        setOpusConsent(null);
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -457,6 +503,19 @@ export default function ProjectWizard() {
           </div>
         </section>
       </div>
+      {opusConsent && (
+        <OpusConsentDialog
+          estimation={opusConsent.estimation}
+          stale={opusConsent.stale}
+          busy={submitting}
+          onDecide={startWithOpusDecision}
+          onCancel={() => {
+            const pid = opusConsent.projectId;
+            setOpusConsent(null);
+            navigate(`/execution/${pid}`);
+          }}
+        />
+      )}
     </div>
   );
 }
