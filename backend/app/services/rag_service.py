@@ -107,11 +107,14 @@ VISIBILITES = (VISIBILITE_PUBLIQUE, VISIBILITE_PRIVEE)
 
 # Re-verification du classement (reprise 1 apres revue, testeur-A sonde E) :
 # un verdict, positif OU negatif, n'est garde que tant que le nombre de chunks
-# de la collection ne change pas (tout ajout, p. ex. par un script d'ingestion
-# externe, declenche une re-verification a la requete suivante) et au plus
-# DELAI_REVERIFICATION_CLASSEMENT_S secondes (metadonnee modifiee en place, a
-# compte constant). Le verdict positif etait garde pour toute la vie du
-# processus : un chunk non classe ajoute ensuite etait exclu sans signalement.
+# de la collection ne change pas (un ajout qui change le compte declenche une
+# re-verification a la requete suivante) et au plus
+# DELAI_REVERIFICATION_CLASSEMENT_S secondes pour TOUT changement a compte
+# constant : metadonnee modifiee en place, mais aussi suppression suivie d'un
+# ajout (reingestion d'un document au meme nombre de chunks) — revue A passe 2,
+# D2, sonde 3a : exclusion silencieuse jusqu'a 300 s dans ce cas. Le verdict
+# positif etait garde pour toute la vie du processus : un chunk non classe
+# ajoute ensuite etait exclu sans signalement.
 DELAI_REVERIFICATION_CLASSEMENT_S = 300
 
 
