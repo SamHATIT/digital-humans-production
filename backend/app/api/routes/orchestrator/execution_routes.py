@@ -750,17 +750,68 @@ def get_execution_budget(
         }
 
 
+def _lire_battement_arq(brut) -> dict:
+    """Decoupe la valeur du battement ARQ (`<date> j_complete=3 ... queued=2`)."""
+    texte = brut.decode() if isinstance(brut, bytes) else str(brut)
+    compteurs = {"raw": texte}
+    for morceau in texte.split():
+        cle, sep, valeur = morceau.partition("=")
+        if sep and valeur.isdigit():
+            compteurs[cle] = int(valeur)
+    return compteurs
+
+
 @router.get("/workers/health")
-async def worker_health():
-    """Check ARQ worker status via Redis."""
+async def worker_health(response: Response):
+    """Etat REEL du worker ARQ.
+
+    Vague 2 / file B — OPS-02 (Astra L924). La sonde faisait
+    `LLEN arq:queue:<file>` — mauvaise cle (ARQ range ses taches dans
+    l'ensemble trie `<file>`) et mauvais type : elle annoncait 0 tache en
+    attente quoi qu'il arrive. Elle ne regardait pas le worker du tout, et
+    rendait 200 Redis injoignable.
+
+    Desormais :
+      - battement : cle `<file>:health-check`, posee par le worker toutes les
+        `health_check_interval` (30 s) et expiree juste apres. Absente =
+        worker arrete ou bloque -> 503 ;
+      - file : `ZCARD <file>` et age de la plus ancienne tache (score ARQ =
+        horodatage d'execution prevue, en ms) ;
+      - Redis injoignable -> 503.
+    """
+    from arq.constants import health_check_key_suffix
+
+    cle_battement = f"{ARQ_QUEUE_NAME}{health_check_key_suffix}"
     try:
         pool = await get_redis_pool()
         info = await pool.info()
-        queued = await pool.llen(f"arq:queue:{ARQ_QUEUE_NAME}".encode())
-        return {
-            "redis": "connected",
-            "redis_version": info.get("redis_version", "unknown"),
-            "queued_jobs": queued,
-        }
+        queued = await pool.zcard(ARQ_QUEUE_NAME)
+        plus_ancienne = await pool.zrange(ARQ_QUEUE_NAME, 0, 0, withscores=True)
+        battement = await pool.get(cle_battement)
     except Exception as e:
-        return {"redis": "error", "detail": str(e)}
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"redis": "error", "worker": "unknown", "detail": f"{type(e).__name__}: {e}"}
+
+    age_s = None
+    if plus_ancienne:
+        _job, score_ms = plus_ancienne[0]
+        age_s = max(0, int(datetime.now(timezone.utc).timestamp() - score_ms / 1000))
+
+    corps = {
+        "redis": "connected",
+        "redis_version": info.get("redis_version", "unknown"),
+        "queue": ARQ_QUEUE_NAME,
+        "queued_jobs": queued,
+        "oldest_job_age_s": age_s,
+    }
+    if battement is None:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        corps["worker"] = "absent"
+        corps["detail"] = (
+            f"aucun battement ARQ ({cle_battement} absente ou expiree) : "
+            "worker arrete, bloque ou sur une autre file"
+        )
+        return corps
+    corps["worker"] = "up"
+    corps["heartbeat"] = _lire_battement_arq(battement)
+    return corps

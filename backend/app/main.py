@@ -362,6 +362,14 @@ async def shutdown_event():
     except Exception as e:
         logger.error(f"Error shutting down NotificationService: {e}")
 
+    # Vague 2 / file B — OPS-02 : le pool ARQ est partage par le processus
+    # (arq_config.get_redis_pool) ; il se ferme ici, une fois.
+    try:
+        from app.workers import arq_config
+        await arq_config.close_redis_pool()
+    except Exception as e:
+        logger.error("Fermeture du pool Redis ARQ en echec : %s", e)
+
 def _check_database() -> tuple[bool, str]:
     """Run a real SELECT 1 against PostgreSQL. Returns (ok, detail)."""
     from sqlalchemy import text

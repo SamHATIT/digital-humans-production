@@ -3,6 +3,7 @@
 Run with: python -m arq app.workers.worker.WorkerSettings
 """
 import logging
+from datetime import timezone as _dt_timezone
 from arq import cron
 from arq.connections import ArqRedis
 from arq.jobs import Job, JobStatus
@@ -197,6 +198,9 @@ class WorkerSettings:
     # l'execution et conserve le travail deja produit.
     allow_abort_jobs = True
     health_check_interval = 30
+    # Vague 2 / file B — OPS-02 : les purges sont annoncees en UTC (03:17,
+    # 03:23) ; sans ce reglage ARQ evalue le cron dans le fuseau du systeme.
+    timezone = _dt_timezone.utc
     queue_name = ARQ_QUEUE_NAME  # une seule source : arq_config (vague 0 / AS-02)
     # B5 (D3, 03/09/2026) : purge des conversations Sophie au-dela de 12 mois,
     # chaque nuit a 03:17 UTC. Voir app/workers/retention.py.
