@@ -29,7 +29,11 @@
 #
 # Le plafond vit ici et pas dans requirements.txt : c'est le TestClient qui
 # contraint, pas le code applicatif.
-httpx>=0.27.0,<0.28
+#
+# Vague 2 / file B — SEC-18 : starlette 1.x (fastapi 0.162) ; le TestClient
+# fonctionne avec httpx 0.28, le plafond est leve (meme borne que
+# requirements.txt).
+httpx>=0.28.1,<0.29
 
 # Outillage de test explicite (deja tire par requirements.txt, repete ici pour
 # que ce fichier se lise seul).

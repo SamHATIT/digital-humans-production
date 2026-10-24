@@ -9,19 +9,22 @@ import re
 from pathlib import Path
 
 from app.main import app
+from tests.routes_montees import chemins_montes
 
 RACINE = Path(__file__).resolve().parents[2]
 
 
 def test_sec02_agent_tester_n_est_plus_monte():
-    chemins = {getattr(r, "path", "") for r in app.routes}
+    # Vague 2 / file B (SEC-18) : voir tests/routes_montees.py.
+    chemins = chemins_montes(app)
     fuites = [c for c in chemins if "agent-tester" in c or "agent_tester" in c]
     assert fuites == [], fuites
 
 
 def test_sec02_controle_negatif_les_autres_routeurs_restent():
     """Sans ce controle, un test qui demonte TOUT passerait aussi."""
-    chemins = {getattr(r, "path", "") for r in app.routes}
+    # Vague 2 / file B (SEC-18) : voir tests/routes_montees.py.
+    chemins = chemins_montes(app)
     assert any("/api/auth/login" in c for c in chemins)
     assert any("/api/subscription/tiers" in c for c in chemins)
 

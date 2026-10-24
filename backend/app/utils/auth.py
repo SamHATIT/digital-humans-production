@@ -3,7 +3,10 @@ Authentication utilities for password hashing and JWT token management.
 """
 from datetime import datetime, timedelta
 from typing import Optional
-from jose import JWTError, jwt
+# Vague 2 / file B — SEC-18 : python-jose 3.3.0 portait des avis sans version
+# corrigee (CVE-2024-29370, CVE-2026-85394) ; PyJWT, meme format HS256.
+import jwt
+from jwt import PyJWTError as JWTError
 import bcrypt
 
 from app.config import settings

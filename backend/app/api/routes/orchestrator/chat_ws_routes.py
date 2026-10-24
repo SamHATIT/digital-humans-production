@@ -111,7 +111,8 @@ async def websocket_endpoint(
     token: str = Query(None),
 ):
     """WebSocket endpoint for real-time execution progress updates."""
-    from jose import jwt, JWTError
+    import jwt  # Vague 2 / file B — SEC-18 : PyJWT remplace python-jose
+    from jwt import PyJWTError as JWTError
 
     if not token:
         await websocket.close(code=1008, reason="Missing authentication token")

@@ -24,7 +24,11 @@ RACINE = Path(__file__).resolve().parents[2]
 
 
 def _chemins():
-    return {getattr(r, "path", "") for r in app.routes}
+    # Vague 2 / file B (SEC-18) : fastapi 0.162 ne deplie plus les routeurs
+    # inclus dans app.routes ; voir tests/routes_montees.py.
+    from tests.routes_montees import chemins_montes
+
+    return chemins_montes(app)
 
 
 def test_sec11_le_routeur_blog_n_est_plus_monte():

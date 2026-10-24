@@ -83,7 +83,11 @@ def test_root_stays_a_shallow_probe(client):
 # ---------------------------------------------------------------------------
 
 def test_download_route_is_gone():
-    paths = {getattr(route, "path", None) for route in app.routes}
+    # Vague 2 / file B (SEC-18) : fastapi 0.162 ne deplie plus les routeurs
+    # inclus dans app.routes ; voir tests/routes_montees.py.
+    from tests.routes_montees import chemins_montes
+
+    paths = chemins_montes(app)
     assert "/download/{filename}" not in paths
 
 
