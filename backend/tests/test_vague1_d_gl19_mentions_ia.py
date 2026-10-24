@@ -206,6 +206,12 @@ def _rendre_le_gabarit_sds() -> str:
     )
     for filtre in ("etext", "dot_join", "ftrim", "humanize", "mermaid_safe"):
         env.filters.setdefault(filtre, lambda valeur: valeur)
+    # Vague 2 / file C (GL-12) : le gabarit est bilingue ; tools/build_sds.py
+    # installe `_`, `_v` et `mois_annee` avant le rendu — même chose ici.
+    import sys
+    sys.path.insert(0, str(racine / "tools"))
+    from lib.sds_i18n import installer_i18n
+    installer_i18n(env, "en")
     return env.get_template("sds_shell.html.j2").render(
         project={"name": "Projet de test"},
         execution={"id": 1, "started_at": datetime(2026, 9, 16), "completed_at": None},

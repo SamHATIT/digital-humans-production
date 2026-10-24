@@ -27,6 +27,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 from jinja2 import Environment, FileSystemLoader, ChainableUndefined  # noqa: E402
 from markupsafe import Markup, escape  # noqa: E402
 from lib.collect_sds import build_render_context  # noqa: E402
+from lib.sds_i18n import installer_i18n, localiser_contexte  # noqa: E402  (GL-12)
 import unicodedata  # noqa: E402
 
 
@@ -131,9 +132,12 @@ def build_sds(execution_id: int) -> str:
     env.filters["etext"] = etext
     env.filters["ftrim"] = ftrim
     env.filters["mermaid_safe"] = mermaid_safe
-    template = env.get_template("sds_shell.html.j2")
-    
+
     context = build_render_context(execution_id)
+    # GL-12 : textes fixes du gabarit dans la langue du projet (fr / en).
+    langue = installer_i18n(env, (context.get("project") or {}).get("language"))
+    localiser_contexte(context, langue)
+    template = env.get_template("sds_shell.html.j2")
     return template.render(**context)
 
 

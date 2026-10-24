@@ -8,9 +8,9 @@
                     'apex_classes', 'apex_triggers', 'flows', 'lightning_pages',
                     'permission_sets_custom', 'permission_sets_standard',
                     'profiles_standard'] %}<section id='sec-5' class='block'>
-<div class='act'><span class='act-num'>— Scene V</span><span class='act-sep'></span><span class='act-tag'>Artifact 05</span></div><h1 class='sec-h1'><span>As-Is Analysis</span> <em class='brass'>(Marcus — Solution Architect)</em></h1>
-<p>Marcus inspected the existing Salesforce org to baseline what is already in place before designing the target architecture.</p>
-<h2 id='sub-5-1' class='sec-h2'><span>5.1 Organization</span></h2>
+<div class='act'><span class='act-num'>{{ _("— Scene V") }}</span><span class='act-sep'></span><span class='act-tag'>{{ _("Artifact 05") }}</span></div><h1 class='sec-h1'><span>{{ _("As-Is Analysis") }}</span> <em class='brass'>{{ _("(Marcus — Solution Architect)") }}</em></h1>
+<p>{{ _("Marcus inspected the existing Salesforce org to baseline what is already in place before designing the target architecture.") }}</p>
+<h2 id='sub-5-1' class='sec-h2'><span>{{ _("5.1 Organization") }}</span></h2>
 {% set ordered_keys = [] %}{% for k in ORG_ORDER %}{% if k in as_is.organization %}{% set _ = ordered_keys.append(k) %}{% endif %}{% endfor %}{% if ordered_keys %}<table class='tbl'>
 {% set first_key = ordered_keys[0] %}<thead><tr>
 <th><strong>{{ first_key | humanize }}</strong></th>
@@ -24,12 +24,12 @@
 {% endif %}</tr>
 {% endfor %}</tbody></table>
 {% endif %}
-<h2 id='sub-5-2' class='sec-h2'><span>5.2 Standard Objects in Org</span> <em class='brass'>({{ as_is.standard_objects | length }})</em></h2>
+<h2 id='sub-5-2' class='sec-h2'><span>{{ _("5.2 Standard Objects in Org") }}</span> <em class='brass'>({{ as_is.standard_objects | length }})</em></h2>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Object</strong></th>
-<th><strong>Custom fields</strong></th>
-<th><strong>Notes</strong></th>
+<th><strong>{{ _("Object") }}</strong></th>
+<th><strong>{{ _("Custom fields") }}</strong></th>
+<th><strong>{{ _("Notes") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for obj in as_is.standard_objects %}<tr>
