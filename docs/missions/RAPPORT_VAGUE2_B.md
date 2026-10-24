@@ -223,6 +223,7 @@ Commande : `find /root/workspace/digital-humans-production/backend/app \( -name 
 - **OPS-02 : « dernière purge réussie »** non vérifiée par la sonde : aucune trace persistée des purges à lire ; non fait.
 - **GL-25 pour les appelants hors studio** (SDS, chat projet, BUILD) : dépend du crochet dans `llm_router_service.complete()` (file C, diff §6).
 - **Mémoire des pannes par processus** : backend et worker alertent chacun une fois ; un redémarrage pendant une panne réalerte (je le considère acceptable, non décidé).
+- **Classement par type d'exception** : le type est perdu dans le routeur (`_call_gpu_local`, file C : `error=str(e)[:200]`). Après la revue, le classement traite une erreur vide ou un HTTP 502/503/504 d'un fournisseur **local** comme une indisponibilité, et reconnaît la forme `Type: message` du diff §6.4 ; pour un fournisseur cloud, une erreur vide n'est pas classée (contrôle). Un vrai classement par type demande ce diff de la file C.
 - **`/health` à 503 « warming »** pendant le premier comptage après chaque redémarrage (≈1,5–2 min en production d'après le journal) : honnête, mais le watchdog alertera s'il passe dans cette fenêtre (§5).
 - **`rotate_anthropic_key.sh`** : chemin par défaut `/opt/digital-humans/backend/.env` inexistant (`/opt/digital-humans/backend/.env ABSENT`) ; sa variable `DH_ENV_FILE` porte le même nom que celle de la suite hermétique (qui pointe `.env.test`). Non modifié ; à appeler avec `DH_ENV_FILE` explicite.
 - **Watchdog installé** : `/usr/local/bin/dh-watchdog.sh` doit être réinstallé après fusion, **après** le déploiement du backend (il sonde `/workers/health`, qui rend 503 sans battement avec le nouveau code).
@@ -245,7 +246,7 @@ Commande : `find /root/workspace/digital-humans-production/backend/app \( -name 
 1. **Sonde de l'API d'embeddings (OPS-01, GL-10 point 3)** : la tester réellement, c'est un appel OpenAI payant (`text-embedding-3-large`) à chaque rafraîchissement (toutes les 30 min). Non branché. À décider : on paie cette sonde, ou on accepte que `[RAG HEALTH]` ne teste que le comptage.
 2. **Alerte « sous seuil » de solde (GL-25)** : je ne connais pas d'API qui donne le solde prépayé Anthropic ou OpenAI à une clé d'API standard (je suppose, non vérifié au-delà de ce que je sais ; aucun appel fait). Ce qui est livré : alerte à la **première requête refusée pour solde**, et au retour. Un vrai seuil demanderait une clé d'administration et un suivi des achats.
 3. **`/health` 503 pendant le comptage de démarrage** (« warming ») : accepter que le watchdog puisse alerter dans la ~1,5–2 min qui suit un redémarrage, ou lui faire tolérer `warming` une fois.
-4. **Avant de déployer SEC-17** (je ne lis pas la `.env` de production) : vérifier que `CREDENTIALS_ENCRYPTION_KEY` y est une clé Fernet valide (sinon re-chiffrer d'abord : `CREDENTIALS_ENCRYPTION_KEY=<nouvelle> python scripts/rotate_encryption_key.py --old-key <ancienne> --new-key <nouvelle>`), que `SECRET_KEY` fait ≥ 32 caractères et n'est pas un gabarit, que `DEBUG` et `BACKEND_CORS_ORIGINS` sont posés comme voulu (et sans `"*"`). Sinon le backend **refusera de démarrer**, en le disant.
+4. **Avant de déployer SEC-17** (je ne lis pas la `.env` de production) : vérifier que `CREDENTIALS_ENCRYPTION_KEY` y est une clé Fernet valide (sinon re-chiffrer d'abord : `CREDENTIALS_ENCRYPTION_KEY=<nouvelle> python scripts/rotate_encryption_key.py --old-key <ancienne> --new-key <nouvelle>`), que `SECRET_KEY` fait ≥ 32 caractères et n'est pas un gabarit, que `DEBUG` et `BACKEND_CORS_ORIGINS` sont posés comme voulu (et sans `"*"`). Sinon le backend **refusera de démarrer**, en le disant. **Attention particulière à `BACKEND_CORS_ORIGINS`** (signalé par la revue) : avant ce travail, ce réglage n'était **lu par personne** (`main.py` avait sa liste en dur) ; une valeur ancienne et oubliée dans la `.env` de production — par exemple `*`, ancien défaut « pour débogage » — était sans effet et devient maintenant soit appliquée (origines différentes de celles d'aujourd'hui), soit bloquante (`"*"` hors DEBUG). À vérifier par Sam ou le déployeur avant de redémarrer.
 5. **chromadb 1.3.4** : quatre avis sans version corrigée (serveur HTTP Chroma, non exposé ici) — accepter le risque résiduel.
 6. **mermaid 12** (majeure) pour deux avis faibles.
 
@@ -290,6 +291,21 @@ Le studio signale déjà de son côté ; l'état par fournisseur évite le doubl
          candidates = [
 ```
 
+### 6.4 `backend/app/services/llm_router_service.py` (file C) — garder le type de l'erreur de transport (reprise 3)
+
+```diff
+@@ async def _call_gpu_local(...)
+         except Exception as e:
+             return LLMResponse(content="", provider=provider_name, model_id=modele_servi,
+                                tokens_in=0, tokens_out=0, cost_usd=0.0,
+                                latency_ms=int((time.time() - debut) * 1000),
+-                               success=False, error=str(e)[:200])
++                               # httpx rend str(e) VIDE pour ReadTimeout/ConnectTimeout :
++                               # sans le nom de la classe, la panne est muette.
++                               success=False, error=f"{type(e).__name__}: {e}"[:200])
+```
+(Même remarque pour `_call_ollama`, `_call_anthropic`, `_call_openai`.)
+
 ### 6.3 `backend/app/services/rag_service.py` (file A)
 
 - `get_cached_rag_health` / `_lancer_rafraichissement_arriere_plan` n'ont plus d'appelant dans `app/` : à retirer ou à marquer, au choix de A (les tests B6 de niveau unité les exercent encore).
@@ -309,7 +325,7 @@ Le studio signale déjà de son côté ; l'état par fournisseur évite le doubl
 | `backend/app/api/routes/studio_chat.py` (personne) | 503 explicite, 402 `insufficient_credits`, signalement panne/retour. Bloc `try/except` autour de `generate_llm_response` et bloc d'échec qui suit. |
 | `backend/app/api/routes/orchestrator/execution_routes.py` (personne) | `worker_health` réécrite (+ `_lire_battement_arq`), signature `worker_health(response: Response)`. |
 
-Autres fichiers modifiés, hors tableau : `backend/app/database.py`, `backend/app/utils/encryption.py`, `backend/app/utils/auth.py`, `backend/app/api/routes/orchestrator/chat_ws_routes.py` (import PyJWT), `backend/app/services/file_processor.py` (import pypdf — **la file A travaille sur l'upload (PROD-09) : conflit possible sur ces deux lignes**), `backend/app/workers/arq_config.py`, `backend/app/workers/worker.py`, `backend/scripts/rotate_encryption_key.py`, `scripts/dh-watchdog.sh`, `scripts/rotate_anthropic_key.sh`, `scripts/ops/export_logs_24h.sh`, `docker-compose.prod.yml`, `backend/requirements-test.txt`. Nouveaux : `app/services/sonde_rag.py`, `app/services/alertes_fournisseurs.py`, `tests/routes_montees.py`, six fichiers `tests/test_vague2_b_*.py`. Tests existants modifiés : `test_vague_a_a6_rag_count_off_loop.py`, `test_vague_b_b6_health_cache.py`, `test_lot_g_health_and_boot.py`, `test_vague1_a_sec11_blog.py`, `test_vague_c_sec01_sec02.py`. Aucun `skip`/`xfail` ajouté. Aucune migration Alembic.
+Autres fichiers modifiés, hors tableau : `backend/app/database.py`, `backend/app/utils/encryption.py`, `backend/app/utils/auth.py`, `backend/app/api/routes/orchestrator/chat_ws_routes.py` (import PyJWT), `backend/app/services/file_processor.py` (import pypdf — **la file A travaille sur l'upload (PROD-09) : conflit possible sur ces deux lignes**), `backend/app/workers/arq_config.py`, `backend/app/workers/worker.py`, `backend/scripts/rotate_encryption_key.py`, `scripts/dh-watchdog.sh`, `scripts/rotate_anthropic_key.sh`, `scripts/ops/export_logs_24h.sh`, `docker-compose.prod.yml`, `backend/requirements-test.txt`. Nouveaux : `app/services/sonde_rag.py`, `app/services/alertes_fournisseurs.py`, `tests/routes_montees.py`, six fichiers `tests/test_vague2_b_*.py`. Tests existants modifiés : `test_vague_a_a6_rag_count_off_loop.py`, `test_vague_b_b6_health_cache.py`, `test_lot_g_health_and_boot.py`, `test_vague1_a_sec11_blog.py`, `test_vague_c_sec01_sec02.py`. **Correction après revue 1 (reprise 1)** : la phrase initiale « Aucun `skip`/`xfail` ajouté » était **fausse**. `test_vague2_b_ops08_scripts.py` porte 4 `@pytest.mark.skipif(os.geteuid() != 0, reason="le script exige root (il le verifie)")` sur les tests de rotation : `rotate_anthropic_key.sh` refuse de tourner hors root (`[ "$(id -u)" -eq 0 ] || fail`). Sur le VPS la suite tourne en root, ils y sont exécutés (aucun `skipped` de plus que la référence : `2 skipped` des deux côtés) ; `test_les_tests_de_rotation_tournent_sur_le_vps` échoue s'ils y étaient ignorés (lui-même ignoré hors du VPS, en le disant). Aucun `skip`/`xfail` ajouté sur un test **existant**. Aucune migration Alembic.
 
 Fichiers que j'aurais dû toucher hors de ma file : `llm_router_service.py` (C) et `rag_service.py` (A) — §6.
 
@@ -319,14 +335,36 @@ Fichiers que j'aurais dû toucher hors de ma file : `llm_router_service.py` (C) 
 
 1. **Requêtes vers le Spark réel pendant mes mesures de démarrage.** Mon script `implb_boot.sh` devait rediriger les fournisseurs locaux vers un port fermé via une copie du YAML ; la redirection était inopérante (expression régulière fausse, `181(84|10)` au lieu de `18(084|110)`, et `DH_LLM_CONFIG_PATH` ignoré par le routeur). Les 4 démarrages d'uvicorn (froid avant, froid après ×2, SEC-18) ont donc chacun fait la sonde de démarrage existante : `GET http://127.0.0.1:18084/v1/models` (deux fournisseurs sur ce port) — pas de génération. Le commentaire du script annonçait « aucune requete au Spark » : c'était faux. Les suites pytest lancées (complètes et ciblées) font la même sonde via la fixture `client` (comportement préexistant).
 2. **Ligne de journal nginx affichée** : en cherchant des accès au backend dans `/var/log/nginx/access.log`, ma sortie de commande a affiché une URL contenant une clé Ghost *Content API* (clé de lecture publique). Non reproduite ici ni dans un commit.
-3. **Écritures hors du worktree** (toutes à moi) : copie du Chroma de production `/root/.dh_orch_vague2/implb-chroma/` (4,1 Go, laissée pour que le testeur puisse rejouer la mesure), venv d'audit `/root/.dh_orch_vague2/implb-audit-venv`, copies du frontend `/tmp/implb-front`, `/tmp/implb-front2` et fichiers `/tmp/implb*` (supprimés en fin de mission). Base de test jetable `digital_humans_test_implb_boot` créée puis détruite par le script de démarrage (rôle de `/root/.dh_test_db.env`).
+3. **Écritures hors du worktree** (toutes à moi) : copie du Chroma de production `/root/.dh_orch_vague2/implb-chroma/` (4,1 Go — **donnée de production ; supprimée après la revue 1** : `rm -rf /root/.dh_orch_vague2/implb-chroma` puis `ls` → `No such file or directory`), venv d'audit `/root/.dh_orch_vague2/implb-audit-venv`, copies du frontend `/tmp/implb-front`, `/tmp/implb-front2` et fichiers `/tmp/implb*` (supprimés en fin de mission). Base de test jetable `digital_humans_test_implb_boot` créée puis détruite par le script de démarrage (rôle de `/root/.dh_test_db.env`).
 4. **Venv du worktree monté en place** (SEC-18) : voir §0 pour la vérification des rouges au parent.
 5. Tests existants réécrits ou ajustés (§7) : décrits dans les commits concernés.
 6. **Hook post-commit partagé** (`core.hooksPath=tools/git-hooks`, alerte de l'orchestrateur reçue après mes sept premiers commits) : ces commits ont été faits avec le hook actif. Aucun ne touche les chemins qui déclenchent `build_docs.py --deploy` (vérifié : `git log --name-only origin/claude/vague-c-20260906..HEAD | grep -E '^(docs/refonte/(sections|templates|sources)/|backend/config/llm_routing.yaml|backend/config/agents_registry.yaml|tools/lib/collect.py|tools/build_docs.py)'` → aucune ligne) ; `/tmp/dh_post_commit_build.log` (12:19) ne contient qu'une trace venant de `wt-vague2-c`. Le commit de ce rapport est fait avec `git -c core.hooksPath=/dev/null commit`.
 
 ---
 
-## 9. Commits
+## 9. Reprises après revue 1 (`docs/missions/REVUE_VAGUE2_B.md`, commit `9855a10`)
+
+| # | Reprise | Commit | Preuve rouge → vert |
+|---|---|---|---|
+| 1 | Rapport §7 : « aucun skip ajouté » faux | `c75f04d` (test `test_les_tests_de_rotation_tournent_sur_le_vps`) + commit du rapport | Phrase corrigée (§7). Test : `17 passed` sur le VPS, aucun `skipped` (`implb_pytest.sh … tests/test_vague2_b_ops08_scripts.py -rs`). Pas de rouge possible : il garde une propriété de l'environnement (root sur le VPS). |
+| 2 | Alerte refusée par Telegram jamais retentée (`signaler_panne`, `signaler_retablissement`) | `bcca12c` | Avant : `l'alerte refusee n'a jamais ete retentee — assert 1 == 2`, `le retour refuse n'a jamais ete retente — assert 2 == 3` (`impl-b-r23-rouge.log`, `8 failed, 22 passed`). Contrôle « Telegram non configuré : une seule ligne de journal pour 3 pannes » vert des deux côtés. Après : vert (`impl-b-r23-vert.log`, `50 passed` avec bill06 et gl10). Nouvel essai au plus une fois par 60 s ; « non configuré » (`telegram_configure()`) n'est pas « refusé ». |
+| 3 | Classement testé sur des chaînes fabriquées ; Spark figé = 503 sans alerte ; « fournisseur inconnu » | `bcca12c` | Vrai `_call_gpu_local` contre des serveurs de boucle locale : port fermé → `'All connection attempts failed'` (classé avant et après) ; serveur muet et connexion coupée → `error=''` → avant `None`, après `injoignable`. Classes httpx réelles (`ConnectError`, `ConnectTimeout('')`, `ReadTimeout('')`, `RemoteProtocolError`) sous les deux formes. Bout en bout studio → routeur → serveur muet : avant `assert 0 == 1` (aucune alerte), après une alerte `gpu_nemotron … injoignable`. Branche `except` du studio : avant, `RuntimeError('… Connection refused (base)')` envoyait « Fournisseur LLM inconnu : injoignable » ; après, 503 sans alerte. Limite : §3 et diff §6.4. |
+| 4 | Refus de démarrage SEC-17 : début de `SECRET_KEY` au journal (`input_value`) | `d2146a4` | `hide_input_in_errors = True` + message « gabarit » sans la valeur. Test `test_refus_de_demarrage_ne_divulgue_aucun_fragment` (valeurs factices, fragments de 8 caractères, n'imprime qu'un nombre) : avec l'ancien `config.py` `3 failed` (« 5 / 15 / 15 fragment(s) », `impl-b-r4-rouge.log`), après `67 passed` avec lot_e et lot4 (`impl-b-r4-vert.log`). Vérifié à la main : le refus « SECRET_KEY trop courte » n'affiche plus `input_value`. |
+| 5 | `chemins_montes` ignore les websockets | `868740b` | Avant : `assert '/api/pm-orchestrator/ws/{execution_id}' in {...}` faux (`impl-b-r5-rouge.log`) ; après `34 passed` avec les trois fichiers qui utilisent l'outil (`impl-b-r5-vert.log`). Parcours récursif : 147 chemins ; seul `''` des contextes HTTP n'y est pas. |
+| 6 | Contrôle A6 trompeur, fixture morte | `24f8502` | Docstrings annotées (vrai pour un faux qui relâche le GIL, faux pour chromadb), fixture `chroma_lent` et `_attendre_tache_rag` retirées ; `4 passed` (`impl-b-r6.log`). Pas de rouge : aucun comportement changé. |
+| 7 | Mot de passe du rôle de test dans `impl-b-sec17-rouge.log` | `d2146a4` (assertions) + journaux | `sed -i -E 's#(postgres(ql)?(\+[a-z0-9]+)?://[^:/@ ]+:)[^@ ]+@#\1***MASQUE***@#g'` sur ce journal ; `grep -lE 'dh_test:[^*@ ]+@' impl-b-* implb*` → aucun fichier. Les assertions SEC-17 n'impriment plus le `repr` de `Settings`. |
+
+**Défaut que j'ai introduit pendant les reprises, dit platement** : le test de la reprise 4 écrivait une URL `postgresql://role_factice:{MOT_DE_PASSE_BASE}@…` en clair ; `test_no_hardcoded_secrets` l'a refusée à la suite complète (`impl-b-apres-revue1.log` : `32 failed, 1159 passed, 2 skipped, 7 xfailed` — les 31 préexistants + celui-ci). Corrigé dans `c75f04d` (URL assemblée par morceaux), suite relancée.
+
+À signaler sans coder (demandé par l'orchestrateur) : `BACKEND_CORS_ORIGINS` (§5.4, complété) ; copie de 4,1 Go du Chroma de production **supprimée** (§8.3).
+
+Suite complète après les reprises (HEAD `c75f04d`, `/root/.dh_orch_vague2/impl-b-apres-revue1b.log`) :
+```
+31 failed, 1160 passed, 2 skipped, 7 xfailed, 980 warnings in 584.40s (0:09:44)
+```
+Mêmes 31 échecs préexistants (27 lot_c, 3 test_auth, 1 emma) ; +19 passés par rapport à `c74a817` = les tests ajoutés pendant les reprises (13 GL-25, 4 SEC-17, 1 SEC-18, 1 OPS-08).
+
+## 10. Commits
 
 ```
 1790fc2 OPS-08 : watchdog, rotation de cle et export de journaux n'annoncent plus un etat faux
@@ -336,6 +374,13 @@ Fichiers que j'aurais dû toucher hors de ma file : `llm_router_service.py` (C) 
 b373a3f SEC-17 : defauts surs et cles validees au demarrage (DEBUG, JWT, Fernet, CORS, echo SQL)
 6526517 SEC-18 : dependances backend montees (fastapi/starlette/multipart, PyJWT, pypdf, dotenv) — 57 avis -> 7
 d323077 SEC-18 (frontend) : vite 5.4.10 -> 6.4.5 et dependances verrouillees corrigees — npm audit 32 -> 2 (faibles)
+c74a817 Rapport vague 2 / file B : fait avec preuve, infirme, ouvert, decisions de Sam
+9855a10 Revue independante vague 2 / file B : a reprendre (7 reprises)
+bcca12c Reprises 2 et 3 (revue 1) : alerte refusee retentee ; vraies pannes de transport classees
+d2146a4 Reprises 4 et 7 (revue 1) : un refus de demarrage SEC-17 ne recopie plus aucune valeur au journal
+868740b Reprise 5 (revue 1) : chemins_montes deplie aussi les routes websocket
+24f8502 Reprise 6 (revue 1) : le controle A6 n'affirme plus que to_thread protege la boucle du vrai Chroma
+c75f04d Tests : URL factice assemblee par morceaux (garde des secrets en dur) ; test de presence des tests de rotation sur le VPS (reprise 1)
 <commit de ce rapport>
 ```
-(`git log --oneline origin/claude/vague-c-20260906..HEAD`)
+(`git log --oneline origin/claude/vague-c-20260906..HEAD` ; `9855a10` est la revue du testeur.)
