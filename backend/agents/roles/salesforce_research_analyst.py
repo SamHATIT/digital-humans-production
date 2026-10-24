@@ -120,6 +120,30 @@ def parse_json_response(content: str) -> dict:
 # COVERAGE CALCULATION UTILITIES
 # ============================================================================
 
+def _objets_de_conception(data_model: dict) -> list:
+    """CAL-08 : [(api_name, libelle)] des objets standard et custom."""
+    from app.services.rapprochement_objets import classer_references  # noqa: F401
+    objets = []
+    for obj in (data_model.get('standard_objects', []) or []) + (data_model.get('custom_objects', []) or []):
+        if isinstance(obj, dict):
+            objets.append((obj.get('api_name', '') or '', obj.get('label')))
+        elif isinstance(obj, str):
+            objets.append((obj, None))
+    return objets
+
+
+def _rapprocher_objet(reference: str, objets: list):
+    from app.services.rapprochement_objets import est_metadonnee, rapprocher
+    if est_metadonnee(reference):
+        return None
+    return rapprocher(reference, objets)
+
+
+def _classer_objets(references, objets: list) -> dict:
+    from app.services.rapprochement_objets import classer_references
+    return classer_references(references, objets)
+
+
 def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
     """
     Programmatic coverage calculation (no LLM needed).
@@ -151,6 +175,10 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
         elif isinstance(obj, str):
             sd_objects.add(obj.lower())
 
+    # CAL-08 : (nom d'API, libelle) de chaque objet de la conception, pour le
+    # rapprochement semantique (app/services/rapprochement_objets.py).
+    sd_objets_detail = _objets_de_conception(data_model)
+
     automation = solution_design.get('automation_design', {})
     sd_automations = set()
     for flow in automation.get('flows', []):
@@ -177,6 +205,7 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
 
     # Extract requirements from UCs
     uc_objects = set()
+    uc_objets_origine = {}  # CAL-08 : minuscule -> nom tel qu'ecrit (camelCase utile)
     uc_automations = set()
     uc_ui = set()
     covered_ucs = 0
@@ -196,6 +225,7 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
             if obj_lower:
                 uc_objects.add(obj_lower)
                 uc_objs.add(obj_lower)
+                uc_objets_origine.setdefault(obj_lower, obj.strip())
         
         # Automations: salesforce_components.automation OR sf_automation
         auto_list = sf.get('automation', []) or []
@@ -220,8 +250,10 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
                 uc_ui.add(comp_lower)
 
         # Check if this UC is covered by solution design
-        # Method 1: object overlap
-        obj_covered = bool(uc_objs & sd_objects)
+        # Method 1: object overlap — CAL-08 : par sens, pas par nom exact
+        obj_covered = any(
+            _rapprocher_objet(uc_objets_origine[o], sd_objets_detail) for o in uc_objs
+        )
         # Method 2: UC ID in traceability map
         uc_id = uc.get('id', '')
         trace_covered = uc_id in solution_design.get('uc_traceability', {})
@@ -239,8 +271,14 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
         'personaccount', 'individual', 'campaign', 'campaignmember',
         'contract', 'order', 'slaprocess', 'milestone', 'milestonetype',
     }
-    uc_objects_filtered = uc_objects - SF_INFRA_OBJECTS
-    obj_coverage = len(uc_objects_filtered & sd_objects) / max(len(uc_objects_filtered), 1) * 100
+    # CAL-08 : rapprochement semantique AVANT de declarer un manque ; une
+    # metadonnee (Flow, Report, Queue...) n'est jamais un objet manquant.
+    classement_objets = _classer_objets(uc_objets_origine.values(), sd_objets_detail)
+    uc_objects_filtered = (uc_objects - SF_INFRA_OBJECTS) - set(classement_objets["non_objets"])
+    objets_resolus = set(classement_objets["couverts"]) | {
+        r["reference"] for r in classement_objets["renommes"]
+    }
+    obj_coverage = len(uc_objects_filtered & objets_resolus) / max(len(uc_objects_filtered), 1) * 100
     # If UCs don't specify automation requirements (empty set), default to 100%
     # Also ignore empty strings and generic type names (flow, apex, etc.)
     uc_automations.discard('')
@@ -270,7 +308,10 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
                 "score": round(obj_coverage, 1),
                 "sd_objects": list(sd_objects),
                 "uc_objects": list(uc_objects),
-                "missing": list(uc_objects - sd_objects)
+                # CAL-08 : manque = ni identique, ni renomme, ni metadonnee
+                "missing": classement_objets["manquants"],
+                "renamed": classement_objets["renommes"],
+                "non_objects": classement_objets["non_objets"],
             },
             "automation": {
                 "score": round(auto_coverage, 1),
@@ -608,14 +649,12 @@ class ResearchAnalystAgent(BaseAgent):
         for uc in use_cases:
             uc_id = uc.get('id', '')
             # Check both traceability and object overlap
-            sf_objs = set(o.lower() for o in uc.get('sf_objects', []))
-            sd_objs = set()
-            dm = solution_design.get('data_model', {})
-            for o in dm.get('standard_objects', []):
-                sd_objs.add((o.get('api_name', '') if isinstance(o, dict) else str(o)).lower())
-            for o in dm.get('custom_objects', []):
-                sd_objs.add((o.get('api_name', '') if isinstance(o, dict) else str(o)).lower())
-            obj_covered = bool(sf_objs & sd_objs)
+            # CAL-08 : meme rapprochement semantique que le score
+            sd_detail = _objets_de_conception(solution_design.get('data_model', {}) or {})
+            obj_covered = any(
+                _rapprocher_objet(o, sd_detail)
+                for o in uc.get('sf_objects', []) if isinstance(o, str) and o.strip()
+            )
             trace_covered = uc_id in covered_uc_ids
 
             if not (obj_covered or trace_covered):
