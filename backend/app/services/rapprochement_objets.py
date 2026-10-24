@@ -49,10 +49,20 @@ _METADONNEES = (
     "routing configuration", "service channel", "presence status",
     "named credential", "custom metadata type", "custom setting", "platform event",
 )
-#: Reprise R1 : seul le suffixe « flow » classe un nom inconnu en métadonnée
-#: (``Case_Escalation_Flow``). « rule », « template », « report »… en fin de
-#: nom désignaient aussi des objets (Price Rule, Quote Template en CPQ).
-_SUFFIXES_METADONNEE = ("flow",)
+#: Suffixes qui font d'un nom propre une métadonnée (``Case_Escalation_Flow``,
+#: ``Sales Report``, ``Support Queue``, ``Lead Assignment Rule``). Comparés en
+#: fin de nom, mot à mot, au singulier ; un ``__c`` reste un objet.
+#: Reprise D1 (revue passe 2) : R1 n'avait gardé que « flow » et des
+#: métadonnées nommées redevenaient des objets manquants. « rule » et
+#: « template » SEULS restent exclus : Price Rule, Product Rule, Quote
+#: Template sont des objets (CPQ). Seules des expressions de type connu.
+_SUFFIXES_METADONNEE = (
+    ("flow",), ("report",), ("report", "type"), ("dashboard",), ("queue",),
+    ("list", "view"), ("email", "template"), ("assignment", "rule"),
+    ("escalation", "rule"), ("auto", "response", "rule"), ("validation", "rule"),
+    ("workflow", "rule"), ("approval", "process"), ("permission", "set"),
+    ("page", "layout"), ("record", "type"),
+)
 
 #: Lexique de rapprochement : mot (sans accent, minuscule) → mots communs.
 _LEXIQUE: Dict[str, Tuple[str, ...]] = {
@@ -131,8 +141,9 @@ def est_metadonnee(nom: str) -> bool:
     cle = " ".join(_mots_bruts(nom))
     if cle in _METADONNEES:
         return True
-    mots = cle.split()
-    return bool(mots) and mots[-1] in _SUFFIXES_METADONNEE and len(mots) > 1
+    mots = tuple(_singulier(m) for m in cle.split())
+    return any(len(mots) > len(suf) and mots[-len(suf):] == suf
+               for suf in _SUFFIXES_METADONNEE)
 
 
 #: Mots qui ne désignent pas un autre objet : un canal, une marque, un

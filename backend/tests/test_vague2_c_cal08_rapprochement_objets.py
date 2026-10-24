@@ -180,3 +180,51 @@ def test_jeu_du_testeur_six_vrais_manques_restent_six():
     assert sorted(dm["missing"]) == sorted(r.lower() for r in refs)
     assert dm["renamed"] == []
     assert dm["score"] == pytest.approx(0.0)
+
+
+# ── Reprise D1 (revue passe 2) : une métadonnée NOMMÉE reste une métadonnée ──
+# La reprise R1 n'avait gardé que le suffixe « flow » : Sales Report, Support
+# Queue… redevenaient des « objets manquants » (9/9 sur le jeu du testeur).
+
+METADONNEES_NOMMEES = ["Sales Report", "Monthly_Pipeline_Report", "Support Queue",
+                       "Escalation_Queue", "Case Queue", "Sales Dashboard",
+                       "Welcome Email Template", "Lead Assignment Rule",
+                       "Case Escalation Rule"]
+
+
+@pytest.mark.parametrize("nom", METADONNEES_NOMMEES)
+def test_d1_une_metadonnee_nommee_n_est_jamais_un_objet_manquant(nom):
+    rapport = generate_coverage_report_programmatic(_conception(), _uc(nom))
+    assert rapport["by_category"]["data_model"]["missing"] == []
+    assert nom.lower() in rapport["by_category"]["data_model"]["non_objects"]
+    assert not [g for g in rapport["critical_gaps"] if g["category"] == "DATA_MODEL"]
+
+
+@pytest.mark.parametrize("nom", ["Price Rule", "Quote Template", "Product Rule",
+                                 "SBQQ__PriceRule__c", "Report_Card__c", "Queue_Ticket__c"])
+def test_d1_controle_negatif_objet_reste_objet(nom):
+    """« Rule » ou « Template » seuls (CPQ) et tout ``__c`` restent des objets,
+    même quand le nom contient report/queue."""
+    dm = calculate_coverage_score(_conception(standard=[("Account", "Account")]),
+                                  _uc(nom))["by_category"]["data_model"]
+    assert dm["missing"] == [nom.lower()]
+    assert dm["non_objects"] == []
+
+
+# ── Reprise D2 (revue passe 2) : les objets de plateforme exclus du score ne
+# sont pas non plus des « manques critiques » (score 100 % avec 4 manques).
+
+def test_d2_objets_de_plateforme_hors_des_manques():
+    rapport = generate_coverage_report_programmatic(
+        _conception(standard=[("Case", "Case")]),
+        _uc("Case", "User", "Group", "BusinessHours"))
+    dm = rapport["by_category"]["data_model"]
+    assert dm["missing"] == []
+    assert not [g for g in rapport["critical_gaps"] if g["category"] == "DATA_MODEL"]
+
+
+def test_d2_controle_negatif_un_vrai_manque_reste_a_cote_de_la_plateforme():
+    dm = calculate_coverage_score(
+        _conception(standard=[("Case", "Case")]),
+        _uc("Case", "User", "Invoice__c"))["by_category"]["data_model"]
+    assert dm["missing"] == ["invoice__c"]

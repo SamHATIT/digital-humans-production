@@ -268,9 +268,12 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
         'namedcredential', 'processinstance', 'processinstanceworkitem',
         'pendingservicerouting', 'agentwork', 'servicechannel',
         'externalserviceregistration', 'datacategoryselection',
-        'personaccount', 'individual', 'campaign', 'campaignmember',
-        'contract', 'order', 'slaprocess', 'milestone', 'milestonetype',
+        'personaccount', 'individual', 'slaprocess', 'milestone', 'milestonetype',
     }
+    # Reprise D2 (revue passe 2) : Order, Contract, Campaign, CampaignMember
+    # sont des objets METIER, pas de l'infrastructure : les exclure masquait un
+    # vrai manque (« Order » demande, absent de la conception) dans le score, et
+    # dans la liste des manques des que celle-ci suit le meme filtre.
     # CAL-08 : rapprochement semantique AVANT de declarer un manque ; une
     # metadonnee (Flow, Report, Queue...) n'est jamais un objet manquant.
     classement_objets = _classer_objets(uc_objets_origine.values(), sd_objets_detail)
@@ -309,7 +312,9 @@ def calculate_coverage_score(solution_design: dict, use_cases: list) -> dict:
                 "sd_objects": list(sd_objects),
                 "uc_objects": list(uc_objects),
                 # CAL-08 : manque = ni identique, ni renomme, ni metadonnee
-                "missing": classement_objets["manquants"],
+                # Reprise D2 (revue passe 2) : les objets de plateforme exclus
+                # du score ne sont pas non plus des manques critiques.
+                "missing": sorted(set(classement_objets["manquants"]) & uc_objects_filtered),
                 "renamed": classement_objets["renommes"],
                 "non_objects": classement_objets["non_objets"],
             },
