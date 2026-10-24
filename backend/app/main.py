@@ -345,6 +345,38 @@ async def startup_event():
     except Exception as e:
         logger.error("[LLM] sonde des fournisseurs locaux non lancee : %s", e)
 
+    # Vague 2 / file B — fournisseur local injoignable (Spark, 30/09) : la
+    # sonde ci-dessus ne passe qu'au demarrage et ne fait que journaliser.
+    # Celle-ci repasse toutes les DH_SONDE_FOURNISSEURS_S secondes (60 par
+    # defaut ; 0 la coupe, et le dit) sur les fournisseurs LOCAUX que le
+    # profil route, et alerte l'admin a la premiere panne et au retour
+    # (app.services.alertes_fournisseurs). Premier passage apres un
+    # intervalle : la sonde de demarrage couvre deja l'instant zero.
+    async def _surveiller_fournisseurs_locaux(intervalle: float) -> None:
+        from app.services import alertes_fournisseurs
+
+        while True:
+            await asyncio.sleep(intervalle)
+            try:
+                await asyncio.to_thread(alertes_fournisseurs.sonder_fournisseurs_locaux_servis)
+            except Exception as e:
+                logger.error("[LLM] surveillance des fournisseurs locaux en echec : %s", e)
+
+    try:
+        intervalle = float(os.environ.get("DH_SONDE_FOURNISSEURS_S") or 60)
+        if intervalle > 0:
+            app.state.surveillance_fournisseurs_task = asyncio.create_task(
+                _surveiller_fournisseurs_locaux(intervalle)
+            )
+        else:
+            logger.warning(
+                "[LLM] surveillance periodique des fournisseurs locaux COUPEE "
+                "(DH_SONDE_FOURNISSEURS_S=%s) : une panne du Spark ne sera pas alertee.",
+                os.environ.get("DH_SONDE_FOURNISSEURS_S"),
+            )
+    except Exception as e:
+        logger.error("[LLM] surveillance des fournisseurs locaux non lancee : %s", e)
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Cleanup services on shutdown."""
@@ -356,6 +388,13 @@ async def shutdown_event():
     tache_rag = getattr(app.state, "rag_health_task", None)
     if tache_rag is not None and not tache_rag.done():
         tache_rag.cancel()
+    tache_surveillance = getattr(app.state, "surveillance_fournisseurs_task", None)
+    if tache_surveillance is not None and not tache_surveillance.done():
+        tache_surveillance.cancel()
+        try:
+            await tache_surveillance
+        except (asyncio.CancelledError, Exception):
+            pass
     # Vague 2 / file B : la sonde RAG est un processus enfant ; on le tue.
     try:
         from app.services import sonde_rag

@@ -138,6 +138,8 @@ def chat_sans_projet(
 
     tier = resolve_tier(current_user)
 
+    from app.services import alertes_fournisseurs
+    from app.services.credit_service import InsufficientCreditsError
     from app.services.llm_service import generate_llm_response
 
     try:
@@ -152,11 +154,26 @@ def chat_sans_projet(
             # D10 : tout appel d'agent est facture a un proprietaire connu.
             user_id=current_user.id,
         )
-    except Exception as exc:  # noqa: BLE001
-        logger.error("[Studio chat] appel LLM en echec : %s", exc)
+    except InsufficientCreditsError as exc:
+        # Le quota du CLIENT n'est pas une panne fournisseur : il est dit
+        # tel quel (402), sans alerte d'exploitation.
+        logger.info("[Studio chat] credits insuffisants : %s", exc)
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"L'agent n'a pas pu repondre : {exc}",
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail={
+                "error": "insufficient_credits",
+                "message": "Vos crédits ne suffisent pas pour cet échange.",
+                "upgrade_url": "/pricing",
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Vague 2 / file B — GL-25 : la cause (souvent le message brut du
+        # fournisseur) va au journal et a l'admin, pas au client.
+        logger.error("[Studio chat] appel LLM en echec : %s", exc)
+        alertes_fournisseurs.signaler_echec_appel(None, str(exc), origine="studio chat")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=alertes_fournisseurs.MESSAGE_CLIENT,
         )
 
     contenu = (reponse.get("content") or "").strip()
@@ -164,11 +181,24 @@ def chat_sans_projet(
         # Regle 6 : un echec LLM ne devient jamais un 200 vide (le 03/09, un
         # 404 de fournisseur est arrive au client comme une reponse de Sophie
         # de zero caractere).
+        #
+        # Vague 2 / file B — GL-25 : le 17/09, ce 502 portait au client
+        # « Your credit balance is too low to access the Anthropic API ».
+        # Le client recoit desormais un 503 explicite ; la cause va au journal
+        # et, si c'est une indisponibilite reconnue (solde, transport), a
+        # l'admin — une fois par panne, et une fois au retour.
         motif = reponse.get("error") or "reponse vide"
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"L'agent n'a pas pu repondre : {motif}",
+        logger.error(
+            "[Studio chat] %s en echec : %s", reponse.get("provider") or "fournisseur ?", motif
         )
+        alertes_fournisseurs.signaler_echec_appel(
+            reponse.get("provider"), motif, origine="studio chat"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=alertes_fournisseurs.MESSAGE_CLIENT,
+        )
+    alertes_fournisseurs.signaler_succes_appel(reponse.get("provider"), origine="studio chat")
 
     return StudioChatResponse(
         agent_id=agent_id,

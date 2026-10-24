@@ -72,7 +72,14 @@ def _envoyer_telegram(sujet: str, corps: str, timeout: float = 5.0) -> bool:
     ).encode()
     url = f"https://api.telegram.org/bot{jeton}/sendMessage"
     with urllib.request.urlopen(url, donnees, timeout=timeout) as reponse:
-        return 200 <= reponse.status < 300
+        if not (200 <= reponse.status < 300):
+            return False
+        # Vague 2 / file B (meme regle qu'OPS-08 pour le watchdog) : le
+        # transport ne suffit pas, Telegram dit dans le corps s'il a accepte.
+        try:
+            return json.loads(reponse.read() or b"{}").get("ok") is True
+        except ValueError:
+            return False
 
 
 def alerter_admin(
@@ -111,8 +118,8 @@ def alerter_admin(
     if not envoye:
         logger.error(
             "[ALERTE ADMIN] Telegram non configuré (TELEGRAM_BOT_TOKEN / "
-            "TELEGRAM_CHAT_ID) : cette alerte n'existe que dans le journal et "
-            "le tableau de bord."
+            "TELEGRAM_CHAT_ID) ou envoi refusé par Telegram : cette alerte "
+            "n'existe que dans le journal et le tableau de bord."
         )
     return envoye
 
