@@ -213,6 +213,9 @@ def chat_with_sophie_contextual(
 
     # N93 fix: system prompt now sourced from agents_registry.yaml (no inline dup).
     system_prompt = profile["system_prompt"].format(project_name=project.name)
+    # Langue de la question : le prompt du registre imposait le francais.
+    from app.services.langue_reponse import avec_consigne_langue
+    system_prompt = avec_consigne_langue(system_prompt, body.message)
 
     # Call LLM via router (C-0: no more LLMService bypass)
     from app.services.llm_service import generate_llm_response

@@ -29,6 +29,10 @@ interface StudioAgentRow {
 interface Turn {
   role: 'user' | 'assistant';
   content: string;
+  // GL-26 : l'agent qui a donné ce tour. Renvoyé au serveur dans
+  // l'historique : sans lui, la réponse de Sophie était attribuée à Olivia.
+  agent_id?: string;
+  agent_name?: string;
 }
 
 const MD_CLASSES = {
@@ -38,7 +42,7 @@ const MD_CLASSES = {
 };
 
 export default function StudioChatPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
 
   const [agents, setAgents] = useState<StudioAgentRow[]>([]);
   const [tier, setTier] = useState<string>('');
@@ -80,8 +84,18 @@ export default function StudioChatPage() {
         message,
         agent_id: agentId,
         history: historique,
+        // Langue de l'interface : sert quand la question ne dit pas la sienne.
+        lang,
       });
-      setTurns((prev) => [...prev, { role: 'assistant', content: data.response }]);
+      setTurns((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: data.response,
+          agent_id: data.agent_id ?? agentId,
+          agent_name: data.agent_name,
+        },
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -166,7 +180,7 @@ export default function StudioChatPage() {
                   }`}
                 >
                   <p className="font-mono text-[10px] tracking-eyebrow uppercase text-bone-4 mb-1.5">
-                    {turn.role === 'user' ? t('You', 'Vous') : (courant?.name ?? 'Sophie')}
+                    {turn.role === 'user' ? t('You', 'Vous') : (turn.agent_name ?? courant?.name ?? 'Sophie')}
                   </p>
                   <p className="font-serif text-[14px] leading-relaxed whitespace-pre-wrap break-words">
                     {renderInlineMarkdown(turn.content, MD_CLASSES)}
