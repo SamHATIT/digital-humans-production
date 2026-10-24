@@ -362,3 +362,34 @@ def test_suppression_d_un_document_sans_collection_purge_ses_chunks_ou_qu_ils_so
     assert r.status_code == 200, r.text
     restants = [i for i in _chunks_du_projet(chroma, pid) if i.startswith(f"proj{pid}_doc{doc.id}_")]
     assert restants == [], f"chunks orphelins après suppression d'un document sans collection : {restants}"
+
+
+# ── Reprise D1 (revue passe 2) : `--reprendre` ne déclare plus un succès
+# quand un effacement est `bloque` (sonde 1 : rc=0, « encore en attente : 0 »).
+
+def _main_sur_la_session_de_test(env, monkeypatch, capsys):
+    from app.services import account_service as module_service
+    db = env["db"]
+    monkeypatch.setattr(db, "close", lambda: None)
+    monkeypatch.setattr("app.database.SessionLocal", lambda: db)
+    rc = module_service.main(["--reprendre"])
+    return rc, capsys.readouterr().out
+
+
+def test_d1_cli_reprendre_signale_un_effacement_bloque(env, monkeypatch, capsys):
+    from app.models.effacement_compte import EffacementCompte
+    db = env["db"]
+    orphelin = EffacementCompte(user_id=None, statut="partiel", perimetre={}, etapes={}, erreurs=[], tentatives=1)
+    db.add(orphelin)
+    db.commit()
+    for passage in (1, 2):      # le passage qui bloque, puis le suivant
+        rc, sortie = _main_sur_la_session_de_test(env, monkeypatch, capsys)
+        assert rc != 0, f"passage {passage} : code 0 malgré un effacement bloqué ({sortie!r})"
+        assert "bloqués (intervention humaine) : 1" in sortie, sortie
+        assert str(orphelin.id) in sortie, sortie
+
+
+def test_d1_controle_negatif_rien_en_attente_rien_bloque_code_zero(env, monkeypatch, capsys):
+    rc, sortie = _main_sur_la_session_de_test(env, monkeypatch, capsys)
+    assert rc == 0, sortie
+    assert "bloqués (intervention humaine) : 0" in sortie, sortie

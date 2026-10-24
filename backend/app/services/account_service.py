@@ -921,10 +921,23 @@ def main(argv=None) -> int:
             .filter(EffacementCompte.statut.in_(STATUTS_OUVERTS))
             .count()
         )
+        # Reprise D1 (revue passe 2) : un effacement `bloque` n'est pas
+        # « en attente », mais il n'est pas fait non plus. Le taire rendait
+        # le code 0 et « 0 en attente » au passage meme qui le bloquait.
+        bloques = [
+            ligne[0]
+            for ligne in db.query(EffacementCompte.id)
+            .filter(EffacementCompte.statut == STATUT_BLOQUE)
+            .order_by(EffacementCompte.id)
+            .all()
+        ]
     finally:
         db.close()
-    print(f"effacements terminés : {termines} ; encore en attente : {restants}")
-    return 1 if restants else 0
+    print(
+        f"effacements terminés : {termines} ; encore en attente : {restants} ; "
+        f"bloqués (intervention humaine) : {len(bloques)} {bloques if bloques else ''}".rstrip()
+    )
+    return 1 if (restants or bloques) else 0
 
 
 if __name__ == "__main__":
