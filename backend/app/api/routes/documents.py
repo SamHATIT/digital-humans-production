@@ -175,14 +175,15 @@ def _extraire_pdf(file_path: Path) -> str:
     # PROD-09 : PyMuPDF (`fitz`) etait le seul parseur essaye, et son absence
     # faisait lire le PDF binaire comme du texte, ingere comme valide. Mesure
     # du 24/10 : `fitz` n'est installe ni dans le venv de production ni dans
-    # celui des tests. PyPDF2 est declare dans requirements.txt et installe
-    # dans les deux. Absent : refus explicite, rien n'est ingere.
+    # celui des tests. Fusion vague 2 (24/10) : la file B (SEC-18) a remplace
+    # PyPDF2, abandonne (CVE-2023-36464), par pypdf — meme API PdfReader.
+    # Absent : refus explicite, rien n'est ingere.
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:
         raise DocumentRefuse(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            "Lecture des PDF indisponible sur ce serveur (PyPDF2 absent) : "
+            "Lecture des PDF indisponible sur ce serveur (pypdf absent) : "
             "document refuse, rien n'a ete enregistre.",
         )
     with open(file_path, "rb") as flux:

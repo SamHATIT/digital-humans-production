@@ -89,7 +89,14 @@ def _chunks_du_projet(chroma, project_id):
 
 def _appel_asgi_multipart(project_id, jeton, taille_fichier, annoncer_longueur=True):
     """POST multipart en ASGI direct. Rend (statut, octets lus avant réponse,
-    pic tracemalloc en octets, corps de réponse)."""
+    pic tracemalloc en octets, corps de réponse).
+
+    Fusion vague 2 (24/10) : « octets lus » = octets TIRÉS DU CLIENT par
+    `receive` avant le début de la réponse. L'ancien compteur instrumentait
+    `Request.stream` : depuis Starlette 1.x (montée de la file B), chaque
+    `BaseHTTPMiddleware` (audit, contexte, BUILD) fait transiter le corps par
+    son propre `Request.stream` — mesuré : 21 037 170 octets lus par la route,
+    comptés 4 fois = 84 148 680. Le receive brut compte chaque octet une fois."""
     entete = (
         b"--" + FRONTIERE + b"\r\n"
         b'Content-Disposition: form-data; name="file"; filename="gros.txt"\r\n'
@@ -151,6 +158,24 @@ def _appel_asgi_multipart(project_id, jeton, taille_fichier, annoncer_longueur=T
             yield morceau
 
     Request.stream = stream_compte
+    # Mise en route (fusion vague 2, 24/10) : le premier appel de l'application
+    # paie ~3 Mo d'initialisation paresseuse (FastAPI 0.162 / Starlette 1.x),
+    # quel que soit le test lancé en premier — mesuré : refus à froid 3 165 950
+    # octets, à chaud 122 577. On mesure le traitement du corps, pas l'amorçage :
+    # un appel refusé sur l'en-tête, sans corps, est joué avant la mesure.
+    scope_amorce = dict(scope, headers=[h for h in entetes if h[0] != b"content-length"]
+                        + [(b"content-length", str(10 ** 12).encode())])
+
+    async def receive_vide():
+        return {"type": "http.disconnect"}
+
+    async def send_ignore(message):
+        pass
+
+    try:
+        asyncio.run(app(scope_amorce, receive_vide, send_ignore))
+    except Exception:  # noqa: BLE001 — l'amorce ne juge rien ; les assertions jugent
+        pass
     tracemalloc.start()
     try:
         asyncio.run(app(scope, receive, send))
@@ -159,7 +184,8 @@ def _appel_asgi_multipart(project_id, jeton, taille_fichier, annoncer_longueur=T
         tracemalloc.stop()
         Request.stream = stream_original
     print(f"[MESURE PROD-09] octets_recus_avant_reponse (receive brut, information)={etat['lus_avant_reponse']}")
-    return etat["statut"], lus_par_l_application["octets"], pic, etat["corps"], total
+    print(f"[MESURE PROD-09] Request.stream cumule sur toutes les couches (information)={lus_par_l_application['octets']}")
+    return etat["statut"], etat["lus_avant_reponse"], pic, etat["corps"], total
 
 
 def test_upload_au_dela_du_plafond_refuse_avant_lecture_du_corps(env):
