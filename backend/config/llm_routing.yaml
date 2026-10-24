@@ -173,6 +173,13 @@ profiles:
           - architect
           - solution_architect
         # Worker tier inchangé (Sonnet)
+    # GL-22 (vague 2 / file C) : modele servi a la place d'un modele a opt-in
+    # (model_pricing.requires_opt_in) quand l'utilisateur n'a pas consenti pour
+    # cette execution, ou quand le montant accepte est atteint. Le repli est
+    # annonce (executions.degraded, motif opus_repli_sonnet). Sans entree ici,
+    # l'appel est refuse : on ne devine pas un repli.
+    repli_sans_consentement:
+      "anthropic/claude-opus": "anthropic/claude-sonnet"
 
   # --- Profile 2 : on-premise (client airgapped) ---
   # Ollama local pour tout. AUCUN fallback cloud (confidentialité).

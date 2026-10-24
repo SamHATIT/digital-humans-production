@@ -36,6 +36,8 @@ export interface ExecutionProgress {
    * cause n'est pas reconnue : le backend ne devine pas, le frontend non plus.
    */
   failure_reason?: FailureReason | null;
+  /** GL-10 / GL-22 — degradations tracees sur l'execution (`executions.degraded`). */
+  degraded?: { motif: string; detail?: string; at?: string }[];
 }
 
 export interface BudgetInfo {

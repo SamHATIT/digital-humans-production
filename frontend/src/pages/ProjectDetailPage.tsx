@@ -22,6 +22,7 @@ import ChangeRequestModal from '../components/projects/ChangeRequestModal';
 import ProjectSettingsModal from '../components/ProjectSettingsModal';
 import AiDisclosureBanner from '../components/AiDisclosureBanner';
 import { readChatReply, readCrStatus } from '../lib/apiContracts';
+import { withFallbackNotice } from '../lib/opusConsent.ts';
 
 interface Project {
   id: number;
@@ -186,9 +187,12 @@ export default function ProjectDetailPage() {
         {
           id: Date.now() + 1,
           role: 'assistant',
-          message:
+          // GL-22 / reprise R4 : un repli Opus -> Sonnet est dit, pas tu.
+          message: withFallbackNotice(
             reponse ??
-            t('Sophie replied with an empty message.', 'Sophie a répondu un message vide.'),
+              t('Sophie replied with an empty message.', 'Sophie a répondu un message vide.'),
+            resp,
+          ),
           created_at: new Date().toISOString(),
         },
       ]);

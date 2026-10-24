@@ -50,7 +50,8 @@ async def chat_with_sophie(
     return SophieResponse(
         message=result["message"],
         tokens_used=result.get("tokens_used", 0),
-        context_used=result.get("context_used", [])
+        context_used=result.get("context_used", []),
+        avis_repli=result.get("avis_repli"),
     )
 
 

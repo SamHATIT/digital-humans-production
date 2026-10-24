@@ -180,6 +180,10 @@ class SophieChatService:
         
         # Build system prompt
         system_prompt = self._build_system_prompt(context)
+        # Langue de la question (mesure du 30/09 : le prompt imposait le
+        # francais, une question en anglais recevait une reponse en francais).
+        from app.services.langue_reponse import avec_consigne_langue
+        system_prompt = avec_consigne_langue(system_prompt, user_message)
         logger.info(f"[Sophie Chat] System prompt length: {len(system_prompt)} chars")
         
         # Build conversation as single prompt (Claude format)
@@ -245,7 +249,9 @@ class SophieChatService:
                 "message": assistant_message,
                 "tokens_used": tokens_used,
                 "model_used": model_used,
-                "context_used": list(context.keys())
+                "context_used": list(context.keys()),
+                # GL-22 / reprise R4 : repli Opus -> Sonnet annonce au client.
+                "avis_repli": response.get("avis_repli"),
             }
             
         except Exception as e:
@@ -302,7 +308,7 @@ Tu es en charge du projet "{project_info.get('name', 'ce projet')}" qui est une 
 - Être professionnelle, claire et pédagogue
 
 **Style de communication:**
-- Réponds en français
+- Réponds dans la langue du client (voir la consigne de langue ci-dessous)
 - Sois concise mais complète (2-4 paragraphes max)
 - Utilise des exemples concrets quand c'est utile
 - Si tu ne sais pas quelque chose, dis-le honnêtement

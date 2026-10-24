@@ -219,3 +219,5 @@ from app.models.concierge_budget import ConciergeBudgetJour  # noqa: F401
 
 # RGPD-03 (vague 2 / file A) : tache durable d'effacement de compte, rejouable.
 from app.models.effacement_compte import EffacementCompte  # noqa: F401
+# GL-22 (vague 2 / file C) : trace du consentement Opus par exécution.
+from app.models.consentement_opus import ConsentementOpus  # noqa: F401

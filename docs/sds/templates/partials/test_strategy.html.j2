@@ -2,16 +2,16 @@
    Le payload est wrappe en raw_markdown avec corruption LLM (cf. _parse_error
    sur exec 146 = 'recovered: per-occurrence heuristic'). #}
 <section id='sec-11' class='block'>
-<div class='act'><span class='act-num'>— Scene XI</span><span class='act-sep'></span><span class='act-tag'>Artifact 11</span></div><h1 class='sec-h1'><span>Test Strategy &amp; QA Approach</span> <em class='brass'>(Elena — QA Specialist)</em></h1>
-<p>Elena defined the test strategy: {{ qa.traceability_matrix | length }} traceability entries, {{ qa.test_cases | length }} test cases, with full UC↔code traceability.</p>
-<h2 id='sub-11-1' class='sec-h2'><span>11.1 Strategy</span></h2>
+<div class='act'><span class='act-num'>{{ _("— Scene XI") }}</span><span class='act-sep'></span><span class='act-tag'>{{ _("Artifact 11") }}</span></div><h1 class='sec-h1'><span>{{ _("Test Strategy &amp; QA Approach") }}</span> <em class='brass'>{{ _("(Elena — QA Specialist)") }}</em></h1>
+<p>{{ _("Elena defined the test strategy:") }} {{ qa.traceability_matrix | length }} {{ _("traceability entries,") }} {{ qa.test_cases | length }} {{ _("test cases, with full UC↔code traceability.") }}</p>
+<h2 id='sub-11-1' class='sec-h2'><span>{{ _("11.1 Strategy") }}</span></h2>
 <p>{{ qa.test_strategy.approach | etext }}</p>
-{% if qa.test_strategy.environments %}<h3 class='sec-h3'>Test Environments ({{ qa.test_strategy.environments | length }})</h3>
+{% if qa.test_strategy.environments %}<h3 class='sec-h3'>{{ _("Test Environments (") }}{{ qa.test_strategy.environments | length }})</h3>
 <table class='tbl'>
 <thead><tr>
 <th><strong>Env</strong></th>
-<th><strong>Purpose</strong></th>
-<th><strong>Test data</strong></th>
+<th><strong>{{ _("Purpose") }}</strong></th>
+<th><strong>{{ _("Test data") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for env in qa.test_strategy.environments %}<tr>
@@ -20,13 +20,13 @@
 <td>{{ env.data | etext }}</td>
 </tr>
 {% endfor %}</tbody></table>
-{% endif %}{% if qa.test_strategy.tools %}<h3 class='sec-h3'>Tools</h3>
+{% endif %}{% if qa.test_strategy.tools %}<h3 class='sec-h3'>{{ _("Tools") }}</h3>
 {% for tool in qa.test_strategy.tools %}<p>- {{ tool | etext }}</p>
-{% endfor %}{% endif %}{% if qa.test_strategy.exit_criteria %}<h3 class='sec-h3'>Exit Criteria</h3>
+{% endfor %}{% endif %}{% if qa.test_strategy.exit_criteria %}<h3 class='sec-h3'>{{ _("Exit Criteria") }}</h3>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Criterion</strong></th>
-<th><strong>Target</strong></th>
+<th><strong>{{ _("Criterion") }}</strong></th>
+<th><strong>{{ _("Target") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for k, v in qa.test_strategy.exit_criteria.items() %}<tr>
@@ -34,14 +34,14 @@
 <td><strong>{{ ('true' if v is sameas true else ('false' if v is sameas false else v)) | etext }}</strong></td>
 </tr>
 {% endfor %}</tbody></table>
-{% endif %}<h2 id='sub-11-2' class='sec-h2'><span>11.2 Traceability Matrix</span> <em class='brass'>({{ qa.traceability_matrix | length }} entries)</em></h2>
+{% endif %}<h2 id='sub-11-2' class='sec-h2'><span>{{ _("11.2 Traceability Matrix") }}</span> <em class='brass'>({{ qa.traceability_matrix | length }} {{ _("entries)") }}</em></h2>
 <table class='tbl'>
 <thead><tr>
 <th><strong>UC ID</strong></th>
-<th><strong>UC Title</strong></th>
-<th><strong>Test Cases</strong></th>
-<th><strong>Architecture refs</strong></th>
-<th><strong>Risk</strong></th>
+<th><strong>{{ _("UC Title") }}</strong></th>
+<th><strong>{{ _("Test Cases") }}</strong></th>
+<th><strong>{{ _("Architecture refs") }}</strong></th>
+<th><strong>{{ _("Risk") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for tm in qa.traceability_matrix %}<tr>
@@ -52,15 +52,15 @@
 <td><strong>{{ tm.risk_level }}</strong></td>
 </tr>
 {% endfor %}</tbody></table>
-<h2 id='sub-11-3' class='sec-h2'><span>11.3 Test Cases</span> <em class='brass'>({{ qa.test_cases | length }})</em></h2>
-<p>Summary view of test cases. The full bodies (preconditions, steps, assertions, apex hints) are stored in the Elena deliverable.</p>
+<h2 id='sub-11-3' class='sec-h2'><span>{{ _("11.3 Test Cases") }}</span> <em class='brass'>({{ qa.test_cases | length }})</em></h2>
+<p>{{ _("Summary view of test cases. The full bodies (preconditions, steps, assertions, apex hints) are stored in the Elena deliverable.") }}</p>
 <table class='tbl'>
 <thead><tr>
 <th><strong>ID</strong></th>
-<th><strong>Title</strong></th>
-<th><strong>Category</strong></th>
-<th><strong>Priority</strong></th>
-<th><strong>UC ref</strong></th>
+<th><strong>{{ _("Title") }}</strong></th>
+<th><strong>{{ _("Category") }}</strong></th>
+<th><strong>{{ _("Priority") }}</strong></th>
+<th><strong>{{ _("UC ref") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for tc in qa.test_cases %}<tr>
@@ -71,15 +71,15 @@
 <td>{{ tc.uc_ref }}</td>
 </tr>
 {% endfor %}</tbody></table>
-<h2 id='sub-11-4' class='sec-h2'><span>11.4 Test Data Strategy</span></h2>
+<h2 id='sub-11-4' class='sec-h2'><span>{{ _("11.4 Test Data Strategy") }}</span></h2>
 <table class='tbl tbl-kv'>
 <tbody>
 {% set tds = qa.test_data_strategy %}{% if tds.seed_data %}<tr>
-<td>seed data</td>
+<td>{{ _("seed data") }}</td>
 <td class='td-json'><table class='tbl tbl-nested'><thead><tr>
-<th><span class='key'>object</span></th>
-<th><span class='key'>count</span></th>
-<th><span class='key'>key fields</span></th>
+<th><span class='key'>{{ _("object") }}</span></th>
+<th><span class='key'>{{ _("count") }}</span></th>
+<th><span class='key'>{{ _("key fields") }}</span></th>
 </tr></thead><tbody>
 {% for sd in tds.seed_data %}<tr>
 <td>{{ sd.object }}</td>
@@ -91,11 +91,11 @@
 {% endfor %}</tbody></table></td>
 </tr>
 {% endif %}{% if tds.bulk_test_data %}<tr>
-<td>bulk test data</td>
+<td>{{ _("bulk test data") }}</td>
 <td class='td-json'><table class='tbl tbl-nested'><thead><tr>
-<th><span class='key'>object</span></th>
-<th><span class='key'>count</span></th>
-<th><span class='key'>purpose</span></th>
+<th><span class='key'>{{ _("object") }}</span></th>
+<th><span class='key'>{{ _("count") }}</span></th>
+<th><span class='key'>{{ _("purpose") }}</span></th>
 </tr></thead><tbody>
 {% for bd in tds.bulk_test_data %}<tr>
 <td>{{ bd.object }}</td>
@@ -105,15 +105,15 @@
 {% endfor %}</tbody></table></td>
 </tr>
 {% endif %}{% if tds.negative_test_data %}{% set MUTED = "<span class='muted'>—</span>" %}<tr>
-<td>negative test data</td>
+<td>{{ _("negative test data") }}</td>
 <td class='td-json'><table class='tbl tbl-nested'><thead><tr>
-<th><span class='key'>scenario</span></th>
-<th><span class='key'>object</span></th>
-<th><span class='key'>missing field</span></th>
-<th><span class='key'>expected error</span></th>
-<th><span class='key'>duplicate field</span></th>
-<th><span class='key'>invalid field</span></th>
-<th><span class='key'>invalid value</span></th>
+<th><span class='key'>{{ _("scenario") }}</span></th>
+<th><span class='key'>{{ _("object") }}</span></th>
+<th><span class='key'>{{ _("missing field") }}</span></th>
+<th><span class='key'>{{ _("expected error") }}</span></th>
+<th><span class='key'>{{ _("duplicate field") }}</span></th>
+<th><span class='key'>{{ _("invalid field") }}</span></th>
+<th><span class='key'>{{ _("invalid value") }}</span></th>
 </tr></thead><tbody>
 {% for nd in tds.negative_test_data %}<tr>
 <td>{{ nd.scenario | etext }}</td>
@@ -127,15 +127,15 @@
 {% endfor %}</tbody></table></td>
 </tr>
 {% endif %}</tbody></table>
-<h2 id='sub-11-5' class='sec-h2'><span>11.5 Automation Plan</span></h2>
+<h2 id='sub-11-5' class='sec-h2'><span>{{ _("11.5 Automation Plan") }}</span></h2>
 <table class='tbl tbl-kv'>
 <tbody>
 {% if qa.automation_plan.apex_tests %}<tr>
-<td>apex tests</td>
+<td>{{ _("apex tests") }}</td>
 <td class='td-json'><table class='tbl tbl-nested'><thead><tr>
-<th><span class='key'>class name</span></th>
-<th><span class='key'>methods</span></th>
-<th><span class='key'>covers</span></th>
+<th><span class='key'>{{ _("class name") }}</span></th>
+<th><span class='key'>{{ _("methods") }}</span></th>
+<th><span class='key'>{{ _("covers") }}</span></th>
 </tr></thead><tbody>
 {% for at in qa.automation_plan.apex_tests %}<tr>
 <td>{{ at.class_name }}</td>
@@ -145,11 +145,11 @@
 {% endfor %}</tbody></table></td>
 </tr>
 {% endif %}{% if qa.automation_plan.flow_tests %}<tr>
-<td>flow tests</td>
+<td>{{ _("flow tests") }}</td>
 <td class='td-json'><table class='tbl tbl-nested'><thead><tr>
-<th><span class='key'>flow name</span></th>
-<th><span class='key'>test scenario</span></th>
-<th><span class='key'>uc ref</span></th>
+<th><span class='key'>{{ _("flow name") }}</span></th>
+<th><span class='key'>{{ _("test scenario") }}</span></th>
+<th><span class='key'>{{ _("uc ref") }}</span></th>
 </tr></thead><tbody>
 {% for ft in qa.automation_plan.flow_tests %}<tr>
 <td>{{ ft.flow_name }}</td>
@@ -159,12 +159,12 @@
 {% endfor %}</tbody></table></td>
 </tr>
 {% endif %}</tbody></table>
-<h2 id='sub-11-6' class='sec-h2'><span>11.6 Risk Assessment</span> <em class='brass'>({{ qa.risk_assessment | length }})</em></h2>
+<h2 id='sub-11-6' class='sec-h2'><span>{{ _("11.6 Risk Assessment") }}</span> <em class='brass'>({{ qa.risk_assessment | length }})</em></h2>
 <table class='tbl'>
 <thead><tr>
-<th><strong>Risk</strong></th>
-<th><strong>Impact</strong></th>
-<th><strong>Mitigation</strong></th>
+<th><strong>{{ _("Risk") }}</strong></th>
+<th><strong>{{ _("Impact") }}</strong></th>
+<th><strong>{{ _("Mitigation") }}</strong></th>
 </tr></thead>
 <tbody>
 {% for r in qa.risk_assessment %}<tr>

@@ -2,7 +2,7 @@
 Pydantic schemas for Execution model validation and serialization.
 """
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 from app.models.execution import ExecutionStatus
@@ -12,6 +12,14 @@ class ExecutionCreate(BaseModel):
     """Schema for creating a new execution via PM Orchestrator."""
     project_id: int
     selected_agents: List[str] = Field(..., min_length=1, description="List of agent IDs (e.g., ['ba', 'architect', 'pm'])")
+    # GL-22 : decision de l'ecran de consentement Opus. Exigee quand Marcus
+    # serait servi par un modele a opt-in ; `credits_opus_acceptes` doit etre
+    # le montant affiche (sinon 409 : l'estimation a change).
+    consentement_opus: Optional[Literal["accepte", "refuse"]] = None
+    credits_opus_acceptes: Optional[int] = Field(None, ge=0)
+    # Reprise R3 : version du texte de l'ecran que le client a affiche ; le
+    # serveur refuse (409) une autre version que la sienne, et la trace.
+    texte_version_opus: Optional[str] = Field(None, max_length=32)
 
 
 class ExecutionUpdate(BaseModel):

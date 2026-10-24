@@ -55,6 +55,32 @@ TYPES_MIME_LIVRABLE = {
 }
 
 
+def _estimer_consentement_opus(db: Session, user: User):
+    """GL-22 — ce que Marcus coûterait sur un modèle à opt-in pour ce compte."""
+    from app.services.consentement_opus_service import (
+        ConsentementOpusConfigError,
+        estimer,
+    )
+    try:
+        return estimer(db, user.subscription_tier)
+    except ConsentementOpusConfigError as exc:
+        logger.error("[CONSENTEMENT-OPUS] configuration : %s", exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+
+
+@router.get("/execute/opus-estimate")
+@require_feature("sds_document")
+async def estimate_opus_consent(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """GL-22 — coût estimé en crédits avant tout appel Opus (écran de
+    consentement). ``requis`` faux : aucun consentement à demander."""
+    estimation = await asyncio.to_thread(_estimer_consentement_opus, db, current_user)
+    return estimation.as_dict()
+
+
 @router.post("/execute", response_model=ExecutionStartResponse, status_code=status.HTTP_202_ACCEPTED)
 @limiter.limit(RateLimits.EXECUTE_SDS)
 @require_feature("sds_document")
@@ -71,6 +97,52 @@ async def start_execution(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Product Manager (PM) agent is required and must be selected",
         )
+
+    # GL-22 — consentement Opus AVANT toute création : sans décision, ou sur un
+    # montant qui n'est plus celui affiché, rien n'est créé ni enfilé.
+    estimation_opus = await asyncio.to_thread(_estimer_consentement_opus, db, current_user)
+    decision_opus = execution_data.consentement_opus if estimation_opus.requis else None
+    if estimation_opus.requis:
+        if decision_opus is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "consentement_opus_requis",
+                    "message": (
+                        "Marcus serait servi par Opus : acceptez ou refusez le coût "
+                        "estimé avant de lancer l'exécution."
+                    ),
+                    "estimation": estimation_opus.as_dict(),
+                },
+            )
+        if execution_data.texte_version_opus != estimation_opus.texte_version:
+            # Reprise R3 : la trace dit ce que l'utilisateur a lu. Une version
+            # absente ou differente de celle du serveur n'est pas tracable.
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "consentement_opus_texte_perime",
+                    "error": "consentement_opus_texte_perime",
+                    "message": (
+                        "Le texte de l'écran de consentement affiché n'est pas "
+                        "la version en vigueur : rechargez la page."
+                    ),
+                    "estimation": estimation_opus.as_dict(),
+                },
+            )
+        if (decision_opus == "accepte"
+                and execution_data.credits_opus_acceptes != estimation_opus.credits_estimes):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "consentement_opus_montant_perime",
+                    "message": (
+                        "Le montant accepté n'est plus le coût estimé : "
+                        "confirmez le nouveau montant."
+                    ),
+                    "estimation": estimation_opus.as_dict(),
+                },
+            )
 
     def _prepare_execution():
         # P0: sync SQLAlchemy ORM work extracted to run in a worker thread,
@@ -98,6 +170,13 @@ async def start_execution(
         )
         try:
             db.add(execution)
+            if decision_opus is not None:
+                # GL-22 : la trace part dans la même transaction que
+                # l'exécution — pas d'exécution sans sa décision.
+                from app.services.consentement_opus_service import enregistrer_decision
+                db.flush()
+                enregistrer_decision(db, current_user.id, execution.id,
+                                     estimation_opus, decision_opus)
             db.commit()
             db.refresh(execution)
         except Exception:

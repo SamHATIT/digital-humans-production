@@ -2,6 +2,7 @@
  * API Service - Centralized API calls using native fetch
  */
 import { parseApiError } from '../lib/apiContracts';
+import { buildStartBody, type OpusChoice, type OpusEstimate } from '../lib/opusConsent.ts';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -389,14 +390,18 @@ export const projects = {
 // ==================== EXECUTIONS ====================
 
 export const executions = {
-  start: async (projectId: number, selectedAgents: string[]) => {
+  // GL-22 : `choice` porte la décision de l'écran de consentement Opus ; sans
+  // elle, un lancement Pro où Marcus serait servi par Opus est refusé (409).
+  start: async (projectId: number, selectedAgents: string[], choice?: OpusChoice) => {
     return apiCall('/api/pm-orchestrator/execute', {
       method: 'POST',
-      body: JSON.stringify({ 
-        project_id: projectId, 
-        selected_agents: selectedAgents 
-      }),
+      body: JSON.stringify(buildStartBody(projectId, selectedAgents, choice)),
     });
+  },
+
+  // GL-22 : coût estimé en crédits avant tout appel Opus.
+  opusEstimate: async (): Promise<OpusEstimate> => {
+    return apiCall('/api/pm-orchestrator/execute/opus-estimate', { method: 'GET' });
   },
 
   getProgress: async (executionId: number) => {

@@ -71,12 +71,17 @@ CARACTERES_PAR_TOUR = 4000
 class StudioChatTurn(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(..., max_length=CARACTERES_PAR_TOUR)
+    # GL-26 : l'agent qui a donne ce tour. Sans lui, la reponse de Sophie
+    # arrivait dans le prompt d'Olivia sous le nom d'Olivia.
+    agent_id: Optional[str] = Field(None, max_length=40)
 
 
 class StudioChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=CARACTERES_PAR_TOUR)
     agent_id: str = Field("sophie", max_length=40)
     history: List[StudioChatTurn] = Field(default_factory=list)
+    # Langue de l'interface : sert quand la question ne dit pas la sienne.
+    lang: Optional[Literal["fr", "en"]] = None
 
 
 class StudioChatResponse(BaseModel):
@@ -88,14 +93,38 @@ class StudioChatResponse(BaseModel):
     # « session » : rien n'est conserve au-dela de cet echange. Dit
     # explicitement pour que l'interface n'ait pas a le deviner.
     memory: Literal["session"] = "session"
+    # GL-22 : un modele a opt-in (Opus) n'est jamais servi hors execution ;
+    # le repli est dit au client, pas tu.
+    avis_repli: Optional[str] = None
 
 
-def _rendre_historique(history: List[StudioChatTurn], agent_label: str) -> str:
-    """Les `TOURS_MAX` derniers tours, dans l'ordre de lecture."""
+#: Etiquette d'un tour « assistant » dont l'auteur n'est pas connu (ancien
+#: client sans `agent_id`) : on ne l'attribue pas a l'agent courant.
+ETIQUETTE_AGENT_INCONNU = "Autre agent du studio"
+
+
+def _etiquette_assistant(agent_id: Optional[str]) -> str:
+    """GL-26 : le nom de l'agent qui a reellement donne ce tour."""
+    if not agent_id:
+        return ETIQUETTE_AGENT_INCONNU
+    try:
+        return get_chat_profile(resolve_agent_id(agent_id))["name"]
+    except AgentNotFoundError:
+        return ETIQUETTE_AGENT_INCONNU
+
+
+def _rendre_historique(history: List[StudioChatTurn]) -> str:
+    """Les `TOURS_MAX` derniers tours, dans l'ordre de lecture.
+
+    GL-26 : chaque tour « assistant » porte le nom de l'agent qui l'a donne.
+    Il portait celui de l'agent courant : apres un echange avec Sophie, Olivia
+    lisait « Olivia: En tant que Project Manager senior… » et continuait le
+    role de Sophie.
+    """
     recents = history[-TOURS_MAX:]
     lignes = []
     for tour in recents:
-        etiquette = "Client" if tour.role == "user" else agent_label
+        etiquette = "Client" if tour.role == "user" else _etiquette_assistant(tour.agent_id)
         lignes.append(f"\n{etiquette}: {tour.content}\n")
     return "".join(lignes)
 
@@ -131,8 +160,13 @@ def chat_sans_projet(
     except (KeyError, IndexError):
         system_prompt = profile["system_prompt"]
 
+    # Langue : celle de la question, a defaut celle de l'interface (mesure du
+    # 30/09 : question en anglais, reponse en francais impose par le prompt).
+    from app.services.langue_reponse import avec_consigne_langue
+    system_prompt = avec_consigne_langue(system_prompt, payload.message, payload.lang)
+
     prompt = (
-        f"{_rendre_historique(payload.history, agent_label)}"
+        f"{_rendre_historique(payload.history)}"
         f"\nClient: {payload.message}\n\n{agent_label}:"
     )
 
@@ -217,6 +251,7 @@ def chat_sans_projet(
         response=contenu,
         tokens_used=reponse.get("tokens_used", 0) or 0,
         tier=tier.value,
+        avis_repli=reponse.get("avis_repli"),
     )
 
 

@@ -41,3 +41,5 @@ class SophieResponse(BaseModel):
     message: str
     tokens_used: int
     context_used: List[str] = []  # What context was used for the response
+    # GL-22 / reprise R4 : repli Opus -> Sonnet dit au client, pas tu.
+    avis_repli: Optional[str] = None
