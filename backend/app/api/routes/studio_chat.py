@@ -169,8 +169,16 @@ def chat_sans_projet(
     except Exception as exc:  # noqa: BLE001
         # Vague 2 / file B — GL-25 : la cause (souvent le message brut du
         # fournisseur) va au journal et a l'admin, pas au client.
-        logger.error("[Studio chat] appel LLM en echec : %s", exc)
-        alertes_fournisseurs.signaler_echec_appel(None, str(exc), origine="studio chat")
+        #
+        # Reprise 3 de la revue : on ne signale PAS de panne fournisseur ici.
+        # Le routeur rend les erreurs de transport dans la reponse (branche
+        # ci-dessous, fournisseur connu) ; ce qui arrive en exception est
+        # interne (base, tarif, proprietaire des credits...). L'annoncer sous
+        # un fournisseur « inconnu » faisait une fausse alerte LLM, jamais
+        # declaree retablie.
+        logger.error(
+            "[Studio chat] appel LLM en echec (%s) : %s", type(exc).__name__, exc
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=alertes_fournisseurs.MESSAGE_CLIENT,
@@ -191,9 +199,12 @@ def chat_sans_projet(
         logger.error(
             "[Studio chat] %s en echec : %s", reponse.get("provider") or "fournisseur ?", motif
         )
-        alertes_fournisseurs.signaler_echec_appel(
-            reponse.get("provider"), motif, origine="studio chat"
-        )
+        if not reponse.get("success", True):
+            # Reprise 3 : l'erreur BRUTE (vide pour un delai httpx depasse),
+            # pas `motif` qui la remplace par « reponse vide ».
+            alertes_fournisseurs.signaler_echec_appel(
+                reponse.get("provider"), reponse.get("error") or "", origine="studio chat"
+            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=alertes_fournisseurs.MESSAGE_CLIENT,

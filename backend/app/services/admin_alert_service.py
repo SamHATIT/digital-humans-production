@@ -56,6 +56,18 @@ def _doit_alerter(cle: Optional[str]) -> bool:
     return True
 
 
+def telegram_configure() -> bool:
+    """Jeton et destinataire Telegram poses (et non factices).
+
+    Vague 2 / file B, reprise 2 de la revue : un appelant qui retente une
+    alerte doit distinguer « Telegram non configure » (le journal est le seul
+    canal, rien a retenter) de « Telegram a refuse » (a retenter).
+    """
+    jeton = (os.environ.get("TELEGRAM_BOT_TOKEN") or "").strip()
+    destinataire = (os.environ.get("TELEGRAM_CHAT_ID") or "").strip()
+    return bool(jeton and destinataire and not jeton.startswith("dh-test-fake-"))
+
+
 def _envoyer_telegram(sujet: str, corps: str, timeout: float = 5.0) -> bool:
     """Transport Telegram. Rend False s'il n'est pas configuré.
 

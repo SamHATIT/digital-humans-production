@@ -69,6 +69,13 @@ class _Reponse:
         return False
 
 
+@pytest.fixture(autouse=True)
+def sans_sonde_spark(monkeypatch):
+    """Le demarrage du TestClient sonde 127.0.0.1:18084 (tunnel vers le Spark
+    reel). Autouse : pose avant la fixture `client` de chaque test."""
+    monkeypatch.setattr(LLMRouterService, "verifier_fournisseurs_locaux", lambda self, *a, **k: [])
+
+
 @pytest.fixture
 def telegram(monkeypatch):
     """Enregistre chaque envoi Telegram au lieu de l'emettre."""
@@ -387,3 +394,250 @@ def test_telegram_ok_false_n_est_pas_un_envoi_reussi(telegram):
     envoye = admin_alert_service.alerter_admin("Sujet", "Corps")
     assert len(envois) == 1
     assert envoye is False
+
+
+# --------------------------------------------------------------------------
+# Reprise 2 (revue 1) : un envoi refuse ne marque pas la panne « alertee »
+# --------------------------------------------------------------------------
+
+class _HorlogeTest:
+    def __init__(self):
+        self.t = 5000.0
+
+    def __call__(self):
+        return self.t
+
+
+def _DELAI():
+    # Au commit parent la constante n'existe pas : 60 s, la valeur livree.
+    return getattr(alertes_fournisseurs, "DELAI_NOUVELLE_TENTATIVE_S", 60)
+
+
+def _classer(erreur, fournisseur):
+    """`classer_erreur(erreur, fournisseur)` ; au commit parent la fonction ne
+    prend que l'erreur : on l'appelle ainsi pour que le test y soit rouge
+    pour la raison du constat (classement), pas pour une signature."""
+    try:
+        return alertes_fournisseurs.classer_erreur(erreur, fournisseur)
+    except TypeError:
+        return alertes_fournisseurs.classer_erreur(erreur)
+
+
+REFUS = b'{"ok":false,"description":"Bad Request: chat not found"}'
+ACCEPTE = b'{"ok":true,"result":{}}'
+
+
+@pytest.fixture
+def horloge(monkeypatch):
+    h = _HorlogeTest()
+    if alertes_fournisseurs is not None:
+        monkeypatch.setattr(alertes_fournisseurs, "_horloge", h, raising=False)
+    return h
+
+
+def test_panne_refusee_par_telegram_est_retentee(telegram, horloge):
+    envois, reglage = telegram
+    reglage["corps"] = REFUS
+    panne = lambda: alertes_fournisseurs.signaler_panne(  # noqa: E731
+        "gpu_nemotron", "injoignable", "ConnectError", origine="test")
+
+    panne()
+    assert len(envois) == 1
+    panne()  # aussitot : pas de rafale
+    assert len(envois) == 1
+    horloge.t += _DELAI() + 1
+    panne()
+    assert len(envois) == 2, "l'alerte refusee n'a jamais ete retentee"
+    reglage["corps"] = ACCEPTE
+    horloge.t += _DELAI() + 1
+    panne()
+    assert len(envois) == 3
+    horloge.t += _DELAI() + 1
+    panne()
+    assert len(envois) == 3, "panne deja alertee avec succes : pas de doublon"
+
+
+def test_retour_refuse_par_telegram_est_retente(telegram, horloge):
+    envois, reglage = telegram
+    alertes_fournisseurs.signaler_panne("anthropic", "solde_epuise", "credit", origine="test")
+    assert len(envois) == 1
+    reglage["corps"] = REFUS
+    alertes_fournisseurs.signaler_retablissement("anthropic", origine="test")
+    assert len(envois) == 2
+    horloge.t += _DELAI() + 1
+    reglage["corps"] = ACCEPTE
+    alertes_fournisseurs.signaler_retablissement("anthropic", origine="test")
+    assert len(envois) == 3, "le retour refuse n'a jamais ete retente"
+    assert "rétabli" in envois[2]["texte"]
+    horloge.t += _DELAI() + 1
+    alertes_fournisseurs.signaler_retablissement("anthropic", origine="test")
+    assert len(envois) == 3
+
+
+def test_telegram_non_configure_pas_de_rafale(monkeypatch, horloge, caplog):
+    """Controle : sans Telegram, l'alerte n'existe que dans le journal ; elle
+    n'est pas re-ecrite a chaque occurrence (« non configure » n'est pas
+    « refuse »)."""
+    import logging
+
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_CHAT_ID", raising=False)
+    monkeypatch.setattr(admin_alert_service, "_persister", lambda *a, **k: None)
+    alertes_fournisseurs.reinitialiser()
+    caplog.set_level(logging.ERROR)
+    for _ in range(3):
+        alertes_fournisseurs.signaler_panne("gpu_nemotron", "injoignable", "x", origine="test")
+        horloge.t += 1000
+    lignes = [r for r in caplog.records if "Fournisseur LLM gpu_nemotron" in r.getMessage()]
+    assert len(lignes) == 1, [r.getMessage() for r in lignes]
+    alertes_fournisseurs.reinitialiser()
+
+
+# --------------------------------------------------------------------------
+# Reprise 3 (revue 1) : classement sur de VRAIES erreurs de transport
+# --------------------------------------------------------------------------
+# Serveurs sur la boucle locale uniquement : port ferme (tunnel tombe),
+# serveur qui accepte et ne repond jamais (Spark fige derriere un tunnel
+# ouvert), serveur qui coupe la connexion. Les erreurs passent par le vrai
+# `_call_gpu_local` du routeur (str(e)[:200], sans nom de classe).
+
+import socket  # noqa: E402
+import threading  # noqa: E402
+
+
+def _port_libre():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+class _Serveur:
+    """Ecoute sur 127.0.0.1 ; `mode` = 'muet' (accepte, ne repond jamais) ou
+    'coupe' (lit la requete puis ferme sans reponse)."""
+
+    def __init__(self, mode):
+        self.mode = mode
+        self.sock = socket.socket()
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(("127.0.0.1", 0))
+        self.sock.listen(8)
+        self.port = self.sock.getsockname()[1]
+        self.clients = []
+        self.fin = threading.Event()
+        threading.Thread(target=self._boucle, daemon=True).start()
+
+    def _boucle(self):
+        self.sock.settimeout(0.2)
+        while not self.fin.is_set():
+            try:
+                c, _ = self.sock.accept()
+            except OSError:
+                continue
+            if self.mode == "coupe":
+                try:
+                    c.recv(65536)
+                finally:
+                    c.close()
+            else:
+                self.clients.append(c)
+
+    def arreter(self):
+        self.fin.set()
+        for c in self.clients:
+            c.close()
+        self.sock.close()
+
+
+def _appel_local_reel(base_url, delai=0.5):
+    """Le vrai `_call_gpu_local`, sur un fournisseur dont l'URL vise la boucle locale."""
+    import asyncio
+
+    from app.services.llm_router_service import LLMRequest
+
+    routeur = LLMRouterService.__new__(LLMRouterService)
+    routeur.providers = {"gpu_nemotron": {
+        "type": routeur_mod.ProviderType.LOCAL, "base_url": base_url, "timeout": delai,
+        "models": {"nemotron": {"model_id": "nemotron-lightning"}}}}
+    requete = LLMRequest(prompt="Bonjour", agent_type="sophie", max_tokens=10)
+    return asyncio.run(routeur._call_gpu_local(requete, "nemotron", "gpu_nemotron"))
+
+
+@pytest.mark.parametrize("cas", ["port_ferme", "serveur_muet", "connexion_coupee"])
+def test_vraie_panne_de_transport_locale_classee_injoignable(cas):
+    serveur = None
+    if cas == "port_ferme":
+        url = f"http://127.0.0.1:{_port_libre()}/v1"
+    else:
+        serveur = _Serveur("muet" if cas == "serveur_muet" else "coupe")
+        url = f"http://127.0.0.1:{serveur.port}/v1"
+    try:
+        reponse = _appel_local_reel(url)
+    finally:
+        if serveur:
+            serveur.arreter()
+    assert reponse.success is False
+    assert _classer(reponse.error, reponse.provider) == "injoignable", (
+        cas, repr(reponse.error))
+
+
+@pytest.mark.parametrize("exc", [
+    __import__("httpx").ConnectError("All connection attempts failed"),
+    __import__("httpx").ConnectTimeout(""),
+    __import__("httpx").ReadTimeout(""),
+    __import__("httpx").RemoteProtocolError("Server disconnected without sending a response."),
+])
+def test_exceptions_httpx_d_un_fournisseur_local_classees_injoignable(exc):
+    """Les classes httpx reelles, sous les deux formes que produit le routeur :
+    `str(e)` (actuel) et `Type: message` (diff propose a la file C)."""
+    assert _classer(str(exc)[:200], "gpu_nemotron") == "injoignable"
+    assert _classer(f"{type(exc).__name__}: {exc}", "gpu_nemotron") == "injoignable"
+
+
+def test_erreur_vide_d_un_fournisseur_cloud_n_est_pas_une_panne():
+    """Controle : la regle « erreur vide = injoignable » ne vaut que pour un
+    fournisseur local (httpx y rend str(e) vide sur delai depasse)."""
+    assert _classer("", "anthropic") is None
+
+
+def test_spark_fige_derriere_un_tunnel_ouvert_alerte_par_le_chemin_d_appel(
+    client, db_session, socle, telegram, monkeypatch
+):
+    """Bout en bout : studio -> routeur -> vrai _call_gpu_local -> serveur muet
+    (ReadTimeout, str vide). Avant : 503 sans alerte."""
+    envois, _ = telegram
+    serveur = _Serveur("muet")
+    monkeypatch.setattr(LLMRouterService, "_select_provider", lambda self, r: "gpu_nemotron/nemotron")
+    monkeypatch.setattr(LLMRouterService, "_get_model_id", lambda self, p: MODELE)
+    monkeypatch.setattr(LLMRouterService, "verifier_fournisseurs_locaux", lambda self, *a, **k: [])
+    monkeypatch.setattr(routeur_mod, "_router_instance", None, raising=False)
+    routeur = routeur_mod.get_llm_router()
+    routeur.providers["gpu_nemotron"] = {
+        "type": routeur_mod.ProviderType.LOCAL, "base_url": f"http://127.0.0.1:{serveur.port}/v1",
+        "timeout": 0.5, "models": {"nemotron": {"model_id": "nemotron-lightning"}}}
+    try:
+        r = _dire(client, _compte(db_session, "free"))
+    finally:
+        serveur.arreter()
+    assert r.status_code == 503, r.text
+    assert len(envois) == 1, envois
+    assert "gpu_nemotron" in envois[0]["texte"] and "injoignable" in envois[0]["texte"]
+
+
+def test_exception_hors_fournisseur_n_annonce_pas_une_panne_llm(
+    client, db_session, socle, telegram, monkeypatch
+):
+    """La branche `except` du studio signalait sous le fournisseur « inconnu »
+    toute exception dont le texte evoquait une connexion (ex. base injoignable),
+    sans « retabli » possible."""
+    def explose(*a, **k):
+        raise RuntimeError("could not connect to server: Connection refused (base)")
+
+    monkeypatch.setattr("app.services.llm_service.generate_llm_response", explose)
+    envois, _ = telegram
+    r = _dire(client, _compte(db_session, "pro"))
+    assert r.status_code == 503, r.text
+    assert "Connection refused" not in r.text
+    assert envois == [], [e["texte"][:80] for e in envois]
+    assert "inconnu" not in alertes_fournisseurs.etat()
