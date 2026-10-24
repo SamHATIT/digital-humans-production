@@ -102,20 +102,12 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Configure CORS
+# Vague 2 / file B — SEC-17 : la liste etait en dur ici (HTTP seulement) et
+# `settings.BACKEND_CORS_ORIGINS` n'etait lu par personne. Une seule source,
+# validee au demarrage ("*" refuse hors DEBUG).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://72.61.161.222",        # Port 80 via nginx
-        "http://srv1064321.hstgr.cloud",  # Port 80 via nginx
-        "http://72.61.161.222:3002",
-        "http://72.61.161.222:8080",
-        "http://72.61.161.222:3001",
-        "http://72.61.161.222:3000", 
-        "http://srv1064321.hstgr.cloud:3000",
-        "http://localhost:3000",
-        "http://localhost:3002",
-        # Note: "*" removed for security - add specific origins as needed
-    ],
+    allow_origins=list(settings.BACKEND_CORS_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

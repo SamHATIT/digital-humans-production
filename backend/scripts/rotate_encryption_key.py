@@ -58,6 +58,7 @@ from cryptography.fernet import Fernet, InvalidToken  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.utils.encryption import (  # noqa: E402
     build_fernet,
+    build_fernet_etiree_historique,
     derive_fernet_from_secret_key,
     looks_like_plaintext_token,
 )
@@ -81,7 +82,13 @@ def _decrypt(fernet: Fernet, ciphertext: str) -> str:
 def resolve_old_fernet(args) -> Tuple[Fernet, str]:
     """Determine which key currently protects the rows, without printing it."""
     if args.old_key:
-        return build_fernet(args.old_key), "--old-key"
+        # Vague 2 / file B — SEC-17 : l'ANCIENNE cle peut etre une valeur mal
+        # formee que l'application etirait par SHA-256 ; on la relit comme
+        # elle a ete utilisee, et on le dit.
+        try:
+            return build_fernet(args.old_key), "--old-key"
+        except ValueError:
+            return build_fernet_etiree_historique(args.old_key), "--old-key (etiree SHA-256, historique)"
     if args.old_secret_key:
         return derive_fernet_from_secret_key(args.old_secret_key), "--old-secret-key (derived)"
     if args.old_secret_key_derived:

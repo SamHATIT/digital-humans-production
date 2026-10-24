@@ -62,18 +62,30 @@ def looks_like_plaintext_token(value: str) -> bool:
 
 def build_fernet(key: str) -> Fernet:
     """
-    Build a Fernet from an arbitrary key string.
+    Build a Fernet from a well-formed key (32 bytes, urlsafe base64).
 
-    A well-formed 32-byte urlsafe-base64 Fernet key is used as-is; anything
-    else is stretched through SHA-256. Exposed at module level so the
-    rotation script can hold the OLD and the NEW key side by side without
-    touching the process-wide singleton.
+    Vague 2 / file B — SEC-17 (Astra L305) : une cle mal formee etait etiree
+    par SHA-256 sans un mot ; elle est desormais refusee (ValueError). Pour
+    relire des donnees chiffrees avec une cle etiree, le script de rotation
+    appelle explicitement `build_fernet_etiree_historique`.
+
+    Exposed at module level so the rotation script can hold the OLD and the
+    NEW key side by side without touching the process-wide singleton.
     """
     try:
         return Fernet(key.encode())
     except Exception:
-        key_bytes = hashlib.sha256(key.encode()).digest()
-        return Fernet(base64.urlsafe_b64encode(key_bytes))
+        raise ValueError(
+            "cle de chiffrement mal formee : une cle Fernet fait 32 octets en "
+            "base64 urlsafe (Fernet.generate_key()). Aucune derivation implicite."
+        ) from None
+
+
+def build_fernet_etiree_historique(key: str) -> Fernet:
+    """Ancien comportement de `build_fernet` pour une cle mal formee (etirement
+    SHA-256). Reserve a la RELECTURE pendant une rotation de cle."""
+    key_bytes = hashlib.sha256(key.encode()).digest()
+    return Fernet(base64.urlsafe_b64encode(key_bytes))
 
 
 def derive_fernet_from_secret_key(secret_key: str) -> Fernet:

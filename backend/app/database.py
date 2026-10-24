@@ -15,7 +15,10 @@ engine = create_engine(
     max_overflow=20,     # Allow burst up to 40 connections (default was 10)
     pool_recycle=3600,   # Recycle connections after 1h to avoid stale handles
     pool_timeout=30,     # Fail fast if pool exhausted (default 30s, kept explicit)
-    echo=settings.DEBUG
+    # Vague 2 / file B — SEC-17 : `echo=settings.DEBUG` ecrivait chaque requete
+    # ET ses parametres (mots de passe haches, jetons, contenus) au journal.
+    echo=False,
+    hide_parameters=True,
 )
 
 # Create session factory
