@@ -5,6 +5,17 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-11-05 (soir) — Correctifs issus du smoke de bout en bout (exécutions 180 à 182)
+
+- **Alias CLI Salesforce** (`38d887a`) : `SalesforceConfig.from_project` passait l'org id au CLI `sf`, qui ne le résout pas (NamedOrgNotFoundError) ; l'analyse d'org de Marcus échouait. Alias = nom d'utilisateur.
+- **Garde d'écriture Salesforce** (`705b184`) : la garde lit elle-même la preuve dans l'org (`SELECT Id, IsSandbox FROM Organization`) et accepte une Developer Edition seulement si son identifiant figure dans `DH_SALESFORCE_TEST_ORG_IDS` (sandbox-build déclarée, CRM non). Écritures toujours fermées (`DH_SALESFORCE_WRITES_ENABLED` absent).
+- **Modèles 5.5** (`4b74bec`) : Opus 5 → 5.5, Sonnet 5 → 5.5 (décision Sam) ; migration 025 (tarifs crédits identiques, opt-in GL-22 conservé) ; test : tout modèle routé doit avoir un tarif.
+- **Marcus as-is** (`56c5c94`) : le contexte d'org était coupé à 15 000 caractères dans le catalogue `metadata_types` ; les champs existants n'arrivaient jamais. Catalogue remplacé par son effectif, plafond 60 000, coupe dite dans le texte.
+- **Reprise après annulation** (`37c35f8`) : la demande d'annulation précédente est effacée à chaque nouvel enfilage (la reprise s'auto-annulait en 0,3 s).
+- **Tests** (`5fef75a`) : 30 échecs obsolètes réglés (testeur d'agents démonté : 27 tests ignorés tant qu'il l'est ; test_auth). Reste 1 échec : règle Emma → WBS (décision : mode dégradé + alerte, à implémenter).
+- **Dépendances** (`c001663`) : transformers 4.57.3, sentence-transformers 5.2.0, tokenizers, huggingface-hub, torch épinglés ; transformers 5.x cassait l'encodeur Nomic (RAG apex/lwc hors service de 18h51 à 20h55, exécution 182 marquée dégradée).
+- **Constats ouverts** : Telegram non configuré côté backend (les alertes admin ne sortent pas du journal) ; tokens lus en cache non persistés ; point de reprise auto de `retry` (repartait après Marcus) ; doublons d'exigences à la relance d'un projet ; Marcus a créé `Detail_Calcul_Score__c` au lieu de réutiliser `Detail_Score__c`.
+
 ## 2026-11-05 — Déploiement vague 2 (A RAG/données, B exploitation, C produit Pro) en production
 
 Tags : `avant-deploiement-vague2-20261105` (388299a) → `apres-deploiement-vague2-20261105` (ea12de1). Sauvegardes : `/root/backups/deploiement-20261105/` (base pg_dump, copie Chroma v2 4,1 Go, app-studio, watchdog, drop-in retiré).
