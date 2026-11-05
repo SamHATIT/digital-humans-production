@@ -47,8 +47,11 @@ from app.services.llm_router_service import LLMRequest, LLMResponse, LLMRouterSe
 from app.utils.dependencies import get_current_user, get_current_user_from_token_or_header
 
 BACKEND = Path(__file__).resolve().parent.parent
-OPUS = "claude-opus-5"
-SONNET = "claude-sonnet-5"
+# 05/11/2026 : lus dans le YAML plutot qu'ecrits en dur — la bascule 5 -> 5.5
+# cassait ces tests sans rien changer au comportement teste.
+_CONF_ROUTAGE = yaml.safe_load((Path(__file__).resolve().parent.parent / "config" / "llm_routing.yaml").read_text())
+OPUS = _CONF_ROUTAGE["providers"]["anthropic"]["models"]["claude-opus"]["model_id"]
+SONNET = _CONF_ROUTAGE["providers"]["anthropic"]["models"]["claude-sonnet"]["model_id"]
 EXECUTE_URL = "/api/pm-orchestrator/execute"
 ESTIMATE_URL = "/api/pm-orchestrator/execute/opus-estimate"
 
@@ -442,10 +445,11 @@ def test_migration_023c_part_de_la_tete_022():
 
 
 def test_migration_023c_pose_l_opt_in_sur_opus_et_se_defait(db_session):
+    OPUS_023C = "claude-opus-5"  # modele vise par la migration 023c, historique
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
 
-    db_session.add(ModelPricing(model_name=OPUS, credits_per_1k_input=5.0,
+    db_session.add(ModelPricing(model_name=OPUS_023C, credits_per_1k_input=5.0,
                                 credits_per_1k_output=25.0, allowed_tiers="pro,team",
                                 requires_opt_in=False, is_active=True))
     db_session.commit()
@@ -454,13 +458,13 @@ def test_migration_023c_pose_l_opt_in_sur_opus_et_se_defait(db_session):
         with Operations.context(MigrationContext.configure(conn)):
             m.upgrade()
     db_session.expire_all()
-    assert db_session.get(ModelPricing, OPUS).requires_opt_in is True
+    assert db_session.get(ModelPricing, OPUS_023C).requires_opt_in is True
 
     with db_session.get_bind().begin() as conn:
         with Operations.context(MigrationContext.configure(conn)):
             m.downgrade()
     db_session.expire_all()
-    assert db_session.get(ModelPricing, OPUS).requires_opt_in is False
+    assert db_session.get(ModelPricing, OPUS_023C).requires_opt_in is False
 
 
 # ─────────────────────────────────────────────────────────────────────

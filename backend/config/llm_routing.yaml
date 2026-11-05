@@ -472,16 +472,22 @@ providers:
         model_id: "claude-haiku-4-5-20251001"
         display_name: "Claude Haiku 4.5"
       claude-sonnet:
-        model_id: "claude-sonnet-5"
-        supports_temperature: false   # mod41 (2026-07-02) : Sonnet 5 — temperature deprecee (400 si envoyee), meme regime qu'Opus 4.7+. Bascule manuelle validee par Sam. Thinking adaptatif laisse ON (carte qualite).
-        display_name: "Claude Sonnet 5"
+        # 05/11/2026 : Sonnet 5 -> Sonnet 5.5, decision Sam (ecart de qualite).
+        # Verifie via GET /v1/models/claude-sonnet-5-5 (cree le 28/09/2026).
+        # Tarif credits : migration 025 (meme tarif que Sonnet 5).
+        model_id: "claude-sonnet-5-5"
+        supports_temperature: false   # mod41 (2026-07-02) : temperature deprecee depuis Sonnet 5 (400 si envoyee) ; regime conserve en 5.5. Thinking adaptatif laisse ON.
+        display_name: "Claude Sonnet 5.5"
       claude-opus:
         # 06/08/2026 : Opus 4.8 -> Opus 5. Verifie via GET /v1/models — claude-opus-5
         # est disponible. Regle posee par Sam : toujours la derniere version d'une
         # famille, sauf raison explicite documentee ici.
-        model_id: "claude-opus-5"
-        supports_temperature: false   # mod39 : Opus 4.x — sampling params (temperature/top_p/top_k) deprecies (400 si envoyes)
-        display_name: "Claude Opus 5"
+        # 05/11/2026 : Opus 5 -> Opus 5.5, decision Sam (ecart de qualite).
+        # Verifie via GET /v1/models/claude-opus-5-5 (cree le 21/09/2026).
+        # Tarif credits et opt-in GL-22 : migration 025 (comme Opus 5).
+        model_id: "claude-opus-5-5"
+        supports_temperature: false   # mod39 : Opus 4.x+ — sampling params (temperature/top_p/top_k) deprecies (400 si envoyes)
+        display_name: "Claude Opus 5.5"
 
   openai:
     enabled: false                   # Désactivé par défaut — fallback historique, plus utilisé depuis C-1b.
