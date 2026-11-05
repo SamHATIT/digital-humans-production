@@ -313,12 +313,50 @@ Set these sections to EMPTY (they are already generated):
 # ============================================================================
 # PROMPT 2: AS-IS ANALYSIS (SFDX -> Summary)
 # ============================================================================
-def get_as_is_prompt(sfdx_metadata: str) -> str:
-    sfdx_metadata_truncated = sfdx_metadata[:15000] if len(sfdx_metadata) > 15000 else sfdx_metadata
+#: Plafond du contexte d'org transmis a Marcus (caracteres). Etait 15 000.
+LIMITE_METADONNEES_AS_IS = 60000
 
-    # Try external prompt first
+#: Ordre de transmission : ce qui decrit l'existant d'abord, le reste ensuite.
+_ORDRE_METADONNEES = ("org_info", "objects", "object_fields", "installed_packages", "limits")
+
+
+def preparer_metadonnees_as_is(sfdx_metadata: str) -> str:
+    """Rend le contexte d'org lisible par Marcus, sans perte silencieuse.
+
+    05/11/2026 (smoke exec 181) : le JSON brut commencait par `metadata_types`
+    (43 Ko : le catalogue des TYPES de metadonnees que l'org supporte), puis
+    etait coupe a 15 000 caracteres. Les champs existants (`object_fields`)
+    n'arrivaient jamais a Marcus : sur sandbox-build, il a conclu « 0 champ
+    personnalise, non inventorie » alors que Score_Qualification__c et huit
+    autres y etaient. Le catalogue est remplace par son effectif, l'existant
+    passe en tete, et toute coupe restante est dite dans le texte.
+    """
+    try:
+        donnees = json.loads(sfdx_metadata)
+    except (TypeError, ValueError):
+        donnees = None
+    if isinstance(donnees, dict):
+        brut = donnees.get("full_metadata") if isinstance(donnees.get("full_metadata"), dict) else donnees
+        compact = {k: brut[k] for k in _ORDRE_METADONNEES if k in brut}
+        if isinstance(brut.get("metadata_types"), list):
+            compact["metadata_types_count"] = len(brut["metadata_types"])
+        for k, v in brut.items():
+            if k not in compact and k != "metadata_types":
+                compact[k] = v
+        texte = json.dumps(compact, ensure_ascii=False)
+    else:
+        texte = sfdx_metadata or ""
+    if len(texte) > LIMITE_METADONNEES_AS_IS:
+        omis = len(texte) - LIMITE_METADONNEES_AS_IS
+        logger.warning("[Marcus as_is] contexte d'org tronque : %d caracteres omis", omis)
+        texte = (texte[:LIMITE_METADONNEES_AS_IS]
+                 + f"\n[TRONQUE : {omis} caracteres omis — inventaire incomplet, le signaler]")
+    return texte
+
+
+def get_as_is_prompt(sfdx_metadata: str) -> str:
     return PROMPT_SERVICE.render("marcus_architect", "as_is", {
-        "sfdx_metadata": sfdx_metadata_truncated,
+        "sfdx_metadata": preparer_metadonnees_as_is(sfdx_metadata),
     })
 
 
