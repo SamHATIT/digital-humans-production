@@ -36,6 +36,23 @@ from app.models.user import User
 from app.utils.auth import create_access_token, get_password_hash
 
 
+def _testeur_d_agents_monte() -> bool:
+    from app.main import app
+    return any(str(getattr(r, "path", "")).startswith("/api/agent-tester") for r in app.routes)
+
+
+# 05/11/2026 : le routeur /api/agent-tester est demonte depuis le 06/09
+# (SEC-02, commit cc89ca8 — app/main.py). Ses routes repondent 404 ; les tests
+# qui l'exercent par HTTP ne prouvent plus rien. Ils sont IGNORES tant qu'il
+# est demonte, et se reactivent d'eux-memes le jour ou il est remonte.
+# Les tests statiques de ce fichier (shell=True, safe_log_id, executeur) ne
+# dependent pas du routeur et continuent de tourner.
+routeur_demonte = pytest.mark.skipif(
+    not _testeur_d_agents_monte(),
+    reason="routeur /api/agent-tester demonte (SEC-02, 06/09) — se reactive au remontage",
+)
+
+
 BACKEND_APP = Path(__file__).resolve().parent.parent / "app"
 QUERY_URL = "/api/agent-tester/org/query"
 
@@ -151,18 +168,21 @@ def test_grep_litteral_shell_true_ne_renvoie_rien():
 # ============================================================ critere de fin
 # « route -> 401 sans jeton, 200 avec »
 
+@routeur_demonte
 def test_org_query_sans_jeton_renvoie_401(client):
     """gem:SEC-02 / kim:SEC-01 : la route etait anonyme et joignable d'Internet."""
     r = client.get(QUERY_URL, params={"soql": "SELECT Id FROM Account"})
     assert r.status_code == 401, r.text
 
 
+@routeur_demonte
 def test_org_query_avec_jeton_renvoie_200(client, auth_headers, fake_sf, configured_org):
     r = client.get(QUERY_URL, params={"soql": "SELECT Id FROM Account"}, headers=auth_headers)
     assert r.status_code == 200, r.text
     assert r.json()["status"] == 0
 
 
+@routeur_demonte
 def test_jeton_invalide_renvoie_401(client):
     r = client.get(
         QUERY_URL,
@@ -172,6 +192,7 @@ def test_jeton_invalide_renvoie_401(client):
     assert r.status_code == 401
 
 
+@routeur_demonte
 @pytest.mark.parametrize("url", [
     "/api/agent-tester/agents",
     "/api/agent-tester/agents/olivia",
@@ -184,6 +205,7 @@ def test_tout_le_routeur_exige_une_authentification(client, url):
     assert client.get(url).status_code == 401, url
 
 
+@routeur_demonte
 def test_test_agent_stream_sans_jeton_renvoie_401(client):
     """La route la plus couteuse du routeur : elle declenche des appels LLM."""
     r = client.post(
@@ -195,6 +217,7 @@ def test_test_agent_stream_sans_jeton_renvoie_401(client):
 
 # ==================================================== preuve de non-injection
 
+@routeur_demonte
 def test_charge_destructrice_traitee_comme_donnee(client, auth_headers, fake_sf, configured_org, tmp_path):
     """
     gem:SEC-01 / kim:SEC-02 — le coeur du lot.
@@ -218,6 +241,7 @@ def test_charge_destructrice_traitee_comme_donnee(client, auth_headers, fake_sf,
     assert argv.count(soql) == 1
 
 
+@routeur_demonte
 def test_substitution_de_commande_traitee_comme_donnee(client, auth_headers, fake_sf, configured_org, tmp_path):
     """`$(...)` et les backticks n'ont plus d'interprete pour les lire."""
     witness = _witness(tmp_path)
@@ -256,6 +280,7 @@ def test_la_meme_charge_etait_bien_destructrice_avant_le_correctif(fake_sf, tmp_
     )
 
 
+@routeur_demonte
 def test_injection_soql_refusee_avant_le_cli(client, auth_headers, fake_sf, configured_org):
     """`' OR 1=1 --` n'est pas une requete de lecture : refus en 400."""
     r = client.get(QUERY_URL, params={"soql": "' OR 1=1 --"}, headers=auth_headers)
@@ -263,6 +288,7 @@ def test_injection_soql_refusee_avant_le_cli(client, auth_headers, fake_sf, conf
     assert not fake_sf["argv_file"].exists(), "le CLI a ete appele malgre le refus"
 
 
+@routeur_demonte
 @pytest.mark.parametrize("soql", [
     "",
     "   ",
@@ -279,6 +305,7 @@ def test_soql_refuse(client, auth_headers, fake_sf, configured_org, soql):
     assert not fake_sf["argv_file"].exists()
 
 
+@routeur_demonte
 def test_soql_trop_long_refuse(client, auth_headers, fake_sf, configured_org):
     from app.api.routes.agent_tester import SOQL_MAX_LENGTH
     soql = "SELECT Id FROM Account WHERE Name = '" + "a" * SOQL_MAX_LENGTH + "'"
@@ -288,6 +315,7 @@ def test_soql_trop_long_refuse(client, auth_headers, fake_sf, configured_org):
 
 # ============================================ LOT-E bis : org non configuree
 
+@routeur_demonte
 def test_sans_org_configuree_message_clair_et_pas_de_cli(client, auth_headers, fake_sf, monkeypatch):
     """
     LOT-E bis a retire les identites codees en dur : `org_alias` peut valoir
@@ -303,6 +331,7 @@ def test_sans_org_configuree_message_clair_et_pas_de_cli(client, auth_headers, f
     assert not fake_sf["argv_file"].exists()
 
 
+@routeur_demonte
 def test_agents_n_annonce_plus_une_org_connectee_en_dur(client, auth_headers, monkeypatch):
     """`connected` etait la constante True, meme sans org configuree."""
     from app.salesforce_config import salesforce_config
@@ -346,6 +375,7 @@ def test_safe_log_id_refuse_les_identifiants_vides(brut):
     assert getattr(exc.value, "status_code", None) == 400
 
 
+@routeur_demonte
 @pytest.mark.parametrize("test_id", [
     "../../../etc/passwd",
     "..%2F..%2F..%2Fetc%2Fpasswd",

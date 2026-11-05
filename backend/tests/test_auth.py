@@ -46,17 +46,25 @@ def test_register_legacy_est_ferme(client):
     assert "signup-request" in str(response.json()["detail"])
 
 
-def test_login_success(client):
+# 05/11/2026 : ces tests creaient leur compte par /register, ferme depuis le
+# 16/09 (SEC-12, 410 Gone). Le compte n'existait pas : deux tests echouaient,
+# et test_login_invalid_password passait sans rien prouver (401 parce que le
+# compte manquait, pas parce que le mot de passe etait faux). Le compte est
+# desormais pose en base, actif, comme le ferait signup-confirm.
+@pytest.fixture
+def compte(db_session):
+    from app.models.user import User
+    from app.utils.auth import get_password_hash
+
+    utilisateur = User(email="test@example.com", name="Test User",
+                       hashed_password=get_password_hash("testpassword123"), is_active=True)
+    db_session.add(utilisateur)
+    db_session.commit()
+    return utilisateur
+
+
+def test_login_success(client, compte):
     """Test successful login."""
-    # Register user
-    client.post(
-        "/api/auth/register",
-        json={
-            "email": "test@example.com",
-            "name": "Test User",
-            "password": "testpassword123"
-        }
-    )
 
     # Login
     response = client.post(
@@ -86,17 +94,8 @@ def test_login_invalid_email(client):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-def test_login_invalid_password(client):
+def test_login_invalid_password(client, compte):
     """Test login with invalid password fails."""
-    # Register user
-    client.post(
-        "/api/auth/register",
-        json={
-            "email": "test@example.com",
-            "name": "Test User",
-            "password": "testpassword123"
-        }
-    )
 
     # Try to login with wrong password
     response = client.post(
@@ -110,17 +109,8 @@ def test_login_invalid_password(client):
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-def test_get_current_user_success(client):
+def test_get_current_user_success(client, compte):
     """Test getting current user profile."""
-    # Register user
-    client.post(
-        "/api/auth/register",
-        json={
-            "email": "test@example.com",
-            "name": "Test User",
-            "password": "testpassword123"
-        }
-    )
 
     # Login
     login_response = client.post(
@@ -148,7 +138,9 @@ def test_get_current_user_no_token(client):
     """Test getting current user without token fails."""
     response = client.get("/api/auth/me")
 
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    # 05/11/2026 : FastAPI renvoie 401 (et non plus 403) quand aucun jeton
+    # n'est fourni — le code HTTP correct pour une authentification absente.
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 def test_get_current_user_invalid_token(client):
