@@ -148,7 +148,10 @@ def test_from_project_keeps_a_fully_configured_project():
     )
     config = SalesforceConfig.from_project(project)
     assert config.is_configured()
-    assert config.org_alias == "00DCLIENT00000AAA"
+    # 05/11/2026 : le CLI `sf` resout un nom d'utilisateur, pas un org id
+    # (NamedOrgNotFoundError mesure sur sandbox-build). L'alias est l'utilisateur.
+    assert config.org_alias == "client@example.invalid"
+    assert config.org_id == "00DCLIENT00000AAA"
     assert config.username == "client@example.invalid"
 
 
@@ -203,3 +206,12 @@ def test_prefixes_have_a_single_definition():
     )
     assert "looks_like_plaintext_token" in script
     assert encryption.PLAINTEXT_TOKEN_PREFIXES
+
+
+def test_from_project_sans_utilisateur_garde_l_org_id():
+    """Controle negatif : sans nom d'utilisateur, rien n'est invente."""
+    project = SimpleNamespace(
+        id=45, sf_instance_url="https://client.my.salesforce.com",
+        sf_username=None, sf_org_id="00DCLIENT00000AAA",
+    )
+    assert SalesforceConfig.from_project(project).org_alias == "00DCLIENT00000AAA"

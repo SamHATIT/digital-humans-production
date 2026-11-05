@@ -105,7 +105,12 @@ class SalesforceConfig:
             )
 
         config = cls(
-            org_alias=org_id or None,
+            # 05/11/2026 : l'alias passe au CLI `sf --target-org` etait l'org id.
+            # Le CLI ne resout pas un org id : mesure sur sandbox-build,
+            # `-o 00DgK00000VvwqDUAR` -> NamedOrgNotFoundError, alors que le nom
+            # d'utilisateur repond. Toute lecture d'org d'un projet (analyse
+            # Marcus, phase 3.0) echouait donc. L'utilisateur d'abord.
+            org_alias=username or org_id or None,
             username=username or None,
             org_id=org_id or None,
             instance_url=instance_url,
