@@ -5,6 +5,19 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-11-05 — Déploiement vague 2 (A RAG/données, B exploitation, C produit Pro) en production
+
+Tags : `avant-deploiement-vague2-20261105` (388299a) → `apres-deploiement-vague2-20261105` (ea12de1). Sauvegardes : `/root/backups/deploiement-20261105/` (base pg_dump, copie Chroma v2 4,1 Go, app-studio, watchdog, drop-in retiré).
+
+- **Code** : fusion A×B×C (PR #16, #17, #18) + migration de fusion `024_fusion_vague2` ; migrations appliquées 022 → 023a, 023c → 024.
+- **Hook post-commit** (`c556f63`) : ne publie la doc que depuis le dossier de production ; les worktrees d'agents ne publient plus de branches non relues. Vérifié : refus affiché au commit suivant dans `wt-fusion`.
+- **Cache Anthropic** (`ea12de1`) : éligibilité lue dans `llm_routing.yaml` (`prompt_caching`), étendue à tous les agents des paliers Pro/Team/Enterprise (avant : en dur, Marcus seul). Test rouge au parent, vert à HEAD. Suite : 1319 passés, mêmes 31 échecs préexistants.
+- **Environnement Python** : nouveau venv aligné paquet par paquet sur le venv testé (FastAPI 0.162, Starlette 1.10) ; ancien conservé en `backend/venv.avant-20261105`.
+- **RAG** : 161 856 fragments de `chromadb_v2` classés `visibility=public` (aucun fragment de projet client) — prérequis SEC-04.
+- **Exploitation** : watchdog réinstallé (OPS-08) ; drop-in `profil-test.conf` du worker retiré (inerte depuis le 10/08, la `.env` imposait déjà `cloud`) ; front Studio reconstruit (vite 6, tests 68/68) et publié dans `/var/www/app-studio`.
+- **Vérifications** : `/health` 200 (base, Redis, Chroma), worker up avec battement, `smoke_test.sh` 6/6, doc régénérée (smoke HTTP 302 OK).
+- **Constats ouverts** : pins de modèles en retard (Opus 5 / Sonnet 5 épinglés, 5.5 disponibles — bascule manuelle, décision Sam) ; écritures Salesforce fermées et chemin de preuve d'org non câblé (BUILD impossible, décision Sam) ; la doc compte encore 91 866 fragments (lit l'ancien Chroma, pas `chromadb_v2`).
+
 ## 2026-07-15 — BUILD v2 phase 1 : review / génération / deploy débloqués (exec 165, projet 107)
 
 Contexte : exec 165 (projet 107 « CRM Digital·Humans ») plantait en phase 1 BUILD, laissant le projet coincé en `BUILD_IN_PROGRESS` (bouton grisé).
