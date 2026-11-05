@@ -85,6 +85,16 @@ async def enfiler_execution(
 
     execution.arq_job_id = job_id
     execution.arq_queue_name = file_cible
+    # 05/11/2026 (smoke exec 181) : une demande d'annulation visait le job
+    # precedent. Elle n'etait jamais effacee : une reprise apres annulation
+    # repondait 202 « resumed » puis s'annulait en 0,3 s, en relisant la
+    # vieille demande. Un nouvel enfilage la remplace.
+    if getattr(execution, "cancel_requested_at", None) is not None:
+        logger.info(
+            f"[ARQ] Demande d'annulation du {execution.cancel_requested_at.isoformat()} "
+            f"effacee : nouvel enfilage de l'execution {execution.id}"
+        )
+        execution.cancel_requested_at = None
     try:
         db.commit()
     except Exception:
