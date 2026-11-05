@@ -67,6 +67,18 @@ agent_tier_map:
   lucas:              worker
 
 # =============================================================================
+# Cache Anthropic du prompt systeme — ajoute le 05/11/2026
+# =============================================================================
+# Etait en dur dans llm_router_service.py (Marcus seul). Un agent est mis en
+# cache si son tier (agent_tier_map) figure dans agent_tiers ET si le palier
+# d'abonnement de l'appel figure dans subscription_tiers. Lecture en cache
+# ~0,1x le prix d'entree ; ecriture +25 % au premier appel ; duree 5 min.
+# Le Free tourne en local : le cache Anthropic ne le concerne pas.
+prompt_caching:
+  subscription_tiers: [pro, team, enterprise]
+  agent_tiers: [orchestrator, worker]
+
+# =============================================================================
 # Deployment profiles — chaque profile mappe chaque tier vers un provider/model.
 # Format : profiles.<profile>.<tier> = "<provider>/<model_alias>"
 # Le model_alias doit exister dans providers.<provider>.models.

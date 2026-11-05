@@ -157,26 +157,42 @@ class LLMResponse:
     avis_repli: Optional[str] = None                # GL-22 : repli annonce (modele a opt-in non consenti)
 
 
-_CACHE_ELIGIBLE_AGENTS = frozenset({"marcus", "architect", "solution_architect"})
+def _should_cache_system(
+    agent_type: Optional[str],
+    subscription_tier: Optional[str],
+    config: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """Vrai si le prompt systeme de cet appel doit etre mis en cache Anthropic.
 
+    05/11/2026 : la liste des agents eligibles etait en dur ici (Marcus seul),
+    alors que le routage vit dans `llm_routing.yaml`. Elle est desormais lue
+    dans la section `prompt_caching` du YAML : paliers d'abonnement eligibles
+    et tiers d'agents (orchestrator / worker, via `agent_tier_map`).
 
-def _should_cache_system(agent_type: Optional[str], subscription_tier: Optional[str]) -> bool:
-    """Determine if Anthropic prompt caching should be auto-enabled for this call.
-
-    Activated for architects (Marcus & co.) on paying tiers — they have long
-    system prompts (Salesforce reference design, BR/UC context) that stay stable
-    across the ~7 calls per SDS, giving ~90% input token discount on cache hits.
-
-    Free tier doesn't run Marcus (chat only with Sophie/Olivia), so caching
-    eligibility is moot there — kept conservative (require non-free).
+    Section absente ou agent inconnu : pas de cache, et on le dit (jamais de
+    repli silencieux). Le seuil de longueur (~1024 tokens) reste verifie au
+    moment de construire la requete.
     """
+    conf = (config or {}).get("prompt_caching")
+    if not conf:
+        logger.warning(
+            "[LLMRouter] section prompt_caching absente de llm_routing.yaml — "
+            "cache Anthropic desactive"
+        )
+        return False
     if not agent_type:
         return False
     normalized = agent_type.lower().replace("-", "_").replace(" ", "_")
-    if normalized not in _CACHE_ELIGIBLE_AGENTS:
+    agent_tier = ((config or {}).get("agent_tier_map") or {}).get(normalized)
+    if agent_tier is None:
+        logger.warning(
+            "[LLMRouter] agent %r absent de agent_tier_map — pas de cache", agent_type
+        )
         return False
-    tier = (subscription_tier or "").lower().strip()
-    return tier in ("pro", "team", "enterprise")
+    if agent_tier not in set(conf.get("agent_tiers") or []):
+        return False
+    paliers = {str(x).lower() for x in (conf.get("subscription_tiers") or [])}
+    return (subscription_tier or "").lower().strip() in paliers
 
 
 class LLMRouterService:
@@ -1451,7 +1467,7 @@ class LLMRouterService:
         sub_tier = kwargs.get("subscription_tier")
         cache_system = kwargs.get("cache_system")
         if cache_system is None:
-            cache_system = _should_cache_system(agent_type, sub_tier)
+            cache_system = _should_cache_system(agent_type, sub_tier, self.config)
         request = LLMRequest(
             prompt=prompt, agent_type=agent_type, system_prompt=system_prompt,
             max_tokens=max_tokens, temperature=temperature,
@@ -1478,7 +1494,7 @@ class LLMRouterService:
         sub_tier = kwargs.get("subscription_tier")
         cache_system = kwargs.get("cache_system")
         if cache_system is None:
-            cache_system = _should_cache_system(agent_type, sub_tier)
+            cache_system = _should_cache_system(agent_type, sub_tier, self.config)
         request = LLMRequest(
             prompt=prompt, agent_type=agent_type, system_prompt=system_prompt,
             max_tokens=max_tokens, temperature=temperature,
