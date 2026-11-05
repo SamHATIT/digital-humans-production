@@ -34,8 +34,10 @@ Team rouvriront, c'est cette preuve qu'il faudra fournir.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
+import subprocess
 from typing import Any, Mapping, Optional
 
 from fastapi import HTTPException
@@ -53,6 +55,16 @@ CAPACITE_BUILD = "build_phase"
 
 #: Reglage d'ouverture des ecritures Salesforce. Absent = ferme.
 VARIABLE_ECRITURES_SALESFORCE = "DH_SALESFORCE_WRITES_ENABLED"
+
+#: Orgs de test declarees par l'exploitant (05/11/2026), par IDENTIFIANT d'org
+#: Salesforce (15 ou 18 caracteres, separes par des virgules). Pour les
+#: Developer Edition, qui repondent `IsSandbox = false` comme une production :
+#: le CRM de Sam en est une. Seul l'identifiant LU dans l'org fait foi — jamais
+#: un alias ou un nom d'utilisateur. Absent = aucune org de test declaree.
+VARIABLE_ORGS_DE_TEST = "DH_SALESFORCE_TEST_ORG_IDS"
+
+#: Requete de preuve : lue dans l'org elle-meme, avec ses identifiants.
+REQUETE_PREUVE_ORG = "SELECT Id, IsSandbox FROM Organization"
 
 
 class SalesforceWritesDisabled(RuntimeError):
@@ -142,20 +154,68 @@ def _ecritures_salesforce_activees() -> bool:
     return False
 
 
+def _orgs_de_test_declarees() -> frozenset:
+    """Identifiants (15 premiers caracteres) des orgs de test declarees."""
+    brut = os.environ.get(VARIABLE_ORGS_DE_TEST) or ""
+    ids = set()
+    for morceau in brut.split(","):
+        m = morceau.strip()
+        if not m:
+            continue
+        if len(m) not in (15, 18) or not m.startswith("00D"):
+            logger.error(
+                "[BuildGuard] %s : %r n'est pas un identifiant d'org — ignore",
+                VARIABLE_ORGS_DE_TEST, m,
+            )
+            continue
+        ids.add(m[:15])
+    return frozenset(ids)
+
+
 def _preuve_est_non_productive(preuve: Optional[Mapping[str, Any]]) -> bool:
     """Une org n'est non productive que si une source authentifiee le dit.
 
-    On exige un `isSandbox` **booleen** vrai (une chaine « true » ou
-    « peut-etre » ne prouve rien : elle peut venir d'un formulaire) et un
-    identifiant d'org, qui rattache la preuve a une org precise.
+    Deux preuves acceptees, toutes deux rattachees a un identifiant d'org :
+    - `isSandbox` **booleen** vrai (une chaine « true » ou « peut-etre » ne
+      prouve rien : elle peut venir d'un formulaire) ;
+    - ou l'identifiant figure dans les orgs de test declarees par
+      l'exploitant (`DH_SALESFORCE_TEST_ORG_IDS`), pour les Developer Edition.
     """
     if not isinstance(preuve, Mapping):
         return False
-    bac_a_sable = preuve.get("isSandbox")
-    if bac_a_sable is not True:
-        return False
     identifiant = preuve.get("organizationId") or preuve.get("orgId") or preuve.get("id")
-    return bool(identifiant)
+    if not isinstance(identifiant, str) or not identifiant:
+        return False
+    if preuve.get("isSandbox") is True:
+        return True
+    return identifiant[:15] in _orgs_de_test_declarees()
+
+
+def obtenir_preuve_org(cible: str, executer=subprocess.run) -> Optional[dict]:
+    """Lit dans l'org elle-meme son identifiant et `IsSandbox`.
+
+    C'est la « source Salesforce authentifiee » qu'exigeait SEC-08 : la
+    requete passe par les identifiants du CLI pour `cible`. Echec (CLI absent,
+    org inconnue, reponse illisible) = None, journalise : la garde refusera.
+    """
+    try:
+        sortie = executer(
+            ["sf", "data", "query", "--target-org", cible,
+             "--query", REQUETE_PREUVE_ORG, "--json"],
+            capture_output=True, text=True, timeout=60,
+        )
+        donnees = json.loads(sortie.stdout or "{}")
+        enregistrements = (donnees.get("result") or {}).get("records") or []
+        if len(enregistrements) != 1:
+            raise ValueError(
+                f"reponse sans enregistrement Organization unique "
+                f"({donnees.get('message') or donnees.get('name') or 'vide'})"
+            )
+        org = enregistrements[0]
+        return {"organizationId": org.get("Id"), "isSandbox": org.get("IsSandbox")}
+    except Exception as e:  # noqa: BLE001 — toute panne = pas de preuve
+        logger.error("[BuildGuard] preuve d'org impossible pour %r : %s", cible, e)
+        return None
 
 
 def ensure_salesforce_write_allowed(
@@ -185,6 +245,9 @@ def ensure_salesforce_write_allowed(
             f"rouvrir : {VARIABLE_ECRITURES_SALESFORCE}=true, et fournir une "
             f"preuve d'org non productive."
         )
+
+    if preuve_org is None:
+        preuve_org = obtenir_preuve_org(cible)
 
     if not _preuve_est_non_productive(preuve_org):
         raise SalesforceOrgNonVerifiee(
