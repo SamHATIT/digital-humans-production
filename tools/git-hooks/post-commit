@@ -17,6 +17,18 @@ set -e
 DEPLOY_DIR="/var/www/digital-humans.fr/docs/refonte"
 [ -d "$DEPLOY_DIR" ] || exit 0
 
+# 1b. Ne publier que depuis le dossier de production.
+# core.hooksPath est partagé par tous les worktrees : sans ce garde, un commit
+# fait par un agent sur une branche non relue publiait la doc en ligne.
+# Les worktrees ne publient pas ; la doc est régénérée à chaque déploiement
+# (procédure de déploiement, étape « doc ») et à chaque commit fait en production.
+PUBLISH_ROOT="${DH_DOCS_PUBLISH_ROOT:-/root/workspace/digital-humans-production}"
+THIS_ROOT=$(cd "$(git rev-parse --show-toplevel)" && pwd -P)
+if [ "$THIS_ROOT" != "$(cd "$PUBLISH_ROOT" 2>/dev/null && pwd -P)" ]; then
+    echo "→ post-commit : doc NON publiée depuis $THIS_ROOT (seul $PUBLISH_ROOT publie) — elle le sera au déploiement"
+    exit 0
+fi
+
 # 2. Pas de récursion : on ne déclenche que sur les commits "vrais"
 # (pas les commits faits par le hook lui-même via amend, etc.)
 if [ -n "$DH_HOOK_RUNNING" ]; then
