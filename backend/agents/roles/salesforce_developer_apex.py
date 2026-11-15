@@ -233,7 +233,7 @@ def generate_spec(requirements: str, project_name: str, execution_id: str, rag_c
         response = generate_llm_response(
             prompt=prompt,
             agent_type="apex_developer",
-            max_tokens=16000,
+            max_tokens=32000,
             temperature=0.3,
             execution_id=execution_id
         )
@@ -451,7 +451,7 @@ YOU MUST FIX THESE ISSUES IN THIS ATTEMPT.
         response = generate_llm_response(
             prompt=prompt,
             agent_type="apex_developer",
-            max_tokens=16000,
+            max_tokens=32000,
             temperature=0.2,  # Lower for more deterministic code
             execution_id=execution_id
         )

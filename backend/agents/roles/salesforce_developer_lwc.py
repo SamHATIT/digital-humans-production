@@ -394,7 +394,7 @@ FIX THESE ISSUES.
 
     if LLM_SERVICE_AVAILABLE:
         response = generate_llm_response(
-            prompt=prompt, agent_type="lwc_developer", max_tokens=16000, temperature=0.2,
+            prompt=prompt, agent_type="lwc_developer", max_tokens=32000, temperature=0.2,
             execution_id=execution_id,
         )
         content = response.get('content', '')
@@ -574,7 +574,7 @@ class LWCDeveloperAgent(BaseAgent):
 
         # Call LLM
         content, tokens_used, input_tokens, model_used, provider_used = self._call_llm(
-            prompt, max_tokens=16000, temperature=0.3, execution_id=execution_id,
+            prompt, max_tokens=32000, temperature=0.3, execution_id=execution_id,
         )
 
         execution_time = time.time() - start_time
