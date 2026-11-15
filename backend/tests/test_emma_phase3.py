@@ -221,76 +221,45 @@ class TestCoverageLoop:
         assert any(g["element_value"] == "Sentiment__c" for g in gaps)
 
 
-class TestWBSAfterValidation:
-    """Tests for WBS generation after validation."""
-    
-    def test_wbs_requires_validation_success(self):
-        """Verify WBS is only generated after successful validation."""
-        # This is a structural test - WBS code should be inside validate success block
-        with open('/root/workspace/digital-humans-production/backend/app/services/pm_orchestrator_service_v2.py', 'r') as f:
-            content = f.read()
-        
-        # Find WBS block and validate block
-        wbs_line = content.find('# 3.5: WBS')
-        validate_success_line = content.find('if validate_result.get("success"):')
-        validate_else_line = content.find('logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed')
-        
-        # WBS should be between validate success and validate else
-        assert wbs_line > validate_success_line
-        assert wbs_line < validate_else_line
+class TestValidationEmmaImpossible:
+    """15/11/2026 — remplace un test qui cherchait des chaines dans le code.
 
+    Regle (Sam, option 2) : si la validation de couverture d'Emma PLANTE, le
+    SDS continue mais l'execution est marquee degradee et l'admin alerte.
+    """
 
-# Quick test runner
-if __name__ == "__main__":
-    # Run basic tests
-    print("=" * 60)
-    print("Running Phase 3 Integration Tests")
-    print("=" * 60)
-    
-    # Test 1: fix_gaps mode exists
-    try:
-        sys.path.insert(0, '/root/workspace/digital-humans-production/backend')
-        from agents.roles.salesforce_solution_architect import get_fix_gaps_prompt
-        print("✅ Test 1: fix_gaps mode exists")
-    except ImportError as e:
-        print(f"❌ Test 1: fix_gaps mode import error: {e}")
-    
-    # Test 2: WBS position in orchestrator
-    try:
-        with open('/root/workspace/digital-humans-production/backend/app/services/pm_orchestrator_service_v2.py', 'r') as f:
-            content = f.read()
-        
-        wbs_line = content.find('# 3.5: WBS')
-        validate_success = content.find('if validate_result.get("success"):')
-        validate_else = content.find('logger.warning(f"[Phase 3.4] ⚠️ Emma Validate failed')
-        
-        if wbs_line > validate_success and wbs_line < validate_else:
-            print("✅ Test 2: WBS is inside validate success block")
-        else:
-            print(f"❌ Test 2: WBS position incorrect (wbs={wbs_line}, success={validate_success}, else={validate_else})")
-    except Exception as e:
-        print(f"❌ Test 2: Error checking WBS position: {e}")
-    
-    # Test 3: Coverage threshold is 95%
-    try:
-        with open('/root/workspace/digital-humans-production/backend/app/services/pm_orchestrator_service_v2.py', 'r') as f:
-            content = f.read()
-        
-        if 'coverage_pct < 95' in content:
-            print("✅ Test 3: Coverage threshold is 95%")
-        else:
-            print("❌ Test 3: Coverage threshold not found or incorrect")
-    except Exception as e:
-        print(f"❌ Test 3: Error checking coverage threshold: {e}")
-    
-    # Test 4: Emma validate mode callable
-    try:
-        from agents.roles.salesforce_research_analyst import run_validate_mode
-        print("✅ Test 4: Emma validate mode exists")
-    except ImportError as e:
-        print(f"❌ Test 4: Emma validate import error: {e}")
-    
-    print("\n" + "=" * 60)
-    print("Tests completed!")
-    print("Run 'pytest tests/test_emma_phase3.py -v' for full test suite")
-    print("=" * 60)
+    def _orchestrateur(self, monkeypatch):
+        from app.services import pm_orchestrator_service_v2 as mod
+        orch = mod.PMOrchestratorServiceV2.__new__(mod.PMOrchestratorServiceV2)
+        traces, alertes = [], []
+        monkeypatch.setattr(orch, "_tracer_degradation",
+                            lambda ex, motif, detail: traces.append((ex, motif, detail)), raising=False)
+        import app.services.admin_alert_service as alerte
+        monkeypatch.setattr(alerte, "alerter_admin", lambda *a, **k: alertes.append((a, k)) or True)
+        return orch, traces, alertes
+
+    def test_echec_technique_trace_une_degradation_et_alerte(self, monkeypatch):
+        orch, traces, alertes = self._orchestrateur(monkeypatch)
+        orch._signaler_validation_emma_impossible(182, "Anthropic call failed: timeout")
+        assert traces and traces[0][0] == 182
+        assert traces[0][1] == orch.MOTIF_COUVERTURE_NON_VERIFIEE
+        assert "timeout" in traces[0][2]
+        assert alertes and alertes[0][1]["execution_id"] == 182
+
+    def test_une_alerte_en_panne_ne_casse_pas_le_pipeline(self, monkeypatch):
+        orch, traces, _ = self._orchestrateur(monkeypatch)
+        import app.services.admin_alert_service as alerte
+        def boum(*a, **k): raise RuntimeError("telegram en panne")
+        monkeypatch.setattr(alerte, "alerter_admin", boum)
+        orch._signaler_validation_emma_impossible(7, "x")   # ne doit pas lever
+        assert traces, "la degradation doit etre tracee meme si l'alerte echoue"
+
+    def test_la_branche_echec_appelle_bien_le_signalement(self):
+        """Controle de cablage : la branche « Emma Validate failed » du
+        workflow appelle le signalement (et n'ecrit plus « skipped »)."""
+        import inspect
+        from app.services import pm_orchestrator_service_v2 as mod
+        source = inspect.getsource(mod.PMOrchestratorServiceV2)
+        assert "self._signaler_validation_emma_impossible(" in source
+        assert "Coverage check skipped" not in source
+

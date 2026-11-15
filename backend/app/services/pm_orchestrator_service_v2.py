@@ -1760,8 +1760,17 @@ class PMOrchestratorServiceV2:
                             return results
 
                 else:
-                    logger.warning(f"[Phase 3.3] ⚠️ Emma Validate failed: {validate_result.get('error', 'Unknown')}")
-                    self._update_progress(execution, "research_analyst", "completed", 72, "Coverage check skipped")
+                    # 15/11/2026 — decision Sam (option 2) : quand la validation
+                    # d'Emma PLANTE (panne, reponse illisible), le SDS continue
+                    # mais n'est plus presente comme verifie : execution marquee
+                    # degradee (rejouable) et alerte admin immediate. Avant, on
+                    # ecrivait qu'il avait saute le controle et le client recevait
+                    # un SDS dont personne n'avait controle la couverture.
+                    self._signaler_validation_emma_impossible(
+                        execution_id, validate_result.get('error') or 'erreur inconnue'
+                    )
+                    self._update_progress(execution, "research_analyst", "completed", 72,
+                                          "Contrôle de couverture indisponible — exécution marquée dégradée")
                     
                 # ========================================
                 # 3.4: Gap Analysis (Compare As-Is vs Final Design) - REORDERED
@@ -2413,6 +2422,32 @@ class PMOrchestratorServiceV2:
                 self.db.rollback()
             except Exception:
                 pass
+
+    #: Motif de degradation quand Emma ne peut pas valider la couverture.
+    MOTIF_COUVERTURE_NON_VERIFIEE = "coverage_unverified"
+
+    def _signaler_validation_emma_impossible(self, execution_id: int, erreur: str) -> None:
+        """Validation d'Emma en echec technique : degradation tracee + alerte admin.
+
+        Non bloquante (le SDS reste livrable), mais jamais silencieuse : la
+        trace est sur l'execution (rejouable) et l'exploitant est prevenu.
+        """
+        logger.warning(f"[Phase 3.3] Emma Validate en echec : {erreur}")
+        self._tracer_degradation(
+            execution_id, self.MOTIF_COUVERTURE_NON_VERIFIEE,
+            f"validation de couverture d'Emma impossible : {str(erreur)[:300]}",
+        )
+        try:
+            from app.services.admin_alert_service import alerter_admin
+            alerter_admin(
+                "Couverture SDS non verifiee",
+                f"La validation d'Emma a echoue sur l'execution {execution_id} "
+                f"({str(erreur)[:300]}). Le SDS continue, marque degrade : a rejouer.",
+                cle_deduplication=f"emma-validate-{execution_id}",
+                execution_id=execution_id,
+            )
+        except Exception as e:  # l'alerte ne doit jamais casser le pipeline
+            logger.error(f"[Phase 3.3] alerte admin impossible : {e}")
 
     def _verifier_finalisation_possible(self, execution_id: int) -> None:
         """Interdit de finaliser sur une degradation bloquante (PROD-07).
