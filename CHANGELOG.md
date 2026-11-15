@@ -5,6 +5,19 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-11-15 (soir) — Smoke de bout en bout SDS + BUILD réel sur `sandbox-build` (exécutions 184 à 186)
+
+Rapport complet : `docs/smoke/SMOKE_20261115_SDS_BUILD.md`.
+
+- **Client Anthropic par boucle** (`62d7166`) : un client async par boucle d'événements (le client partagé entre boucles provoquait « Event loop is closed » : lots d'Olivia perdus, as-is de Marcus vide — exec 183 annulée) ; Emma tolère les champs Salesforce rendus en objet.
+- **Crédits et cache** (`1eaaaa2`) : les jetons écrits en cache (×1,25) et lus (×0,10) sont décomptés des crédits du client comme le reste (décision Sam). Constat : 0 jeton en cache sur les SDS du jour, les prompts système sont trop courts pour être mis en cache.
+- **Génération XML de Raj** (`bfcb6b4`) : échappement XML de tous les textes libres (formule `Score__c < 0`) ; plus de suffixe `__c` ajouté aux objets standards (`Lead__c`, `Opportunity__c`) ni aux `__mdt`/`__e`/`__b`/`__x` ; champs d'activité sur `Activity` ; XML dédié aux types de métadonnées personnalisées (`fieldManageability`) ; génération des enregistrements `CustomMetadata` et des onglets ; opération inconnue tracée au lieu d'être abandonnée. Vérifié par validation à blanc Salesforce : 53/53 composants, 0 erreur. Jordan sans dépôt Git : versionnement sauté, plus d'ECHEC.
+- **Plafond de sortie** (`25a0e63`) : 32 000 jetons pour Diego et Zara (à 16 000, les classes de test produites en dernier disparaissaient).
+- **Reprise de BUILD** (`50353d7`) : une phase déjà déployée n'est plus régénérée à la relance (Raj non déterministe → « Duplicate label: Économie ») ; son registre est conservé dans `build_phase_executions.deploy_result.registre` et rechargé. Le contexte transmis à Diego montre aussi les champs ajoutés aux objets standards.
+- **Résultat** : SDS 122 (10,23 $) et SDS 125 support client (12,18 $) terminés ; BUILD 122 phase 1 réellement déployée dans `sandbox-build` (3 objets, 36 champs, 2 règles de validation) ; phase 2 Apex refusée 3 fois par Elena (défauts réels). Arrêt sur décision de Sam.
+- **Clôture** : `DH_SALESFORCE_WRITES_ENABLED` retiré de `backend/.env` (garde vérifiée fermée), backend et worker redémarrés, smoke@ remis en Pro 15 000 / 6 999. SDS 184 (greenfield, doublon) annulé à 4,51 $.
+- **Constats ouverts** : voir la section « À reprendre » du rapport (retry Diego non ciblé, estimation Opus trop basse, projet bloqué en `build_in_progress` après échec, reprise ARQ automatique au redémarrage, appels Emma sans `execution_id`, Marcus remplace les champs existants, doublon `Market_Signal__c`/`Signal_Marche__c`, CLI `sfdx` 2.113 dans le worker, Haiku figé en 4.5).
+
 ## 2026-11-15 — Lot de finition avant le smoke de bout en bout
 
 - **Emma** (`1aa69fb`) : une validation de couverture en échec technique marque l'exécution dégradée (`coverage_unverified`) et alerte l'admin (décision Sam, option 2). Le test structurel est remplacé par des tests de comportement.
