@@ -323,3 +323,37 @@ def test_retry_info_stays_readable_for_its_owner(client, db_session):
 
     assert r.status_code == 200, r.text
     assert r.json()["can_retry"] is True
+
+
+def test_retry_reprend_au_checkpoint_et_pas_apres_marcus(client, db_session, no_redis):
+    """15/11/2026 (smoke exec 181) : « architect » marque termine apres sa
+    premiere sous-etape faisait repartir le retry en phase 4, apres Marcus.
+    Le checkpoint `phase2_5_emma` (Emma finie) commande : reprise en phase 3."""
+    pro = _make_user(db_session, "pro")
+    execution = _make_failed_execution(db_session, pro)
+    execution.agent_execution_status = {
+        "pm": {"state": "completed"}, "ba": {"state": "completed"},
+        "research_analyst": {"state": "completed"}, "architect": {"state": "completed"},
+    }
+    execution.last_completed_phase = "phase2_5_emma"
+    db_session.commit()
+    _authenticate_as(pro)
+
+    r = client.post(RETRY_URL.format(eid=execution.id))
+
+    assert r.status_code == 202, r.text
+    assert "phase3" in r.json()["message"] and "phase4" not in r.json()["message"]
+
+
+def test_controle_negatif_sans_checkpoint_le_statut_par_agent_decide(client, db_session, no_redis):
+    pro = _make_user(db_session, "pro")
+    execution = _make_failed_execution(db_session, pro)
+    execution.agent_execution_status = {"pm": {"state": "completed"}}
+    execution.last_completed_phase = None
+    db_session.commit()
+    _authenticate_as(pro)
+
+    r = client.post(RETRY_URL.format(eid=execution.id))
+
+    assert r.status_code == 202, r.text
+    assert "phase2" in r.json()["message"]

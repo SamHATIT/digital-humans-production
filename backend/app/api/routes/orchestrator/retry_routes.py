@@ -83,7 +83,24 @@ async def retry_failed_execution(
     # tire python-docx et chromadb. Le monter au niveau module ferait dependre
     # le demarrage de l'API de ces deux paquets, alors qu'aujourd'hui `app.main`
     # s'importe sans eux. Un test verrouille cette propriete.
-    from app.services.pm_orchestrator_service_v2 import resolve_resume_point
+    from app.services.pm_orchestrator_service_v2 import (
+        resolve_resume_point,
+        resume_point_depuis_checkpoint,
+    )
+
+    # 15/11/2026 (smoke exec 181) : le statut par agent marque « architect »
+    # termine des sa premiere sous-etape (analyse de l'org), alors que Marcus
+    # n'a pas fini sa conception : le retry repartait en phase 4, APRES Marcus,
+    # et gardait un travail incomplet. Le checkpoint est la source fiable, la
+    # meme que /resume (PROD-05) : il commande quand il est connu.
+    depuis_checkpoint = resume_point_depuis_checkpoint(execution.last_completed_phase)
+    if depuis_checkpoint:
+        logger.info(
+            f"[Retry] Execution {execution_id} : checkpoint "
+            f"{execution.last_completed_phase!r} -> reprise en {depuis_checkpoint!r} "
+            f"(statut par agent ignore : {resume_from!r})"
+        )
+        resume_from = depuis_checkpoint
 
     resume_from = resolve_resume_point(resume_from)
 
