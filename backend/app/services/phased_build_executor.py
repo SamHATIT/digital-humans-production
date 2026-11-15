@@ -202,6 +202,7 @@ class PhasedBuildExecutor:
         try:
             # Group tasks by phase
             tasks_by_phase = self.group_tasks_by_phase(wbs_tasks)
+            phases_deja_deployees = self._charger_phases_deployees()
             logger.info(f"[PhasedBuild] Tasks grouped: {[(p, len(t)) for p, t in tasks_by_phase.items()]}")
             
             # Execute each phase sequentially
@@ -212,6 +213,25 @@ class PhasedBuildExecutor:
                 phase_tasks = tasks_by_phase.get(phase_num, [])
                 if not phase_tasks:
                     logger.info(f"[PhasedBuild] Phase {phase_num} ({phase_name}): no tasks, skipping")
+                    continue
+
+                # REPRISE-BUILD-001 (15/11/2026, BUILD exec 185) : une phase
+                # deja deployee n'est pas regeneree a la relance. La refaire
+                # produisait un AUTRE plan (Raj n'est pas deterministe) qui
+                # entrait en conflit avec ce qui est deja dans l'org :
+                # « Duplicate label: Économie » sur une liste de valeurs
+                # redeclaree sous d'autres noms d'API. On recharge le registre
+                # de contexte de la phase, dont les suivantes ont besoin.
+                snapshot = phases_deja_deployees.get(phase_num)
+                if snapshot is not None and self._taches_toutes_terminees(phase_tasks):
+                    self.context_registry.register_batch_output(phase_num, snapshot)
+                    self.phase_results[phase_num] = {
+                        "phase": phase_num, "phase_name": phase_name,
+                        "success": True, "reprise": "deja_deployee",
+                    }
+                    result["phase_results"][phase_num] = self.phase_results[phase_num]
+                    result["phases_completed"] += 1
+                    logger.info(f"[PhasedBuild] Phase {phase_num} ({phase_name}) deja deployee — reprise sans regeneration")
                     continue
                 
                 self.current_phase = phase_num
@@ -229,6 +249,7 @@ class PhasedBuildExecutor:
                     result["phases_completed"] += 1
                     result["deployed_components"].extend(phase_result.get("deployed_components", []))
                     await self._update_phase_status(phase_num, phase_name, PhaseStatus.COMPLETED)
+                    self._sauver_phase_deployee(phase_num, phase_result.pop("aggregated_snapshot", None))
                 else:
                     result["phases_failed"] += 1
                     result["success"] = False
@@ -361,6 +382,7 @@ class PhasedBuildExecutor:
                 if deploy_result.get("success"):
                     result["success"] = True
                     result["deployed_components"] = deploy_result.get("deployed_components", [])
+                    result["aggregated_snapshot"] = aggregated
                     
                     # Mark tasks as completed
                     await self._mark_tasks_completed(tasks)
@@ -851,6 +873,61 @@ class PhasedBuildExecutor:
         except Exception as e:
             logger.warning(f"[PhasedBuild] Failed to update phase status: {e}")
     
+    # ═══════════════════════════════════════════════════════════════
+    # REPRISE D'UN BUILD (REPRISE-BUILD-001)
+    # ═══════════════════════════════════════════════════════════════
+
+    def _sauver_phase_deployee(self, phase: int, aggregated: Optional[Dict[str, Any]]) -> None:
+        """Conserve ce qu'une phase a deploye, pour la reprendre sans la refaire."""
+        if not aggregated:
+            return
+        try:
+            import json as _json
+            from sqlalchemy import text
+            self.db.execute(text("""
+                UPDATE build_phase_executions
+                SET deploy_result = COALESCE(deploy_result, '{}'::jsonb) || jsonb_build_object('registre', CAST(:registre AS jsonb))
+                WHERE execution_id = :exec_id AND phase_number = :phase
+            """), {"registre": _json.dumps(aggregated, default=str), "exec_id": self.execution_id, "phase": phase})
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            logger.warning(f"[PhasedBuild] Sauvegarde de la phase {phase} impossible (reprise indisponible) : {e}")
+
+    def _charger_phases_deployees(self) -> Dict[int, Dict[str, Any]]:
+        """Phases deja deployees de cette execution, avec leur registre."""
+        try:
+            from sqlalchemy import text
+            lignes = self.db.execute(text("""
+                SELECT phase_number, deploy_result->'registre'
+                FROM build_phase_executions
+                WHERE execution_id = :exec_id AND status = 'completed'
+                  AND deploy_result ? 'registre'
+            """), {"exec_id": self.execution_id}).fetchall()
+            return {int(n): r for n, r in lignes if isinstance(r, dict)}
+        except Exception as e:
+            self.db.rollback()
+            logger.warning(f"[PhasedBuild] Lecture des phases deployees impossible : {e}")
+            return {}
+
+    def _taches_toutes_terminees(self, tasks: List[Dict]) -> bool:
+        refs = [t.get("task_id") or t.get("id") for t in tasks]
+        refs = [r for r in refs if r]
+        if not refs:
+            return False
+        try:
+            from sqlalchemy import text, bindparam
+            q = text("""
+                SELECT count(*) FROM task_executions
+                WHERE execution_id = :exec_id AND task_id IN :refs AND status = 'COMPLETED'
+            """).bindparams(bindparam("refs", expanding=True))
+            n = self.db.execute(q, {"exec_id": self.execution_id, "refs": refs}).scalar() or 0
+            return n == len(set(refs))
+        except Exception as e:
+            self.db.rollback()
+            logger.warning(f"[PhasedBuild] Verification des taches impossible : {e}")
+            return False
+
     async def _mark_tasks_completed(self, tasks: List[Dict]):
         """Marque les tâches comme complétées en DB."""
         try:

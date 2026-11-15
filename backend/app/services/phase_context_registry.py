@@ -237,12 +237,18 @@ class PhaseContextRegistry:
     
     def get_full_data_model(self) -> str:
         """Retourne le modèle de données complet (Phase 1)."""
-        if not self.generated_objects:
+        if not self.generated_objects and not self.generated_fields:
             return ""
         
         lines = ["## MODÈLE DE DONNÉES DISPONIBLE (Phase 1 déployée)", ""]
-        
-        for obj in self.generated_objects:
+
+        # REPRISE-BUILD-001 (15/11/2026) : les champs ajoutes a un objet
+        # STANDARD (Lead, Opportunity...) etaient enregistres mais jamais
+        # affiches, faute d'etre dans generated_objects. Diego ne les voyait pas.
+        objets = list(self.generated_objects) + [
+            o for o in self.generated_fields if o not in self.generated_objects
+        ]
+        for obj in objets:
             lines.append(f"### {obj}")
             
             fields = self.generated_fields.get(obj, [])
