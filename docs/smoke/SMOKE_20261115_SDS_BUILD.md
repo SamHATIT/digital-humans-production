@@ -59,6 +59,7 @@ Doublon fonctionnel créé par Raj : `Lead.Score__c` à côté de `Score_Qualifi
 9. Haiku figé en 4.5 (MOD40 signale la 5.5).
 10. Cache : regrouper le contexte stable pour dépasser le seuil de mise en cache.
 11. Agent Script non activé dans `sandbox-build` (Agentforce non déployable en l'état).
-12. Supprimer les liens temporaires des SDS une fois récupérés par Sam.
+12. ~~Supprimer les liens temporaires des SDS~~ — fait le 15/11 à 21h50 (Sam les a récupérés).
+13. **Battement du worker pendant le BUILD** : le watchdog a envoyé « worker /workers/health = 503 » vers 20h30-20h45 (heure de Paris) puis « DH rétabli » : pendant les longs appels de Diego, le worker ne pose plus sa clé de santé ARQ (boucle bloquée par un appel synchrone), alors qu'il travaille. Rendre le battement indépendant des appels longs, et faire journaliser au watchdog ce qu'il trouve à chaque passage (aucune trace aujourd'hui).
 
 Ensuite (approuvé, non commencé) : tests des modèles NVIDIA sur le Spark (Super VL 120B-A12B, Bolt) avec llama.cpp v1.0.0 compilé à part.
