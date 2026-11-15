@@ -392,6 +392,8 @@ class CreditService:
         tokens_in: int,
         tokens_out: int,
         model: Optional[str] = None,
+        cache_read_tokens: int = 0,
+        cache_creation_tokens: int = 0,
     ) -> CreditTransaction:
         """
         Règle une réservation au coût mesuré : la ligne devient ``charge``
@@ -413,6 +415,8 @@ class CreditService:
             tx.credits_consumed = actual
             tx.tokens_input = tokens_in
             tx.tokens_output = tokens_out
+            tx.cache_read_tokens = cache_read_tokens or 0
+            tx.cache_creation_tokens = cache_creation_tokens or 0
             tx.model_used = pricing.model_name
             tx.note = f"{tx.note or ''} ; réglée : {actual} crédits mesurés".strip(" ;")
             self.db.commit()

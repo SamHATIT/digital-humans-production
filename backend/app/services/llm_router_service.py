@@ -753,15 +753,27 @@ class LLMRouterService:
 
         raise UnknownProviderPricingError(provider_str)
 
-    def _calculate_cost(self, provider_str: str, tokens_in: int, tokens_out: int) -> float:
-        """Cout en USD d'un appel. Leve si le tarif est inconnu (BILL-09)."""
+    #: Multiplicateurs Anthropic du prix d'entree : ecriture cache 5 min, lecture.
+    CACHE_ECRITURE_X = 1.25
+    CACHE_LECTURE_X = 0.10
+
+    def _calculate_cost(self, provider_str: str, tokens_in: int, tokens_out: int,
+                        cache_read: int = 0, cache_create: int = 0) -> float:
+        """Cout en USD d'un appel. Leve si le tarif est inconnu (BILL-09).
+
+        15/11/2026 : les jetons ecrits (x1,25) et lus (x0,10) dans le cache sont
+        comptes ; ils sont hors de `tokens_in` et etaient donc ignores.
+        """
         pricing = self._resoudre_tarif(provider_str)
-        cost_in = (tokens_in / 1_000_000) * pricing.get("input", 0)
+        prix_in = pricing.get("input", 0)
+        cost_in = ((tokens_in + cache_create * self.CACHE_ECRITURE_X
+                    + cache_read * self.CACHE_LECTURE_X) / 1_000_000) * prix_in
         cost_out = (tokens_out / 1_000_000) * pricing.get("output", 0)
         return round(cost_in + cost_out, 6)
 
     def _cout_ou_zero_journalise(self, provider_str: str, tokens_in: int,
-                                 tokens_out: int) -> float:
+                                 tokens_out: int, cache_read: int = 0,
+                                 cache_create: int = 0) -> float:
         """Cout de l'appel pour les chemins qui ne peuvent pas echouer ici.
 
         Un appel deja parti et deja facture par le fournisseur ne doit pas se
@@ -770,7 +782,8 @@ class LLMRouterService:
         le zero silencieux d'avant.
         """
         try:
-            return self._calculate_cost(provider_str, tokens_in, tokens_out)
+            return self._calculate_cost(provider_str, tokens_in, tokens_out,
+                                        cache_read=cache_read, cache_create=cache_create)
         except UnknownProviderPricingError:
             logger.critical(
                 "[LLM] TARIF INCONNU pour %s : le cout de cet appel est compte 0 "
@@ -1053,7 +1066,8 @@ class LLMRouterService:
                 )
 
             latency_ms = int((time.time() - start_time) * 1000)
-            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out)
+            cost_usd = self._cout_ou_zero_journalise(provider_str, tokens_in, tokens_out,
+                                                     cache_read=cache_read, cache_create=cache_create)
 
             return LLMResponse(
                 content=content, provider=provider_str, model_id=model_id,
@@ -1340,6 +1354,8 @@ class LLMRouterService:
                 tokens_in=response.tokens_in or 0,
                 tokens_out=response.tokens_out or 0,
                 model=response.model_id or None,
+                cache_read_tokens=getattr(response, "cache_read_input_tokens", 0) or 0,
+                cache_creation_tokens=getattr(response, "cache_creation_input_tokens", 0) or 0,
             )
         except Exception as exc:  # noqa: BLE001
             logger.critical(

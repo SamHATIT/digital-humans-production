@@ -98,6 +98,11 @@ class CreditTransaction(Base):
     model_used = Column(String(50))
     tokens_input = Column(Integer)
     tokens_output = Column(Integer)
+    # 15/11/2026 : jetons lus / ecrits dans le cache Anthropic. `tokens_input`
+    # (usage.input_tokens) ne les compte PAS : sans ces colonnes, le gain du
+    # cache n'etait mesurable nulle part.
+    cache_read_tokens = Column(Integer)
+    cache_creation_tokens = Column(Integer)
     credits_consumed = Column(Integer, nullable=False)
     execution_id = Column(
         Integer,
