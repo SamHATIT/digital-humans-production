@@ -394,6 +394,25 @@ def generate_coverage_report_programmatic(solution_design: dict, use_cases: list
 # ============================================================================
 # RESEARCH ANALYST AGENT CLASS -- Importable + CLI compatible
 # ============================================================================
+
+
+def _libelle_sf(element) -> str:
+    """Nom lisible d'un objet ou d'un champ, quel que soit le format d'Olivia.
+
+    15/11/2026 (smoke exec 183) : Olivia rend parfois un champ en objet
+    (`{"object": "Lead", "field": "Score__c", ...}`) au lieu de la chaine
+    `"Lead.Score__c"` ; le `join` levait TypeError et Emma echouait entiere.
+    """
+    if isinstance(element, str):
+        return element
+    if isinstance(element, dict):
+        objet = element.get("object") or element.get("sobject") or element.get("objet")
+        champ = element.get("field") or element.get("api_name") or element.get("name") or element.get("champ")
+        if objet and champ:
+            return f"{objet}.{champ}"
+        return str(champ or objet or element)
+    return str(element)
+
 class ResearchAnalystAgent(BaseAgent):
     """
     Emma (Research Analyst) Agent - 3 modes.
@@ -504,12 +523,12 @@ class ResearchAnalystAgent(BaseAgent):
             # SF Objects (Olivia format: flat list)
             sf_objects = uc.get('sf_objects', [])
             if sf_objects:
-                uc_text += f"- **SF Objects**: {', '.join(sf_objects)}\n"
+                uc_text += f"- **SF Objects**: {', '.join(_libelle_sf(o) for o in sf_objects)}\n"
 
             # SF Fields (Olivia format: ["Object.Field", ...])
             sf_fields = uc.get('sf_fields', [])
             if sf_fields:
-                uc_text += f"- **SF Fields**: {', '.join(sf_fields[:10])}\n"
+                uc_text += f"- **SF Fields**: {', '.join(_libelle_sf(f) for f in sf_fields[:10])}\n"
 
             # SF Automation (Olivia format: string, not list)
             sf_auto = uc.get('sf_automation', '')

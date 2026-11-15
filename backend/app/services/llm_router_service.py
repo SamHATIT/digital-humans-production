@@ -428,9 +428,16 @@ class LLMRouterService:
                     "client": Anthropic(api_key=api_key, timeout=float(timeout), **extra),
                     "models": providers_config["anthropic"].get("models", {}),
                 }
+                _fabrique_anthropic = (
+                    lambda _k=api_key, _t=float(timeout), _x=dict(extra):
+                    AsyncAnthropic(api_key=_k, timeout=_t, **_x)
+                )
                 self.async_providers["anthropic"] = {
                     "type": ProviderType.ANTHROPIC,
-                    "client": AsyncAnthropic(api_key=api_key, timeout=float(timeout), **extra),
+                    "client": _fabrique_anthropic(),
+                    # 15/11/2026 : un client async par boucle d'evenements (voir
+                    # _client_async_par_boucle).
+                    "fabrique": _fabrique_anthropic,
                     "models": providers_config["anthropic"].get("models", {}),
                 }
                 logger.info("Anthropic provider initialized")
@@ -753,6 +760,37 @@ class LLMRouterService:
 
         raise UnknownProviderPricingError(provider_str)
 
+    def _client_async_par_boucle(self, fournisseur: str):
+        """Client async lie a la boucle d'evenements COURANTE.
+
+        15/11/2026 (smoke exec 183, 9 echecs « Event loop is closed ») : le
+        client AsyncAnthropic etait partage par toutes les boucles. Or chaque
+        appel synchrone (`complete_sync`) cree puis ferme sa propre boucle
+        (`asyncio.run`, souvent dans un thread). Les connexions httpx gardees
+        en reserve restaient liees a des boucles fermees, et leur reutilisation
+        ou leur fermeture plantait l'appel suivant — Olivia perdait des lots,
+        Marcus rendait une analyse vide. Un client par boucle supprime le
+        partage ; il disparait avec sa boucle (dictionnaire a cles faibles).
+        """
+        entree = self.async_providers.get(fournisseur, {})
+        fabrique = entree.get("fabrique")
+        if fabrique is None:
+            return entree.get("client")
+        try:
+            boucle = asyncio.get_running_loop()
+        except RuntimeError:
+            return entree.get("client")
+        import weakref
+        cache = entree.get("par_boucle")
+        if cache is None:
+            cache = weakref.WeakKeyDictionary()
+            entree["par_boucle"] = cache
+        client = cache.get(boucle)
+        if client is None:
+            client = fabrique()
+            cache[boucle] = client
+        return client
+
     #: Multiplicateurs Anthropic du prix d'entree : ecriture cache 5 min, lecture.
     CACHE_ECRITURE_X = 1.25
     CACHE_LECTURE_X = 0.10
@@ -965,7 +1003,7 @@ class LLMRouterService:
         """Call Anthropic Claude API with automatic continuation on max_tokens (CRIT-02 port)."""
         start_time = time.time()
 
-        async_client = self.async_providers.get("anthropic", {}).get("client")
+        async_client = self._client_async_par_boucle("anthropic")
         if not async_client:
             return LLMResponse(
                 content="", provider=provider_str, model_id=model_id,
@@ -1079,7 +1117,7 @@ class LLMRouterService:
             )
         except Exception as e:
             latency_ms = int((time.time() - start_time) * 1000)
-            logger.error("Anthropic call failed: %s", e)
+            logger.error("Anthropic call failed: %s", e, exc_info=True)
             return LLMResponse(
                 content="", provider=provider_str, model_id=model_id,
                 tokens_in=0, tokens_out=0, cost_usd=0.0, latency_ms=latency_ms,
