@@ -32,6 +32,33 @@ from app.utils.dependencies import get_current_user_from_token_or_header
 router = APIRouter(prefix="/api/br", tags=["Business Requirements"])
 
 
+def _filtre_derniere_execution(db: Session, project_id: int):
+    """Filtre SQLAlchemy : les exigences de la DERNIERE execution du projet.
+
+    15/11/2026 (smoke 05/11, projet 122) : chaque relance d'un projet recree un
+    jeu complet d'exigences ; la liste, les compteurs et « tout valider »
+    melangeaient les jeux (35 lignes pour 17 exigences), et « tout valider »
+    validait aussi celles des executions abandonnees. On ne montre et ne traite
+    que le jeu courant, plus les exigences ajoutees a la main (sans execution).
+    """
+    from sqlalchemy import or_
+    derniere = db.query(func.max(BusinessRequirement.execution_id)).filter(
+        BusinessRequirement.project_id == project_id
+    ).scalar()
+    if derniere is None:
+        return BusinessRequirement.project_id == project_id
+    return (BusinessRequirement.project_id == project_id) & or_(
+        BusinessRequirement.execution_id == derniere,
+        BusinessRequirement.execution_id.is_(None),
+    )
+
+
+def _derniere_execution(db: Session, project_id: int):
+    return db.query(func.max(BusinessRequirement.execution_id)).filter(
+        BusinessRequirement.project_id == project_id
+    ).scalar()
+
+
 # ==================== LIST BRs ====================
 
 @router.get("/{project_id}", response_model=BusinessRequirementListResponse)
@@ -60,7 +87,7 @@ def list_business_requirements(
     
     # Query BRs
     query = db.query(BusinessRequirement).filter(
-        BusinessRequirement.project_id == project_id
+        _filtre_derniere_execution(db, project_id)
     )
     
     if not include_deleted:
@@ -70,7 +97,7 @@ def list_business_requirements(
     
     # Calculate stats
     all_brs = db.query(BusinessRequirement).filter(
-        BusinessRequirement.project_id == project_id
+        _filtre_derniere_execution(db, project_id)
     ).all()
     
     stats = {
@@ -147,6 +174,9 @@ def create_business_requirement(
     # Create BR
     br = BusinessRequirement(
         project_id=project_id,
+        # 15/11/2026 : rattachee a l'execution courante, sinon les agents ne la
+        # lisent jamais (_get_validated_brs filtre par execution).
+        execution_id=_derniere_execution(db, project_id),
         br_id=br_id,
         category=br_data.category,
         requirement=br_data.requirement,
@@ -270,7 +300,7 @@ def validate_all_requirements(
     
     # Get all non-deleted BRs
     brs = db.query(BusinessRequirement).filter(
-        BusinessRequirement.project_id == project_id,
+        _filtre_derniere_execution(db, project_id),
         BusinessRequirement.status != BRStatus.DELETED
     ).all()
     
@@ -320,7 +350,7 @@ def export_requirements_csv(
     
     # Get all BRs (including deleted for audit)
     brs = db.query(BusinessRequirement).filter(
-        BusinessRequirement.project_id == project_id
+        _filtre_derniere_execution(db, project_id)
     ).order_by(BusinessRequirement.order_index).all()
     
     # Create CSV in memory
@@ -399,7 +429,7 @@ def reorder_requirements(
     for index, br_id in enumerate(reorder_data.order):
         br = db.query(BusinessRequirement).filter(
             BusinessRequirement.id == br_id,
-            BusinessRequirement.project_id == project_id
+            _filtre_derniere_execution(db, project_id)
         ).first()
         
         if br:
