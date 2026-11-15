@@ -517,7 +517,7 @@ flowchart LR
           <td>Project Manager</td>
           <td>1 — BR extraction</td>
           <td>—</td>
-          <td>Claude Opus 5</td>
+          <td>Claude Opus 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -545,7 +545,7 @@ flowchart LR
           <td>Business Analyst</td>
           <td>2 — Use Cases</td>
           <td>—</td>
-          <td>Claude Opus 5</td>
+          <td>Claude Opus 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -573,7 +573,7 @@ flowchart LR
           <td>Research Analyst</td>
           <td>2.5 / 3.3 / 4.5 / 5</td>
           <td>—</td>
-          <td>Claude Opus 5</td>
+          <td>Claude Opus 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -601,7 +601,7 @@ flowchart LR
           <td>Solution Architect</td>
           <td>3 — Architecture</td>
           <td>—</td>
-          <td>Claude Opus 5</td>
+          <td>Claude Opus 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -629,7 +629,7 @@ flowchart LR
           <td>QA Engineer</td>
           <td>4 — Test specs</td>
           <td>—</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -657,7 +657,7 @@ flowchart LR
           <td>DevOps / CI-CD</td>
           <td>4 — DevOps specs</td>
           <td>Deploy (toutes phases)</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -685,7 +685,7 @@ flowchart LR
           <td>Admin Config</td>
           <td>—</td>
           <td>1,4,5 — Model/Auto/Security</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -713,7 +713,7 @@ flowchart LR
           <td>Apex Developer</td>
           <td>—</td>
           <td>2 — Business logic</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -741,7 +741,7 @@ flowchart LR
           <td>LWC Developer</td>
           <td>—</td>
           <td>3 — UI components</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -769,7 +769,7 @@ flowchart LR
           <td>Data Migration</td>
           <td>4 — Data specs</td>
           <td>6 — Migration scripts</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -797,7 +797,7 @@ flowchart LR
           <td>Trainer</td>
           <td>4 — Training specs</td>
           <td>—</td>
-          <td>Claude Sonnet 5</td>
+          <td>Claude Sonnet 5.5</td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -828,14 +828,14 @@ flowchart LR
       <tr><th>Tier</th><th>Modèle</th><th>Pricing (in/out per M tokens)</th><th>Agents</th></tr>
       <tr>
         <td><code>orchestrator</code></td>
-        <td>Claude Opus 5</td>
+        <td>Claude Opus 5.5</td>
         <td>$5 / $25</td>
         <td>Marcus, Olivia, Sophie, Emma
         </td>
       </tr>
       <tr>
         <td><code>worker</code></td>
-        <td>Claude Sonnet 5</td>
+        <td>Claude Sonnet 5.5</td>
         <td>$3 / $15</td>
         <td>Raj, Diego, Aisha, Jordan, Zara, Elena, Lucas
         </td>
@@ -1248,6 +1248,24 @@ flowchart LR
           <td><span class="tag tag-done">activé</span></td>
           <td>gpu_nemotron/nemotron (aucune degradation)</td>
         </tr>    <tr>
+          <td><code>calib_ark_dsv4pro</code></td>
+          <td>gpu_dsv4pro/dsv4pro</td>
+          <td>gpu_dsv4pro/dsv4pro</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>gpu_dsv4pro/dsv4pro (aucune degradation)</td>
+        </tr>    <tr>
+          <td><code>calib_ark_dsv4flash</code></td>
+          <td>gpu_dsv4flash/dsv4flash</td>
+          <td>gpu_dsv4flash/dsv4flash</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>gpu_dsv4flash/dsv4flash (aucune degradation)</td>
+        </tr>    <tr>
+          <td><code>calib_ark_glm53</code></td>
+          <td>gpu_glm53/glm53</td>
+          <td>gpu_glm53/glm53</td>
+          <td><span class="tag tag-done">activé</span></td>
+          <td>gpu_glm53/glm53 (aucune degradation)</td>
+        </tr>    <tr>
           <td><code>on-premise</code></td>
           <td>local/mixtral</td>
           <td>local/mistral:7b-instruct</td>
@@ -1529,7 +1547,7 @@ flowchart LR
           <td><strong>Tunnel Spark LLM</strong></td>
           <td><code>tunnel-spark-llm</code></td>
           <td>18080→8080</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">inactive</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -1571,7 +1589,7 @@ flowchart LR
           <td><strong>Tunnel GPU loue</strong></td>
           <td><code>tunnel-gpu</code></td>
           <td>18080→8080</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">inactive</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -1615,7 +1633,7 @@ flowchart LR
           <td><strong>VoxCPM TTS</strong></td>
           <td><code>vox-tts</code></td>
           <td>8100</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">stopped</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -1677,7 +1695,7 @@ flowchart LR
           <td><strong>Jellyfin</strong></td>
           <td><code>jellyfin</code></td>
           <td>8096</td>
-          <td><span class="tag tag-done">active</span></td>
+          <td><span class="tag tag-warning">inactive</span></td>
         </tr>
         <tr class="tbl-row-detail">
           <td colspan="6">
@@ -1806,7 +1824,7 @@ flowchart LR
   </div>
   <div id="database" class="section">
     <h2>Base de données</h2>
-    <p class="section-desc"><strong>59 tables</strong> dans le schema <code>public</code> · <span class="muted">non documentées : chat_logs, credit_balances, credit_transactions, model_pricing, signaux_collecte, signaux_publics, tier_config, v_deos_blog_articles, v_deos_blog_topics, v_deos_build_phases, v_deos_couts_pipeline, v_deos_executions, v_deos_leads, v_deos_projects, v_deos_prospects, v_deos_sections, v_deos_signaux, v_deos_veille</span>.</p>
+    <p class="section-desc"><strong>64 tables</strong> dans le schema <code>public</code> · <span class="muted">non documentées : chat_logs, concierge_budget_jours, credit_balances, credit_transactions, effacements_comptes, model_pricing, opus_consents, signaux_collecte, signaux_publics, stripe_events, stripe_subscriptions, tier_config, v_deos_blog_articles, v_deos_blog_topics, v_deos_build_phases, v_deos_couts_pipeline, v_deos_executions, v_deos_leads, v_deos_projects, v_deos_prospects, v_deos_sections, v_deos_signaux, v_deos_veille</span>.</p>
 
     <h3>Orchestration SDS</h3>
     <table class="tbl-expand">
@@ -1840,7 +1858,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><code>executions</code></td>
-          <td>23</td>
+          <td>27</td>
           <td>Exécutions SDS/BUILD (status, state, budget_used, cost_usd)</td>
         </tr>
         <tr class="tbl-row-detail">
@@ -1849,7 +1867,7 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>colonnes</dt>
                 <dd>
-                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>project_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>user_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>status</strong> <span class="muted">· USER-DEFINED</span></span><span class="chip"><strong>progress</strong> <span class="muted">· integer</span></span><span class="chip"><strong>current_agent</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>selected_agents</strong> <span class="muted">· json</span></span><span class="chip"><strong>agent_execution_status</strong> <span class="muted">· json</span></span><span class="chip"><strong>sds_document_path</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>total_tokens_used</strong> <span class="muted">· integer</span></span><span class="chip"><strong>total_cost</strong> <span class="muted">· double precision</span></span><span class="chip"><strong>duration_seconds</strong> <span class="muted">· integer</span></span><span class="chip"><strong>started_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>completed_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>logs</strong> <span class="muted">· text</span></span><span class="chip"><strong>last_completed_phase</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>execution_state</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>state_updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>state_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>pending_validation</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>validation_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>expert_selection</strong> <span class="muted">· jsonb</span></span></div>
+                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>project_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>user_id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>status</strong> <span class="muted">· USER-DEFINED</span></span><span class="chip"><strong>progress</strong> <span class="muted">· integer</span></span><span class="chip"><strong>current_agent</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>selected_agents</strong> <span class="muted">· json</span></span><span class="chip"><strong>agent_execution_status</strong> <span class="muted">· json</span></span><span class="chip"><strong>sds_document_path</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>total_tokens_used</strong> <span class="muted">· integer</span></span><span class="chip"><strong>total_cost</strong> <span class="muted">· double precision</span></span><span class="chip"><strong>duration_seconds</strong> <span class="muted">· integer</span></span><span class="chip"><strong>started_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>completed_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>logs</strong> <span class="muted">· text</span></span><span class="chip"><strong>last_completed_phase</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>execution_state</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>state_updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>state_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>pending_validation</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>validation_history</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>expert_selection</strong> <span class="muted">· jsonb</span></span><span class="chip"><strong>arq_job_id</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>arq_queue_name</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>cancel_requested_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>degraded</strong> <span class="muted">· jsonb</span></span></div>
                 </dd>
               </dl>
             </div>
@@ -2409,7 +2427,7 @@ flowchart LR
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><code>users</code></td>
-          <td>11</td>
+          <td>14</td>
           <td>Utilisateurs (auth JWT)</td>
         </tr>
         <tr class="tbl-row-detail">
@@ -2418,7 +2436,7 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>colonnes</dt>
                 <dd>
-                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>email</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>hashed_password</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>name</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>is_active</strong> <span class="muted">· boolean</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>subscription_started_at</strong> <span class="muted">· timestamp without time zone</span></span><span class="chip"><strong>subscription_expires_at</strong> <span class="muted">· timestamp without time zone</span></span><span class="chip"><strong>stripe_customer_id</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>subscription_tier</strong> <span class="muted">· character varying</span></span></div>
+                  <div class="chiprow"><span class="chip"><strong>id</strong> <span class="muted">· integer</span></span><span class="chip"><strong>email</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>hashed_password</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>name</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>is_active</strong> <span class="muted">· boolean</span></span><span class="chip"><strong>created_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>updated_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>subscription_started_at</strong> <span class="muted">· timestamp without time zone</span></span><span class="chip"><strong>subscription_expires_at</strong> <span class="muted">· timestamp without time zone</span></span><span class="chip"><strong>stripe_customer_id</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>subscription_tier</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>consent_cgv_at</strong> <span class="muted">· timestamp with time zone</span></span><span class="chip"><strong>consent_version</strong> <span class="muted">· character varying</span></span><span class="chip"><strong>consent_ip_hash</strong> <span class="muted">· character varying</span></span></div>
                 </dd>
               </dl>
             </div>
@@ -2641,7 +2659,7 @@ flowchart LR
   <div id="api" class="section">
     <h2>API Reference</h2>
     <p class="section-desc">API REST FastAPI. Préfixe par défaut <code>/api/v1</code>. Auth JWT sur tous les endpoints sauf <code>auth</code> et endpoints publics. Les endpoints ci-dessous sont extraits en direct du code (parsing AST des décorateurs <code>@router.method</code>).</p>
-    <p class="section-desc"><strong>183 endpoints</strong> répartis sur 28 modules · <span class="muted">fichiers non groupés : backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py</span>.</p>
+    <p class="section-desc"><strong>187 endpoints</strong> répartis sur 28 modules · <span class="muted">fichiers non groupés : backend/app/api/routes/account.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py, backend/app/api/routes/studio_chat.py, backend/app/api/routes/account.py, backend/app/api/routes/concierge_routes.py, backend/app/api/routes/billing.py, backend/app/api/routes/journal_webhook.py, backend/app/api/routes/studio_chat.py</span>.</p>
 
 
     <h3>Projets <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 6 endpoints · <code>backend/app/api/routes/projects.py</code></span></h3>
@@ -2886,7 +2904,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>Orchestrateur — exécutions SDS <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 11 endpoints · <code>backend/app/api/routes/orchestrator/execution_routes.py</code></span></h3>
+    <h3>Orchestrateur — exécutions SDS <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 13 endpoints · <code>backend/app/api/routes/orchestrator/execution_routes.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -2897,6 +2915,24 @@ flowchart LR
         </tr>
       </thead>
       <tbody>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--sage); border-color:rgba(122,155,118,0.45);">GET</span></td>
+          <td><code>/execute/opus-estimate</code></td>
+          <td><code>estimate_opus_consent</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>GL-22 — coût estimé en crédits avant tout appel Opus (écran de</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
@@ -2927,6 +2963,24 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>summary</dt>
                 <dd>Resume execution after BR validation or architecture validation (H12).</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/execute/{execution_id}/cancel</code></td>
+          <td><code>cancel_execution</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Demande l'annulation d'une execution en cours (CAL-07).</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
               </dl>
@@ -3088,7 +3142,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Check ARQ worker status via Redis.</dd>
+                <dd>Etat REEL du worker ARQ.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/orchestrator/execution_routes.py</code></dd>
               </dl>
@@ -3585,7 +3639,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Return aggregated metrics for an execution:</dd>
+                <dd>Compteurs d'une execution, mesures a la source (GL-18).</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/hitl_routes.py</code></dd>
               </dl>
@@ -4621,7 +4675,7 @@ flowchart LR
         </tr>
       </tbody>
     </table>
-    <h3>Authentification <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 5 endpoints · <code>backend/app/api/routes/auth.py</code></span></h3>
+    <h3>Authentification <span class="muted" style="font-family: var(--mono); font-size: 11px; font-weight: 400; text-transform: none; letter-spacing: 0;">— 7 endpoints · <code>backend/app/api/routes/auth.py</code></span></h3>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -4643,7 +4697,7 @@ flowchart LR
             <div class="tbl-detail-body">
               <dl class="detail-kv">
                 <dt>summary</dt>
-                <dd>Register a new user account.</dd>
+                <dd>SEC-12 (audit du 06/09, vague 1 / file A) — CHEMIN LEGACY FERME.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/auth.py</code></dd>
               </dl>
@@ -4680,6 +4734,42 @@ flowchart LR
               <dl class="detail-kv">
                 <dt>summary</dt>
                 <dd>Second step — redeem the verify-token, create the user, log them in.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/auth.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/api/v1/password-reset-request</code></td>
+          <td><code>password_reset_request</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Envoie un lien de reinitialisation si le compte existe et est actif.</dd>
+                <dt>source</dt>
+                <dd><code>backend/app/api/routes/auth.py</code></dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><span class="chip" style="color:var(--brass); border-color:rgba(200,169,126,0.55);">POST</span></td>
+          <td><code>/api/v1/password-reset-confirm</code></td>
+          <td><code>password_reset_confirm</code></td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>summary</dt>
+                <dd>Pose le nouveau mot de passe. Refus generique sur tout jeton invalide.</dd>
                 <dt>source</dt>
                 <dd><code>backend/app/api/routes/auth.py</code></dd>
               </dl>
@@ -6308,7 +6398,7 @@ flowchart LR
     <p class="section-desc">React 18 + Vite + TailwindCSS. Router <code>react-router-dom</code>, auth via <code>ProtectedRoute</code> (JWT).</p>
 
     <h3>Pages</h3>
-    <p class="section-desc"><strong>4 pages</strong> (17 routes React) · <span class="muted">YAML orphelins : AgentTesterPage, BRValidationPage, BuildMonitoringPage, Dashboard, ExecutionMonitoringPage, ExecutionPage, NewProject, Pricing, ProjectDetailPage, ProjectWizard, Projects</span>.</p>
+    <p class="section-desc"><strong>5 pages</strong> (20 routes React) · <span class="muted">YAML orphelins : AgentTesterPage, BRValidationPage, BuildMonitoringPage, Dashboard, ExecutionMonitoringPage, ExecutionPage, NewProject, Pricing, ProjectDetailPage, ProjectWizard, Projects</span>.</p>
     <table class="tbl-expand">
       <thead>
         <tr>
@@ -6375,8 +6465,28 @@ flowchart LR
         </tr>
         <tr class="tbl-row-summary">
           <td class="tbl-toggle"><span class="tbl-caret"></span></td>
+          <td><strong>ResetPasswordPage</strong></td>
+          <td><code>/forgot-password</code> <br><code>/reset-password</code></td>
+          <td>Mot de passe oublie (15/11/2026) — /forgot-password demande un lien (reponse identique que le compte existe ou non), /reset-password?token= pose le nouveau mot de passe (lien signe 30 min, usage unique).</td>
+        </tr>
+        <tr class="tbl-row-detail">
+          <td colspan="4">
+            <div class="tbl-detail-body">
+              <dl class="detail-kv">
+                <dt>accès</dt>
+                <dd><span class="tag tag-neutral">public</span></dd>
+                <dt>fichier</dt>
+                <dd><code>frontend/src/pages/ResetPasswordPage.tsx</code></dd>
+                <dt>routes</dt>
+                <dd>2 routes pointent vers ce composant</dd>
+              </dl>
+            </div>
+          </td>
+        </tr>
+        <tr class="tbl-row-summary">
+          <td class="tbl-toggle"><span class="tbl-caret"></span></td>
           <td><strong>AppShell</strong></td>
-          <td><code>/pricing</code> <br><code>/billing/success</code> <br><code>/billing/cancel</code> <br><code>/</code> <br><code>/projects</code> <br><code>/project/:projectId</code> <br><code>/agent-tester</code> <br><code>/projects/new</code> <br><code>/wizard</code> <br><code>/wizard/:projectId</code> <br><code>/br-validation/:projectId</code> <br><code>/execution/:projectId</code> <br><code>/execution/:executionId/monitor</code> <br><code>/execution/:executionId/build</code></td>
+          <td><code>/pricing</code> <br><code>/billing/success</code> <br><code>/billing/cancel</code> <br><code>/</code> <br><code>/projects</code> <br><code>/project/:projectId</code> <br><code>/agent-tester</code> <br><code>/chat</code> <br><code>/projects/new</code> <br><code>/wizard</code> <br><code>/wizard/:projectId</code> <br><code>/br-validation/:projectId</code> <br><code>/execution/:projectId</code> <br><code>/execution/:executionId/monitor</code> <br><code>/execution/:executionId/build</code></td>
           <td>Layout wrapper pour les pages (variant=protected/public) — fournit StudioHeader + container, géré globalement dans App.tsx, pas une route à part entière</td>
         </tr>
         <tr class="tbl-row-detail">
@@ -6388,7 +6498,7 @@ flowchart LR
                 <dt>fichier</dt>
                 <dd><code>frontend/src/pages/AppShell.tsx</code></dd>
                 <dt>routes</dt>
-                <dd>14 routes pointent vers ce composant</dd>
+                <dd>15 routes pointent vers ce composant</dd>
               </dl>
             </div>
           </td>
@@ -7213,8 +7323,108 @@ flowchart TB
       </div>
       <div class="timeline-item done">
         <div class="timeline-date">6 aout 2026</div>
-        <div class="timeline-title">FIX-TASKTYPE-001 (complement)</div>
-        <div class="timeline-desc"><strong>6 commit(s).</strong> <ul class="journal-commits"><li><code>FIX-TASKTYPE-001</code> (complement) : reparation des taches historiques via infer_task_type. Le correctif de persistance ne couvrait que les insertions futures ; l'execution 165 avait 40 task_type NULL et serait retombee sur le meme crash a la relance. 0 NULL apres passage. <span class="sha">aa1bba7</span></li><li>Compte rendu de session 2026-08-05 : cinq taches, preuves obtenues, et ce qui reste a prouver <span class="sha">c321b90</span></li><li><strong>DEC-2026-0802-03</strong> : note d'analyse sur le BUILD incremental <span class="sha">c337360</span></li><li><strong>DEC-2026-0804-02</strong> : cle statut_o2 — suivi des huit chantiers du lancement <span class="sha">8242763</span></li><li><strong>DEC-2026-0804-01</strong> : fiabilisation de l'export de logs du comite <span class="sha">9859375</span></li><li><strong>DEC-2026-0716-02</strong> : contrat de donnees du poste de pilotage (N0/N1) <span class="sha">cee403f</span></li></ul></div>
+        <div class="timeline-title">Veille Concurrence branchee sur Gemini et ACTIVEE</div>
+        <div class="timeline-desc"><strong>14 commit(s).</strong> <ul class="journal-commits"><li>Journal regenere automatiquement (session du 06/08) <span class="sha">91f95a5</span></li><li>llm_routing : tier orchestrateur passe de claude-opus-4-8 a claude-opus-5 (verifie via GET /v1/models). Regle : toujours la derniere version, sauf raison documentee. <span class="sha">c080564</span></li><li>Veille Concurrence branchee sur Gemini et ACTIVEE. Trois correctifs en chaine : (1) l'expression du corps JSON cassait l'analyseur N8N — une seule expression au lieu d'accolades imbriquees ; (2) 'Save Report' concatenait les valeurs, toute apostrophe francaise cassait le SQL — passage en requete parametree, plus d'injection possible ; (3) 'Email Report' desactive, identifiants SMTP invalides (535) — le rapport est en base et lisible par le comite. Execution reussie, 2 rapports produits. <span class="sha">e7d3635</span></li><li>Securite : cle Anthropic sortie de la base N8N vers /etc/n8n/secrets.env (root seul, EnvironmentFile). Le noeud la reference par variable d'environnement — elle ne transite plus par la base, les exports ni Git. Cle inchangee : elle n'etait jamais sortie du serveur. <span class="sha">5ccc91d</span></li><li>Collecteur de signaux APEC : recrutements Salesforce en France (731 offres, 16 signaux qualifies au premier passage). Distingue les employeurs directs, les ESN partenaires et les sites d'annonces qui masquent l'employeur. <span class="sha">21524c5</span></li><li>Collecteur de signaux publics (BOAMP) : workflow N8N + table signaux_publics + vue comite. Mesure honnete du debit : le BOAMP ne produit qu'un signal pertinent par an, France Travail reste a tester (cle gratuite requise). <span class="sha">95c97c4</span></li><li>Sauvegarde des 18 workflows N8N (export JSON versionne, secrets expurges). La base SQLite /root/.n8n n'etait sauvegardee nulle part hors du serveur. Une cle API Anthropic en clair a ete trouvee dans 'Blog - Veille Hebdo' et retiree de l'export — a migrer vers un credential N8N. <span class="sha">f9be4bb</span></li><li>Documentation technique : journal alimente automatiquement depuis les messages de commit (tools/journal_from_git.py) + hook post-commit qui regenere et deploie. La doc de la console d'admin etait figee au 12/07 ; aucun modele de langage n'intervient, les messages de commit portent deja la cause et l'effet. <span class="sha">242e27b</span></li><li><code>FIX-TASKTYPE-001</code> (complement) : reparation des taches historiques via infer_task_type. Le correctif de persistance ne couvrait que les insertions futures ; l'execution 165 avait 40 task_type NULL et serait retombee sur le meme crash a la relance. 0 NULL apres passage. <span class="sha">aa1bba7</span></li><li>Compte rendu de session 2026-08-05 : cinq taches, preuves obtenues, et ce qui reste a prouver <span class="sha">c321b90</span></li><li><strong>DEC-2026-0802-03</strong> : note d'analyse sur le BUILD incremental <span class="sha">c337360</span></li><li><strong>DEC-2026-0804-02</strong> : cle statut_o2 — suivi des huit chantiers du lancement <span class="sha">8242763</span></li><li><strong>DEC-2026-0804-01</strong> : fiabilisation de l'export de logs du comite <span class="sha">9859375</span></li><li><strong>DEC-2026-0716-02</strong> : contrat de donnees du poste de pilotage (N0/N1) <span class="sha">cee403f</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">8 aout 2026</div>
+        <div class="timeline-title">FIX-SUFFIXE-001</div>
+        <div class="timeline-desc"><strong>14 commit(s).</strong> <ul class="journal-commits"><li>PIEGES.md ajoute au skill digital-humans-context : 10 entrees tirees de la journee du 08/08. Ne documente pas l'architecture (voir MODULE-MAP) mais les endroits ou l'intuition trompe — la ou une modification semble faite alors qu'elle n'a aucun effet. Regle d'alimentation : quand une correction a demande plus d'un essai parce qu'on s'est trompe d'endroit, on ecrit ici pourquoi. <span class="sha">69f957b</span></li><li><code>FIX-NONEXML-001</code> et <code>FIX-SILENCE-001</code>, plus audit des echecs muets. (1) Mon correctif des listes de valeurs renvoyait None, et write_text(None) interrompait TOUTE la generation de metadonnees — aucun champ produit. Le champ incomplet est desormais ignore, les autres continuent. (2) AUDIT demande par Sam : 15 retours d'echec ne journalisaient RIEN dans jordan_deploy_service, dont 'No operations to deploy' qui a coute une demi-heure de recherche ce matin — la phase restait en 'deploying' sans aucun message. Les 15 disent desormais leur nom. <span class="sha">d8bafb9</span></li><li><code>FIX-TASKID-001</code> : le WBS fournit un identifiant textuel (TASK-001) qui correspond a la colonne task_id, pas a la cle primaire entiere. La requete echouait avec 'invalid input syntax for type integer' et avortait toute la transaction — les taches restaient en RUNNING alors qu'elles etaient terminees. Non bloquant pour le BUILD mais l'avancement affiche etait faux. <span class="sha">a9060de</span></li><li><code>FIX-TUPLE-001</code> : _run_command renvoie un tuple (success, result), mais trois fonctions de sfdx_service le traitaient comme un dictionnaire — retrieve_metadata, execute_anonymous et une troisieme. Erreur 'tuple indices must be integers or slices, not str' au moment ou Jordan recupere les metadonnees apres deploiement. Bug de longue date, revele par le premier passage reel a cette etape. Les 10 appels sont desormais coherents. <span class="sha">3476b1f</span></li><li><code>FIX-APIVERSION-001</code> : Elena rejetait tout plan sans target_api_version (checklist Summer 26), et Raj ne la declarait jamais — boucle de 3 tentatives puis echec. Deux corrections : (1) le code deployait en dur en API 59.0 alors que platform_state.yaml declare 67.0, huit versions de retard ; la version est desormais lue dans l'etat de plateforme. (2) La checklist de Raj exige maintenant target_api_version, et porte aussi les regles du suffixe __c et du conteneur Activity — dans le prompt qu'il lit vraiment, pas en commentaire YAML. <span class="sha">656661c</span></li><li>GARDE-PROD-001 (suite) : le garde-fou ne recevait que le nom d'utilisateur, or ce sont les URL d'instance qui portent les marqueurs (sandbox, develop, scratch). Il refusait donc TOUT, y compris l'org de developpement — comportement correct mais inutilisable. Il interroge desormais SFDX (sf org display) pour obtenir l'instance reelle. Le message d'erreur indique l'instance interrogee. <span class="sha">a5da1bb</span></li><li>Regles de sortie client etendues a TOUS les points de contact (rappel de Sam : les 11 agents sont accessibles en chat, pas seulement Sophie). Couvert : les 11 system_prompt d'agent, les 10 prompts de MODE qui ecrasaient celui de l'agent (dont le concierge public du site), et le service de chat projet qui construit son prompt en dur sans passer par les YAML. Trois chemins distincts, trois corrections. <span class="sha">a73d3a6</span></li><li>Regles de sortie client posees dans le system_prompt des 11 agents (arbitrage Sam 08/08 : une regle dans le prompt plutot qu'une couche de relecture, ni cout ni complexite). Interdits : donnees d'un autre client, chemins et identifiants techniques, secrets, noms de modeles ou fournisseurs, couts et organisation interne. Obligations : langue du client, incertitude annoncee comme telle, proposer une alternative plutot que refuser, sobriete. Verifie : le PromptService charge bien la regle. <span class="sha">375b66d</span></li><li>VALIDATION-XML-001 : validation Salesforce avant tout deploiement (--dry-run). Angle mort identifie par Sam : Elena relit le PLAN de Raj, mais le XML est genere APRES sa revue — les 4 echecs du 08/08 vivaient tous dans cet interstice. La validation fait verifier les metadonnees par Salesforce sans rien ecrire ; en cas d'echec, l'erreur est renvoyee telle quelle et l'org n'a pas ete touchee. Cout : un aller-retour reseau, aucun appel de modele. <span class="sha">e6fd4ab</span></li><li>GARDE-PROD-001 : refus absolu de deployer en production (regle posee par Sam le 08/08). Digital-Humans livre au SANDBOX ; le client, ou un agent Agentforce chez lui, promeut ensuite. C'est une regle commerciale et contractuelle — le tier Team s'arrete explicitement au sandbox. Implemente en LISTE BLANCHE : on ne deploie que si l'org porte un marqueur de non-production (sandbox, develop, scratch, dev-ed, orgfarm, suffixe --). Toute cible non identifiable est REFUSEE. 6 cas de test dont une production Sephora et une cible inconnue. <span class="sha">468228f</span></li><li>Trois correctifs de generation des metadonnees Salesforce, tous reveles par le premier deploiement reel. <code>FIX-PICKLIST-001</code> : Raj produit 'values' avec des objets, le generateur ne lisait que 'picklist_values' avec des chaines — aucun valueSet emis, Salesforce refusait. Les deux formats sont acceptes, avec label et valeur par defaut. <code>FIX-CHECKBOX-001</code> : aucune branche ne traitait le type Checkbox, or Salesforce exige defaultValue. <code>FIX-ACTIVITY-001</code> : les champs personnalises de Task et Event se deploient sur l'objet conteneur Activity, jamais directement. <span class="sha">1945d6c</span></li><li><code>FIX-SUFFIXE-002</code> : la vraie cause de l'echec BUILD. sf_admin_service ajoutait __c a TOUT objet qui n'en avait pas, sans verifier s'il etait standard. Le WBS disait bien Lead ; le code deployait Lead__c, et Salesforce rejetait les 8 champs. Ni Marcus ni Raj n'etaient en cause — c'etait le code, depuis toujours. Fonction normaliser_objet() : liste des objets standard, suffixe uniquement sur les personnalises, retrait s'il a ete ajoute a tort en amont. 8 cas de test passent. <span class="sha">91eb596</span></li><li><code>FIX-SUFFIXE-001</code> : regle absolue du suffixe __c posee chez Marcus (architecte) et Raj (admin). L'exec 166 a echoue au deploiement parce que le WBS demandait des champs sur Lead__c et Opportunity__c — objets STANDARD, qui ne prennent jamais le suffixe. Salesforce a rejete les 8 champs. Le schema du prompt distinguait deja standard_objects des objets personnalises, mais aucune REGLE ne l'interdisait explicitement. Marcus a desormais la liste des objets standard et les contre-exemples reels ; Raj a un garde-fou pour refuser une specification fautive avant deploiement. <span class="sha">07b7eac</span></li><li><code>FIX-PHASEMAP-001</code> : le WBS de Marcus produit un vocabulaire (dev_data_model, dev_apex, dev_flow) que TASK_TYPE_TO_PHASE ne connaissait pas — elle n'attendait que l'ancien (create_object, apex_class, flow). Aucune correspondance, donc repli par agent : Diego classe en phase 2, Raj jamais atteint. Sur l'exec 166 les 7 taches de modele de donnees restaient PENDING pendant que Diego generait de l'Apex contre des objets inexistants. Detecte par Sam. 21 types ajoutes, les deux vocabulaires cohabitent. Verifie : 40/40 taches classees, phases 1 a 6 dans l'ordre. <span class="sha">62202c0</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">9 aout 2026</div>
+        <div class="timeline-title">FEAT-FOUNDRY-001</div>
+        <div class="timeline-desc"><strong>1 commit(s).</strong> <ul class="journal-commits"><li><code>FEAT-FOUNDRY-001</code> : point d'acces Anthropic configurable (ANTHROPIC_BASE_URL ou base_url dans llm_routing.yaml). Claude est disponible dans Microsoft Foundry depuis le 29/06/2026 via la MEME Messages API, avec authentification Entra ID ou cle, facturation Azure (MACC applicable) et retention zero disponible. Un grand compte disposant deja d'un contrat Microsoft — cas du Credit Logement — peut donc faire tourner la plateforme sur SON abonnement Azure, sans contrat Anthropic separe et sans que ses donnees quittent son perimetre. Verifie : sans la variable, base_url reste api.anthropic.com ; avec, la redirection s'applique. Comportement par defaut strictement inchange. <span class="sha">d7698a6</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">10 aout 2026</div>
+        <div class="timeline-title">FEAT-GPU-001</div>
+        <div class="timeline-desc"><strong>8 commit(s).</strong> <ul class="journal-commits"><li><code>FIX-GREENFIELD-001</code> : un projet est vierge quand AUCUNE ORG n'est renseignee, pas quand une case a ete cochee. Regle posee par Sam le 10/08 apres avoir constate que le as_is de Marcus ne voyait aucun des 10 champs deployes le matin meme. Le type de projet etait saisi a la main dans l'assistant et jamais revu — or une org devient chargee des le premier BUILD reussi. Le mode est desormais deduit de la presence d'une org, et un ecart avec le type declare est journalise. VERIFIE : les 4 projets existants (105, 107, 108, 109) pointent tous vers une org reelle ; trois etaient declares greenfield et auraient produit un etat des lieux aveugle. Sans consequence sur une org de developpement quasi vide, redhibitoire chez un client charge — toute l'analyse d'ecart aurait ete fausse. <span class="sha">293adec</span></li><li><code>FIX-PHASEMAP-002</code> + garde-fou : le vocabulaire du WBS est un contrat entre le prompt de Marcus et la table de routage. Constate sur l'execution 167 : 23 types annonces a Marcus, 20 seulement routes par le code. Les trois orphelins — dev_lwc (composant Lightning), dev_formula, doc_training — retombaient SILENCIEUSEMENT sur le repli par agent, qui fonctionne mais classe approximativement. dev_lwc etait le plus genant : c'est un livrable explicitement demande par le brief. Les trois types sont ajoutes. GARDE-FOU POSE (demande de Sam : une lecon pour l'avenir) : tools/verifier_vocabulaire_wbs.py compare les deux fichiers et liste les ecarts. Documente comme piege 11 dans PIEGES.md, avec la regle — tout type ajoute au prompt doit l'etre a la table le meme jour. <span class="sha">22564b4</span></li><li><code>FIX-PERSIST-002</code> : le travail du dispositif est enfin REUTILISABLE. Methode versionner_livrables ajoutee a Jordan : elle lit l'arborescence SFDX conservee par SFAdminService et la commite avec ses chemins relatifs, reproduisant la structure dans le depot. Branchee apres chaque deploiement reussi, deliberement NON BLOQUANTE — un echec de versionnement ne doit jamais transformer un deploiement reussi en echec. VERIFIE DE BOUT EN BOUT : 11 operations, 10 composants deployes dans Salesforce, 11 fichiers conserves, commit 99dd9d8 pousse sur SamHATIT/dh-crm-salesforce, arborescence force-app/main/default/objects/Lead/fields verifiee par clonage. Le code produit est desormais relisible, corrigeable et redeployable sur une autre org — c'est ce qui distingue le dispositif d'une boite noire. <span class="sha">7ed43c4</span></li><li><code>FIX-PERSIST-001</code> : les metadonnees generees sont enfin CONSERVEES. tempfile.TemporaryDirectory() effacait toute l'arborescence en sortant du bloc — les fichiers etaient deployes dans Salesforce puis DETRUITS. Rien n'atteignait jamais le depot git, ce qui explique pourquoi l'integration git n'avait jamais servi : il n'y avait rien a commiter. Les livrables sont desormais copies dans /var/lib/digital-humans/livrables/exec-&lt;id&gt;-&lt;horodatage&gt;, arborescence SFDX complete (force-app + sfdx-project.json), prete a etre versionnee par Jordan. Non bloquant : si la conservation echoue, le deploiement reussi n'est pas perdu. Verifie : 10 composants deployes, arborescence conservee. <span class="sha">0feed99</span></li><li>Profil test_gpu_complet operationnel : routage verifie de bout en bout, Marcus (orchestrateur) sur Gemma, Raj et les ouvriers sur Qwen, JSON strict correct des deux cotes. Noms de fournisseurs alignes sur les cles du routeur (gpu_gemma / gpu_qwen, un fournisseur par port). <span class="sha">cddc0c2</span></li><li><code>FEAT-GPU-001</code> : serveur GPU dedie branche sur la plateforme. Packet.ai RTX PRO 6000 Blackwell 96 Go, deux modeles ouverts servis par llama.cpp en quantification 8 bits — Gemma 4 31B (30,4 Go, raisonnement et outils) et Qwen 3.6 27B (26,6 Go, code et sortie structuree). 57 Go a eux deux, 39 restants pour le contexte. TROIS OBSTACLES FRANCHIS. (1) CUDA 12.6 ne connait pas Blackwell : installation de 12.8, compilation native sm_120 — la suggestion de Sam, plus propre que ma compilation en code virtuel. (2) Les ports ne sont pas exposes sur internet, deliberement : tunnel SSH permanent (service tunnel-gpu, autossh, redemarrage automatique) plutot que d'ouvrir llama.cpp qui n'a aucune authentification. (3) llama.cpp expose une API compatible OpenAI, pas celle d'Ollama : methode _call_gpu_local ajoutee, sur httpx deja present. PARTICULARITE DOCUMENTEE : Gemma 4 remplit reasoning_content avant content ; un max_tokens trop bas est entierement consomme par la reflexion et content revient VIDE. Plancher a 2000 jetons. Verifie de bout en bout : les deux modeles repondent depuis le routeur, JSON strict correct, cout zero. <span class="sha">286d4de</span></li><li><code>FIX-TASKENUM-001</code> : l'enumeration taskstatus attend des valeurs en MAJUSCULES (PENDING, RUNNING, COMPLETED...). Le code ecrivait 'completed' en minuscules, ce qui levait 'invalid input value for enum taskstatus' et avortait TOUTE la transaction. Symptome : la phase restait figee en 'deploying' sans qu'aucune erreur ne remonte, et le deploiement Salesforce n'etait jamais tente. Meme symptome que <code>FIX-TASKID-001</code> du 08/08, autre cause — celui-la portait sur l'identifiant, celui-ci sur la valeur. <span class="sha">3bcd757</span></li><li><code>FIX-GIT-001</code> resolu : l'integration git de la plateforme fonctionne enfin. TROIS DEFAUTS EN CHAINE, tous decouverts au premier deploiement reel. (1) Jordan appelait create_branch, commit_files, create_pr et merge_pr mais JAMAIS clone() — il travaillait dans un repertoire vide qui n'est pas un depot git. clone() pose aussi repo_path, dont toutes les operations suivantes dependent. Non bloquant : si le clonage echoue, le deploiement Salesforce continue sans versionnement. (2) _parse_repo_url utilisait urlparse, qui ne comprend PAS la syntaxe SSH git@github.com:owner/repo.git — l'adresse authentifiee devenait https://github.com/git@github.com:SamHATIT/... et GitHub repondait Repository not found. Les deux formats sont desormais acceptes, verifie sur 3 variantes. (3) Le jeton etait passe CHIFFRE a git : le commentaire du code affirmait qu'il etait stocke en clair, ce qui etait vrai en janvier mais plus depuis fevrier. Dechiffrement ajoute, avec repli sur le format ancien. VERIFIE de bout en bout : depot clone, contenu present. <span class="sha">03fc6e6</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">14 aout 2026</div>
+        <div class="timeline-title">Prix public de Sophie corrige, routage GPU sur gpt-oss</div>
+        <div class="timeline-desc"><strong>1 commit(s).</strong> <ul class="journal-commits"><li>Prix public de Sophie corrige, routage GPU sur gpt-oss <span class="sha">d5829f1</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">16 aout 2026</div>
+        <div class="timeline-title">Le routeur LLM n'enregistrait que deux fournisseurs GPU sur une liste figee</div>
+        <div class="timeline-desc"><strong>2 commit(s).</strong> <ul class="journal-commits"><li>Specification EMMA-BATCH-001 et documentation regeneree <span class="sha">c208477</span></li><li>Le routeur LLM n'enregistrait que deux fournisseurs GPU sur une liste figee <span class="sha">02f13a9</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">21 aout 2026</div>
+        <div class="timeline-title">fix(lot-E bis): org Salesforce par défaut sans identité codée en dur, jetons Git en clair refusés</div>
+        <div class="timeline-desc"><strong>17 commit(s).</strong> <ul class="journal-commits"><li>fix(lot-A ter): le flux SSE n'immobilise plus de connexion PostgreSQL <span class="sha">33559ad</span></li><li>fix(lot-G): sessions DB des routes temps reel, /health profond, boot sans create_all <span class="sha">7367c09</span></li><li>fix(lot-F quater): fetch nus vers /api/agent-tester — 401 depuis LOT-C <span class="sha">d3371fd</span></li><li>fix(lot-C): plus d'exécution de commandes shell, authentification sur agent-tester <span class="sha">2cdf280</span></li><li>fix(lot-E bis): org Salesforce par défaut sans identité codée en dur, jetons Git en clair refusés <span class="sha">766a89e</span></li><li>fix(lot-B bis): authentification et cloisonnement du routeur audit <span class="sha">90a5694</span></li><li>fix(lot-A bis): fermer les contournements de retry_routes et rouvrir le flux SSE <span class="sha">f66d644</span></li><li>fix(lot-E): un seul .env fait autorité, chemins dérivés du dépôt, rotation de clé exécutable <span class="sha">dc859ab</span></li><li>fix(lot-F ter): lien nu vers /api/deliverables/{id}/render — 401 depuis LOT-B <span class="sha">4e9ba34</span></li><li>fix(lot-B): authentification et cloisonnement client sur 8 routeurs <span class="sha">466a0d4</span></li><li>fix(lot-F bis): inscription par lien e-mail — jeton rangé sous la mauvaise clé <span class="sha">2c679d4</span></li><li>fix(lot-F): frontend — XSS sur contenu d'agent, JWT hors URL, services morts <span class="sha">c568523</span></li><li>fix(lot-A): poser la frontière payante côté serveur (require_feature n'était appliqué nulle part) <span class="sha">179e1fd</span></li><li>fix(lot-D): plantages fonctionnels des agents — UC perdus et None au lieu d'un tuple <span class="sha">e316391</span></li><li>test: conftest sur PostgreSQL au lieu de SQLite (JSONB non compilable) <span class="sha">d0f33c0</span></li><li>Audit croise du 21/08 : 4 modeles, 84 constats, plan en 7 lots <span class="sha">5298be5</span></li><li>Doc mesuree sur trois machines + bascule studio sur Nemotron local <span class="sha">0c79223</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">22 aout 2026</div>
+        <div class="timeline-title">docs(infra): sequence de deploiement vague 1 et chaine de secours reelle</div>
+        <div class="timeline-desc"><strong>5 commit(s).</strong> <ul class="journal-commits"><li>fix: demonter le routeur deployment et reparer le chemin alembic <span class="sha">1438431</span></li><li>docs: index.html regenere (inline de la section infra) <span class="sha">7c3413b</span></li><li>docs(infra): sequence de deploiement vague 1 et chaine de secours reelle <span class="sha">3207546</span></li><li>docs: anonymiser les identifiants d'org Salesforce dans la documentation <span class="sha">c3e2b0a</span></li><li>docs: rapport d'execution de la vague 1 de l'audit croise du 21/08 <span class="sha">975d3d8</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">23 aout 2026</div>
+        <div class="timeline-title">feat(vague3 §3.1): reprise en phase2_5 et phase3 — un echec de Marcus ne detruit plus le travail d'Olivia</div>
+        <div class="timeline-desc"><strong>16 commit(s).</strong> <ul class="journal-commits"><li>fix(routage): le tier et le plafond de sortie sont declares au meme endroit <span class="sha">3628426</span></li><li>fix: la documentation d API n est plus servie en production <span class="sha">9e3d6fa</span></li><li>docs: rapport d'execution de la vague 3 <span class="sha">76e8135</span></li><li>feat(vague3 §4): c'est Marcus qui decide des experts, et sa decision est persistee <span class="sha">04e8ebb</span></li><li>docs: discipline de preuve versionnee dans le depot <span class="sha">2ffc51c</span></li><li>fix(vague3 §6): le rejet d'une porte enfilait un job que le worker refuse <span class="sha">4a86300</span></li><li>feat(vague3 §3.3 §3.4): l'export ne relance plus le SDS, la porte BUILD reprend le BUILD <span class="sha">e9c210d</span></li><li>feat(vague3 §3.2): les routes enfilent un point de reprise canonique, plus leur dialecte <span class="sha">2ac0ba4</span></li><li>feat(vague3 §3.1): reprise en phase2_5 et phase3 — un echec de Marcus ne detruit plus le travail d'Olivia <span class="sha">c01b141</span></li><li>fix(vague3 §3.5): une valeur de resume_from inconnue est refusee, plus deviner <span class="sha">1170d46</span></li><li>test: marquer test_deployment_cloisonnement xfail — le routeur est demonte <span class="sha">17d9bf8</span></li><li>docs: rapport d'execution de la vague 2 de l'audit croise du 21/08 <span class="sha">851843a</span></li><li>fix(vague2 lot 4): le boot ne cree plus le schema, et le garde-fou inerte cesse de se taire <span class="sha">6a7e3ec</span></li><li>fix(vague2 lot 3): /health sonde les trois dependances, le flux SSE ne perd plus de lignes <span class="sha">70a4a34</span></li><li>fix(vague2 lot 2): le cloisonnement descend dans les services, un seul chemin pour les secrets <span class="sha">9d6d3de</span></li><li>fix(vague2 lot 1): un retry BUILD reprend le BUILD, et pytest ne peut plus viser la production <span class="sha">57ee795</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">30 aout 2026</div>
+        <div class="timeline-title">docs: index regenere — Nemotron llama.cpp inactif, colonne expert_selection, route get_project</div>
+        <div class="timeline-desc"><strong>1 commit(s).</strong> <ul class="journal-commits"><li>docs: index regenere — Nemotron llama.cpp inactif, colonne expert_selection, route get_project <span class="sha">d9798f6</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">2 septembre 2026</div>
+        <div class="timeline-title">fix(A3): Pro 79 €/mois, crédits 15 000 — description tier_config réalignée (D1, D4)</div>
+        <div class="timeline-desc"><strong>13 commit(s).</strong> <ul class="journal-commits"><li>docs(vague A): rapport d'exécution — 9 lots intégrés, A9 à trancher <span class="sha">0532525</span></li><li>fix(A3): Pro 79 €/mois, crédits 15 000 — description tier_config réalignée (D1, D4) <span class="sha">fff74fc</span></li><li>fix(A4): retirer la clé de feature morte llm_haiku <span class="sha">52b2008</span></li><li>test(A5): garde de non-regression — le concierge public n'atteint pas le RAG <span class="sha">47065b1</span></li><li>fix(A6): sortir le comptage RAG de la boucle d'evenements au demarrage <span class="sha">b454a93</span></li><li>docs(A10): supprimer BACKLOG_TECH.md, créer SECURITY.md (inventaire secrets) <span class="sha">22c8a49</span></li><li>fix(A8): réécrire scripts/smoke_test.sh avec des assertions justes <span class="sha">3c4839b</span></li><li>fix(A7): watchdog - double 000, sonde Spark, mode DRY_RUN, systemctl absent <span class="sha">51921ee</span></li><li>fix(A2): epingler arq et redis dans requirements.txt <span class="sha">244829f</span></li><li>fix(A1): plafonner httpx sous 0.28 pour remettre 118 tests en jeu <span class="sha">9087728</span></li><li>Mission vague A : environnement = bac a sable Claude Code, pas le VPS <span class="sha">f03053a</span></li><li>D1 tranchee : Pro = 15 000 credits/mois <span class="sha">b78d354</span></li><li>Vague A : mission et decisions de Sam posees sur la branche <span class="sha">8a188ef</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">3 septembre 2026</div>
+        <div class="timeline-title">fix(credits): facturer les trois appels LLM d'agents hors orchestrateur, et rendre le motif du refus au client</div>
+        <div class="timeline-desc"><strong>16 commit(s).</strong> <ul class="journal-commits"><li>B3 : la version des CGV est la date de publication (2026-08-30), pas un « 1.0 » invente par le lot <span class="sha">e7ac33b</span></li><li>fix(B2+B5): le Free sur Nemotron tarife, retention Sophie 12 mois (D2, D3, D12) <span class="sha">94ebd37</span></li><li>docs(vague B): rapport d'execution — fait, non confirme, ouvert, non fait par choix <span class="sha">c10bf9d</span></li><li>fix(concierge): substitue {{tier_summary}} dans le prompt public de Sophie <span class="sha">0f26762</span></li><li>feat(rgpd): droits d'acces, de portabilite et d'effacement du compte (art. 15, 17, 20) <span class="sha">cacc236</span></li><li>fix(credits): facturer les trois appels LLM d'agents hors orchestrateur, et rendre le motif du refus au client <span class="sha">698c164</span></li><li>fix(tests): test_lot_e vérifie que les chemins dérivent du checkout, pas une liste de préfixes interdits <span class="sha">bc9ca2b</span></li><li>fix(concierge): tokens_in/tokens_out persistes dans chat_logs, correctif documente pour daily.sh RC <span class="sha">cce4d90</span></li><li>fix(rgpd): consentement CGV explicite obligatoire a l'inscription (B3) <span class="sha">69d7465</span></li><li>fix(tiers): une seule source pour les tiers publics — tier_config (D9) <span class="sha">c9effce</span></li><li>fix(health): cache le comptage RAG (TTL 30 min), fini le recomptage a chaque appel <span class="sha">abc37e7</span></li><li>fix(credits): facturer les appels LLM des agents au proprietaire de l'execution <span class="sha">78ae68c</span></li><li>Vague B : mission et decisions posees sur la branche <span class="sha">98c8527</span></li><li>fix(watchdog): sonde Spark sur 18084, le port reellement servi (18001 n existait pas) <span class="sha">608a09a</span></li><li>fix(A9): le routage LLM local pointait un port mort et un model_id refuse <span class="sha">1289ec8</span></li><li>test(A3): premium -&gt; team, pas pro ; A9 clos sans correctif <span class="sha">c01e70b</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">5 septembre 2026</div>
+        <div class="timeline-title">hotfix(free): LLMResponse.model_id = modele servi, pas la cle YAML — le tarif ne le trouvait pas (ligne de cre</div>
+        <div class="timeline-desc"><strong>3 commit(s).</strong> <ul class="journal-commits"><li>Free : 50 credits/jour (Sam, 05/09) — migration 015, une seule source tier_config <span class="sha">fcf3c1f</span></li><li>hotfix(free): LLMResponse.model_id = modele servi, pas la cle YAML — le tarif ne le trouvait pas (ligne de credit PERDUE, CRITICAL de B1) <span class="sha">fad9d28</span></li><li>hotfix(free): vLLM recevait la cle YAML au lieu du model_id ; Sophie rendait un 200 vide <span class="sha">57fd631</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">6 septembre 2026</div>
+        <div class="timeline-title">Vague C (1/n)</div>
+        <div class="timeline-desc"><strong>1 commit(s).</strong> <ul class="journal-commits"><li>Vague C (1/n) : fermetures immediates de l audit Astra du 06/09 — SEC-01, SEC-02 <span class="sha">cc89ca8</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">15 septembre 2026</div>
+        <div class="timeline-title">docs</div>
+        <div class="timeline-desc"><strong>9 commit(s).</strong> <ul class="journal-commits"><li>docs : backlog — GL-12 gabarit SDS anglais seul (phrases fixes), aveu des faux positifs Emma dans le document <span class="sha">766175d</span></li><li>docs : backlog — CAL-11 nettoyage au demarrage tue les executions des autres workers ; GL-11 phase 5 cassee depuis la rotation (secret en dur) <span class="sha">be4bf10</span></li><li>fix(sds): collect_sds lit DATABASE_URL au lieu d un mot de passe en dur perime <span class="sha">f297bb3</span></li><li>docs : backlog go-live — CAL-09 score 85.0 identique apres revision, CAL-10 phase 4 sequentielle / reasoning_effort <span class="sha">c85db7e</span></li><li>docs : GL-10 — alerte admin (pas client) sur RAG injoignable, execution marquee degradee <span class="sha">fb977ef</span></li><li>docs : backlog go-live — CAL-08 faux positifs Emma sur variantes terminologiques + discipline de nommage des objets (exec 175) <span class="sha">9f46038</span></li><li>docs : backlog go-live — GL-10 RAG documentaire en panne silencieuse (solde OpenAI), 15/09 <span class="sha">62badb5</span></li><li>docs : backlog go-live — CAL-07 (reprise toujours sur la file principale, pas d annulation de job) <span class="sha">735ec87</span></li><li>docs : backlog go-live unique — bugs de la calibration SDS (CAL-01..06) et constats du 15/09 (GL-01..09) <span class="sha">51f0572</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">16 septembre 2026</div>
+        <div class="timeline-title">docs</div>
+        <div class="timeline-desc"><strong>97 commit(s).</strong> <ul class="journal-commits"><li>docs : note de reprise — vague 1 fusionnee, programme de demain matin (deploiement, souscription Pro sandbox) <span class="sha">1aafd9f</span></li><li>fix(tests): le grep shell=True ne porte plus sur les copies de sauvegarde non suivies <span class="sha">8e25465</span></li><li>fix(alembic): renumerotation des migrations de la file A apres fusion de B et C (016/017 -&gt; 021/022, chainage sur 020_execution_degraded) <span class="sha">0169eb1</span></li><li>fix(alembic): renumerotation des migrations de la file C apres fusion de B (016/017 -&gt; 019/020, chainage sur 018_budget_concierge) <span class="sha">d57ccd2</span></li><li>docs : backlog — GL-20 webhook Stripe inoperant (verifie), GL-21 modeles servis sans tarif (verifie), GL-22 consentement Opus ; decisions Sam du 16/09 (retention 90 j, Free=Nemotron sur le site) <span class="sha">eeab8f9</span></li><li>docs(vague1/C): mesure finale sur le dernier commit — 32 failed, 824 passed <span class="sha">2b42af8</span></li><li>docs(vague1/C): mesures avant/apres completees, et les deux ecarts expliques <span class="sha">9b0d243</span></li><li>test(vague1/C): le test hotfix de Sophie suit le chemin asynchrone, son critere inchange <span class="sha">64e7f21</span></li><li>docs(vague1/C): rapport de file — mesures, constats corriges, infirmes et ouverts <span class="sha">e98af5e</span></li><li>test(vague1/C): CAL-09 — constat INFIRME, mesure a l'appui : 85,0 n'est ni un plafond ni une valeur assignee <span class="sha">2da2819</span></li><li>fix(vague1/C): GL-16 — la purge des conversations du Studio est planifiee <span class="sha">66991fa</span></li><li>test(vague1/C): test rouge GL-16 — la purge des conversations du Studio n'est planifiee nulle part <span class="sha">30ad174</span></li><li>fix(vague1/C): BILL-10 — l'orchestrateur n'ecrit plus le cout, il n'en reste qu'un ecrivain <span class="sha">1b2eb60</span></li><li>test(vague1/C): test rouge BILL-10 — l'orchestrateur compte le cout une seconde fois <span class="sha">5a937b7</span></li><li>fix(vague1/C): SEC-15 — le jeton d'acces Salesforce ne part plus dans les livrables ni les prompts <span class="sha">9767690</span></li><li>fix(vague1/C): SEC-06 — les deux createurs de version de l'orchestrateur allouent sous verrou <span class="sha">2b509c2</span></li><li>fix(vague1/C): BILL-05/AS-05 — la garde BUILD est posee sur les trois chemins de la file C <span class="sha">1e8d763</span></li><li>test(vague1/C): test rouge BILL-05/AS-05 — trois chemins d'ecriture BUILD ouverts a un compte Pro <span class="sha">a512efc</span></li><li>fix(vague1/C): PROD-01 — le chat Sophie rend la boucle d'evenements ; et un projet sans description ne casse plus le chat <span class="sha">7db6150</span></li><li>test(SEC-12): reporter sur signup-request les deux verifications que /register portait seul <span class="sha">cead6a7</span></li><li>test(vague1/C): test rouge PROD-01 — un chat Sophie fige la boucle d'evenements <span class="sha">63b1b0c</span></li><li>docs(vague1/A): rapport de mission — mesures, constats, diffs en attente <span class="sha">db97f86</span></li><li>fix(vague1/C): PROD-05 — un checkpoint ne recule plus, sinon la reprise reperd son gain au deuxieme essai <span class="sha">aac030b</span></li><li>test(vague1/C): critere de sortie — injection de panne apres chaque phase, appels comptes dans llm_interactions <span class="sha">9603c05</span></li><li>fix(SEC-03/SEC-12): retirer une chaine litterale du commentaire et fermer les deux tests d'inscription legacy <span class="sha">595f09b</span></li><li>fix(vague1/C): PROD-12 — le livrable rendu est celui qui existe, et son format est annonce tel quel <span class="sha">8a5e25b</span></li><li>test(vague1/C): test rouge PROD-12 — le chemin du livrable est imagine, le format annonce est faux <span class="sha">e5c661c</span></li><li>fix(SEC-03): valider les chemins d'ecriture issus des sorties d'agents au point d'ecriture <span class="sha">100bffe</span></li><li>fix(vague1/C): PROD-07 — une persistance ratee bloque la finalisation, les echecs non fatals cessent d'etre invisibles <span class="sha">0428e5e</span></li><li>fix(SEC-12): fermer l'inscription non verifiee et rattacher les conversations par revendication <span class="sha">761719f</span></li><li>test(vague1/C): test rouge PROD-07 — une persistance ratee et un expert en echec passent pour un SDS termine <span class="sha">2439c60</span></li><li>fix(vague1/C): GL-10 — une panne RAG alerte l'exploitant et marque l'execution degradee <span class="sha">579796f</span></li><li>docs(vague1/file D): rapport de mission <span class="sha">3a50d97</span></li><li>test(vague1/C): test rouge GL-10 — le RAG tombe en silence, sans alerte ni trace <span class="sha">4527942</span></li><li>fix(SEC-09): borner les destinations reseau sortantes (Salesforce, Git) <span class="sha">34d0159</span></li><li>test(GL-19): harnais Chromium, et mention de livrable lisible <span class="sha">b8ecd54</span></li><li>fix(vague1/C): CAL-01 — delai de job par profil ; CAL-07 — abandon ARQ et annulation cooperative <span class="sha">83546e4</span></li><li>fix(SEC-15): expurger les sorties — corps de validation, journaux git, jeton hors argv <span class="sha">2d1332a</span></li><li>fix(PROD-11): le wizard ne promet plus ce qu'il ne fait pas <span class="sha">1762ab6</span></li><li>docs(vague1/B) : rapport de mission — mesure avant/apres, constats, diffs pour les autres files <span class="sha">6fde54a</span></li><li>test(vague1/C): test rouge CAL-01 (delai de job fixe) et CAL-07 (aucune annulation possible) <span class="sha">8398013</span></li><li>fix(SEC-10): rendre inerte le HTML des livrables et cesser de l'ouvrir dans l'origine du Studio <span class="sha">afedda9</span></li><li>feat(GL-16): purge des conversations Sophie du Studio, et duree reglable <span class="sha">9ac58b7</span></li><li>fix(vague1/C): PROD-06 — la porte ne perd plus la decision, ne 409 plus apres consommation, ne boucle plus <span class="sha">ad28f2c</span></li><li>fix(BILL-07): retirer un code HTTP nu du commentaire de Pricing.tsx <span class="sha">7b7b82b</span></li><li>fix(BILL-09) : budget du concierge tarife, inefacable et reserve atomiquement <span class="sha">de92267</span></li><li>feat(BILL-05/SEC-08): garde serveur unique des ecritures BUILD et fermeture des ecritures Salesforce <span class="sha">c67d2db</span></li><li>fix(GL-18): les trois compteurs de l'ecran d'execution sont mesures <span class="sha">7722108</span></li><li>test(BILL-09) : test rouge — le budget public du concierge est calcule a zero et effacable <span class="sha">b0eefc4</span></li><li>fix(BILL-11): rendre le refus de credits visible la ou le client regarde <span class="sha">f3614f7</span></li><li>fix(BILL-04) : etat Stripe persiste, idempotent, ordonne, avec grace datee sur impaye <span class="sha">b809dc0</span></li><li>fix(PROD-10): aligner les contrats frontend/API sur les operations ordinaires <span class="sha">937d45f</span></li><li>test(vague1/C): test rouge PROD-06 — les portes HITL perdent la decision ou bouclent <span class="sha">c281993</span></li><li>fix(vague1/C): CAL-02 — un job annule ferme l'execution ; CAL-04 — la reprise est une transition legitime <span class="sha">7aae724</span></li><li>test(BILL-04) : test rouge — etat Stripe non robuste ; le gestionnaire leve sur tout evenement reel <span class="sha">4989d47</span></li><li>feat(BILL-06): dialogue authentifie hors projet, le parcours vendu au Free <span class="sha">6c9ecce</span></li><li>test(vague1/C): test rouge CAL-02 (job annule sans trace) et CAL-04 (transition de reprise refusee) <span class="sha">4c17532</span></li><li>fix(SEC-06): un chemin de snapshot SDS par projet, ecriture exclusive et unicite (projet, version) <span class="sha">4b08a2a</span></li><li>fix(vague1/C): PROD-05/CAL-03 — la reprise part du dernier checkpoint ; CAL-05 — un job avec resume_from n'est pas un fantome <span class="sha">bae254c</span></li><li>fix(BILL-10) : un seul ecrivain du cout USD, zero connu distingue d'inconnu <span class="sha">b15dbf9</span></li><li>fix(BILL-07): le produit vendu est celui que le serveur accorde <span class="sha">8d93bd9</span></li><li>test(BILL-10) : test rouge — cout USD ecrit deux fois, zero du local pris pour un cout absent <span class="sha">66042e4</span></li><li>test(vague1/C): test rouge PROD-05/CAL-03 (reprise au dernier checkpoint) et CAL-05 (fantome) <span class="sha">f14b69e</span></li><li>fix(BILL-08) : arrondi au plafond superieur, refus des modeles inconnus, opt-in applique <span class="sha">173d88e</span></li><li>feat(GL-19): bandeau « vous echangez avec une IA » dans les fenetres du Studio <span class="sha">be43563</span></li><li>fix(vague1/C): PROD-04 + CAL-07 — enfilage identifie, file du lancement memorisee et reutilisee <span class="sha">6ee72db</span></li><li>feat(GL-19): mention « contenu genere par IA » sur tous les livrables <span class="sha">d35c4b8</span></li><li>fix(SEC-19): cloisonner la liste des agents et verifier les references secondaires des livrables <span class="sha">64b3c42</span></li><li>test(vague1/C): test rouge — enfilage non identifie (PROD-04) et file non memorisee (CAL-07) <span class="sha">f76d930</span></li><li>test(BILL-08) : test rouge — arrondi au plus proche et modeles inconnus tarifes par ressemblance <span class="sha">9d5cf9e</span></li><li>fix(vague1/C): PROD-04 — ne marquer FAILED que les executions dont le job ARQ est absent <span class="sha">027828e</span></li><li>fix(BILL-01) : reservation atomique des credits sous verrou de la ligne de solde <span class="sha">6430cc0</span></li><li>fix(SEC-05): filtrer le livrable et le BR sur leur tenant dans le chat HITL et l'analyse d'impact <span class="sha">7c91ad2</span></li><li>test(vague1/C): test rouge PROD-04 — le demarrage d'un worker tue les executions des autres <span class="sha">4f9ddd1</span></li><li>test(BILL-01) : test rouge — la reservation de credits n'est pas atomique <span class="sha">41343d5</span></li><li>fix(SEC-11): demonter le routeur blog public, separer titre et options CLI, fermer /ghost-token <span class="sha">d76de68</span></li><li>docs : AS-02 fait — PR #11 fusionnee, verifiee sur le VPS (role dh_test) <span class="sha">9e06aad</span></li><li>docs(vague0/AS-02): README de la suite de tests et rapport de mission <span class="sha">fbc5f60</span></li><li>fix(tests): l'exemple d'URL du message de refus ne porte plus de mot de passe litteral <span class="sha">5d35156</span></li><li>fix(tests): environnement hermetique — base par execution, secrets factices, garde reseau (OPS-05) <span class="sha">4ec6098</span></li><li>fix(config): defauts de chemins evalues a l'instanciation, pas a l'import <span class="sha">b0f7993</span></li><li>fix(agents): AgentIntegrationService ecrit ses sorties dans settings.OUTPUT_DIR <span class="sha">d5b3879</span></li><li>fix(arq): Redis et nom de file lus depuis l'environnement, une seule source <span class="sha">2d355a2</span></li><li>fix(config): DH_ENV_FILE designe le fichier d'environnement lu par main.py et config.py <span class="sha">9614c50</span></li><li>docs : note de reprise 16/09 — etat mesure, prochaines commandes, decisions a dater <span class="sha">22dc6b9</span></li><li>test(vague0/AS-02): tests rouges de l'environnement de correction sur (OPS-05) <span class="sha">7f308b9</span></li><li>docs : DEC-0809-08 NAAIA ajoute au business plan v3 (16/09) <span class="sha">059e076</span></li><li>docs : missions Claude Code vague 1 — quatre files (securite, credits/Stripe, pipeline/reprise, parcours), constats Astra references par ligne, etat mesure 15-16/09, criteres de sortie, cadre commun d integration <span class="sha">de0ed05</span></li><li>docs : GL-13 canal support = Email-to-Case + alias support@ (decision Sam 16/09) <span class="sha">abcc04f</span></li><li>docs : mission Claude Code vague 0 / AS-02 — environnement de correction sur (OPS-05), etat mesure le 16/09, criteres de sortie, livrables <span class="sha">481aa01</span></li><li>docs : backlog go-live — GL-13..GL-19 (issus des decisions du comite), plan a quinze jours en 4 vagues valide sur le tri du 16/09 ; 47 taches comite archivees en base <span class="sha">55f7bc3</span></li><li>docs : backlog go-live — fusion des 41 decisions, 49 taches et 58 constats Astra (tri propose, a valider par Sam) <span class="sha">310dae0</span></li><li>docs : backlog — CAL-06 calibration v1 terminee, 4 SDS publiees et branchees <span class="sha">355f378</span></li><li>docs : backlog — GL-01 profil cloud remis, GL-11 purge faite <span class="sha">0ba428a</span></li><li>sec: purge des secrets par defaut (GL-11) + test de non-regression + phase 5 dans le smoke test <span class="sha">628cd24</span></li><li>config: retour prod apres calibration — job_timeout 3600, gpu_local timeout 600, test_gpu_complet -&gt; nemotron ; profils calib_ark_* et modeles muse/ark conserves inactifs (documentes) <span class="sha">a820a3d</span></li><li>sds: ERD Mermaid — translitteration des identifiants accentues + agrandissement plein ecran des figures <span class="sha">495c2da</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">17 septembre 2026</div>
+        <div class="timeline-title">docs</div>
+        <div class="timeline-desc"><strong>5 commit(s).</strong> <ul class="journal-commits"><li>docs : GL-27 — compte Stripe de production non configure (aucun produit, cles test uniquement), chemin complet d activation ; voies A et B de la section 3.5 precisees <span class="sha">c9001e2</span></li><li>docs : GL-25 contrainte de tresorerie (smoke Pro reporte fin sept.) et section 3.5 — decision de perimetre Free seul / Pro recharge / Pro sur modeles bas cout, avec les couts mesures du 15/09 <span class="sha">c6ee2e0</span></li><li>docs : GL-01 smoke Free verifie (Nemotron), GL-25 credits Anthropic epuises (bloquant Pro), GL-26 persona Olivia <span class="sha">7f9a5d7</span></li><li>docs : GL-23 — prix Pro porte a 79 EUR en sandbox (decision Sam 17/09), verifie sur la page de paiement ; reste a repliquer en production Stripe <span class="sha">caf55c7</span></li><li>docs : backlog — GL-20 ferme (souscription Pro prouvee de bout en bout, idempotence verifiee), GL-21 ferme (migration appliquee), GL-23 ecart de prix Pro 49 vs 79, GL-24 robots.txt, TVA en cours, relecture juridique faite <span class="sha">f20b062</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">30 septembre 2026</div>
+        <div class="timeline-title">docs</div>
+        <div class="timeline-desc"><strong>3 commit(s).</strong> <ul class="journal-commits"><li>docs : ouverture reportee au 15/10 (Free + Pro, refonte, campagne) — plan revise et missions vague 2 (A RAG/donnees, B exploitation, C produit Pro) <span class="sha">388299a</span></li><li>docs : GL-16 ferme — retention 90 j en code et dans la politique de confidentialite <span class="sha">c3d3d64</span></li><li>docs : veille d'ouverture 30/09 — GL-19 deploye et verifie, GL-01 smoke 6/6 + Free Nemotron, GL-10 ferme, GL-16 retention 90 j (politique a completer), voie A de fait <span class="sha">9ad1ff1</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">24 octobre 2026</div>
+        <div class="timeline-title">Tests</div>
+        <div class="timeline-desc"><strong>51 commit(s).</strong> <ul class="journal-commits"><li>Fusion A × B : lecture des PDF par pypdf, mesure du plafond d'envoi adaptée à Starlette 1.x <span class="sha">06241ea</span></li><li>Migration 024 : fusion des têtes Alembic 023a (file A) et 023c (file C) <span class="sha">8f9a555</span></li><li>Rapport vague 2 / file A : reprises D1 et D2 apres revue passe 2 <span class="sha">253073c</span></li><li>Rapport vague 2 / file C : reprises D1 et D2 apres revue passe 2 <span class="sha">c35b680</span></li><li>Reprise D2 (SEC-04) : portée de la re-vérification du classement dite exactement <span class="sha">97730d4</span></li><li>Reprise D1 (RGPD-03) : --reprendre ne déclare plus un succès quand un effacement est bloqué <span class="sha">a07aa9b</span></li><li>Reprises D1 et D2 (CAL-08) : métadonnées nommées et objets de plateforme hors des manques <span class="sha">1616080</span></li><li>Revue independante vague 2 / file B, passe 2 : conforme (7 reprises corrigees, 6 defauts mineurs ouverts) <span class="sha">b8b39d0</span></li><li>Revue indépendante passe 2, vague 2 / file C : à reprendre (R1 rouvre les métadonnées nommées) <span class="sha">7d184fd</span></li><li>Rapport file B : reprises apres revue 1 (7 reprises, commits, preuves) et suite apres <span class="sha">ffc2501</span></li><li>Tests : URL factice assemblee par morceaux (garde des secrets en dur) ; test de presence des tests de rotation sur le VPS (reprise 1) <span class="sha">c75f04d</span></li><li>Rapport vague 2 / file C : section « Reprises après revue 1 » (R1 à R5), chiffres CAL-08 corrigés <span class="sha">aced48a</span></li><li>Reprise 6 (revue 1) : le controle A6 n'affirme plus que to_thread protege la boucle du vrai Chroma <span class="sha">24f8502</span></li><li>Reprise 5 (revue 1) : chemins_montes deplie aussi les routes websocket <span class="sha">868740b</span></li><li>Reprises 4 et 7 (revue 1) : un refus de demarrage SEC-17 ne recopie plus aucune valeur au journal <span class="sha">d2146a4</span></li><li>Reprise R4 (GL-22) : chat projet et chat d'exécution disent le repli Opus → Sonnet au client <span class="sha">439a66a</span></li><li>Reprises 2 et 3 (revue 1) : alerte refusee retentee ; vraies pannes de transport classees <span class="sha">bcca12c</span></li><li>Reprise R5 (GL-22) : le montant présenté est tracé, aussi sur un refus <span class="sha">6927eb0</span></li><li>docs(vague2-A) : revue independante passe 2 — reprises 1 a 4 corrigees, verdict a reprendre (2 defauts mineurs) <span class="sha">d35f670</span></li><li>Reprise R3 (GL-22) : le client envoie la version du texte affiché, le serveur la vérifie et la trace <span class="sha">88e0249</span></li><li>Reprise R2 (CAL-08) : les objets rapprochés et les non-objets sont rendus dans le rapport de couverture du SDS <span class="sha">e820382</span></li><li>Revue independante vague 2 / file B : a reprendre (7 reprises) <span class="sha">9855a10</span></li><li>Reprise R1 (CAL-08) : un objet voisin ou enfant présent ne couvre plus l'objet demandé <span class="sha">1ec18a0</span></li><li>Revue indépendante vague 2 / file C : à reprendre (CAL-08 masque de vrais manques) <span class="sha">efb48e4</span></li><li>docs(vague2-A) : rapport — reprises apres revue 1, mesure sous uvicorn, affirmation fausse corrigee <span class="sha">c9373fc</span></li><li>test(PROD-09, reprise 4) : le garde lot_c detecte un nom disque derive du nom client, quel que soit le nom de variable <span class="sha">426b2fe</span></li><li>fix(RGPD-03, reprise 3) : suppression d'un document sans collection devinee <span class="sha">f933d01</span></li><li>fix(RGPD-03, reprise 2) : un effacement orphelin n'arrete plus la reprise des autres <span class="sha">63d2b03</span></li><li>fix(SEC-04, reprise 1) : le verdict de classement d'une collection est re-verifie, plus garde a vie <span class="sha">8ce1fdd</span></li><li>docs(vague2-A) : revue independante de la file A — verdict a reprendre <span class="sha">d28b8d1</span></li><li>Rapport vague 2 / file B : fait avec preuve, infirme, ouvert, decisions de Sam <span class="sha">c74a817</span></li><li>Rapport vague 2 / file C : GL-22, langue, GL-26, GL-12, CAL-08 — preuves, ouverts, décisions de Sam <span class="sha">c37e6aa</span></li><li>SEC-18 (frontend) : vite 5.4.10 -&gt; 6.4.5 et dependances verrouillees corrigees — npm audit 32 -&gt; 2 (faibles) <span class="sha">d323077</span></li><li>SEC-18 : dependances backend montees (fastapi/starlette/multipart, PyJWT, pypdf, dotenv) — 57 avis -&gt; 7 <span class="sha">6526517</span></li><li>GL-12 : gabarit SDS bilingue selon la langue du projet, excuse interne retirée <span class="sha">6b8c22a</span></li><li>docs(vague2-A) : rapport de la file A (SEC-04, PROD-09, RGPD-03) <span class="sha">d5a7567</span></li><li>test(PROD-09) : le garde textuel SEC-03 de lot_c exige desormais un nom disque genere <span class="sha">63f4715</span></li><li>SDS : le sommaire latéral n'affiche plus les compteurs figés de l'exécution 146 <span class="sha">e6f939f</span></li><li>SEC-17 : defauts surs et cles validees au demarrage (DEBUG, JWT, Fernet, CORS, echo SQL) <span class="sha">b373a3f</span></li><li>fix(RGPD-03) : effacement de compte complet ou rejouable, jamais partiel et definitif <span class="sha">98598b1</span></li><li>CAL-08 : Emma rapproche les objets par sens avant de déclarer un manque ; une métadonnée n'est jamais un objet manquant <span class="sha">a4d43f0</span></li><li>GL-25 + Spark injoignable : alerte admin a la panne et au retour, 503 explicite cote client <span class="sha">82f4860</span></li><li>GL-22 : hors exécution, le repli Opus → Sonnet est dit au client du dialogue Studio <span class="sha">a8d06ff</span></li><li>Langue des agents et GL-26 : la réponse suit la langue de la question, l'historique dit qui a parlé <span class="sha">b14086f</span></li><li>OPS-01 + demarrage en ~2 min : la sonde RAG compte hors du processus de l'API <span class="sha">4b3db14</span></li><li>fix(PROD-09) : upload borne avant lecture du corps, nom disque genere, parseur absent refuse, ingestion bornee par lots <span class="sha">8511943</span></li><li>GL-22 : écran de consentement Opus avant le lancement, repli affiché sur le suivi <span class="sha">47a5f87</span></li><li>GL-22 : consentement Opus par exécution, au montant affiché, repli annoncé sur Sonnet <span class="sha">640f938</span></li><li>OPS-02 : la sonde worker health verifie le worker ; pool Redis ARQ partage <span class="sha">2664b3f</span></li><li>fix(SEC-04) : le RAG global ne rend plus les documents prives, visibilite explicite par chunk <span class="sha">7375a2d</span></li><li>OPS-08 : watchdog, rotation de cle et export de journaux n'annoncent plus un etat faux <span class="sha">1790fc2</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">5 novembre 2026</div>
+        <div class="timeline-title">requirements</div>
+        <div class="timeline-desc"><strong>11 commit(s).</strong> <ul class="journal-commits"><li>CHANGELOG : correctifs du smoke du 05/11 au soir <span class="sha">17c46a3</span></li><li>requirements : epingle transformers 4.57.3, sentence-transformers 5.2.0, tokenizers, huggingface-hub, torch — transformers 5.x cassait l'encodeur Nomic (RAG apex/lwc hors service depuis le deploiement, smoke exec 182). Verifie : encodage 768 dims et requete apex sur chromadb_v2 <span class="sha">c001663</span></li><li>Tests : 30 echecs obsoletes regles — testeur d'agents demonte (SEC-02) : 27 tests HTTP ignores tant que le routeur l'est, reactivation automatique ; test_auth : compte pose par fixture (/register ferme, SEC-12) et 401 sans jeton <span class="sha">5fef75a</span></li><li>Reprise apres annulation : un nouvel enfilage efface la demande d'annulation precedente (smoke exec 181 : reprise 202 puis auto-annulation en 0,3 s) <span class="sha">37c35f8</span></li><li>Marcus as_is : l'existant de l'org arrive enfin a Marcus — catalogue metadata_types remplace par son effectif, champs existants en tete, plafond 15k -&gt; 60k, coupe restante dite dans le texte (smoke exec 181 : 9 champs existants ignores) <span class="sha">56c5c94</span></li><li>Bascule Opus 5 -&gt; 5.5 et Sonnet 5 -&gt; 5.5 (decision Sam, 05/11) : migration 025 (tarif credits identique aux 5, opt-in GL-22 conserve sur Opus) ; test de coherence : tout modele Anthropic route doit avoir un tarif seme par migration <span class="sha">4b74bec</span></li><li>build_guard : la garde lit elle-meme la preuve d'org (SELECT Id, IsSandbox FROM Organization) et accepte une Developer Edition seulement si son identifiant est declare dans DH_SALESFORCE_TEST_ORG_IDS ; le CRM reste refuse <span class="sha">705b184</span></li><li>SalesforceConfig.from_project : alias CLI = nom d'utilisateur (le CLI sf ne resout pas un org id — NamedOrgNotFoundError mesure sur sandbox-build) ; toute lecture d'org de projet echouait en phase 3.0 <span class="sha">38d887a</span></li><li>CHANGELOG : deploiement vague 2 du 05/11/2026 <span class="sha">2160799</span></li><li>cache Anthropic : eligibilite lue dans llm_routing.yaml (prompt_caching), etendue a tous les agents des paliers payants — etait en dur, Marcus seul. Suite : 1319 passes, memes 31 echecs <span class="sha">ea12de1</span></li><li>hook post-commit : ne publie la doc que depuis le dossier de production (les worktrees d agents ne publient plus de branches non relues) <span class="sha">c556f63</span></li></ul></div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-date">15 novembre 2026</div>
+        <div class="timeline-title">Fiabilite des appels LLM</div>
+        <div class="timeline-desc"><strong>15 commit(s).</strong> <ul class="journal-commits"><li>Docs : rapport du smoke SDS + BUILD du 15/11 et CHANGELOG <span class="sha">bab56d3</span></li><li>BUILD : reprise sans refaire une phase deja deployee (BUILD exec 185) <span class="sha">50353d7</span></li><li>BUILD : plafond de sortie 32000 pour Diego et Zara (BUILD exec 185) <span class="sha">25a0e63</span></li><li>BUILD Raj : XML de metadonnees valide par Salesforce (BUILD exec 185) <span class="sha">bfcb6b4</span></li><li>Fiabilite des appels LLM : un client Anthropic async par boucle d'evenements (le client partage entre les boucles creees par complete_sync provoquait « Event loop is closed » : lots d'Olivia perdus, as-is de Marcus vide — smoke exec 183) ; trace complete en cas d'echec ; Emma tolere les champs Salesforce rendus en objet par Olivia <span class="sha">62d7166</span></li><li>Credits : les jetons du cache sont factures au client comme le reste, au ratio du cout fournisseur (ecriture x1,25, lecture x0,10) — decision Sam du 15/11 <span class="sha">1eaaaa2</span></li><li>Doc : page ResetPasswordPage declaree dans frontend_pages.yaml (le generateur de doc refuse une page non documentee) <span class="sha">b03d379</span></li><li>CHANGELOG : lot du 15/11 <span class="sha">b0249cd</span></li><li>Mot de passe oublie (Studio) : lien sur la connexion, page de demande et page de nouveau mot de passe (regle visible, confirmation), FR/EN <span class="sha">6f21f85</span></li><li>Mot de passe oublie (backend) : demande anti-enumeration et limitee, lien signe 30 min a usage unique (empreinte du mot de passe courant), confirmation ; un jeton a usage dedie n'ouvre plus jamais de session <span class="sha">b27a3a2</span></li><li>Inscription : la regle du mot de passe (8 caracteres minimum) reste visible sous le champ et est liee au champ pour les lecteurs d'ecran (elle n'etait qu'un texte indicatif qui disparait a la frappe) <span class="sha">5fda198</span></li><li>Exigences : liste, compteurs, tout valider, export et ordre limites a la derniere execution du projet (plus de doublons a la relance) ; exigence ajoutee a la main rattachee a l'execution courante <span class="sha">016bc01</span></li><li>Retry : le checkpoint commande le point de reprise (comme /resume) — le statut par agent marquait Marcus termine apres sa premiere sous-etape et le retry repartait apres lui (smoke exec 181) <span class="sha">b588bc7</span></li><li>Cache Anthropic : jetons lus/ecrits persistes sur credit_transactions (migration 026) et comptes dans le cout USD (x1,25 ecriture, x0,10 lecture) — ils etaient hors de tokens_input et invisibles <span class="sha">4025a09</span></li><li>Emma : une validation de couverture en echec technique marque l'execution degradee (coverage_unverified) et alerte l'admin, au lieu de sauter le controle en silence (decision Sam, option 2) ; test structurel remplace par des tests de comportement <span class="sha">1aa69fb</span></li></ul></div>
       </div>
     </div>
   </div>
