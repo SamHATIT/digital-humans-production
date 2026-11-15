@@ -22,6 +22,9 @@ pages:
   VerifySignupPage:
     description: Page publique de verification e-mail (verify-then-create, ONBOARDING-002) — confirme le token JWT 30 min et finalise la creation du compte avant insertion en base.
     access: public
+  ResetPasswordPage:
+    description: Mot de passe oublie (15/11/2026) — /forgot-password demande un lien (reponse identique que le compte existe ou non), /reset-password?token= pose le nouveau mot de passe (lien signe 30 min, usage unique).
+    access: public
   Dashboard:
     description: Vue d'ensemble utilisateur — stats, dernières exécutions, raccourcis
     access: protected
