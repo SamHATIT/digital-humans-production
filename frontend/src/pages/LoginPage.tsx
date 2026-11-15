@@ -142,6 +142,12 @@ function LoginInner() {
                   className="w-full bg-ink-3 border border-bone/10 focus:border-brass focus:outline-none px-4 py-3 text-bone placeholder-bone-4 font-mono text-sm transition-colors"
                   placeholder="••••••••"
                 />
+                <Link
+                  to="/forgot-password"
+                  className="inline-block mt-2 font-mono text-[10px] tracking-[0.04em] uppercase text-bone-4 hover:text-brass transition-colors"
+                >
+                  {t('Forgot your password?', 'Mot de passe oublié ?')}
+                </Link>
               </div>
 
               <button

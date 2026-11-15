@@ -321,6 +321,22 @@ export const auth = {
     });
   },
 
+  // 15/11/2026 — mot de passe oublie : demande (reponse identique que le
+  // compte existe ou non) puis confirmation avec le jeton recu par e-mail.
+  passwordResetRequest: async (email: string, lang?: string) => {
+    return apiCall('/api/auth/password-reset-request', {
+      method: 'POST',
+      body: JSON.stringify({ email, ...(lang ? { lang } : {}) }),
+    });
+  },
+
+  passwordResetConfirm: async (token: string, password: string) => {
+    return apiCall('/api/auth/password-reset-confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token, password }),
+    });
+  },
+
   signupConfirm: async (token: string) => {
     // ONBOARDING-002 — step 2: redeem the token, get an access token back.
     return apiCall('/api/auth/signup-confirm', {
