@@ -4,6 +4,8 @@ Transforme les plans JSON Raj en fichiers XML et déploie via SFDX CLI.
 """
 import logging
 import json
+import re
+from xml.sax.saxutils import escape as xml_escape
 import tempfile
 import os
 import subprocess
@@ -97,7 +99,27 @@ def org_est_productive(cible: str, instance_url: str = "") -> bool:
 # Activity : un champ deploye sur Activity apparait sur les deux. Le deployer
 # directement sur Task echoue avec "Enumeration ou ID de l'entite : valeur
 # incorrecte pour le champ de liste de selection restreinte : Task".
-ACTIVITY_CONTAINER = {"task", "event"}
+ACTIVITY_CONTAINER = {"task", "event", "activity"}
+
+# FIX-SUFFIXES-001 (15/11/2026, BUILD exec 185) : un type de metadonnees
+# personnalisees (`__mdt`), un evenement de plateforme (`__e`), un big object
+# (`__b`) ou un objet externe (`__x`) a deja son suffixe. Lui ajouter `__c`
+# donnait `Lead_Scoring_Rule__mdt__c`, refuse par Salesforce.
+SUFFIXES_TYPES_SPECIAUX = ("__mdt", "__e", "__b", "__x")
+
+
+def _x(valeur) -> str:
+    """Echappe une valeur texte pour l'inserer dans un element XML.
+
+    FIX-XML-ECHAPPEMENT-001 (15/11/2026, BUILD exec 185) : la formule
+    `OR(Score__c < 0, Score__c > 100)` etait inseree telle quelle ; le `<`
+    rendait le fichier illisible (« The content of elements must consist of
+    well-formed character data or markup »). Toute valeur venue du plan de Raj
+    passe desormais par ici.
+    """
+    if valeur is None:
+        return ""
+    return xml_escape(str(valeur))
 
 
 def normaliser_objet(nom: str) -> str:
@@ -107,6 +129,8 @@ def normaliser_objet(nom: str) -> str:
     perd le suffixe s'il l'a recu a tort en amont.
     """
     if not nom:
+        return nom
+    if nom.endswith(SUFFIXES_TYPES_SPECIAUX):
         return nom
     base = nom[:-3] if nom.endswith("__c") else nom
     if base.lower() in ACTIVITY_CONTAINER:
@@ -180,6 +204,7 @@ class SFAdminService:
         """
         self.target_org = target_org
         self.created_components: List[Dict[str, str]] = []
+        self.operations_ignorees: List[Dict[str, Any]] = []
         # FIX-PERSIST-001 : ou conserver les metadonnees generees, pour que
         # Jordan les versionne. Sans cela, tempfile les detruit apres le
         # deploiement et rien n'atteint jamais le depot git.
@@ -265,10 +290,9 @@ class SFAdminService:
             op_type = op.get("type", "")
             
             if op_type == "create_object":
-                api_name = op.get("api_name", "")
-                if not api_name.endswith("__c"):
-                    api_name = f"{api_name}__c"
-                objects_data[api_name] = {"object": op, "fields": []}
+                api_name = normaliser_objet(op.get("api_name", ""))
+                objects_data.setdefault(api_name, {"object": None, "fields": []})
+                objects_data[api_name]["object"] = op
                 
             elif op_type == "create_field":
                 obj_name = op.get("object", "")
@@ -310,6 +334,18 @@ class SFAdminService:
             
             elif op_type == "create_sharing_rule":
                 self._generate_sharing_rule(op, temp_dir)
+
+            elif op_type == "create_custom_metadata_record":
+                self._generate_custom_metadata_record(op, temp_dir)
+
+            elif op_type == "create_tab":
+                self._generate_tab(op, temp_dir)
+
+            else:
+                # FIX-OPS-IGNOREES-001 (15/11/2026) : une operation inconnue
+                # etait abandonnee sans un mot. Elle est desormais tracee.
+                logger.warning(f"[SFAdmin] Operation '{op_type}' non prise en charge — ignoree : {op.get('api_name') or op.get('developer_name')}")
+                self.operations_ignorees.append({"type": op_type, "name": op.get("api_name") or op.get("developer_name")})
         
         # Générer les fichiers pour chaque objet
         for obj_name, data in objects_data.items():
@@ -358,10 +394,20 @@ class SFAdminService:
     def _object_to_xml(self, op: Dict) -> str:
         """Convertit une opération create_object en XML."""
         api_name = op.get("api_name", "")
-        label = op.get("label", api_name.replace("__c", ""))
-        plural_label = op.get("plural_label", f"{label}s")
-        description = op.get("description", "")
+        label = _x(op.get("label", api_name.replace("__c", "")))
+        plural_label = _x(op.get("plural_label") or f"{op.get('label', api_name)}s")
+        description = _x(op.get("description", ""))
         sharing_model = op.get("sharing_model", "ReadWrite")
+        if api_name.endswith("__mdt"):
+            # Type de metadonnees personnalisees : ni partage, ni champ Nom,
+            # ni activites ; seulement libelles et visibilite.
+            description_xml = f"\n    <description>{description}</description>" if description else ""
+            return f"""<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">{description_xml}
+    <label>{label}</label>
+    <pluralLabel>{plural_label}</pluralLabel>
+    <visibility>{_x(op.get("visibility", "Public"))}</visibility>
+</CustomObject>"""
         
         # Name field
         name_field_type = op.get("name_field_type", "Text")
@@ -370,12 +416,12 @@ class SFAdminService:
         if name_field_type == "AutoNumber":
             name_field_xml = f"""    <nameField>
         <displayFormat>{name_field_format or f'{api_name[:3].upper()}-{{0000}}'}</displayFormat>
-        <label>{label} Name</label>
+        <label>{_x(op.get("name_field_label")) or f"{label} Name"}</label>
         <type>AutoNumber</type>
     </nameField>"""
         else:
             name_field_xml = f"""    <nameField>
-        <label>{label} Name</label>
+        <label>{_x(op.get("name_field_label")) or f"{label} Name"}</label>
         <type>Text</type>
     </nameField>"""
         
@@ -400,10 +446,10 @@ class SFAdminService:
         if not field_name.endswith("__c"):
             field_name = f"{field_name}__c"
         
-        label = op.get("label", field_name.replace("__c", ""))
+        label = _x(op.get("label", field_name.replace("__c", "")))
         field_type = op.get("field_type", "Text")
         sf_type = self.FIELD_TYPE_MAPPING.get(field_type, "Text")
-        description = op.get("description", "")
+        description = _x(op.get("description", ""))
         required = op.get("required", False)
         
         # Construire le XML selon le type
@@ -456,9 +502,9 @@ class SFAdminService:
                     continue
                 lignes.append(
                     "            <value>\n"
-                    f"                <fullName>{plein}</fullName>\n"
+                    f"                <fullName>{_x(plein)}</fullName>\n"
                     f"                <default>{defaut}</default>\n"
-                    f"                <label>{lib}</label>\n"
+                    f"                <label>{_x(lib)}</label>\n"
                     "            </value>"
                 )
             if lignes:
@@ -503,7 +549,11 @@ class SFAdminService:
             type_specific = f"\n    <referenceTo>{ref_to}</referenceTo>\n    <relationshipName>{relationship_name}</relationshipName>\n    <reparentableMasterDetail>false</reparentableMasterDetail>\n    <writeRequiresMasterRead>false</writeRequiresMasterRead>"
         
         description_xml = f"\n    <description>{description}</description>" if description else ""
+        required = required in (True, "true", "True", 1)
         required_xml = f"\n    <required>{str(required).lower()}</required>"
+        if str(op.get("object", "")).endswith("__mdt"):
+            # Un champ de type de metadonnees exige sa gestion des droits.
+            required_xml += "\n    <fieldManageability>DeveloperControlled</fieldManageability>"
         
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -516,9 +566,7 @@ class SFAdminService:
     
     def _generate_validation_rule(self, op: Dict, temp_dir: str) -> None:
         """Génère un fichier validation rule."""
-        obj_name = op.get("object", "")
-        if not obj_name.endswith("__c"):
-            obj_name = f"{obj_name}__c"
+        obj_name = normaliser_objet(op.get("object", ""))
         
         rule_name = op.get("api_name", op.get("name", ""))
         
@@ -529,13 +577,16 @@ class SFAdminService:
         active = op.get("active", True)
         error_condition = op.get("error_condition_formula", op.get("formula", "false"))
         error_message = op.get("error_message", "Validation error")
+        error_field = op.get("error_field") or op.get("error_display_field")
+        error_field_xml = f"\n    <errorDisplayField>{_x(error_field)}</errorDisplayField>" if error_field else ""
+        active = active in (True, "true", "True", 1)
         
         xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>{rule_name}</fullName>
     <active>{str(active).lower()}</active>
-    <errorConditionFormula>{error_condition}</errorConditionFormula>
-    <errorMessage>{error_message}</errorMessage>
+    <errorConditionFormula>{_x(error_condition)}</errorConditionFormula>{error_field_xml}
+    <errorMessage>{_x(error_message)}</errorMessage>
 </ValidationRule>"""
         
         vr_file = vr_dir / f"{rule_name}.validationRule-meta.xml"
@@ -732,9 +783,7 @@ class SFAdminService:
     
     def _generate_list_view(self, op: Dict, temp_dir: str) -> None:
         """Génère un ListView pour un objet."""
-        obj_name = op.get("object", "")
-        if not obj_name.endswith("__c"):
-            obj_name = f"{obj_name}__c"
+        obj_name = normaliser_objet(op.get("object", ""))
         
         api_name = op.get("api_name", "All")
         label = op.get("label", api_name)
@@ -748,12 +797,12 @@ class SFAdminService:
         list_views_dir = Path(temp_dir) / "force-app" / "main" / "default" / "objects" / obj_name / "listViews"
         list_views_dir.mkdir(parents=True, exist_ok=True)
         
-        columns_xml = "\n".join([f"    <columns>{col}</columns>" for col in filtered_columns])
+        columns_xml = "\n".join([f"    <columns>{_x(col)}</columns>" for col in filtered_columns])
         
         xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <ListView xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>{api_name}</fullName>
-    <label>{label}</label>
+    <label>{_x(label)}</label>
 {columns_xml}
     <filterScope>{filter_scope}</filterScope>
 </ListView>'''
@@ -779,9 +828,9 @@ class SFAdminService:
         xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <Flow xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>59.0</apiVersion>
-    <description>{description}</description>
-    <interviewLabel>{api_name}</interviewLabel>
-    <label>{op.get("label", api_name)}</label>
+    <description>{_x(description)}</description>
+    <interviewLabel>{_x(api_name)}</interviewLabel>
+    <label>{_x(op.get("label", api_name))}</label>
     <processType>{flow_type}</processType>
     <status>Draft</status>
 </Flow>'''
@@ -807,13 +856,13 @@ class SFAdminService:
     <allowedSubmitters>
         <type>owner</type>
     </allowedSubmitters>
-    <description>{op.get("description", "")}</description>
+    <description>{_x(op.get("description", ""))}</description>
     <entryCriteria>
-        <formula>{entry_criteria}</formula>
+        <formula>{_x(entry_criteria)}</formula>
     </entryCriteria>
     <finalApprovalRecordLock>true</finalApprovalRecordLock>
     <finalRejectionRecordLock>false</finalRejectionRecordLock>
-    <label>{op.get("label", api_name)}</label>
+    <label>{_x(op.get("label", api_name))}</label>
     <showApprovalHistory>true</showApprovalHistory>
 </ApprovalProcess>'''
         
@@ -861,9 +910,9 @@ class SFAdminService:
         
         xml_content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>{description}</description>
+    <description>{_x(description)}</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <label>{label}</label>{obj_perms_xml}{field_perms_xml}
+    <label>{_x(label)}</label>{obj_perms_xml}{field_perms_xml}
 </PermissionSet>'''
         
         filepath = perm_sets_dir / f"{api_name}.permissionset-meta.xml"
@@ -873,9 +922,7 @@ class SFAdminService:
 
     def _generate_page_layout(self, op: Dict, temp_dir: str) -> None:
         """Génère un Page Layout."""
-        obj_name = op.get("object", "")
-        if not obj_name.endswith("__c"):
-            obj_name = f"{obj_name}__c"
+        obj_name = normaliser_objet(op.get("object", ""))
         
         api_name = op.get("api_name", f"{obj_name}-Layout")
         sections = op.get("sections", [])
@@ -905,7 +952,7 @@ class SFAdminService:
         <customLabel>true</customLabel>
         <detailHeading>true</detailHeading>
         <editHeading>true</editHeading>
-        <label>{section_label}</label>
+        <label>{_x(section_label)}</label>
         <layoutColumns>{items_xml}
         </layoutColumns>
         <layoutColumns/>
@@ -926,9 +973,7 @@ class SFAdminService:
 
     def _generate_sharing_rule(self, op: Dict, temp_dir: str) -> None:
         """Génère une Sharing Rule."""
-        obj_name = op.get("object", "")
-        if not obj_name.endswith("__c"):
-            obj_name = f"{obj_name}__c"
+        obj_name = normaliser_objet(op.get("object", ""))
         
         api_name = op.get("api_name", "")
         access_level = op.get("access_level", "Read")
@@ -941,7 +986,7 @@ class SFAdminService:
     <sharingCriteriaRules>
         <fullName>{api_name}</fullName>
         <accessLevel>{access_level}</accessLevel>
-        <label>{op.get("label", api_name)}</label>
+        <label>{_x(op.get("label", api_name))}</label>
         <sharedTo>
             <allInternalUsers></allInternalUsers>
         </sharedTo>
@@ -952,6 +997,75 @@ class SFAdminService:
         filepath.write_text(xml_content)
         self.created_components.append({"type": "SharingRule", "name": f"{obj_name}.{api_name}"})
         logger.info(f"[SFAdmin] Generated SharingRule: {obj_name}.{api_name}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # METADONNEES PERSONNALISEES ET ONGLETS (15/11/2026, BUILD exec 185)
+    # ═══════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _valeur_cmt_xml(valeur) -> str:
+        if valeur is None:
+            return '<value xsi:nil="true"/>'
+        if isinstance(valeur, bool):
+            return f'<value xsi:type="xsd:boolean">{str(valeur).lower()}</value>'
+        if isinstance(valeur, (int, float)):
+            return f'<value xsi:type="xsd:double">{valeur}</value>'
+        return f'<value xsi:type="xsd:string">{_x(valeur)}</value>'
+
+    def _generate_custom_metadata_record(self, op: Dict, temp_dir: str) -> None:
+        """Genere un enregistrement de type de metadonnees personnalisees.
+
+        Ces operations etaient abandonnees sans trace : les 10 regles de
+        scoring du BUILD exec 185 n'auraient jamais atteint l'org.
+        """
+        type_name = op.get("object", "")
+        developer_name = op.get("developer_name") or op.get("api_name") or ""
+        if not type_name.endswith("__mdt") or not developer_name:
+            logger.warning(f"[SFAdmin] Enregistrement de metadonnees incomplet — ignore : {type_name}.{developer_name}")
+            self.operations_ignorees.append({"type": "create_custom_metadata_record", "name": f"{type_name}.{developer_name}"})
+            return
+        base = type_name[:-len("__mdt")]
+        label = (op.get("label") or developer_name)[:40]
+        values = op.get("values") or {}
+        if isinstance(values, list):
+            values = {v.get("field"): v.get("value") for v in values if isinstance(v, dict) and v.get("field")}
+        lignes = "".join(
+            f"\n    <values>\n        <field>{_x(champ)}</field>\n        {self._valeur_cmt_xml(valeur)}\n    </values>"
+            for champ, valeur in values.items()
+        )
+        xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <label>{_x(label)}</label>
+    <protected>false</protected>{lignes}
+</CustomMetadata>"""
+        cm_dir = Path(temp_dir) / "force-app" / "main" / "default" / "customMetadata"
+        cm_dir.mkdir(parents=True, exist_ok=True)
+        filepath = cm_dir / f"{base}.{developer_name}.md-meta.xml"
+        filepath.write_text(xml_content, encoding="utf-8")
+        self.created_components.append({"type": "CustomMetadata", "name": f"{base}.{developer_name}"})
+        logger.info(f"[SFAdmin] Generated CustomMetadata: {base}.{developer_name}")
+
+    def _generate_tab(self, op: Dict, temp_dir: str) -> None:
+        """Genere l'onglet d'un objet personnalise."""
+        obj_name = normaliser_objet(op.get("object") or op.get("api_name") or "")
+        if not obj_name.endswith("__c"):
+            logger.warning(f"[SFAdmin] Onglet sur un objet non personnalise — ignore : {obj_name}")
+            self.operations_ignorees.append({"type": "create_tab", "name": obj_name})
+            return
+        motif = op.get("motif") or "Custom57: Building"
+        if not re.match(r"^Custom\d+: [A-Za-z ]+$", str(motif)):
+            motif = "Custom57: Building"
+        xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <customObject>true</customObject>
+    <motif>{_x(motif)}</motif>
+</CustomTab>"""
+        tabs_dir = Path(temp_dir) / "force-app" / "main" / "default" / "tabs"
+        tabs_dir.mkdir(parents=True, exist_ok=True)
+        filepath = tabs_dir / f"{obj_name}.tab-meta.xml"
+        filepath.write_text(xml_content, encoding="utf-8")
+        self.created_components.append({"type": "CustomTab", "name": obj_name})
+        logger.info(f"[SFAdmin] Generated CustomTab: {obj_name}")
 
 
 # Factory function pour créer le service depuis un project_id

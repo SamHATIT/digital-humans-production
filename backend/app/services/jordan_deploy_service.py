@@ -294,8 +294,10 @@ class JordanDeployService:
         branch_name = f"build/phase-{phase}-{phase_name}"
         
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.create_branch(branch_name)
         return {"success": True, "branch_name": branch_name, **result}
@@ -323,8 +325,10 @@ class JordanDeployService:
 """
         
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.create_pr(branch_name, title, body)
         return result
@@ -344,8 +348,10 @@ class JordanDeployService:
     async def merge_pr(self, pr_number: int) -> Dict[str, Any]:
         """Merge une PR."""
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.merge_pr(pr_number)
         return result
@@ -353,8 +359,10 @@ class JordanDeployService:
     async def revert_merge(self, merge_sha: str) -> Dict[str, Any]:
         """Revert un merge en cas d'échec de déploiement."""
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.revert_merge(merge_sha)
         logger.warning(f"[Jordan] Merge {merge_sha[:8]} reverted")
@@ -363,8 +371,10 @@ class JordanDeployService:
     async def tag_phase(self, tag_name: str, message: str) -> Dict[str, Any]:
         """Crée un tag Git."""
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.tag(tag_name, message)
         return result
@@ -372,8 +382,10 @@ class JordanDeployService:
     async def commit_files(self, files: Dict[str, str], message: str) -> Dict[str, Any]:
         """Commit des fichiers."""
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         result = await self.git_service.commit_files(files, message)
         return result
@@ -691,8 +703,10 @@ class JordanDeployService:
             Dict avec résultat du rollback
         """
         if not self.git_service:
-            logger.error(f"[Jordan] ECHEC : " + str("Git service not initialized"))
-            return {"success": False, "error": "Git service not initialized"}
+            # FIX-GIT-OPTIONNEL-001 (15/11/2026) : sans depot Git, le
+            # versionnement est saute ; ce n'est pas un echec de deploiement.
+            logger.info("[Jordan] Pas de depot Git pour ce projet : versionnement ignore")
+            return {"success": False, "skipped": True, "error": "Git service not initialized"}
         
         try:
             result = await self.git_service.revert_merge(merge_sha)
