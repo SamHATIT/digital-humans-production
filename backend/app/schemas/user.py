@@ -93,3 +93,15 @@ class TokenData(BaseModel):
     """Schema for token payload data."""
     user_id: Optional[int] = None
     email: Optional[str] = None
+
+
+class PasswordResetRequest(BaseModel):
+    """Demande de reinitialisation du mot de passe (15/11/2026)."""
+    email: EmailStr
+    lang: str | None = Field(default="fr", max_length=4)
+
+
+class PasswordResetConfirm(BaseModel):
+    """Nouveau mot de passe, avec le jeton recu par e-mail."""
+    token: str = Field(..., min_length=20)
+    password: str = Field(..., min_length=8, max_length=100)

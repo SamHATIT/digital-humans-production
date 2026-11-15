@@ -160,3 +160,33 @@ def send_signup_verification_email(
             body_html=body_html,
         )
     )
+
+
+def send_password_reset_email(
+    *, to_email: str, to_name: str, reset_url: str, lang: str = "fr"
+) -> None:
+    """Compose et envoie l'e-mail de reinitialisation du mot de passe (15/11/2026)."""
+    if lang == "en":
+        subject = "Reset your password · Digital · Humans"
+        avant = (f"Hi {to_name},\n\nSomeone (hopefully you) asked to reset the password of your "
+                 f"Digital · Humans account. Open this link to choose a new one:\n\n")
+        apres = ("\n\nThe link is valid for 30 minutes and works only once. If you didn't ask for "
+                 "this, ignore this email: your password stays unchanged.\n\n— The studio")
+        bouton = "Choose a new password"
+    else:
+        subject = "Réinitialise ton mot de passe · Digital · Humans"
+        avant = (f"Bonjour {to_name},\n\nUne demande de réinitialisation du mot de passe de ton compte "
+                 f"Digital · Humans a été faite. Ouvre ce lien pour en choisir un nouveau :\n\n")
+        apres = ("\n\nLe lien est valable 30 minutes et ne sert qu'une fois. Si tu n'es pas à "
+                 "l'origine de cette demande, ignore ce message : ton mot de passe ne change pas.\n\n— Le studio")
+        bouton = "Choisir un nouveau mot de passe"
+    body_text = avant + reset_url + apres
+    body_html = (
+        f"<p>{avant.replace(chr(10), '<br>')}</p>"
+        f"<p><a href=\"{reset_url}\" style=\"display:inline-block;padding:12px 20px;"
+        f"background:#c8a97e;color:#0a0a0b;text-decoration:none;font-family:monospace;"
+        f"letter-spacing:0.1em;text-transform:uppercase;font-size:11px;\">{bouton}</a></p>"
+        f"<p>{apres.replace(chr(10), '<br>')}</p>"
+    )
+    get_sender().send(EmailMessageSpec(to_email=to_email, to_name=to_name, subject=subject,
+                                       body_text=body_text, body_html=body_html))

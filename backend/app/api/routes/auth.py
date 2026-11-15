@@ -21,7 +21,14 @@ from app.utils.dependencies import get_current_user
 from app.utils.email_token import (
     create_signup_token, decode_signup_token, SignupTokenError,
 )
-from app.services.email_sender import send_signup_verification_email
+from app.services.email_sender import send_signup_verification_email, send_password_reset_email
+from app.schemas.user import PasswordResetRequest, PasswordResetConfirm
+from app.utils.password_reset_token import (
+    PasswordResetTokenError,
+    create_password_reset_token,
+    decode_password_reset_token,
+    empreinte_mot_de_passe,
+)
 from app.rate_limiter import limiter, RateLimits, get_client_ip
 
 logger = logging.getLogger(__name__)
@@ -399,6 +406,75 @@ async def signup_confirm(
         data={"sub": str(new_user.id), "email": new_user.email}
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ==================== MOT DE PASSE OUBLIE (15/11/2026) ====================
+REPONSE_DEMANDE_REINITIALISATION = {
+    "status": "ok",
+    "message": "If an account exists for this address, a reset link is on its way.",
+}
+
+
+@router.post("/password-reset-request", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit(RateLimits.AUTH_PASSWORD_RESET)
+async def password_reset_request(
+    request: Request,
+    response: Response,
+    body: PasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    """Envoie un lien de reinitialisation si le compte existe et est actif.
+
+    Meme reponse dans tous les cas (anti-enumeration), comme signup-request.
+    Le lien vaut 30 minutes et ne sert qu'une fois (empreinte du mot de passe
+    courant dans le jeton).
+    """
+    email = body.email.strip().lower()
+    utilisateur = db.query(User).filter(User.email.ilike(email)).first()
+    if utilisateur is None or not utilisateur.is_active:
+        logger.info("[password-reset] demande pour une adresse sans compte actif")
+        return REPONSE_DEMANDE_REINITIALISATION
+    jeton = create_password_reset_token(
+        user_id=utilisateur.id, email=utilisateur.email,
+        hashed_password=utilisateur.hashed_password,
+    )
+    base_url = os.getenv("STUDIO_PUBLIC_URL", "https://app.digital-humans.fr").rstrip("/")
+    try:
+        send_password_reset_email(
+            to_email=utilisateur.email, to_name=utilisateur.name or "",
+            reset_url=f"{base_url}/reset-password?token={jeton}",
+            lang=(body.lang or "fr"),
+        )
+    except Exception as exc:  # noqa: BLE001 — la reponse ne revele pas l'etat du mailer
+        logger.exception("[password-reset] envoi impossible pour le compte %s : %s", utilisateur.id, exc)
+    return REPONSE_DEMANDE_REINITIALISATION
+
+
+@router.post("/password-reset-confirm")
+@limiter.limit(RateLimits.AUTH_SIGNUP_CONFIRM)
+async def password_reset_confirm(
+    request: Request,
+    response: Response,
+    body: PasswordResetConfirm,
+    db: Session = Depends(get_db),
+):
+    """Pose le nouveau mot de passe. Refus generique sur tout jeton invalide."""
+    refus = HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_or_expired_token")
+    try:
+        payload = decode_password_reset_token(body.token)
+    except PasswordResetTokenError as exc:
+        logger.info("[password-reset] jeton refuse : %s", exc)
+        raise refus
+    utilisateur = db.query(User).filter(User.id == payload["uid"]).first()
+    if (utilisateur is None or not utilisateur.is_active
+            or utilisateur.email.lower() != str(payload["email"]).lower()
+            or empreinte_mot_de_passe(utilisateur.hashed_password) != payload["pwf"]):
+        # compte disparu, adresse changee, ou lien deja utilise (le mot de passe a change)
+        raise refus
+    utilisateur.hashed_password = get_password_hash(body.password)
+    db.commit()
+    logger.info("[password-reset] mot de passe change pour le compte %s", utilisateur.id)
+    return {"status": "ok"}
 
 
 @router.post("/login", response_model=Token)

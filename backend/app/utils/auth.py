@@ -84,6 +84,10 @@ def decode_access_token(token: str) -> Optional[dict]:
     """
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        return payload
     except JWTError:
         return None
+    # 15/11/2026 : un jeton a usage dedie (inscription, reinitialisation du mot
+    # de passe) est signe par la meme cle ; il ne doit jamais ouvrir de session.
+    if isinstance(payload, dict) and payload.get("purpose"):
+        return None
+    return payload
