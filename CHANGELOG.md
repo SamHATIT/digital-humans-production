@@ -5,6 +5,17 @@ Format: [ID] Description | Commit | Date
 
 ---
 
+## 2026-11-15 — Lot de finition avant le smoke de bout en bout
+
+- **Emma** (`1aa69fb`) : une validation de couverture en échec technique marque l'exécution dégradée (`coverage_unverified`) et alerte l'admin (décision Sam, option 2). Le test structurel est remplacé par des tests de comportement.
+- **Cache Anthropic** (`4025a09`) : jetons lus/écrits persistés sur `credit_transactions` (migration 026) et comptés dans le coût USD (×1,25 écriture, ×0,10 lecture).
+- **Retry** (`b588bc7`) : le checkpoint commande le point de reprise, comme `/resume`.
+- **Exigences** (`016bc01`) : liste, compteurs, « tout valider », export et ordre limités à la dernière exécution du projet ; exigence manuelle rattachée à l'exécution courante.
+- **Inscription** (`5fda198`) : règle du mot de passe visible en permanence et liée au champ.
+- **Mot de passe oublié** (`b27a3a2`, `6f21f85`) : demande anti-énumération et limitée, lien signé 30 min à usage unique (empreinte du mot de passe courant), pages Studio FR/EN. Un jeton à usage dédié (inscription, réinitialisation) n'ouvre plus jamais de session.
+- **Exploitation** : alertes admin du backend vers Telegram (bot du comité, accord Sam ; envoi réel vérifié) ; projets 107 et 108 réalignés sur l'org de test `sandbox-build` (ils pointaient l'instance du CRM).
+- **Décision ouverte (Sam)** : les crédits facturés au client ignorent encore les jetons du cache (seul le coût interne les compte).
+
 ## 2026-11-05 (soir) — Correctifs issus du smoke de bout en bout (exécutions 180 à 182)
 
 - **Alias CLI Salesforce** (`38d887a`) : `SalesforceConfig.from_project` passait l'org id au CLI `sf`, qui ne le résout pas (NamedOrgNotFoundError) ; l'analyse d'org de Marcus échouait. Alias = nom d'utilisateur.
