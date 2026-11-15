@@ -381,6 +381,7 @@ function SignupInner() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={8}
+                  aria-describedby="password-regle"
                   className={`w-full bg-ink-3 border focus:outline-none px-4 py-3 text-bone placeholder-bone-4 font-mono text-sm transition-colors ${
                     passwordTooShort
                       ? 'border-error/60 focus:border-error'
@@ -388,11 +389,17 @@ function SignupInner() {
                   }`}
                   placeholder={t('At least 8 characters', 'Au moins 8 caractères')}
                 />
-                {passwordTooShort && (
-                  <p className="mt-2 font-mono text-[10px] tracking-[0.04em] uppercase text-error">
-                    {t('8 characters minimum', 'Minimum 8 caractères')}
-                  </p>
-                )}
+                {/* 15/11/2026 : la regle n'etait qu'un texte indicatif, qui
+                    disparait des la premiere frappe et n'est pas lu par les
+                    lecteurs d'ecran. Elle reste visible sous le champ. */}
+                <p
+                  id="password-regle"
+                  className={`mt-2 font-mono text-[10px] tracking-[0.04em] uppercase ${
+                    passwordTooShort ? 'text-error' : 'text-bone-4'
+                  }`}
+                >
+                  {t('8 characters minimum', 'Minimum 8 caractères')}
+                </p>
               </div>
 
               {/* Confirm Password */}
