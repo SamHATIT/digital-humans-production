@@ -43,3 +43,32 @@ def test_le_reglement_persiste_les_jetons_du_cache(db_session):
                         cache_read_tokens=40_000, cache_creation_tokens=3_000)
     lu = db_session.get(CreditTransaction, tx.id)
     assert lu.cache_read_tokens == 40_000 and lu.cache_creation_tokens == 3_000
+
+
+def test_les_credits_factures_comptent_le_cache():
+    """15/11/2026 — decision Sam : le client paie les jetons du cache comme le reste."""
+    from types import SimpleNamespace
+    from app.services.credit_service import _credits_for_tokens
+    tarif = SimpleNamespace(credits_per_1k_input=1.0, credits_per_1k_output=5.0)
+    sans = _credits_for_tokens(tarif, 1000, 1000)                      # 1 + 5 = 6
+    avec = _credits_for_tokens(tarif, 1000, 1000, cache_read=10_000, cache_creation=8_000)
+    # entree equivalente : 1000 + 8000*1,25 + 10000*0,10 = 12 000 -> 12 + 5 = 17
+    assert sans == 6 and avec == 17
+
+
+def test_le_reglement_debite_le_cache(db_session):
+    from app.models.credit import ModelPricing, TierConfig
+    from app.models.user import User
+    from app.services.credit_service import CreditService
+    u = User(email="cache2@example.com", name="C", hashed_password="x", subscription_tier="pro")
+    db_session.add_all([u, TierConfig(tier_name="pro", monthly_credits=15000, daily_credits_cap=None,
+                                      price_eur_monthly=79, description="pro"),
+                        ModelPricing(model_name="claude-sonnet-5-5", credits_per_1k_input=1.0,
+                                     credits_per_1k_output=5.0, allowed_tiers="pro,team",
+                                     requires_opt_in=False, is_active=True)])
+    db_session.commit()
+    s = CreditService(db_session)
+    resa = s.reserve(user_id=u.id, model="claude-sonnet-5-5", max_tokens=1000)
+    tx = s.settle(reservation_id=resa.id, tokens_in=1000, tokens_out=1000, model="claude-sonnet-5-5",
+                  cache_read_tokens=10_000, cache_creation_tokens=8_000)
+    assert tx.credits_consumed == 17

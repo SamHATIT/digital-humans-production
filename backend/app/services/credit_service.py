@@ -146,8 +146,16 @@ def _normalize_model_name(model: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+#: 15/11/2026 — decision Sam : les jetons du cache sont factures au client
+#: comme le reste, au meme ratio que le cout fournisseur (prix d'entree x1,25
+#: a l'ecriture, x0,10 a la lecture). Ils sont hors de `tokens_in`.
+CREDITS_CACHE_ECRITURE_X = Decimal("1.25")
+CREDITS_CACHE_LECTURE_X = Decimal("0.10")
+
+
 def _credits_for_tokens(
-    pricing: ModelPricing, tokens_in: int, tokens_out: int
+    pricing: ModelPricing, tokens_in: int, tokens_out: int,
+    cache_read: int = 0, cache_creation: int = 0,
 ) -> int:
     """
     Crédits entiers consommés pour un couple (entrée, sortie).
@@ -163,7 +171,12 @@ def _credits_for_tokens(
     Unité publiée : 1 crédit, par appel.
     """
     # Use str() to keep Decimal precision when SQLAlchemy returns NUMERIC as float (SQLite).
-    in_credits = (Decimal(int(tokens_in or 0)) / Decimal(1000)) * Decimal(
+    entree_equivalente = (
+        Decimal(int(tokens_in or 0))
+        + Decimal(int(cache_creation or 0)) * CREDITS_CACHE_ECRITURE_X
+        + Decimal(int(cache_read or 0)) * CREDITS_CACHE_LECTURE_X
+    )
+    in_credits = (entree_equivalente / Decimal(1000)) * Decimal(
         str(pricing.credits_per_1k_input or 0)
     )
     out_credits = (Decimal(int(tokens_out or 0)) / Decimal(1000)) * Decimal(
@@ -407,7 +420,8 @@ class CreditService:
         try:
             tx = self._lock_reservation(reservation_id)
             pricing = self._resolve_pricing(model or tx.model_used)
-            actual = _credits_for_tokens(pricing, tokens_in, tokens_out)
+            actual = _credits_for_tokens(pricing, tokens_in, tokens_out,
+                                         cache_read=cache_read_tokens, cache_creation=cache_creation_tokens)
             balance = self._lock_balance(tx.user_id)
             delta = actual - (tx.credits_consumed or 0)
             balance.used_credits = (balance.used_credits or 0) + delta
